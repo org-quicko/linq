@@ -1,0 +1,11 @@
+node_modules/
+.env
+.env.local
+data/
+*.log
+dist/
+out/
+.next/
+*.tsbuildinfo
+bun.lock
+linq-admin-key.txt

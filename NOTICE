@@ -1,0 +1,13 @@
+linq bundles no third-party data, but downloads one database at runtime.
+
+IP Geolocation by DB-IP — https://db-ip.com
+
+The DB-IP Country Lite database is fetched at boot into LINQ_DATA_DIR and used
+to resolve a click's country. It is licensed under the Creative Commons
+Attribution 4.0 International License:
+
+    https://creativecommons.org/licenses/by/4.0/
+
+The attribution shown in the Admin UI, beside every display of its results,
+satisfies that licence. Removing it ends the grant. Set LINQ_GEO_ENABLED=false
+to switch the download and the lookup off entirely.

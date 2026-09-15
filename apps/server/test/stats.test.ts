@@ -1,0 +1,267 @@
+import { beforeAll, describe, expect, test } from "bun:test"
+import type { StatsBucket } from "@linq/shared"
+import { createHarness, type Harness } from "./helpers/app.ts"
+
+let h: Harness
+let author: { userId: string; key: string }
+let domain: string
+let otherDomain: string
+let linqId: string
+let quietLinqId: string
+
+const at = (iso: string) => new Date(iso)
+
+beforeAll(async () => {
+  h = await createHarness()
+  author = await h.actor("author")
+  domain = await h.createDomain("stats.test", "https://example.com/fallback")
+  otherDomain = await h.createDomain("elsewhere.test")
+
+  const linq = await h.createLinq(author.key, domain, {
+    slug: "tracked",
+    destination: "https://example.com/a",
+  })
+  linqId = linq.id
+  quietLinqId = (await h.createLinq(author.key, domain, { slug: "quiet" })).id
+
+  // Two days of traffic on one linq, with a deliberate spread of dimensions.
+  await h.recordClicks(
+    linqId,
+    domain,
+    { human: 2 },
+    {
+      occurredAt: at("2026-03-01T10:00:00Z"),
+      country: "IN",
+      region: "Gujarat",
+      platform: "android",
+      referer: "https://news.test/",
+      destination: "https://example.com/a",
+    },
+  )
+  await h.recordClicks(
+    linqId,
+    domain,
+    { bot: 1 },
+    {
+      occurredAt: at("2026-03-01T11:00:00Z"),
+      country: "IN",
+      region: "Gujarat",
+      platform: "android",
+      destination: "https://example.com/a",
+    },
+  )
+  await h.recordClicks(
+    linqId,
+    domain,
+    { human: 1 },
+    {
+      occurredAt: at("2026-03-02T09:00:00Z"),
+      country: "US",
+      region: "Ohio",
+      platform: "ios",
+      destination: "https://example.com/b",
+    },
+  )
+
+  // An orphan click on the same domain, and one click on a different domain.
+  await h.recordClicks(
+    null,
+    domain,
+    { human: 1 },
+    {
+      occurredAt: at("2026-03-02T12:00:00Z"),
+      slugRequested: "missing",
+      platform: "desktop",
+    },
+  )
+  await h.recordClicks(
+    null,
+    otherDomain,
+    { human: 1 },
+    {
+      occurredAt: at("2026-03-02T12:00:00Z"),
+      platform: "desktop",
+    },
+  )
+})
+
+const stats = async (path: string, key = author.key): Promise<StatsBucket[]> => {
+  const res = await h.request(path, { key })
+  expect(res.status).toBe(200)
+  return await res.json()
+}
+
+const byKey = (buckets: StatsBucket[]) =>
+  Object.fromEntries(buckets.map((b) => [b.key, { human: b.human, bot: b.bot }]))
+
+describe("GET /api/v1/linqs/:id/stats", () => {
+  test("groups by UTC day, chronologically, splitting human from bot", async () => {
+    const buckets = await stats(`/api/v1/linqs/${linqId}/stats?groupBy=day`)
+    expect(buckets).toEqual([
+      { key: "2026-03-01", human: 2, bot: 1 },
+      { key: "2026-03-02", human: 1, bot: 0 },
+    ])
+  })
+
+  test("groups by every other dimension, busiest first", async () => {
+    expect(byKey(await stats(`/api/v1/linqs/${linqId}/stats?groupBy=country`))).toEqual({
+      IN: { human: 2, bot: 1 },
+      US: { human: 1, bot: 0 },
+    })
+    expect(byKey(await stats(`/api/v1/linqs/${linqId}/stats?groupBy=region`))).toEqual({
+      Gujarat: { human: 2, bot: 1 },
+      Ohio: { human: 1, bot: 0 },
+    })
+    expect(byKey(await stats(`/api/v1/linqs/${linqId}/stats?groupBy=platform`))).toEqual({
+      android: { human: 2, bot: 1 },
+      ios: { human: 1, bot: 0 },
+    })
+    expect(byKey(await stats(`/api/v1/linqs/${linqId}/stats?groupBy=destination`))).toEqual({
+      "https://example.com/a": { human: 2, bot: 1 },
+      "https://example.com/b": { human: 1, bot: 0 },
+    })
+
+    // The busiest bucket leads for a non-day grouping.
+    const platforms = await stats(`/api/v1/linqs/${linqId}/stats?groupBy=platform`)
+    expect(platforms[0].key).toBe("android")
+  })
+
+  test("a dimension that was never recorded buckets under an empty key", async () => {
+    const referers = byKey(await stats(`/api/v1/linqs/${linqId}/stats?groupBy=referer`))
+    expect(referers["https://news.test/"]).toEqual({ human: 2, bot: 0 })
+    expect(referers[""]).toEqual({ human: 1, bot: 1 })
+  })
+
+  test("defaults to grouping by day", async () => {
+    const buckets = await stats(`/api/v1/linqs/${linqId}/stats`)
+    expect(buckets[0].key).toBe("2026-03-01")
+  })
+
+  test("narrows to a time window", async () => {
+    const buckets = await stats(
+      `/api/v1/linqs/${linqId}/stats?from=2026-03-02T00:00:00Z&groupBy=day`,
+    )
+    expect(buckets).toEqual([{ key: "2026-03-02", human: 1, bot: 0 }])
+
+    const upTo = await stats(`/api/v1/linqs/${linqId}/stats?to=2026-03-01T23:59:59Z&groupBy=day`)
+    expect(upTo).toEqual([{ key: "2026-03-01", human: 2, bot: 1 }])
+  })
+
+  test("a linq with no clicks reports nothing rather than failing", async () => {
+    expect(await stats(`/api/v1/linqs/${quietLinqId}/stats`)).toEqual([])
+  })
+
+  test("an unknown linq is a 404, and a bad groupBy a 400", async () => {
+    const missing = await h.request("/api/v1/linqs/00000000-0000-7000-8000-000000000000/stats", {
+      key: author.key,
+    })
+    expect(missing.status).toBe(404)
+
+    const bad = await h.request(`/api/v1/linqs/${linqId}/stats?groupBy=browser`, {
+      key: author.key,
+    })
+    expect(bad.status).toBe(400)
+  })
+
+  test("every role may read stats", async () => {
+    const viewer = await h.actor("viewer")
+    expect((await h.request(`/api/v1/linqs/${linqId}/stats`, { key: viewer.key })).status).toBe(200)
+  })
+})
+
+describe("GET /api/v1/domains/:id/stats", () => {
+  test("covers every click on the domain, orphans included", async () => {
+    const buckets = await stats(`/api/v1/domains/${domain}/stats?groupBy=day`)
+    expect(buckets).toEqual([
+      { key: "2026-03-01", human: 2, bot: 1 },
+      { key: "2026-03-02", human: 2, bot: 0 },
+    ])
+  })
+
+  test("does not leak clicks from another domain", async () => {
+    const buckets = await stats(`/api/v1/domains/${otherDomain}/stats?groupBy=day`)
+    expect(buckets).toEqual([{ key: "2026-03-02", human: 1, bot: 0 }])
+  })
+})
+
+describe("GET /api/v1/stats", () => {
+  test("covers the whole instance by default", async () => {
+    const buckets = await stats("/api/v1/stats?groupBy=day")
+    expect(buckets).toEqual([
+      { key: "2026-03-01", human: 2, bot: 1 },
+      { key: "2026-03-02", human: 3, bot: 0 },
+    ])
+  })
+
+  test("orphan=true is the slice that resolved to no linq", async () => {
+    const buckets = await stats("/api/v1/stats?orphan=true&groupBy=day")
+    expect(buckets).toEqual([{ key: "2026-03-02", human: 2, bot: 0 }])
+  })
+
+  test("orphan and domainId narrow together", async () => {
+    const buckets = await stats(`/api/v1/stats?orphan=true&domainId=${domain}&groupBy=day`)
+    expect(buckets).toEqual([{ key: "2026-03-02", human: 1, bot: 0 }])
+  })
+
+  test("domainId alone matches the per-domain endpoint", async () => {
+    const global = await stats(`/api/v1/stats?domainId=${domain}&groupBy=platform`)
+    const scoped = await stats(`/api/v1/domains/${domain}/stats?groupBy=platform`)
+    expect(global).toEqual(scoped)
+  })
+
+  test("rejects a domainId that is not a uuid", async () => {
+    const res = await h.request("/api/v1/stats?domainId=nope", { key: author.key })
+    expect(res.status).toBe(400)
+  })
+})
+
+describe("GET /api/v1/linqs/:id/clicks", () => {
+  test("returns the raw log newest first, paginated", async () => {
+    const res = await h.request(`/api/v1/linqs/${linqId}/clicks?limit=2`, { key: author.key })
+    expect(res.status).toBe(200)
+    const body = await res.json()
+
+    expect(body).toMatchObject({ total: 4, limit: 2, offset: 0 })
+    expect(body.data).toHaveLength(2)
+    expect(body.data[0].occurredAt).toBe("2026-03-02T09:00:00.000Z")
+    expect(body.data[0]).toMatchObject({
+      linqId,
+      domainId: domain,
+      country: "US",
+      platform: "ios",
+      isBot: false,
+    })
+  })
+
+  test("filters humans from bots", async () => {
+    const humans = await (
+      await h.request(`/api/v1/linqs/${linqId}/clicks?bot=false`, { key: author.key })
+    ).json()
+    expect(humans.total).toBe(3)
+
+    const bots = await (
+      await h.request(`/api/v1/linqs/${linqId}/clicks?bot=true`, { key: author.key })
+    ).json()
+    expect(bots.total).toBe(1)
+    expect(bots.data[0].isBot).toBe(true)
+  })
+
+  test("filters by time window", async () => {
+    const res = await h.request(`/api/v1/linqs/${linqId}/clicks?from=2026-03-02T00:00:00Z`, {
+      key: author.key,
+    })
+    expect((await res.json()).total).toBe(1)
+  })
+
+  test("never returns another linq's clicks, or an orphan", async () => {
+    const res = await h.request(`/api/v1/linqs/${quietLinqId}/clicks`, { key: author.key })
+    expect(await res.json()).toMatchObject({ data: [], total: 0 })
+  })
+
+  test("an unknown linq is a 404", async () => {
+    const res = await h.request("/api/v1/linqs/00000000-0000-7000-8000-000000000000/clicks", {
+      key: author.key,
+    })
+    expect(res.status).toBe(404)
+  })
+})

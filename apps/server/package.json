@@ -1,0 +1,27 @@
+{
+  "name": "@linq/server",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "bun --watch src/main.ts",
+    "start": "bun src/main.ts",
+    "db:generate": "drizzle-kit generate"
+  },
+  "dependencies": {
+    "@hono/zod-validator": "^0.7.4",
+    "@linq/shared": "workspace:*",
+    "drizzle-orm": "^0.44.7",
+    "hono": "^4.10.6",
+    "isbot": "^5.1.32",
+    "maxmind": "^5.0.1",
+    "pino": "^10.3.1",
+    "pino-roll": "^4.0.0",
+    "zod": "^4.1.13"
+  },
+  "devDependencies": {
+    "@electric-sql/pglite": "^0.3.15",
+    "@types/bun": "^1.4.2",
+    "drizzle-kit": "^0.31.6"
+  }
+}

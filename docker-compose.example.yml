@@ -1,0 +1,49 @@
+# Postgres is never inside the linq image. Copy this file, set a real password
+# and a real LINQ_DEFAULT_DOMAIN, then `docker compose up`.
+services:
+  postgres:
+    image: postgres:17
+    environment:
+      POSTGRES_USER: linq
+      POSTGRES_PASSWORD: linq
+      POSTGRES_DB: linq
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U linq"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  linq:
+    build: .
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      DATABASE_URL: postgres://linq:linq@postgres:5432/linq
+      LINQ_DEFAULT_DOMAIN: localhost:3000
+      # Read the generated admin key from `docker compose logs linq` on first boot,
+      # or pin it here before the first start.
+      # LINQ_INITIAL_API_KEY: linq_replace_me
+      # LINQ_GEO_ENABLED: "false"
+      # To use a database you already have, mount it read-only and point at it.
+      # linq then never downloads, and its freshness is yours to manage.
+      # LINQ_GEO_DB_PATH: /geo/dbip-country-lite.mmdb
+      # Logs go to stdout and to /data/logs/linq.log. Client IPs are never
+      # recorded in either; see docs/adr/0003.
+      LINQ_LOG_LEVEL: info
+    ports:
+      - "3000:3000"
+    volumes:
+      - linq-data:/data
+      # /data holds only the log file; /geo holds the geolocation database, which
+      # is re-downloadable. Losing this volume costs one 4 MB fetch at boot.
+      - linq-geo:/geo
+      # …or, with LINQ_GEO_DB_PATH above, supply it instead of the named volume:
+      # - ./dbip-country-lite.mmdb:/geo/dbip-country-lite.mmdb:ro
+
+volumes:
+  postgres-data:
+  linq-data:
+  linq-geo:
