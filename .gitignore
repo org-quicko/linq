@@ -8,4 +8,3 @@ out/
 .next/
 *.tsbuildinfo
 bun.lock
-linq-admin-key.txt
