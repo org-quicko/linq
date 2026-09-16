@@ -1,38 +1,18 @@
-const STORAGE_KEY = "linq.apiKey"
-
-/** Same origin as the Admin UI: Hono serves both from one port. */
-const API_BASE = process.env.NEXT_PUBLIC_LINQ_API ?? "/api"
+import { activeServer, apiBase, disconnect } from "./servers"
 
 /**
- * Where a logged-out visitor lands, spelled with the basePath because the
+ * Where a disconnected visitor lands, spelled with the basePath because the
  * redirect below uses `window.location`, which Next does not rewrite. Every
  * `next/link` and `router` call elsewhere omits it; Next adds it there.
  */
-const LOGIN_PATH = "/admin/"
+const LANDING_PATH = "/admin/"
 
-/** The API key pasted at login. Null in SSG, where there is no browser storage. */
-export function getKey(): string | null {
-  if (typeof window === "undefined") return null
-  try {
-    return window.localStorage.getItem(STORAGE_KEY)
-  } catch {
-    return null
-  }
-}
-
-/** Stores the key for later requests. It never leaves this browser. */
-export function setKey(key: string): void {
-  window.localStorage.setItem(STORAGE_KEY, key)
-}
-
-/** Forgets the key. Called on logout and on any 401. */
-export function clearKey(): void {
-  try {
-    window.localStorage.removeItem(STORAGE_KEY)
-  } catch {
-    // A browser with storage disabled has nothing to clear.
-  }
-}
+/**
+ * The origin serving this page, used when a server carries no URL of its own.
+ * Only a default now: which server a call goes to is decided per request, from
+ * the list in `lib/servers.ts`.
+ */
+const SAME_ORIGIN_BASE = process.env.NEXT_PUBLIC_LINQ_API ?? "/api"
 
 /** An error response from the API, carrying the server's code and status. */
 export class ApiError extends Error {
@@ -48,24 +28,26 @@ export class ApiError extends Error {
 }
 
 /**
- * Calls the linq API with the stored key attached.
+ * Calls the API of whichever server is connected, with its key attached.
  *
- * A 401 means the key was revoked, expired, or its user was disabled, so the
- * key is dropped and the browser is sent back to the login screen: there is no
- * refresh flow to attempt.
+ * A 401 means that server's key was revoked, expired, or its user was disabled,
+ * and there is no refresh flow to attempt. The connection is dropped, but the
+ * record is kept: the URL the user typed is still good, only the key is not, so
+ * throwing it away would make them retype something that was never wrong.
  */
 export async function api<T>(path: string, init: RequestInit = {}): Promise<T> {
+  const server = activeServer()
   const headers = new Headers(init.headers)
-  const key = getKey()
-  if (key) headers.set("authorization", `Bearer ${key}`)
+  if (server) headers.set("authorization", `Bearer ${server.apiKey}`)
   if (init.body && !headers.has("content-type")) headers.set("content-type", "application/json")
 
-  const res = await fetch(`${API_BASE}${path}`, { ...init, headers })
+  const base = server ? apiBase(server) : SAME_ORIGIN_BASE
+  const res = await fetch(`${base}${path}`, { ...init, headers })
 
   if (res.status === 401) {
-    clearKey()
-    if (window.location.pathname !== LOGIN_PATH) window.location.href = LOGIN_PATH
-    throw new ApiError(401, "unauthorized", "Your API key is no longer valid.")
+    disconnect()
+    if (window.location.pathname !== LANDING_PATH) window.location.href = LANDING_PATH
+    throw new ApiError(401, "unauthorized", "That API key is no longer valid.")
   }
 
   if (!res.ok) {

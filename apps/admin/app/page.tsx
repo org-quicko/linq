@@ -1,86 +1,103 @@
 "use client"
 
+import { Plus, Server as ServerIcon } from "lucide-react"
 import { useRouter } from "next/navigation"
-import { type SyntheticEvent, useEffect, useState } from "react"
-import { Field } from "@/components/common"
+import { useEffect, useState } from "react"
+import { ServerForm } from "@/components/server-form"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent } from "@/components/ui/card"
-import { Input } from "@/components/ui/input"
-import { api, getKey, setKey } from "../lib/api"
+import {
+  activeServer,
+  addServer,
+  listServers,
+  migrateLegacyKey,
+  type Server,
+  setActiveServer,
+} from "../lib/servers"
 
 /**
- * The login screen, and the only page that works without a key.
+ * The landing page, and the only one that works without a connection.
  *
  * linq has no passwords: a user never signs in, it acts through a key an admin
- * minted. So "logging in" is pasting that key and checking it against `/me`
- * before storing it, which turns a typo into an error here rather than a broken
- * page later.
+ * minted. So connecting is naming a server, saying where it is, and pasting a
+ * key — checked against that server before it is stored, which turns a typo
+ * into an error here rather than a broken page later.
  */
-export default function LoginPage() {
+export default function LandingPage() {
   const router = useRouter()
-  const [key, setKeyValue] = useState("")
-  const [error, setError] = useState<string | null>(null)
-  const [checking, setChecking] = useState(false)
+  const [servers, setServers] = useState<Server[] | null>(null)
+  const [adding, setAdding] = useState(false)
 
-  // Someone who still holds a valid key never sees this screen.
   useEffect(() => {
-    if (getKey()) router.replace("/links/")
+    // A browser from before the server list had one key and one server.
+    migrateLegacyKey()
+    if (activeServer()) {
+      router.replace("/overview/")
+      return
+    }
+    setServers(listServers())
   }, [router])
 
-  async function onSubmit(event: SyntheticEvent) {
-    event.preventDefault()
-    const candidate = key.trim()
-    if (!candidate) return
+  // Nothing is decided until storage has been read, and a flash of the wrong
+  // screen is worse than a blank moment.
+  if (servers === null) return null
 
-    setChecking(true)
-    setError(null)
-    try {
-      setKey(candidate)
-      await api("/v1/me")
-      router.replace("/links/")
-    } catch (err) {
-      // api() already cleared the key on a 401.
-      setError(err instanceof Error ? err.message : "That key was not accepted.")
-      setChecking(false)
-    }
+  function connect(id: string) {
+    setActiveServer(id)
+    router.replace("/overview/")
   }
+
+  const showForm = adding || servers.length === 0
 
   return (
     <div className="flex min-h-screen items-center justify-center p-6">
       <Card className="w-full max-w-sm">
         <CardContent>
-          <form onSubmit={onSubmit}>
-            <h1 className="font-heading text-lg font-semibold">linq</h1>
-            <p className="mt-1 text-sm text-muted-foreground">
-              Paste an API key to continue. It is stored in this browser only.
-            </p>
+          <h1 className="font-heading text-lg font-semibold">linq</h1>
+          <p className="mt-1 mb-5 text-sm text-muted-foreground">
+            {showForm
+              ? "Add a server to manage. Its details stay in this browser."
+              : "Pick a server to manage."}
+          </p>
 
-            <div className="mt-5 flex flex-col gap-4">
-              <Field label="API key" hint="Starts with linq_. An admin can mint one for you.">
-                <Input
-                  value={key}
-                  onChange={(event) => setKeyValue(event.target.value)}
-                  placeholder="linq_…"
-                  autoComplete="off"
-                  spellCheck={false}
-                  autoFocus
-                />
-              </Field>
-
-              {error ? (
-                <p
-                  className="rounded-md bg-destructive/10 px-3 py-2 text-sm text-destructive"
-                  role="alert"
+          {showForm ? (
+            <ServerForm
+              onSaved={(values) => {
+                addServer(values)
+                router.replace("/overview/")
+              }}
+              onCancel={servers.length > 0 ? () => setAdding(false) : undefined}
+            />
+          ) : (
+            <div className="flex flex-col gap-2">
+              {servers.map((server) => (
+                <button
+                  key={server.id}
+                  type="button"
+                  onClick={() => connect(server.id)}
+                  className="flex items-center gap-3 rounded-md border px-3 py-2.5 text-left transition-colors hover:bg-muted"
                 >
-                  {error}
-                </p>
-              ) : null}
+                  <ServerIcon size={16} className="shrink-0 text-muted-foreground" />
+                  <span className="min-w-0">
+                    <span className="block truncate text-sm font-medium">{server.name}</span>
+                    <span className="block truncate text-xs text-muted-foreground">
+                      {server.apiUrl || "This server"}
+                    </span>
+                  </span>
+                </button>
+              ))}
 
-              <Button type="submit" disabled={checking || !key.trim()}>
-                {checking ? "Checking…" : "Continue"}
+              <Button
+                type="button"
+                variant="outline"
+                onClick={() => setAdding(true)}
+                className="mt-2"
+              >
+                <Plus size={16} />
+                Add a server
               </Button>
             </div>
-          </form>
+          )}
         </CardContent>
       </Card>
     </div>

@@ -27,8 +27,8 @@ import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
 import { TableCell, TableRow } from "@/components/ui/table"
-import { del, patch, post } from "../../lib/api"
-import { useApi } from "../../lib/use-api"
+import { del, patch, post } from "../../../lib/api"
+import { useApi } from "../../../lib/use-api"
 
 const ROLE_OPTIONS = ROLES.map((role) => ({ value: role, label: role }))
 

@@ -11,7 +11,7 @@
     "dev:admin": "bun --filter @linq/admin dev",
     "start": "bun apps/server/src/main.ts",
     "build:admin": "bun --filter @linq/admin build",
-    "test": "bun test apps/server/test",
+    "test": "bun test apps/server/test && bun test apps/admin/test",
     "typecheck": "tsc -b --force",
     "lint": "biome check .",
     "format": "biome check --write .",

@@ -33,7 +33,16 @@ describe.skipIf(!built)("the exported Admin UI at /admin", () => {
   })
 
   test("serves every exported page", async () => {
-    for (const page of ["links", "links/new", "links/detail", "domains", "orphans", "users"]) {
+    for (const page of [
+      "overview",
+      "links",
+      "links/new",
+      "links/detail",
+      "orphans",
+      "settings",
+      "settings/domains",
+      "settings/users",
+    ]) {
       const res = await h.request(`/admin/${page}/`)
       expect(res.status).toBe(200)
     }

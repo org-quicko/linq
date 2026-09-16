@@ -100,7 +100,7 @@ describe("reserved paths", () => {
     // /api/v1/* belongs to the authenticated router, which answers before routing
     // and so does not leak which API paths exist.
     expect((await get("/api/v1/nope")).status).toBe(401)
-    expect((await get("/admin/settings")).status).toBe(404)
+    expect((await get("/admin/not-a-page")).status).toBe(404)
     // Routing is case-sensitive, so this one does reach the redirect handler.
     expect((await get("/API/v1/nope")).status).toBe(404)
 

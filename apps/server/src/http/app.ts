@@ -1,5 +1,6 @@
 import { ApiError } from "@linq/shared"
 import { Hono } from "hono"
+import { cors } from "hono/cors"
 import type { ContentfulStatusCode } from "hono/utils/http-status"
 import pkg from "../../package.json" with { type: "json" }
 import { authenticate } from "../auth/middleware.ts"
@@ -47,6 +48,14 @@ export function createApp({ db, config, geo = noGeo }: AppDeps) {
   })
 
   app.notFound((c) => c.json(ApiError.notFound("resource").toBody(), 404))
+
+  // The Admin UI may be served from another origin entirely: it stores a list of
+  // servers and talks to whichever one is selected. That makes every call a
+  // cross-origin one, and `Authorization` is never a simple header, so each is
+  // preceded by a preflight OPTIONS that must be answered here. Open by design:
+  // a key is still required, and no cookie is ever sent, so there is no ambient
+  // authority for another origin to borrow.
+  app.use("/api/*", cors())
 
   app.get("/api/health", (c) => c.json({ status: "ok", version: pkg.version }))
 
