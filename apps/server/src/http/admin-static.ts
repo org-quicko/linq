@@ -21,7 +21,7 @@ function cacheControl(path: string): string {
 }
 
 /**
- * Serves the exported Admin UI at /home.
+ * Serves the exported Client UI at /home.
  *
  * `trailingSlash` is on in the export, so `/home/links/` maps to
  * `links/index.html`; a path without the slash is tried as a file first and then

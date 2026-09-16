@@ -3,7 +3,7 @@ import { Hono } from "hono"
 import { apiKeys, users } from "../../db/schema.ts"
 import type { Env } from "../env.ts"
 
-/** Identity of the calling key. The Admin UI gates its menus on this. */
+/** Identity of the calling key. The Client UI gates its menus on this. */
 export const meRoutes = new Hono<Env>().get("/", async (c) => {
   const { userId, keyId } = c.var.principal
 

@@ -44,7 +44,7 @@ const CLICKS_HEAD = ["When", "Platform", "Location", "Referrer", "Sent to", ""]
 /**
  * Everything about one link: its settings, its rules, its click history.
  *
- * The id arrives in the query string rather than the path because the Admin UI
+ * The id arrives in the query string rather than the path because the Client UI
  * is a static export, which cannot pre-render a page per link id.
  */
 export default function LinkDetailPage() {

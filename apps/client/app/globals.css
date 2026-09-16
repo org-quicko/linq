@@ -48,7 +48,7 @@
 }
 
 :root {
-  /* A system stack rather than a webfont: the Admin UI is a static export
+  /* A system stack rather than a webfont: the Client UI is a static export
        built inside the image, and next/font/google would make the build need
        network access to render text. */
   --font-sans:

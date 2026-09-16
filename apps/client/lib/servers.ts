@@ -1,7 +1,7 @@
 /**
  * The servers this browser knows about.
  *
- * A server is a linq instance the UI can talk to. The Admin UI is served by one
+ * A server is a linq instance the UI can talk to. The Client UI is served by one
  * of them, but it is not bound to it: a record carries an absolute URL, so the
  * same UI drives an instance anywhere, and the list is what the landing page
  * offers when nothing is connected yet.

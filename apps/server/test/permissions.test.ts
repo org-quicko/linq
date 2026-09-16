@@ -58,7 +58,7 @@ describe("assertCanTransfer", () => {
 })
 
 /**
- * The shared predicates the wrappers above delegate to, and which the Admin UI
+ * The shared predicates the wrappers above delegate to, and which the Client UI
  * reads directly. The matrix is written out rather than derived, so a change to
  * the rules has to be made here too instead of quietly agreeing with itself.
  */

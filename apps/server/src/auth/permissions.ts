@@ -3,7 +3,7 @@ import type { Principal } from "./middleware.ts"
 
 /**
  * The throwing half of the permission rules. The rules themselves live in
- * `@linq/shared`, so the Admin UI decides the same way this does and the two
+ * `@linq/shared`, so the Client UI decides the same way this does and the two
  * cannot drift.
  */
 

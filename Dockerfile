@@ -1,6 +1,6 @@
 # syntax=docker/dockerfile:1
 
-# Stage 1 builds the Admin UI into a static export. Nothing from here ships
+# Stage 1 builds the Client UI into a static export. Nothing from here ships
 # except apps/client/out.
 FROM oven/bun:1.4 AS build
 WORKDIR /app
@@ -13,7 +13,7 @@ RUN bun install --frozen-lockfile
 
 COPY packages/shared/src packages/shared/src
 COPY apps/client apps/client
-RUN bun --filter '@linq/admin' build
+RUN bun --filter '@linq/client' build
 
 # Stage 2 is the runtime: Bun executes the server sources directly, so there is
 # no server bundle step. Postgres is always external; see docker-compose.example.yml.

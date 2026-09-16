@@ -27,7 +27,7 @@ const config: NextConfig = {
   images: { unoptimized: true },
   ...(isDev && basePath
     ? {
-        // :3001 serves nothing but the Admin UI, so its bare root is a dead end
+        // :3001 serves nothing but the Client UI, so its bare root is a dead end
         // that would otherwise 404. Only needed when a basePath moves the app
         // off the root; in production this path belongs to the domain's
         // fallback URL.

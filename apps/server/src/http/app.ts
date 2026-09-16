@@ -49,7 +49,7 @@ export function createApp({ db, config, geo = noGeo }: AppDeps) {
 
   app.notFound((c) => c.json(ApiError.notFound("resource").toBody(), 404))
 
-  // The Admin UI may be served from another origin entirely: it stores a list of
+  // The Client UI may be served from another origin entirely: it stores a list of
   // servers and talks to whichever one is selected. That makes every call a
   // cross-origin one, and `Authorization` is never a simple header, so each is
   // preceded by a preflight OPTIONS that must be answered here. Open by design:
@@ -76,7 +76,7 @@ export function createApp({ db, config, geo = noGeo }: AppDeps) {
 
   app.get("/robots.txt", (c) => c.text("User-agent: *\nDisallow: /api\nDisallow: /home\n"))
 
-  // The exported Admin UI. Before the catch-all, or /home reads as a slug.
+  // The exported Client UI. Before the catch-all, or /home reads as a slug.
   mountAdmin(app)
 
   // Last: the catch-all redirect, so every reserved path above wins the match.

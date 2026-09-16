@@ -14,7 +14,7 @@ The ubiquitous language of linq. Terms only; no implementation details.
 - **Tree**: a Link of kind `tree`. Serves a hosted page (title, description, image) listing Items, in the style of social-media profile link pages.
 - **Item**: an ordered entry on a Tree: a label and a target Link on the same Domain.
 - **OG Preview**: per-Link Open Graph title, description and image, served as HTML to bots so chat and social previews show them.
-- **Server**: one linq instance, as the Admin UI knows it: a name, an absolute URL and a Key, saved in one browser. The UI holds a list and talks to whichever is selected; it never assumes the instance that served it. See docs/adr/0006.
+- **Server**: one linq instance, as the Client UI knows it: a name, an absolute URL and a Key, saved in one browser. The UI holds a list and talks to whichever is selected; it never assumes the instance that served it. See docs/adr/0006.
 - **User**: an owner and principal. Has a Role and a status (active | disabled). Never logs in; acts only through Keys.
 - **Key**: an API key belonging to a User. Shown once, stored hashed. May expire.
 - **Role**: `viewer` < `author` < `editor` < `admin`. Viewer reads; author also creates and manages own Links; editor also manages any Link; admin also manages Domains, Users and Keys.

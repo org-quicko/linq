@@ -2,7 +2,7 @@ import { beforeAll, describe, expect, test } from "bun:test"
 import { createHarness, type Harness } from "./helpers/app.ts"
 
 /**
- * The Admin UI can be served from a different origin than the server it talks
+ * The Client UI can be served from a different origin than the server it talks
  * to, so every API call it makes is cross-origin. `Authorization` is never a
  * simple header, which means the browser sends a preflight first: if that is
  * not answered, nothing the UI does reaches the server at all.

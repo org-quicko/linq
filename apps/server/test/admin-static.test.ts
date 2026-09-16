@@ -13,7 +13,7 @@ beforeAll(async () => {
   h = await createHarness()
 })
 
-describe.skipIf(!built)("the exported Admin UI at /home", () => {
+describe.skipIf(!built)("the exported Client UI at /home", () => {
   test("normalises /home to its trailing-slash form", async () => {
     const res = await h.request("/home")
     expect(res.status).toBe(302)

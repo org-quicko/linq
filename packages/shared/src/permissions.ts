@@ -9,7 +9,7 @@ export type Owned = { ownerId: string }
 /**
  * Every permission rule in linq, in one place.
  *
- * These are pure predicates so that the server and the Admin UI decide the same
+ * These are pure predicates so that the server and the Client UI decide the same
  * way: the server wraps them in the 403-throwing helpers in
  * `apps/server/src/auth/permissions.ts`, and the UI uses them to stop offering
  * an action it already knows will be refused.

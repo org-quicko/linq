@@ -8,10 +8,10 @@
   ],
   "scripts": {
     "dev": "bun --watch apps/server/src/main.ts",
-    "dev:admin": "bun --filter @linq/admin dev",
+    "dev:client": "bun --filter @linq/client dev",
     "start": "bun apps/server/src/main.ts",
-    "build:admin": "bun --filter @linq/admin build",
-    "build:admin:standalone": "bun --filter @linq/admin build:standalone",
+    "build:client": "bun --filter @linq/client build",
+    "build:client:standalone": "bun --filter @linq/client build:standalone",
     "test": "bun test apps/server/test && bun test apps/client/test",
     "typecheck": "tsc -b --force",
     "lint": "biome check .",
