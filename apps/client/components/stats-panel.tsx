@@ -88,8 +88,15 @@ export function StatsPanel({
   const [range, setRange] = useState<Range>("7")
   const horizontal = groupBy !== "day"
 
-  const from =
-    range === "0" ? undefined : new Date(Date.now() - Number(range) * 86_400_000).toISOString()
+  // Memoized on `range` alone: computing this fresh every render (Date.now()
+  // has millisecond precision) would give RTK Query a new query arg on every
+  // render, since it caches by serialized args — an endless refetch loop that
+  // never lets `isFetching` settle back to false.
+  const from = useMemo(
+    () =>
+      range === "0" ? undefined : new Date(Date.now() - Number(range) * 86_400_000).toISOString(),
+    [range],
+  )
 
   const {
     data: stats,
