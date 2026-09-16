@@ -1,7 +1,7 @@
 "use client"
 
-import { GROUP_BY, type GroupBy } from "@linq/shared"
-import { useState } from "react"
+import { GROUP_BY, type GroupBy, type StatsBucket } from "@linq/shared"
+import { useMemo, useState } from "react"
 import {
   Bar,
   BarChart,
@@ -27,8 +27,37 @@ const GROUP_LABELS: Record<GroupBy, string> = {
   slug: "Requested slug",
 }
 
-/** Bars beyond this are dropped: a long tail of referrers reads as noise. */
+/** How far back to query. "0" sends no `from`, i.e. the whole history. */
+const RANGES = [
+  { value: "7", label: "Last 7 days" },
+  { value: "30", label: "Last 30 days" },
+  { value: "90", label: "Last 90 days" },
+  { value: "0", label: "All time" },
+] as const
+type Range = (typeof RANGES)[number]["value"]
+
+/** Ranked dimensions beyond this are dropped: a long tail reads as noise. */
 const MAX_BARS = 20
+/** Days beyond this (only reachable via "All time") are dropped the same way. */
+const MAX_DAYS = 90
+
+/**
+ * One bucket per day in the window. The aggregate only returns days that had a
+ * click, which would otherwise draw a gap-free axis that misreads as
+ * consecutive days.
+ */
+function fillDays(buckets: StatsBucket[], from: string | undefined): StatsBucket[] {
+  if (buckets.length === 0) return buckets
+  const byKey = new Map(buckets.map((bucket) => [bucket.key, bucket]))
+  const d = new Date(`${from?.slice(0, 10) ?? buckets[0].key}T00:00:00Z`)
+  const end = new Date(`${buckets[buckets.length - 1].key}T00:00:00Z`)
+  const out: StatsBucket[] = []
+  for (; d <= end; d.setUTCDate(d.getUTCDate() + 1)) {
+    const key = d.toISOString().slice(0, 10)
+    out.push(byKey.get(key) ?? { key, human: 0, bot: 0 })
+  }
+  return out
+}
 
 /**
  * Charts one stats endpoint, whichever it is.
@@ -36,6 +65,11 @@ const MAX_BARS = 20
  * `path` is the endpoint without its query string, so the same panel serves a
  * link, a domain and the whole instance. `groups` narrows the picker where a
  * grouping would be meaningless, such as destination on the orphan slice.
+ *
+ * Day is charted upright, on a normal horizontal axis, since dates are short
+ * and uniform. Every other grouping is charted sideways, one full-width row
+ * per entity, because a referrer or slug is too long to sit legibly under a
+ * vertical bar.
  */
 export function StatsPanel({
   path,
@@ -51,29 +85,50 @@ export function StatsPanel({
   extraParams?: Record<string, string | undefined>
 }) {
   const [groupBy, setGroupBy] = useState<GroupBy>(initialGroupBy)
+  const [range, setRange] = useState<Range>("7")
+  const horizontal = groupBy !== "day"
+
+  const from =
+    range === "0" ? undefined : new Date(Date.now() - Number(range) * 86_400_000).toISOString()
+
   const {
     data: stats,
     isLoading,
     isFetching,
     error,
-  } = useGetStatsQuery({ path, params: { ...extraParams, groupBy } })
+  } = useGetStatsQuery({ path, params: { ...extraParams, groupBy, from } })
 
-  const buckets = (stats ?? []).slice(0, MAX_BARS).map((bucket) => ({
-    ...bucket,
-    // An empty key means the dimension was never recorded for those clicks.
-    key: bucket.key === "" ? "(not recorded)" : bucket.key,
-  }))
+  const all = stats ?? []
 
-  const totals = (stats ?? []).reduce(
+  const buckets = useMemo(() => {
+    // Ranked dimensions keep the top N; day keeps the most recent N — the
+    // server returns days ascending, so the recent end is the tail.
+    const trimmed = horizontal ? all.slice(0, MAX_BARS) : fillDays(all, from).slice(-MAX_DAYS)
+    return trimmed.map((bucket) => ({
+      ...bucket,
+      // An empty key means the dimension was never recorded for those clicks.
+      key: bucket.key === "" ? "(not recorded)" : bucket.key,
+    }))
+  }, [all, from, horizontal])
+
+  const totals = all.reduce(
     (sum, bucket) => ({ human: sum.human + bucket.human, bot: sum.bot + bucket.bot }),
     { human: 0, bot: 0 },
   )
+
+  const height = horizontal ? Math.max(220, buckets.length * 34) : 288
 
   return (
     <Card>
       <CardHeader className="border-b">
         <CardTitle>{title}</CardTitle>
-        <CardAction>
+        <CardAction className="flex gap-2">
+          <Picker
+            className="w-36"
+            value={range}
+            onChange={(value) => setRange(value as Range)}
+            options={RANGES.map((r) => ({ value: r.value, label: r.label }))}
+          />
           <Picker
             className="w-48"
             value={groupBy}
@@ -87,6 +142,7 @@ export function StatsPanel({
         <p className="mb-3 text-sm text-muted-foreground">
           <strong className="text-foreground tabular-nums">{totals.human}</strong> human ·{" "}
           <span className="tabular-nums">{totals.bot}</span> bot
+          {buckets.length < all.length ? ` — showing top ${buckets.length} of ${all.length}` : null}
         </p>
 
         <QueryState
@@ -98,24 +154,52 @@ export function StatsPanel({
         />
 
         {buckets.length > 0 ? (
-          <div className="h-72 w-full">
+          <div className="w-full" style={{ height }}>
             <ResponsiveContainer width="100%" height="100%">
-              <BarChart data={buckets} margin={{ top: 8, right: 8, bottom: 8, left: 0 }}>
+              <BarChart
+                data={buckets}
+                layout={horizontal ? "vertical" : "horizontal"}
+                margin={{ top: 8, right: 8, bottom: 8, left: 0 }}
+              >
                 {/* Theme tokens, so the chart follows light and dark with the rest. */}
-                <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" vertical={false} />
-                <XAxis
-                  dataKey="key"
-                  tick={{ fontSize: 11, fill: "var(--muted-foreground)" }}
-                  interval="preserveStartEnd"
-                  tickFormatter={(value: string) =>
-                    value.length > 18 ? `${value.slice(0, 17)}…` : value
-                  }
+                <CartesianGrid
+                  strokeDasharray="3 3"
+                  stroke="var(--border)"
+                  horizontal={!horizontal}
+                  vertical={horizontal}
                 />
-                <YAxis
-                  allowDecimals={false}
-                  tick={{ fontSize: 11, fill: "var(--muted-foreground)" }}
-                  width={36}
-                />
+                {horizontal ? (
+                  <>
+                    <XAxis
+                      type="number"
+                      allowDecimals={false}
+                      tick={{ fontSize: 11, fill: "var(--muted-foreground)" }}
+                    />
+                    <YAxis
+                      type="category"
+                      dataKey="key"
+                      width={160}
+                      tick={{ fontSize: 11, fill: "var(--muted-foreground)" }}
+                      tickFormatter={(value: string) =>
+                        value.length > 22 ? `${value.slice(0, 21)}…` : value
+                      }
+                    />
+                  </>
+                ) : (
+                  <>
+                    <XAxis
+                      dataKey="key"
+                      tick={{ fontSize: 11, fill: "var(--muted-foreground)" }}
+                      minTickGap={24}
+                      tickFormatter={(value: string) => value.slice(5)}
+                    />
+                    <YAxis
+                      allowDecimals={false}
+                      tick={{ fontSize: 11, fill: "var(--muted-foreground)" }}
+                      width={36}
+                    />
+                  </>
+                )}
                 <Tooltip
                   contentStyle={{
                     background: "var(--popover)",
@@ -124,8 +208,18 @@ export function StatsPanel({
                   }}
                 />
                 <Legend />
-                <Bar dataKey="human" name="Human" stackId="clicks" fill="var(--chart-1)" />
-                <Bar dataKey="bot" name="Bot" stackId="clicks" fill="var(--chart-2)" />
+                <Bar
+                  dataKey="human"
+                  name="Human"
+                  fill="var(--chart-1)"
+                  radius={horizontal ? [0, 2, 2, 0] : [2, 2, 0, 0]}
+                />
+                <Bar
+                  dataKey="bot"
+                  name="Bot"
+                  fill="var(--chart-2)"
+                  radius={horizontal ? [0, 2, 2, 0] : [2, 2, 0, 0]}
+                />
               </BarChart>
             </ResponsiveContainer>
           </div>
