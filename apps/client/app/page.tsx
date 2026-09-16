@@ -7,6 +7,7 @@ import { ConfirmButton } from "@/components/common"
 import { ServerForm } from "@/components/server-form"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent } from "@/components/ui/card"
+import { appUrl } from "../lib/base-path"
 import {
   activeServer,
   addServer,
@@ -76,7 +77,7 @@ function Servers() {
   function connect(id: string) {
     setActiveServer(id)
     // A hard load, so no page keeps data fetched from the previous server.
-    window.location.href = "/overview/"
+    window.location.href = appUrl("/overview/")
   }
 
   const showForm = adding || servers.length === 0
@@ -101,7 +102,7 @@ function Servers() {
                 variant="outline"
                 size="sm"
                 onClick={() => {
-                  window.location.href = "/overview/"
+                  window.location.href = appUrl("/overview/")
                 }}
               >
                 <ArrowLeft size={14} />
@@ -187,7 +188,7 @@ function Servers() {
                   onSaved={(values) => {
                     addServer(values)
                     // addServer connects to what it added.
-                    window.location.href = "/overview/"
+                    window.location.href = appUrl("/overview/")
                   }}
                   onCancel={servers.length > 0 ? () => setAdding(false) : undefined}
                 />

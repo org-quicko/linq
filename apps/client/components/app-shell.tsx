@@ -34,7 +34,6 @@ const NAV: (NavItem | NavGroup)[] = [
   {
     label: "Links",
     children: [
-      { href: "/links/overview/", label: "Overview", visible: () => true },
       { href: "/links/", label: "Short links", visible: () => true },
       { href: "/orphans/", label: "Orphans", visible: () => true },
       // Trash holds only archived links, and only a purge admin can act on them.
@@ -44,7 +43,6 @@ const NAV: (NavItem | NavGroup)[] = [
   {
     label: "Domains",
     children: [
-      { href: "/domains/overview/", label: "Overview", visible: () => true },
       { href: "/domains/", label: "Domains", visible: () => true },
       // Trash holds only archived domains, and only a purge admin can act on them.
       { href: "/domains/trash/", label: "Trash", visible: can.purge },

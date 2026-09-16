@@ -36,13 +36,11 @@ describe.skipIf(!built)("the exported Admin UI at /home", () => {
     for (const page of [
       "overview",
       "links",
-      "links/overview",
       "links/new",
       "links/detail",
       "links/trash",
       "orphans",
       "domains",
-      "domains/overview",
       "domains/trash",
       "settings/users",
     ]) {
