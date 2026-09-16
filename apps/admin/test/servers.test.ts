@@ -39,7 +39,10 @@ const storage = new MemoryStorage()
 // `window` exactly this way — so it is removed again the moment the suite ends
 // rather than left lying around for whatever test file runs next.
 // biome-ignore lint/suspicious/noExplicitAny: standing in for the browser global
-;(globalThis as any).window = { localStorage: storage, location: { pathname: "/" } }
+;(globalThis as any).window = {
+  localStorage: storage,
+  location: { pathname: "/", origin: "https://served-from.test" },
+}
 
 afterAll(() => {
   // biome-ignore lint/suspicious/noExplicitAny: removing the stub above
@@ -69,18 +72,13 @@ describe("normalizeUrl", () => {
     expect(normalizeUrl("https://linq.example.com///")).toBe("https://linq.example.com")
   })
 
-  test("leaves an empty input empty, which means same-origin", () => {
+  test("leaves an empty input empty, so the form can reject it", () => {
     expect(normalizeUrl("")).toBe("")
     expect(normalizeUrl("   ")).toBe("")
   })
 })
 
 describe("apiBase", () => {
-  test("uses the origin serving the page when no URL is stored", () => {
-    expect(apiBase(null)).toBe("/api")
-    expect(apiBase({ id: "1", name: "n", apiUrl: "", apiKey: "k" })).toBe("/api")
-  })
-
   test("appends /api to an absolute URL", () => {
     expect(apiBase({ id: "1", name: "n", apiUrl: "https://a.test", apiKey: "k" })).toBe(
       "https://a.test/api",
@@ -150,7 +148,7 @@ describe("the server list", () => {
     expect(listServers()).toEqual([])
 
     saveServers([
-      { id: "1", name: "ok", apiUrl: "", apiKey: "k" },
+      { id: "1", name: "ok", apiUrl: "https://a.test", apiKey: "k" },
       // biome-ignore lint/suspicious/noExplicitAny: deliberately malformed
       { id: 2, name: "bad" } as any,
     ])
@@ -159,16 +157,18 @@ describe("the server list", () => {
 })
 
 describe("migrating the single key that came before", () => {
-  test("carries it over as a same-origin server and connects", () => {
+  test("records this page's own origin as an ordinary absolute URL", () => {
     storage.setItem("linq.apiKey", "linq_existing")
 
     expect(migrateLegacyKey()).toBe(true)
 
     const server = activeServer()
     expect(server?.apiKey).toBe("linq_existing")
-    // Same-origin: the old UI could not have been talking to anything else.
-    expect(server?.apiUrl).toBe("")
-    expect(apiBase(server)).toBe("/api")
+    // The old UI could not have been talking to anything but its own origin, so
+    // that is resolved once here — and stored like any other address, not as a
+    // standing same-origin fallback.
+    expect(server?.apiUrl).toBe("https://served-from.test")
+    expect(apiBase(server as NonNullable<typeof server>)).toBe("https://served-from.test/api")
     expect(storage.getItem("linq.apiKey")).toBeNull()
   })
 

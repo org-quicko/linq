@@ -5,6 +5,7 @@ data/
 *.log
 dist/
 out/
+out-standalone/
 .next/
 *.tsbuildinfo
 bun.lock

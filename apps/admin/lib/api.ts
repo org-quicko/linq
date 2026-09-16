@@ -1,18 +1,12 @@
+import { appUrl } from "./base-path"
 import { activeServer, apiBase, disconnect } from "./servers"
 
 /**
- * Where a disconnected visitor lands, spelled with the basePath because the
+ * Where a disconnected visitor lands. Spelled through `appUrl` because the
  * redirect below uses `window.location`, which Next does not rewrite. Every
- * `next/link` and `router` call elsewhere omits it; Next adds it there.
+ * `next/link` and `router` call elsewhere omits the prefix; Next adds it there.
  */
-const LANDING_PATH = "/admin/"
-
-/**
- * The origin serving this page, used when a server carries no URL of its own.
- * Only a default now: which server a call goes to is decided per request, from
- * the list in `lib/servers.ts`.
- */
-const SAME_ORIGIN_BASE = process.env.NEXT_PUBLIC_LINQ_API ?? "/api"
+const LANDING_PATH = appUrl("/")
 
 /** An error response from the API, carrying the server's code and status. */
 export class ApiError extends Error {
@@ -37,12 +31,18 @@ export class ApiError extends Error {
  */
 export async function api<T>(path: string, init: RequestInit = {}): Promise<T> {
   const server = activeServer()
+  // No connection means no address to call: there is no origin this build can
+  // assume. Treated like a 401, because the outcome for the reader is the same.
+  if (!server) {
+    if (window.location.pathname !== LANDING_PATH) window.location.href = LANDING_PATH
+    throw new ApiError(401, "unauthorized", "No server is connected.")
+  }
+
   const headers = new Headers(init.headers)
-  if (server) headers.set("authorization", `Bearer ${server.apiKey}`)
+  headers.set("authorization", `Bearer ${server.apiKey}`)
   if (init.body && !headers.has("content-type")) headers.set("content-type", "application/json")
 
-  const base = server ? apiBase(server) : SAME_ORIGIN_BASE
-  const res = await fetch(`${base}${path}`, { ...init, headers })
+  const res = await fetch(`${apiBase(server)}${path}`, { ...init, headers })
 
   if (res.status === 401) {
     disconnect()

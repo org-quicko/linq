@@ -10,6 +10,7 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
+import { appUrl } from "../lib/base-path"
 import { activeServer, listServers, type Server, setActiveServer } from "../lib/servers"
 
 /**
@@ -38,7 +39,7 @@ export function ServerSwitcher() {
   function switchTo(id: string) {
     if (id === current?.id) return
     setActiveServer(id)
-    window.location.href = "/admin/overview/"
+    window.location.href = appUrl("/overview/")
   }
 
   return (
@@ -53,9 +54,7 @@ export function ServerSwitcher() {
             <span className="block truncate text-sm font-medium">
               {current?.name ?? "No server"}
             </span>
-            <span className="block truncate text-xs text-muted-foreground">
-              {current?.apiUrl || "This server"}
-            </span>
+            <span className="block truncate text-xs text-muted-foreground">{current?.apiUrl}</span>
           </span>
           <ChevronsUpDown size={14} className="shrink-0 text-muted-foreground" />
         </button>
@@ -71,11 +70,11 @@ export function ServerSwitcher() {
         ))}
 
         <DropdownMenuSeparator />
-        <DropdownMenuItem onSelect={() => (window.location.href = "/admin/settings/?add=1")}>
+        <DropdownMenuItem onSelect={() => (window.location.href = appUrl("/?add=1"))}>
           <Plus size={14} />
           Add a server
         </DropdownMenuItem>
-        <DropdownMenuItem onSelect={() => (window.location.href = "/admin/settings/")}>
+        <DropdownMenuItem onSelect={() => (window.location.href = appUrl("/?manage=1"))}>
           <Settings2 size={14} />
           Manage servers
         </DropdownMenuItem>

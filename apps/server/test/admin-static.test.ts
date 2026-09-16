@@ -39,7 +39,6 @@ describe.skipIf(!built)("the exported Admin UI at /admin", () => {
       "links/new",
       "links/detail",
       "orphans",
-      "settings",
       "settings/domains",
       "settings/users",
     ]) {

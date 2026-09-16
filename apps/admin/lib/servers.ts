@@ -21,7 +21,14 @@ export type Server = {
   id: string
   /** The user's own label for it. */
   name: string
-  /** Origin only, no `/api`. Empty means the origin serving this page. */
+  /**
+   * Absolute origin, no `/api` and no trailing slash. Never empty.
+   *
+   * Nothing depends on being hosted by the server it administers: being served
+   * by one grants the UI no implicit address and no implicit credential. That is
+   * what lets the same build run from a linq server at `/admin` and from a
+   * static host at a domain root.
+   */
   apiUrl: string
   apiKey: string
 }
@@ -139,15 +146,19 @@ export function normalizeUrl(input: string): string {
   return `${loopback ? "http" : "https"}://${trimmed}`
 }
 
-/** Where a server's API lives. Empty `apiUrl` keeps the bundled UI same-origin. */
-export function apiBase(server: Server | null): string {
-  return server?.apiUrl ? `${server.apiUrl}/api` : "/api"
+/** Where a server's API lives. */
+export function apiBase(server: Server): string {
+  return `${server.apiUrl}/api`
 }
 
 /**
  * Carries the one server a pre-multi-server browser had into the new list, so
- * an existing user is not silently signed out by this release. Same-origin,
- * because that is the only server the old UI could ever have been talking to.
+ * an existing user is not silently signed out by this release.
+ *
+ * The address it records is this page's own origin, because that is the only
+ * server the old UI could ever have been talking to. Resolving it once, here, is
+ * not the same as keeping a same-origin fallback: what gets stored is an
+ * ordinary absolute URL like every other record.
  *
  * Returns true when it converted something, and is a no-op afterwards.
  */
@@ -161,7 +172,7 @@ export function migrateLegacyKey(): boolean {
   }
   if (!legacy || listServers().length > 0) return false
 
-  addServer({ name: "This server", apiUrl: "", apiKey: legacy })
+  addServer({ name: "This server", apiUrl: window.location.origin, apiKey: legacy })
   try {
     window.localStorage.removeItem(LEGACY_KEY)
   } catch {
@@ -183,7 +194,7 @@ export type ProbeResult =
  * that only pinged health would happily store a typo'd key.
  */
 export async function probeServer(apiUrl: string, apiKey: string): Promise<ProbeResult> {
-  const base = apiUrl ? `${apiUrl}/api` : "/api"
+  const base = `${apiUrl}/api`
 
   let version: string
   try {

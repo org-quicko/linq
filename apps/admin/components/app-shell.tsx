@@ -26,13 +26,6 @@ type NavItem = {
   href: string
   label: string
   visible: (actor: Actor) => boolean
-  /**
-   * Match the path exactly rather than by prefix. Needed only where one entry's
-   * href is a prefix of a sibling's: `/settings/` would otherwise stay lit on
-   * `/settings/domains/`. The prefix default is what keeps "Short links" lit on
-   * `/links/new/` and `/links/detail/`.
-   */
-  exact?: boolean
 }
 
 type NavGroup = { label: string; children: NavItem[] }
@@ -49,11 +42,17 @@ const NAV: (NavItem | NavGroup)[] = [
   },
 ]
 
-/** What you configure. Pinned to the foot of the sidebar, below the divider. */
+/**
+ * What you configure on the connected server. Pinned to the foot of the sidebar,
+ * below the divider.
+ *
+ * Servers themselves are not here: the list of them is browser-local, not part
+ * of any server's configuration, and it lives on the landing page the switcher
+ * below goes to.
+ */
 const SETTINGS: NavGroup = {
   label: "Settings",
   children: [
-    { href: "/settings/", label: "Servers", visible: () => true, exact: true },
     { href: "/settings/domains/", label: "Domains", visible: () => true },
     { href: "/settings/users/", label: "Users", visible: can.manageUsers },
   ],
@@ -215,7 +214,9 @@ function NavLink({
   pathname: string
   nested?: boolean
 }) {
-  const active = item.exact ? pathname === item.href : pathname.startsWith(item.href)
+  // Prefix, not equality: "Short links" stays lit on /links/new/ and
+  // /links/detail/. No nav href is a prefix of another, so nothing double-lights.
+  const active = pathname.startsWith(item.href)
 
   return (
     <Link

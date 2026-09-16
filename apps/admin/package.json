@@ -4,8 +4,9 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "dev": "next dev -p 3001",
-    "build": "next build"
+    "dev": "NEXT_PUBLIC_BASE_PATH=/admin next dev -p 3001",
+    "build": "NEXT_PUBLIC_BASE_PATH=/admin next build",
+    "build:standalone": "rm -rf out-standalone && next build && mv out out-standalone"
   },
   "dependencies": {
     "@linq/shared": "workspace:*",

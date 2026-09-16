@@ -37,12 +37,13 @@ export function ServerForm({
     event.preventDefault()
     const trimmedName = name.trim()
     const trimmedKey = apiKey.trim()
-    if (!trimmedName || !trimmedKey) {
-      setError("A name and an API key are both needed.")
+    // The address is required even when this page was served by the server being
+    // added: nothing here assumes the origin it is hosted on.
+    const apiUrl = normalizeUrl(url)
+    if (!trimmedName || !apiUrl || !trimmedKey) {
+      setError("A name, a server URL and an API key are all needed.")
       return
     }
-
-    const apiUrl = normalizeUrl(url)
     setChecking(true)
     setError(null)
 
@@ -70,7 +71,10 @@ export function ServerForm({
         />
       </Field>
 
-      <Field label="Server URL" hint="Leave empty to use the server hosting this page.">
+      <Field
+        label="Server URL"
+        hint="Where the linq server answers, e.g. https://linq.example.com."
+      >
         <Input
           value={url}
           onChange={(event) => setUrl(event.target.value)}
