@@ -11,44 +11,44 @@ import { Hono } from "hono"
 import { z } from "zod"
 import { assertCanPurge, assertRole } from "../../auth/permissions.ts"
 import type { Db } from "../../db/client.ts"
-import { domains, linqs } from "../../db/schema.ts"
+import { domains, links } from "../../db/schema.ts"
 import { span } from "../../log.ts"
 import type { Env } from "../env.ts"
 import { validate } from "../validate.ts"
 
 const idParam = validate("param", z.object({ id: uuidSchema }))
 
-type DomainRow = { domain: typeof domains.$inferSelect; linqCount: number }
+type DomainRow = { domain: typeof domains.$inferSelect; linkCount: number }
 
-/** Maps a domain row and its active-linq count to the JSON shape the API returns. */
-function toDomain({ domain, linqCount }: DomainRow): Domain {
+/** Maps a domain row and its active-link count to the JSON shape the API returns. */
+function toDomain({ domain, linkCount }: DomainRow): Domain {
   return {
     id: domain.id,
     host: domain.host,
     fallbackUrl: domain.fallbackUrl,
     status: domain.status,
-    linqCount,
+    linkCount,
     createdAt: domain.createdAt.toISOString(),
     updatedAt: domain.updatedAt.toISOString(),
   }
 }
 
 /**
- * Active linqs per domain. Archived ones are excluded because this count is what
+ * Active links per domain. Archived ones are excluded because this count is what
  * decides whether the domain may be archived.
  */
 function domainQuery(db: Db) {
   const counts = db
-    .select({ domainId: linqs.domainId, n: sql<number>`count(*)`.as("n") })
-    .from(linqs)
-    .where(eq(linqs.status, "active"))
-    .groupBy(linqs.domainId)
-    .as("linq_counts")
+    .select({ domainId: links.domainId, n: sql<number>`count(*)`.as("n") })
+    .from(links)
+    .where(eq(links.status, "active"))
+    .groupBy(links.domainId)
+    .as("link_counts")
 
   return db
     .select({
       domain: domains,
-      linqCount: sql<number>`coalesce(${counts.n}, 0)`.mapWith(Number),
+      linkCount: sql<number>`coalesce(${counts.n}, 0)`.mapWith(Number),
     })
     .from(domains)
     .leftJoin(counts, eq(counts.domainId, domains.id))
@@ -69,38 +69,38 @@ function fetchDomain(db: Db, id: string): Promise<Domain> {
 
 /**
  * A purge takes the domain's clicks with it (`clicks.domain_id` is NOT NULL, so
- * they have nowhere to go), so it is refused while **any** linq row still points
+ * they have nowhere to go), so it is refused while **any** link row still points
  * at the domain — archived ones included, unlike the archive check above.
  */
-function assertNoLinqsAtAll(db: Db, domainId: string): Promise<void> {
+function assertNoLinksAtAll(db: Db, domainId: string): Promise<void> {
   return span(
-    "domain.assertNoLinqsAtAll",
+    "domain.assertNoLinksAtAll",
     async () => {
       const [remaining] = await db
-        .select({ id: linqs.id })
-        .from(linqs)
-        .where(eq(linqs.domainId, domainId))
+        .select({ id: links.id })
+        .from(links)
+        .where(eq(links.domainId, domainId))
         .limit(1)
       if (remaining) {
-        throw ApiError.conflict("domain still has linqs; purge them first")
+        throw ApiError.conflict("domain still has links; purge them first")
       }
     },
     { in: { domainId } },
   )
 }
 
-/** An archived domain stops serving, so it may never strand an active linq. */
-function assertNoActiveLinqs(db: Db, domainId: string): Promise<void> {
+/** An archived domain stops serving, so it may never strand an active link. */
+function assertNoActiveLinks(db: Db, domainId: string): Promise<void> {
   return span(
-    "domain.assertNoActiveLinqs",
+    "domain.assertNoActiveLinks",
     async () => {
       const [stranded] = await db
-        .select({ id: linqs.id })
-        .from(linqs)
-        .where(and(eq(linqs.domainId, domainId), eq(linqs.status, "active")))
+        .select({ id: links.id })
+        .from(links)
+        .where(and(eq(links.domainId, domainId), eq(links.status, "active")))
         .limit(1)
       if (stranded) {
-        throw ApiError.conflict("domain still has active linqs; archive them first")
+        throw ApiError.conflict("domain still has active links; archive them first")
       }
     },
     { in: { domainId } },
@@ -126,7 +126,7 @@ export const domainRoutes = new Hono<Env>()
       .returning()
     if (!row) throw ApiError.conflict(`domain ${body.host} already exists`)
 
-    return c.json(toDomain({ domain: row, linqCount: 0 }), 201)
+    return c.json(toDomain({ domain: row, linkCount: 0 }), 201)
   })
 
   .get("/:id", idParam, async (c) => c.json(await fetchDomain(c.var.db, c.req.valid("param").id)))
@@ -137,7 +137,7 @@ export const domainRoutes = new Hono<Env>()
     const patch = c.req.valid("json")
 
     await fetchDomain(c.var.db, id)
-    if (patch.status === "archived") await assertNoActiveLinqs(c.var.db, id)
+    if (patch.status === "archived") await assertNoActiveLinks(c.var.db, id)
 
     await c.var.db
       .update(domains)
@@ -152,7 +152,7 @@ export const domainRoutes = new Hono<Env>()
     const { id } = c.req.valid("param")
 
     await fetchDomain(c.var.db, id)
-    await assertNoActiveLinqs(c.var.db, id)
+    await assertNoActiveLinks(c.var.db, id)
 
     await c.var.db
       .update(domains)
@@ -173,7 +173,7 @@ export const domainRoutes = new Hono<Env>()
     if (domain.status !== "archived") {
       throw ApiError.conflict("archive the domain before purging it")
     }
-    await assertNoLinqsAtAll(c.var.db, id)
+    await assertNoLinksAtAll(c.var.db, id)
 
     await span("domain.purge", async () => c.var.db.delete(domains).where(eq(domains.id, id)), {
       in: { domainId: id, host: domain.host },

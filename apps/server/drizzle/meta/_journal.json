@@ -15,6 +15,13 @@
       "when": 1789476081516,
       "tag": "0001_orphan_clicks_on_purge",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1789480000000,
+      "tag": "0002_linqs_to_links",
+      "breakpoints": true
     }
   ]
 }

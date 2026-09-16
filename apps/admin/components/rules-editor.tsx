@@ -34,22 +34,22 @@ function blankCondition(type: ConditionType): Condition {
 }
 
 /**
- * Edits the ordered rule list of one linq.
+ * Edits the ordered rule list of one link.
  *
  * The whole list is sent as one PUT because that is the shape of the endpoint:
  * the server owns `position` and assigns it from array order, so reordering here
  * is just moving an item in the array.
  *
- * `readOnly` hides every control for someone who may not edit this linq; the
+ * `readOnly` hides every control for someone who may not edit this link; the
  * server refuses the write in any case.
  */
 export function RulesEditor({
-  linqId,
+  linkId,
   rules,
   readOnly,
   onSaved,
 }: {
-  linqId: string
+  linkId: string
   rules: Rule[]
   readOnly: boolean
   onSaved: () => void
@@ -81,7 +81,7 @@ export function RulesEditor({
   async function save() {
     setSaving(true)
     try {
-      await put(`/v1/linqs/${linqId}/rules`, drafts)
+      await put(`/v1/links/${linkId}/rules`, drafts)
       setDirty(false)
       toast.success("Rules saved.")
       onSaved()
@@ -121,7 +121,7 @@ export function RulesEditor({
       <CardContent>
         <p className="mb-3 text-sm text-muted-foreground">
           The first rule whose conditions all hold supplies the destination. No match falls back to
-          the linq&apos;s own destination.
+          the link&apos;s own destination.
         </p>
 
         {drafts.length === 0 ? (

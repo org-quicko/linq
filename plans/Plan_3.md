@@ -1,4 +1,4 @@
-# linq — Plan 3: keyless geolocation, and an admin purge
+# link — Plan 3: keyless geolocation, and an admin purge
 
 Follows `plans/Plan_2.md`, which is implemented.
 
@@ -105,7 +105,7 @@ credential, so that entire leak class disappears rather than being re-guarded.
   drop it if unwanted.
 - **Attribution**, required by CC BY 4.0. A small "IP Geolocation by DB-IP" link
   under the charts in `apps/admin/components/stats-panel.tsx` and under the clicks
-  table in `apps/admin/app/linqs/detail/page.tsx` — the pages that display
+  table in `apps/admin/app/links/detail/page.tsx` — the pages that display
   results, which is what the licence asks for — plus a `NOTICE` file carrying the
   attribution and licence URI.
 
@@ -137,36 +137,36 @@ No new status. `RESOURCE_STATUSES` stays `["active", "archived"]` —
 **archived is the soft delete**. Purge is a separate operation that destroys an
 already-archived row.
 
-- `DELETE /api/v1/linqs/:id/purge` — admin only. 404 unknown, **409 unless
+- `DELETE /api/v1/links/:id/purge` — admin only. 404 unknown, **409 unless
   already archived**, 204 on success.
 - `DELETE /api/v1/domains/:id/purge` — admin only. 404 unknown, 409 unless
-  archived, 409 while any linq row exists on it (**any status**, not just
+  archived, 409 while any link row exists on it (**any status**, not just
   active), 204 on success.
 
 Archive then purge, always two deliberate steps, so a live short URL can never be
 destroyed by one call. The extra path segment means neither route can be shadowed
 by the existing `DELETE /:id`.
 
-| | Linq purge | Domain purge |
+| | Link purge | Domain purge |
 |---|---|---|
 | Slug | **released**, reusable on that domain | n/a |
-| Rules | cascade away (`rules.linqId` is already `cascade`) | n/a |
+| Rules | cascade away (`rules.linkId` is already `cascade`) | n/a |
 | Clicks | **survive as orphans** | **destroyed** with the domain |
-| Blocked by | not being archived | not archived, or any linq row remaining |
+| Blocked by | not being archived | not archived, or any link row remaining |
 
 The asymmetry is forced, not chosen: `clicks.domainId` is `NOT NULL`, so a click
 has nowhere to go once its domain is gone.
 
 ### The one schema change
 
-`apps/server/src/db/schema.ts:114` — `clicks.linqId` is `{ onDelete: "cascade" }`,
+`apps/server/src/db/schema.ts:114` — `clicks.linkId` is `{ onDelete: "cascade" }`,
 which would silently destroy the history a purge is meant to preserve. It becomes
 `{ onDelete: "set null" }`. The column is already nullable and
-`clicks_orphan_occurred_idx` already indexes `WHERE linq_id IS NULL`, so the
+`clicks_orphan_occurred_idx` already indexes `WHERE link_id IS NULL`, so the
 orphan shape is waiting to receive them. Generate the migration with
 `bun --filter @linq/server db:generate`.
 
-`linqs.domainId` stays `restrict` — it already enforces the domain guard at the
+`links.domainId` stays `restrict` — it already enforces the domain guard at the
 database level, and the application check exists to turn that into a 409 rather
 than a driver error. `clicks.domainId` stays `cascade`, which is what takes the
 clicks with the domain.
@@ -177,11 +177,11 @@ clicks with the domain.
   following the existing pure-predicate pattern.
   `apps/server/src/auth/permissions.ts` wraps it in a throwing helper alongside
   `assertCanEdit`.
-- `apps/server/src/http/api/linqs.ts`, `.../domains.ts` — the two routes, beside
+- `apps/server/src/http/api/links.ts`, `.../domains.ts` — the two routes, beside
   the existing `DELETE /:id`.
 - `apps/admin/components/common.tsx` — a stricter `ConfirmButton` variant that
   requires typing the slug or host before its confirm button enables.
-- `apps/admin/app/linqs/detail/page.tsx`, `apps/admin/app/domains/page.tsx` — a
+- `apps/admin/app/links/detail/page.tsx`, `apps/admin/app/domains/page.tsx` — a
   Purge control, admins only, on archived resources only.
 
 No audit table and no extra logging: the request middleware already records the
@@ -190,14 +190,14 @@ actor, route and status for every call.
 ### Documentation
 
 - **Amend** `docs/adr/0002-archive-instead-of-delete.md`: the purge it foresaw
-  now exists, admin-only and archived-first, and **purging a linq releases its
+  now exists, admin-only and archived-first, and **purging a link releases its
   slug** — the anti-hijacking guarantee being consciously traded away.
 - `CONTEXT.md` — two entries become false:
   - `:20` **Archived** — no longer "the **terminal** status", and "Nothing is
     hard-deleted" no longer holds.
   - `:6` **Slug** — "Reserved forever once used" becomes reserved for as long as
-    the Linq row exists.
-  - Add **Purge**: the irreversible destruction of an archived Linq or Domain,
+    the Link row exists.
+  - Add **Purge**: the irreversible destruction of an archived Link or Domain,
     distinct from archiving.
 
 ---
@@ -208,7 +208,7 @@ The two halves are independent. Geo first, because it is smaller and
 self-contained.
 
 1. Geo swap, then delete the MaxMind plumbing and the tar reader.
-2. The `clicks.linqId` migration.
+2. The `clicks.linkId` migration.
 3. Purge routes, predicate, tests.
 4. Admin UI: attribution footer, purge control.
 
@@ -234,15 +234,15 @@ from DB-IP's documentation, not by loading the file.**
 
 **Purge.** New tests, each mirroring one that pins today's behaviour:
 
-- Purging a non-archived linq is 409; a non-admin is 403.
-- **Purging frees the slug** — the deliberate inverse of `linqs.test.ts:45-62`
+- Purging a non-archived link is 409; a non-admin is 403.
+- **Purging frees the slug** — the deliberate inverse of `links.test.ts:45-62`
   ("refuses a slug already taken… archived ones included"), which must itself stay
   green, since archiving still does not release a slug.
-- Purging a linq leaves its clicks with `linqId` null, reachable through the
+- Purging a link leaves its clicks with `linkId` null, reachable through the
   orphan slice — the inverse of `rules.test.ts:211-219`, which proves archive
   leaves rules alone.
-- Purging a linq removes its rules.
-- Purging a domain is 409 while any linq row exists, archived ones included.
+- Purging a link removes its rules.
+- Purging a domain is 409 while any link row exists, archived ones included.
 - Purging a domain removes its clicks, and global totals shrink accordingly.
 
 ## Risks

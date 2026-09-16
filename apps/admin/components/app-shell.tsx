@@ -22,7 +22,7 @@ type Me = { user: { id: string; name: string; role: Role }; keyPrefix: string | 
  * `window.location`, which Next does not touch.
  */
 const NAV: { href: string; label: string; visible: (actor: Actor) => boolean }[] = [
-  { href: "/linqs/", label: "Linqs", visible: () => true },
+  { href: "/links/", label: "Links", visible: () => true },
   { href: "/domains/", label: "Domains", visible: () => true },
   { href: "/orphans/", label: "Orphans", visible: () => true },
   { href: "/users/", label: "Users", visible: can.manageUsers },
@@ -71,7 +71,7 @@ export function AppShell({
     <div className="min-h-screen">
       <header className="border-b bg-card">
         <div className="mx-auto flex max-w-6xl flex-wrap items-center gap-x-6 gap-y-2 px-4 py-3">
-          <Link href="/linqs/" className="font-heading text-base font-semibold">
+          <Link href="/links/" className="font-heading text-base font-semibold">
             linq
           </Link>
 
@@ -126,9 +126,9 @@ function NotPermitted({ role }: { role: Role }) {
         This page needs a more privileged role than <strong>{role}</strong>. Ask an admin if you
         need it.
       </p>
-      <Link href="/linqs/" className="mt-4 inline-block">
+      <Link href="/links/" className="mt-4 inline-block">
         <Button type="button" variant="outline">
-          Back to linqs
+          Back to links
         </Button>
       </Link>
     </div>

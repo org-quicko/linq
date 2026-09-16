@@ -18,30 +18,30 @@ export type Owned = { ownerId: string }
  * gate, and it is applied to every request regardless of what the UI showed.
  */
 export const can = {
-  /** Anyone who may own a linq may create one. */
-  createLinq: (actor: Actor): boolean => roleAtLeast(actor.role, "author"),
+  /** Anyone who may own a link may create one. */
+  createLink: (actor: Actor): boolean => roleAtLeast(actor.role, "author"),
 
   /**
    * Editors and admins act on anything; an author acts on what it owns. A viewer
-   * that happens to own a linq, through a transfer, still cannot change it.
+   * that happens to own a link, through a transfer, still cannot change it.
    */
-  editLinq: (actor: Actor, linq: Owned): boolean =>
+  editLink: (actor: Actor, link: Owned): boolean =>
     roleAtLeast(actor.role, "editor") ||
-    (actor.userId === linq.ownerId && roleAtLeast(actor.role, "author")),
+    (actor.userId === link.ownerId && roleAtLeast(actor.role, "author")),
 
   /**
-   * Handing a linq to someone else. An editor may change any linq but hands over
-   * only its own; reassigning someone else's linq is an admin move.
+   * Handing a link to someone else. An editor may change any link but hands over
+   * only its own; reassigning someone else's link is an admin move.
    *
-   * Strictly narrower than `editLinq`, which the server checks first.
+   * Strictly narrower than `editLink`, which the server checks first.
    */
-  transferLinq: (actor: Actor, linq: Owned): boolean =>
-    actor.role === "admin" || (actor.userId === linq.ownerId && roleAtLeast(actor.role, "author")),
+  transferLink: (actor: Actor, link: Owned): boolean =>
+    actor.role === "admin" || (actor.userId === link.ownerId && roleAtLeast(actor.role, "author")),
 
   /**
-   * Destroying an archived Linq or Domain for good. Admin only, and deliberately
-   * not implied by `manageDomains` or `editLinq`: it is irreversible, and for a
-   * linq it releases the slug that archiving reserves. See docs/adr/0002.
+   * Destroying an archived Link or Domain for good. Admin only, and deliberately
+   * not implied by `manageDomains` or `editLink`: it is irreversible, and for a
+   * link it releases the slug that archiving reserves. See docs/adr/0002.
    */
   purge: (actor: Actor): boolean => actor.role === "admin",
 

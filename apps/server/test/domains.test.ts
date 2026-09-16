@@ -26,7 +26,7 @@ describe("POST /api/v1/domains", () => {
       host: "links.example.com",
       fallbackUrl: "https://example.com/home",
       status: "active",
-      linqCount: 0,
+      linkCount: 0,
     })
   })
 
@@ -56,29 +56,29 @@ describe("GET /api/v1/domains", () => {
     expect(res.status).toBe(200)
     const body = await res.json()
     expect(body.total).toBeGreaterThan(0)
-    expect(body.data[0]).toHaveProperty("linqCount")
+    expect(body.data[0]).toHaveProperty("linkCount")
   })
 
-  test("counts only active linqs", async () => {
+  test("counts only active links", async () => {
     const domain = await h.createDomain("counted.test")
     const author = await h.actor("author")
-    const kept = await h.createLinq(author.key, domain, { slug: "kept" })
-    await h.createLinq(author.key, domain, { slug: "dropped" })
+    const kept = await h.createLink(author.key, domain, { slug: "kept" })
+    await h.createLink(author.key, domain, { slug: "dropped" })
 
     const before = await (await h.request(`/api/v1/domains/${domain}`, { key: admin.key })).json()
-    expect(before.linqCount).toBe(2)
+    expect(before.linkCount).toBe(2)
 
-    await h.request(`/api/v1/linqs/${kept.id}`, { key: author.key, method: "DELETE" })
+    await h.request(`/api/v1/links/${kept.id}`, { key: author.key, method: "DELETE" })
     const after = await (await h.request(`/api/v1/domains/${domain}`, { key: admin.key })).json()
-    expect(after.linqCount).toBe(1)
+    expect(after.linkCount).toBe(1)
   })
 })
 
 describe("archiving a domain", () => {
-  test("is refused with 409 while an active linq exists", async () => {
+  test("is refused with 409 while an active link exists", async () => {
     const domain = await h.createDomain("busy.test")
     const author = await h.actor("author")
-    const linq = await h.createLinq(author.key, domain, { slug: "busy" })
+    const link = await h.createLink(author.key, domain, { slug: "busy" })
 
     const viaDelete = await h.request(`/api/v1/domains/${domain}`, {
       key: admin.key,
@@ -89,8 +89,8 @@ describe("archiving a domain", () => {
     const viaPatch = await h.patch(`/api/v1/domains/${domain}`, admin.key, { status: "archived" })
     expect(viaPatch.status).toBe(409)
 
-    // Archiving the last active linq clears the way.
-    await h.request(`/api/v1/linqs/${linq.id}`, { key: author.key, method: "DELETE" })
+    // Archiving the last active link clears the way.
+    await h.request(`/api/v1/links/${link.id}`, { key: author.key, method: "DELETE" })
     const retry = await h.request(`/api/v1/domains/${domain}`, { key: admin.key, method: "DELETE" })
     expect(retry.status).toBe(200)
     expect(await retry.json()).toMatchObject({ status: "archived" })
@@ -108,12 +108,12 @@ describe("archiving a domain", () => {
     expect(await back.json()).toMatchObject({ status: "active" })
   })
 
-  test("a linq cannot be created on an archived domain", async () => {
+  test("a link cannot be created on an archived domain", async () => {
     const domain = await h.createDomain("closed.test")
     await h.request(`/api/v1/domains/${domain}`, { key: admin.key, method: "DELETE" })
 
     const author = await h.actor("author")
-    const res = await h.post("/api/v1/linqs", author.key, {
+    const res = await h.post("/api/v1/links", author.key, {
       domainId: domain,
       destination: "https://example.com",
     })

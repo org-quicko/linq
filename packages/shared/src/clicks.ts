@@ -30,14 +30,14 @@ export const statsQuerySchema = z.object({
 })
 
 export const globalStatsQuerySchema = statsQuerySchema.extend({
-  /** Restrict to clicks that resolved to no linq. */
+  /** Restrict to clicks that resolved to no link. */
   orphan: z.enum(["true", "false"]).default("false"),
   domainId: uuidSchema.optional(),
 })
 
 export type Click = {
   id: string
-  linqId: string | null
+  linkId: string | null
   domainId: string
   slugRequested: string
   occurredAt: string

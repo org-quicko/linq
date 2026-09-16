@@ -28,12 +28,12 @@ describe.skipIf(!built)("the exported Admin UI at /admin", () => {
   })
 
   test("serves a page both with and without its trailing slash", async () => {
-    expect((await h.request("/admin/linqs/")).status).toBe(200)
-    expect((await h.request("/admin/linqs")).status).toBe(200)
+    expect((await h.request("/admin/links/")).status).toBe(200)
+    expect((await h.request("/admin/links")).status).toBe(200)
   })
 
   test("serves every exported page", async () => {
-    for (const page of ["linqs", "linqs/new", "linqs/detail", "domains", "orphans", "users"]) {
+    for (const page of ["links", "links/new", "links/detail", "domains", "orphans", "users"]) {
       const res = await h.request(`/admin/${page}/`)
       expect(res.status).toBe(200)
     }

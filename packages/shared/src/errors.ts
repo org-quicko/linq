@@ -45,7 +45,7 @@ export class ApiError extends Error {
     }
   }
 
-  /** 404. `what` names the resource, e.g. `notFound("linq")`. */
+  /** 404. `what` names the resource, e.g. `notFound("link")`. */
   static notFound(what: string) {
     return new ApiError("not_found", `${what} not found`)
   }

@@ -12,7 +12,7 @@ import { useApi } from "../../lib/use-api"
 const ANY_DOMAIN = "__any__"
 
 /**
- * Clicks that resolved to no linq: an unknown slug, an archived linq, or a bare
+ * Clicks that resolved to no link: an unknown slug, an archived link, or a bare
  * visit to the domain root.
  *
  * Grouping by requested slug is the point of the page — it is what turns "some
@@ -33,7 +33,7 @@ function Orphans() {
       <div>
         <h1 className="font-heading text-xl font-semibold">Orphan clicks</h1>
         <p className="text-sm text-muted-foreground">
-          Requests that hit a live domain but matched no active linq.
+          Requests that hit a live domain but matched no active link.
         </p>
       </div>
 

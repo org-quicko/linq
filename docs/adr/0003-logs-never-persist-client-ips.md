@@ -4,11 +4,11 @@
 
 ## Context
 
-linq now writes structured logs to a rotating file under `LINQ_DATA_DIR`, a mounted volume that survives restarts and is retained for `LINQ_LOG_MAX_SIZE × LINQ_LOG_RETAIN` of history. A conventional HTTP access log records the client address on every line.
+link now writes structured logs to a rotating file under `LINQ_DATA_DIR`, a mounted volume that survives restarts and is retained for `LINQ_LOG_MAX_SIZE × LINQ_LOG_RETAIN` of history. A conventional HTTP access log records the client address on every line.
 
 ADR 0001 keeps the client IP out of the clicks table, so that clicks are not personal data and need no anonymisation, retention or access rules. A request log carrying the same address would put that personal data back on disk, for the same requests, and quietly reverse 0001 for the product as a whole — the table would stay clean while the volume next to it held the addresses.
 
-The redirect path is also where the request log is least ordinary: a linq forwards arbitrary customer query strings, which the log would otherwise copy verbatim.
+The redirect path is also where the request log is least ordinary: a link forwards arbitrary customer query strings, which the log would otherwise copy verbatim.
 
 ## Decision
 

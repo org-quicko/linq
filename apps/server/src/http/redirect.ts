@@ -6,7 +6,7 @@ import { detectBot } from "../clicks/bot.ts"
 import { detectPlatform } from "../clicks/platform.ts"
 import { recordClick } from "../clicks/record.ts"
 import type { Db } from "../db/client.ts"
-import { domains, linqs } from "../db/schema.ts"
+import { domains, links } from "../db/schema.ts"
 import { reqLog, span } from "../log.ts"
 import { matchRules } from "../rules/match.ts"
 import { listRules } from "../rules/store.ts"
@@ -39,19 +39,19 @@ function findActiveDomain(db: Db, hostHeader: string) {
   )
 }
 
-/** Looks up the linq a slug points at on one domain. Archived linqs are invisible here. */
-function findActiveLinq(db: Db, domainId: string, slug: string) {
+/** Looks up the link a slug points at on one domain. Archived links are invisible here. */
+function findActiveLink(db: Db, domainId: string, slug: string) {
   return span(
-    "linq.findActive",
+    "link.findActive",
     async () => {
       const [row] = await db
         .select()
-        .from(linqs)
-        .where(and(eq(linqs.domainId, domainId), eq(linqs.slug, slug), eq(linqs.status, "active")))
+        .from(links)
+        .where(and(eq(links.domainId, domainId), eq(links.slug, slug), eq(links.status, "active")))
         .limit(1)
       return row ?? null
     },
-    { in: { domainId, slug }, out: (linq) => ({ linqId: linq?.id ?? null }) },
+    { in: { domainId, slug }, out: (link) => ({ linkId: link?.id ?? null }) },
   )
 }
 
@@ -109,7 +109,7 @@ export const redirectHandler = factory.createHandlers(async (c) => {
   // HEAD is answered exactly like GET but never tracked.
   const tracked = c.req.method === "GET"
   const userAgent = c.req.header("user-agent") ?? null
-  const linq = slug ? await findActiveLinq(c.var.db, domain.id, slug) : null
+  const link = slug ? await findActiveLink(c.var.db, domain.id, slug) : null
 
   const click = {
     domainId: domain.id,
@@ -122,31 +122,31 @@ export const redirectHandler = factory.createHandlers(async (c) => {
     ...c.var.geo.lookup(clientIp(c)),
   }
 
-  // 3. Root path, unknown slug or archived linq: an orphan click on a live domain.
-  if (!linq) {
+  // 3. Root path, unknown slug or archived link: an orphan click on a live domain.
+  if (!link) {
     const destination = domain.fallbackUrl
-    if (tracked) recordClick(c.var.db, { ...click, linqId: null, destination })
+    if (tracked) recordClick(c.var.db, { ...click, linkId: null, destination })
     if (!destination) return c.text("Not Found", 404)
     return sendRedirect(c, destination)
   }
 
   // 4-5. Build the match context, then let the first rule whose conditions all
-  //      hold supply the destination. No match falls back to the linq default.
-  const ruled = matchRules(await listRules(c.var.db, linq.id), {
+  //      hold supply the destination. No match falls back to the link default.
+  const ruled = matchRules(await listRules(c.var.db, link.id), {
     platform: click.platform,
     query: url.searchParams,
     country: click.country,
   })
-  const chosen = ruled ?? linq.destination
+  const chosen = ruled ?? link.destination
   // `matchRules` is synchronous and on the hot path, so it gets one line rather
   // than a span; which branch won is the only part worth recording.
-  reqLog().debug({ linqId: linq.id, matchedRule: ruled !== null }, "rules matched")
+  reqLog().debug({ linkId: link.id, matchedRule: ruled !== null }, "rules matched")
 
-  // 6. Forward the incoming query when the linq asks for it.
-  const destination = linq.forwardQuery ? mergeQuery(chosen, url.searchParams) : chosen
+  // 6. Forward the incoming query when the link asks for it.
+  const destination = link.forwardQuery ? mergeQuery(chosen, url.searchParams) : chosen
 
   // 8. Insert after the response is built, and never await it.
-  if (tracked) recordClick(c.var.db, { ...click, linqId: linq.id, destination })
+  if (tracked) recordClick(c.var.db, { ...click, linkId: link.id, destination })
 
   return sendRedirect(c, destination)
 })

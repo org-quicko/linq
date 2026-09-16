@@ -36,6 +36,6 @@ export const rulesPutSchema = z.array(ruleInputSchema).max(50)
 
 export type Rule = RuleInput & {
   id: string
-  linqId: string
+  linkId: string
   position: number
 }

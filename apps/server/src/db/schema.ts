@@ -62,10 +62,10 @@ export const domains = pgTable("domains", {
 
 /**
  * A slug is unique per domain and is never released: archiving keeps the row so
- * a dead link cannot be hijacked by a new linq. See docs/adr/0002.
+ * a dead link cannot be hijacked by a new one. See docs/adr/0002.
  */
-export const linqs = pgTable(
-  "linqs",
+export const links = pgTable(
+  "links",
   {
     id: uuid("id").primaryKey(),
     domainId: uuid("domain_id")
@@ -84,10 +84,10 @@ export const linqs = pgTable(
     updatedAt,
   },
   (t) => [
-    uniqueIndex("linqs_domain_slug_key").on(t.domainId, t.slug),
-    index("linqs_owner_id_idx").on(t.ownerId),
-    index("linqs_status_idx").on(t.status),
-    index("linqs_tags_idx").using("gin", t.tags),
+    uniqueIndex("links_domain_slug_key").on(t.domainId, t.slug),
+    index("links_owner_id_idx").on(t.ownerId),
+    index("links_status_idx").on(t.status),
+    index("links_tags_idx").using("gin", t.tags),
   ],
 )
 
@@ -96,22 +96,22 @@ export const rules = pgTable(
   "rules",
   {
     id: uuid("id").primaryKey(),
-    linqId: uuid("linq_id")
+    linkId: uuid("link_id")
       .notNull()
-      .references(() => linqs.id, { onDelete: "cascade" }),
+      .references(() => links.id, { onDelete: "cascade" }),
     position: integer("position").notNull(),
     destination: text("destination").notNull(),
     conditions: jsonb("conditions").$type<Condition[]>().notNull(),
   },
-  (t) => [uniqueIndex("rules_linq_position_key").on(t.linqId, t.position)],
+  (t) => [uniqueIndex("rules_link_position_key").on(t.linkId, t.position)],
 )
 
-/** One row per request. `linq_id` null means an orphan click. */
+/** One row per request. `link_id` null means an orphan click. */
 export const clicks = pgTable(
   "clicks",
   {
     id: uuid("id").primaryKey(),
-    linqId: uuid("linq_id").references(() => linqs.id, { onDelete: "set null" }),
+    linkId: uuid("link_id").references(() => links.id, { onDelete: "set null" }),
     domainId: uuid("domain_id")
       .notNull()
       .references(() => domains.id, { onDelete: "cascade" }),
@@ -128,10 +128,10 @@ export const clicks = pgTable(
     query: jsonb("query").$type<Record<string, string[]>>(),
   },
   (t) => [
-    index("clicks_linq_occurred_idx").on(t.linqId, t.occurredAt.desc()),
+    index("clicks_link_occurred_idx").on(t.linkId, t.occurredAt.desc()),
     index("clicks_domain_occurred_idx").on(t.domainId, t.occurredAt.desc()),
-    index("clicks_orphan_occurred_idx").on(t.occurredAt.desc()).where(sql`${t.linqId} is null`),
+    index("clicks_orphan_occurred_idx").on(t.occurredAt.desc()).where(sql`${t.linkId} is null`),
   ],
 )
 
-export const schema = { users, apiKeys, domains, linqs, rules, clicks }
+export const schema = { users, apiKeys, domains, links, rules, clicks }

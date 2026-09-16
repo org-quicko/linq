@@ -20,7 +20,7 @@ export type Domain = {
   host: string
   fallbackUrl: string | null
   status: "active" | "archived"
-  linqCount: number
+  linkCount: number
   createdAt: string
   updatedAt: string
 }

@@ -10,10 +10,10 @@ import { reqLog, withRequestLog } from "../log.ts"
 import { mountAdmin } from "./admin-static.ts"
 import { clickRoutes } from "./api/clicks.ts"
 import { domainRoutes } from "./api/domains.ts"
-import { linqRoutes, tagRoutes } from "./api/linqs.ts"
+import { linkRoutes, tagRoutes } from "./api/links.ts"
 import { meRoutes } from "./api/me.ts"
 import { ruleRoutes } from "./api/rules.ts"
-import { domainStatsRoutes, globalStatsRoutes, linqStatsRoutes } from "./api/stats.ts"
+import { domainStatsRoutes, globalStatsRoutes, linkStatsRoutes } from "./api/stats.ts"
 import { keyRoutes, userRoutes } from "./api/users.ts"
 import type { Env } from "./env.ts"
 import { redirectHandler } from "./redirect.ts"
@@ -55,10 +55,10 @@ export function createApp({ db, config, geo = noGeo }: AppDeps) {
   v1.route("/me", meRoutes)
   v1.route("/domains", domainRoutes)
   v1.route("/domains", domainStatsRoutes)
-  v1.route("/linqs", linqRoutes)
-  v1.route("/linqs", ruleRoutes)
-  v1.route("/linqs", clickRoutes)
-  v1.route("/linqs", linqStatsRoutes)
+  v1.route("/links", linkRoutes)
+  v1.route("/links", ruleRoutes)
+  v1.route("/links", clickRoutes)
+  v1.route("/links", linkStatsRoutes)
   v1.route("/stats", globalStatsRoutes)
   v1.route("/tags", tagRoutes)
   v1.route("/users", userRoutes)

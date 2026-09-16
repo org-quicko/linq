@@ -47,8 +47,8 @@ describe("domain resolution", () => {
   test("an archived domain is an untracked 404 for everything", async () => {
     const admin = await h.actor("admin")
     const closed = await h.createDomain("closed.test")
-    const linq = await h.createLinq(author.key, closed, { slug: "live" })
-    await h.request(`/api/v1/linqs/${linq.id}`, { key: author.key, method: "DELETE" })
+    const link = await h.createLink(author.key, closed, { slug: "live" })
+    await h.request(`/api/v1/links/${link.id}`, { key: author.key, method: "DELETE" })
     await h.request(`/api/v1/domains/${closed}`, { key: admin.key, method: "DELETE" })
 
     const before = await clickCount()
@@ -58,24 +58,24 @@ describe("domain resolution", () => {
   })
 
   test("a row without a port also answers a request carrying one", async () => {
-    const linq = await h.createLinq(author.key, domain, { slug: "ported" })
+    const link = await h.createLink(author.key, domain, { slug: "ported" })
     const res = await get("/ported", { host: `${HOST}:8443` })
     expect(res.status).toBe(302)
-    expect(res.headers.get("location")).toBe(linq.destination)
+    expect(res.headers.get("location")).toBe(link.destination)
   })
 
   test("a row that carries a port matches that host verbatim", async () => {
     const local = await h.createDomain("localhost:3000")
-    const linq = await h.createLinq(author.key, local, { slug: "dev" })
+    const link = await h.createLink(author.key, local, { slug: "dev" })
     const res = await get("/dev", { host: "localhost:3000" })
     expect(res.status).toBe(302)
-    expect(res.headers.get("location")).toBe(linq.destination)
-    expect(linq.shortUrl).toBe("http://localhost:3000/dev")
+    expect(res.headers.get("location")).toBe(link.destination)
+    expect(link.shortUrl).toBe("http://localhost:3000/dev")
   })
 })
 
 describe("reserved paths", () => {
-  test("are answered by linq itself and never tracked", async () => {
+  test("are answered by link itself and never tracked", async () => {
     const before = await clickCount()
 
     // robots.txt is served, /admin normalises to its trailing-slash form, and the
@@ -112,13 +112,13 @@ describe("reserved paths", () => {
     const res = await get("/marketing/spring")
     expect(res.status).toBe(302)
     expect(await clickCount()).toBe(before + 1)
-    expect(await lastClick()).toMatchObject({ linqId: null, slugRequested: "marketing/spring" })
+    expect(await lastClick()).toMatchObject({ linkId: null, slugRequested: "marketing/spring" })
   })
 })
 
-describe("redirecting an active linq", () => {
+describe("redirecting an active link", () => {
   test("302s with no-store and records the click", async () => {
-    const linq = await h.createLinq(author.key, domain, {
+    const link = await h.createLink(author.key, domain, {
       slug: "hello",
       destination: "https://example.com/landing",
     })
@@ -131,7 +131,7 @@ describe("redirecting an active linq", () => {
     expect(res.headers.get("cache-control")).toBe("no-store")
 
     expect(await lastClick()).toMatchObject({
-      linqId: linq.id,
+      linkId: link.id,
       domainId: domain,
       slugRequested: "hello",
       destination: "https://example.com/landing",
@@ -143,14 +143,14 @@ describe("redirecting an active linq", () => {
     })
   })
 
-  test("an archived linq falls through to an orphan click", async () => {
-    const linq = await h.createLinq(author.key, domain, { slug: "retired" })
-    await h.request(`/api/v1/linqs/${linq.id}`, { key: author.key, method: "DELETE" })
+  test("an archived link falls through to an orphan click", async () => {
+    const link = await h.createLink(author.key, domain, { slug: "retired" })
+    await h.request(`/api/v1/links/${link.id}`, { key: author.key, method: "DELETE" })
 
     const res = await get("/retired")
     expect(res.status).toBe(302)
     expect(res.headers.get("location")).toBe("https://example.com/fallback")
-    expect(await lastClick()).toMatchObject({ linqId: null, slugRequested: "retired" })
+    expect(await lastClick()).toMatchObject({ linkId: null, slugRequested: "retired" })
   })
 })
 
@@ -161,7 +161,7 @@ describe("orphan clicks", () => {
     expect(res.headers.get("location")).toBe("https://example.com/fallback")
     expect(res.headers.get("cache-control")).toBe("no-store")
     expect(await lastClick()).toMatchObject({
-      linqId: null,
+      linkId: null,
       slugRequested: "never-existed",
       destination: "https://example.com/fallback",
     })
@@ -170,7 +170,7 @@ describe("orphan clicks", () => {
   test("the root path is an orphan click too", async () => {
     const res = await get("/")
     expect(res.status).toBe(302)
-    expect(await lastClick()).toMatchObject({ linqId: null, slugRequested: "" })
+    expect(await lastClick()).toMatchObject({ linkId: null, slugRequested: "" })
   })
 
   test("a domain with no fallback 404s but still records the orphan", async () => {
@@ -185,19 +185,19 @@ describe("orphan clicks", () => {
       .where(eq(clicks.domainId, bare))
       .orderBy(desc(clicks.id))
       .limit(1)
-    expect(row).toMatchObject({ linqId: null, slugRequested: "missing", destination: null })
+    expect(row).toMatchObject({ linkId: null, slugRequested: "missing", destination: null })
   })
 
-  test("orphan clicks are the rows with a null linq", async () => {
+  test("orphan clicks are the rows with a null link", async () => {
     await flushClicks()
-    const orphans = await h.db.select().from(clicks).where(isNull(clicks.linqId))
+    const orphans = await h.db.select().from(clicks).where(isNull(clicks.linkId))
     expect(orphans.length).toBeGreaterThan(0)
   })
 })
 
 describe("query forwarding", () => {
   test("incoming parameters are merged over the destination and win", async () => {
-    await h.createLinq(author.key, domain, {
+    await h.createLink(author.key, domain, {
       slug: "merge",
       destination: "https://example.com/?a=1&keep=yes",
     })
@@ -210,7 +210,7 @@ describe("query forwarding", () => {
   })
 
   test("a repeated incoming key replaces the destination copy entirely", async () => {
-    await h.createLinq(author.key, domain, {
+    await h.createLink(author.key, domain, {
       slug: "repeat",
       destination: "https://example.com/?tag=old",
     })
@@ -221,7 +221,7 @@ describe("query forwarding", () => {
   })
 
   test("forwardQuery false leaves the destination alone but still logs the query", async () => {
-    await h.createLinq(author.key, domain, {
+    await h.createLink(author.key, domain, {
       slug: "sealed",
       destination: "https://example.com/?a=1",
       forwardQuery: false,
@@ -232,8 +232,8 @@ describe("query forwarding", () => {
     expect((await lastClick()).query).toEqual({ b: ["2"] })
   })
 
-  test("a linq with no incoming query keeps its destination byte for byte", async () => {
-    await h.createLinq(author.key, domain, {
+  test("a link with no incoming query keeps its destination byte for byte", async () => {
+    await h.createLink(author.key, domain, {
       slug: "plain",
       destination: "https://example.com/path?x=1#frag",
     })
@@ -245,7 +245,7 @@ describe("query forwarding", () => {
 
 describe("visitor detection", () => {
   test("records the platform each user agent implies", async () => {
-    await h.createLinq(author.key, domain, { slug: "ua" })
+    await h.createLink(author.key, domain, { slug: "ua" })
 
     for (const [userAgent, platform] of [
       [ANDROID, "android"],
@@ -258,7 +258,7 @@ describe("visitor detection", () => {
   })
 
   test("flags bots and a missing user agent", async () => {
-    await h.createLinq(author.key, domain, { slug: "crawled" })
+    await h.createLink(author.key, domain, { slug: "crawled" })
 
     await get("/crawled", { headers: { "user-agent": BOT } })
     expect(await lastClick()).toMatchObject({ isBot: true })
@@ -270,12 +270,12 @@ describe("visitor detection", () => {
 
 describe("HEAD", () => {
   test("is answered like GET but never tracked", async () => {
-    const linq = await h.createLinq(author.key, domain, { slug: "head" })
+    const link = await h.createLink(author.key, domain, { slug: "head" })
 
     const before = await clickCount()
     const res = await get("/head", { method: "HEAD" })
     expect(res.status).toBe(302)
-    expect(res.headers.get("location")).toBe(linq.destination)
+    expect(res.headers.get("location")).toBe(link.destination)
     expect(await clickCount()).toBe(before)
 
     // An orphan HEAD is not tracked either.
@@ -299,7 +299,7 @@ describe("geo", () => {
     const owner = await located.actor("author")
     const host = "geo.test"
     const scoped = await located.createDomain(host)
-    await located.createLinq(owner.key, scoped, { slug: "here" })
+    await located.createLink(owner.key, scoped, { slug: "here" })
 
     const res = await located.request("/here", {
       host,
@@ -317,7 +317,7 @@ describe("geo", () => {
   })
 
   test("without a licence key every click has an empty location", async () => {
-    await h.createLinq(author.key, domain, { slug: "nowhere" })
+    await h.createLink(author.key, domain, { slug: "nowhere" })
     await get("/nowhere", { headers: { "user-agent": DESKTOP, "x-forwarded-for": "203.0.113.9" } })
     expect(await lastClick()).toMatchObject({ country: null, region: null })
   })

@@ -14,7 +14,7 @@ import { span } from "../../log.ts"
 import type { Env } from "../env.ts"
 import { validate } from "../validate.ts"
 import { clickFilters } from "./clicks.ts"
-import { loadLinq } from "./linqs.ts"
+import { loadLink } from "./links.ts"
 
 const idParam = validate("param", z.object({ id: uuidSchema }))
 
@@ -71,18 +71,18 @@ export function aggregateClicks(db: Db, scope: SQL[], groupBy: GroupBy): Promise
   )
 }
 
-/** Mounted on /linqs; the grouped click totals of one linq. */
-export const linqStatsRoutes = new Hono<Env>().get(
+/** Mounted on /links; the grouped click totals of one link. */
+export const linkStatsRoutes = new Hono<Env>().get(
   "/:id/stats",
   idParam,
   validate("query", statsQuerySchema),
   async (c) => {
     const { id } = c.req.valid("param")
     const q = c.req.valid("query")
-    // Load first, so an unknown linq is a 404 rather than an empty report.
-    await loadLinq(c.var.db, id)
+    // Load first, so an unknown link is a 404 rather than an empty report.
+    await loadLink(c.var.db, id)
 
-    const scope = [eq(clicks.linqId, id), ...clickFilters(q)]
+    const scope = [eq(clicks.linkId, id), ...clickFilters(q)]
     return c.json(await aggregateClicks(c.var.db, scope, q.groupBy))
   },
 )
@@ -90,7 +90,7 @@ export const linqStatsRoutes = new Hono<Env>().get(
 /**
  * Mounted on /domains; every click on one domain, orphans included.
  *
- * The domain is not loaded first: unlike a linq, an archived domain still has a
+ * The domain is not loaded first: unlike a link, an archived domain still has a
  * history worth reading, and an unknown id simply reports nothing.
  */
 export const domainStatsRoutes = new Hono<Env>().get(
@@ -108,7 +108,7 @@ export const domainStatsRoutes = new Hono<Env>().get(
 /**
  * Mounted at /stats; the whole instance, optionally narrowed to one domain or
  * to the orphan slice (`orphan=true`), which is the clicks that resolved to no
- * linq at all.
+ * link at all.
  */
 export const globalStatsRoutes = new Hono<Env>().get(
   "/",
@@ -116,7 +116,7 @@ export const globalStatsRoutes = new Hono<Env>().get(
   async (c) => {
     const q = c.req.valid("query")
     const scope = clickFilters(q)
-    if (q.orphan === "true") scope.push(isNull(clicks.linqId))
+    if (q.orphan === "true") scope.push(isNull(clicks.linkId))
     if (q.domainId) scope.push(eq(clicks.domainId, q.domainId))
     return c.json(await aggregateClicks(c.var.db, scope, q.groupBy))
   },

@@ -25,12 +25,12 @@ function normalise(tag: string): string {
 /**
  * Picks tags from the ones already in use, with their counts.
  *
- * `GET /v1/tags` is derived from active linqs, so the list is whatever people
+ * `GET /v1/tags` is derived from active links, so the list is whatever people
  * actually tagged — there is no tag table to keep in step. That is also why
- * `creatable` exists: a tag becomes real by being put on a linq, so the entry
+ * `creatable` exists: a tag becomes real by being put on a link, so the entry
  * form has to accept one that is not in the list yet.
  *
- * Selection is OR, matching the server: a linq matches if it carries *any* of
+ * Selection is OR, matching the server: a link matches if it carries *any* of
  * the chosen tags.
  */
 export function TagPicker({

@@ -17,7 +17,7 @@ import { useApi } from "../../lib/use-api"
  * Domains and their fallback URLs.
  *
  * Everyone may read this page; only an admin sees the write controls. Archiving
- * is refused by the server while the domain still has active linqs, and that
+ * is refused by the server while the domain still has active links, and that
  * refusal is surfaced here rather than pre-empted, so the rule lives in one place.
  */
 export default function DomainsPage() {
@@ -55,7 +55,7 @@ function DomainsList({ actor }: { actor: Actor }) {
           />
 
           {rows.length > 0 ? (
-            <DataTable head={["Host", "Fallback URL", "Active linqs", "", ""]}>
+            <DataTable head={["Host", "Fallback URL", "Active links", "", ""]}>
               {rows.map((domain) => (
                 <DomainRow
                   key={domain.id}
@@ -125,7 +125,7 @@ function DomainRow({
           </span>
         )}
       </TableCell>
-      <TableCell className="tabular-nums">{domain.linqCount}</TableCell>
+      <TableCell className="tabular-nums">{domain.linkCount}</TableCell>
       <TableCell>
         {domain.status === "archived" ? <Badge variant="outline">Archived</Badge> : null}
       </TableCell>
@@ -134,7 +134,7 @@ function DomainRow({
           domain.status === "active" ? (
             <ConfirmButton
               title={`Archive ${domain.host}?`}
-              description="Every short URL on this host stops resolving, including its fallback. The server refuses this while the domain still has active linqs."
+              description="Every short URL on this host stops resolving, including its fallback. The server refuses this while the domain still has active links."
               confirmLabel="Archive"
               onConfirm={onToggleStatus}
             >
@@ -151,7 +151,7 @@ function DomainRow({
               {canPurge ? (
                 <ConfirmButton
                   title={`Purge ${domain.host}?`}
-                  description="This destroys the domain and every click ever recorded on it. It cannot be undone. The server refuses this while any linq still points at the host, archived ones included."
+                  description="This destroys the domain and every click ever recorded on it. It cannot be undone. The server refuses this while any link still points at the host, archived ones included."
                   confirmLabel="Purge for good"
                   confirmText={domain.host}
                   onConfirm={onPurge}

@@ -1,6 +1,6 @@
 "use client"
 
-import { can, type Domain, type Linq, type Page } from "@linq/shared"
+import { can, type Domain, type Link, type Page } from "@linq/shared"
 import { useRouter } from "next/navigation"
 import { type SyntheticEvent, useState } from "react"
 import { toast } from "sonner"
@@ -16,18 +16,18 @@ import { post, qs } from "../../../lib/api"
 import { useApi } from "../../../lib/use-api"
 
 /**
- * Creates one linq.
+ * Creates one link.
  *
  * Slug is optional: left blank the server generates one, which is the common
  * case. Everything else here maps straight onto the create payload, so the
  * server stays the only place that decides what is valid.
  */
-export default function NewLinqPage() {
+export default function NewLinkPage() {
   // A viewer reaching this URL directly gets the refusal, not a live form.
-  return <AppShell requires={can.createLinq}>{() => <NewLinqForm />}</AppShell>
+  return <AppShell requires={can.createLink}>{() => <NewLinkForm />}</AppShell>
 }
 
-function NewLinqForm() {
+function NewLinkForm() {
   const router = useRouter()
   const domains = useApi<Page<Domain>>("/v1/domains?limit=200")
   const active = (domains.data?.data ?? []).filter((domain) => domain.status === "active")
@@ -46,7 +46,7 @@ function NewLinqForm() {
     event.preventDefault()
     setSaving(true)
     try {
-      const created = await post<Linq>("/v1/linqs", {
+      const created = await post<Link>("/v1/links", {
         domainId: chosenDomain,
         slug: slug.trim() || undefined,
         destination: destination.trim(),
@@ -54,16 +54,16 @@ function NewLinqForm() {
         tags,
         forwardQuery,
       })
-      router.push(`/linqs/detail/${qs({ id: created.id })}`)
+      router.push(`/links/detail/${qs({ id: created.id })}`)
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : "Could not create the linq.")
+      toast.error(err instanceof Error ? err.message : "Could not create the link.")
       setSaving(false)
     }
   }
 
   return (
     <div className="flex max-w-2xl flex-col gap-4">
-      <h1 className="font-heading text-xl font-semibold">New linq</h1>
+      <h1 className="font-heading text-xl font-semibold">New link</h1>
 
       <Card>
         <CardContent>
@@ -71,7 +71,7 @@ function NewLinqForm() {
             loading={domains.loading}
             error={domains.error}
             empty={!domains.loading && active.length === 0}
-            emptyMessage="No active domain to create a linq on. An admin must add one first."
+            emptyMessage="No active domain to create a link on. An admin must add one first."
           />
 
           {active.length > 0 ? (
@@ -123,7 +123,7 @@ function NewLinqForm() {
 
               <div className="flex gap-2">
                 <Button type="submit" disabled={saving || !destination.trim()}>
-                  {saving ? "Creating…" : "Create linq"}
+                  {saving ? "Creating…" : "Create link"}
                 </Button>
                 {/* Explicitly type="button": inside a form, an untyped button submits. */}
                 <Button type="button" variant="outline" onClick={() => router.back()}>

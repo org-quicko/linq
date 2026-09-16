@@ -1,4 +1,4 @@
-import type { Linq, Role } from "@linq/shared"
+import type { Link, Role } from "@linq/shared"
 import { generateKey, hashKey, keyPrefix } from "../../src/auth/keys.ts"
 import { type Geo, noGeo } from "../../src/clicks/geo.ts"
 import type { Db } from "../../src/db/client.ts"
@@ -30,10 +30,10 @@ export type Harness = {
   /** Inserted directly: most suites need a domain without exercising its API. */
   createDomain: (host: string, fallbackUrl?: string) => Promise<string>
   /** Goes through the API, so slug generation and ownership are the real thing. */
-  createLinq: (key: string, domainId: string, body?: Record<string, unknown>) => Promise<Linq>
+  createLink: (key: string, domainId: string, body?: Record<string, unknown>) => Promise<Link>
   /** Click rows written straight to the table; the redirect handler lands in milestone 4. */
   recordClicks: (
-    linqId: string | null,
+    linkId: string | null,
     domainId: string,
     counts: { human?: number; bot?: number },
     overrides?: Partial<typeof clicks.$inferInsert>,
@@ -94,23 +94,23 @@ export async function createHarness(options: HarnessOptions = {}): Promise<Harne
       await db.insert(domains).values({ id, host, fallbackUrl: fallbackUrl ?? null })
       return id
     },
-    createLinq: async (key, domainId, body = {}) => {
-      const res = await request("/api/v1/linqs", {
+    createLink: async (key, domainId, body = {}) => {
+      const res = await request("/api/v1/links", {
         key,
         method: "POST",
         body: JSON.stringify({ domainId, destination: "https://example.com/", ...body }),
       })
       if (res.status !== 201)
-        throw new Error(`createLinq failed: ${res.status} ${await res.text()}`)
-      return (await res.json()) as Linq
+        throw new Error(`createLink failed: ${res.status} ${await res.text()}`)
+      return (await res.json()) as Link
     },
-    recordClicks: async (linqId, domainId, counts, overrides = {}) => {
+    recordClicks: async (linkId, domainId, counts, overrides = {}) => {
       const rows = [
         ...Array.from({ length: counts.human ?? 0 }, () => false),
         ...Array.from({ length: counts.bot ?? 0 }, () => true),
       ].map((isBot) => ({
         id: Bun.randomUUIDv7(),
-        linqId,
+        linkId,
         domainId,
         slugRequested: "test",
         isBot,

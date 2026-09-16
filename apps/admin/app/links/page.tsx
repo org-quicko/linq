@@ -1,7 +1,7 @@
 "use client"
 
-import { type Actor, can, type Domain, type Linq, type Page } from "@linq/shared"
-import Link from "next/link"
+import { type Actor, can, type Domain, type Link, type Page } from "@linq/shared"
+import NextLink from "next/link"
 import { useState } from "react"
 import { toast } from "sonner"
 import { AppShell } from "@/components/app-shell"
@@ -26,12 +26,12 @@ const EMPTY: Filters = { domainId: "", status: "active", sort: "createdAt" }
 /** Radix refuses an item whose value is "", so "no filter" needs a real value. */
 const ANY_DOMAIN = "__any__"
 
-/** The main list: every linq, filtered the same way the API filters them. */
-export default function LinqsPage() {
-  return <AppShell>{(actor) => <LinqsList actor={actor} />}</AppShell>
+/** The main list: every link, filtered the same way the API filters them. */
+export default function LinksPage() {
+  return <AppShell>{(actor) => <LinksList actor={actor} />}</AppShell>
 }
 
-function LinqsList({ actor }: { actor: Actor }) {
+function LinksList({ actor }: { actor: Actor }) {
   const [filters, setFilters] = useState<Filters>(EMPTY)
   const [search, setSearch] = useState("")
   const [tags, setTags] = useState<string[]>([])
@@ -42,8 +42,8 @@ function LinqsList({ actor }: { actor: Actor }) {
   const settledSearch = useDebounced(search)
 
   const domains = useApi<Page<Domain>>("/v1/domains?limit=200")
-  const linqs = useApi<Page<Linq>>(
-    `/v1/linqs${qs({ ...filters, search: settledSearch, tags: tags.join(","), limit, offset })}`,
+  const links = useApi<Page<Link>>(
+    `/v1/links${qs({ ...filters, search: settledSearch, tags: tags.join(","), limit, offset })}`,
   )
 
   /** Applies a filter change and returns to the first page of results. */
@@ -52,27 +52,27 @@ function LinqsList({ actor }: { actor: Actor }) {
     setOffset(0)
   }
 
-  async function toggleStatus(linq: Linq) {
+  async function toggleStatus(link: Link) {
     try {
-      if (linq.status === "active") await del(`/v1/linqs/${linq.id}`)
-      else await patch(`/v1/linqs/${linq.id}`, { status: "active" })
-      linqs.reload()
+      if (link.status === "active") await del(`/v1/links/${link.id}`)
+      else await patch(`/v1/links/${link.id}`, { status: "active" })
+      links.reload()
     } catch (err) {
       toast.error(err instanceof Error ? err.message : "That did not work.")
     }
   }
 
-  const rows = linqs.data?.data ?? []
-  const total = linqs.data?.total ?? 0
+  const rows = links.data?.data ?? []
+  const total = links.data?.total ?? 0
 
   return (
     <div className="flex flex-col gap-4">
       <div className="flex flex-wrap items-center gap-2">
-        <h1 className="font-heading text-xl font-semibold">Linqs</h1>
-        {can.createLinq(actor) ? (
-          <Link href="/linqs/new/" className="ml-auto">
-            <Button type="button">New linq</Button>
-          </Link>
+        <h1 className="font-heading text-xl font-semibold">Links</h1>
+        {can.createLink(actor) ? (
+          <NextLink href="/links/new/" className="ml-auto">
+            <Button type="button">New link</Button>
+          </NextLink>
         ) : null}
       </div>
 
@@ -128,41 +128,41 @@ function LinqsList({ actor }: { actor: Actor }) {
       <Card>
         <CardContent>
           <QueryState
-            loading={linqs.loading}
-            error={linqs.error}
+            loading={links.loading}
+            error={links.error}
             empty={rows.length === 0}
-            emptyMessage="No linqs match these filters."
+            emptyMessage="No links match these filters."
           />
 
           {rows.length > 0 ? (
             <DataTable head={["Short URL", "Destination", "Tags", "Clicks", "Owner", "", ""]}>
-              {rows.map((linq) => (
+              {rows.map((link) => (
                 <TableRow
-                  key={linq.id}
-                  className={linq.status === "archived" ? "opacity-60" : undefined}
+                  key={link.id}
+                  className={link.status === "archived" ? "opacity-60" : undefined}
                 >
                   <TableCell className="max-w-xs">
                     {/* min-w-0 so the link may shrink: without it the flex item
                         keeps its full text width and truncate never engages. */}
                     <div className="flex items-center gap-1">
-                      <Link
-                        href={`/linqs/detail/${qs({ id: linq.id })}`}
+                      <NextLink
+                        href={`/links/detail/${qs({ id: link.id })}`}
                         className="min-w-0 truncate font-medium underline-offset-2 hover:underline"
                       >
-                        {linq.domainHost}/{linq.slug}
-                      </Link>
-                      <CopyButton value={linq.shortUrl} />
+                        {link.domainHost}/{link.slug}
+                      </NextLink>
+                      <CopyButton value={link.shortUrl} />
                     </div>
-                    {linq.name ? (
-                      <div className="truncate text-xs text-muted-foreground">{linq.name}</div>
+                    {link.name ? (
+                      <div className="truncate text-xs text-muted-foreground">{link.name}</div>
                     ) : null}
                   </TableCell>
                   <TableCell className="max-w-xs truncate text-muted-foreground">
-                    <span title={linq.destination}>{linq.destination}</span>
+                    <span title={link.destination}>{link.destination}</span>
                   </TableCell>
                   <TableCell>
                     <div className="flex flex-wrap gap-1">
-                      {linq.tags.map((tag) => (
+                      {link.tags.map((tag) => (
                         <Badge key={tag} variant="secondary">
                           {tag}
                         </Badge>
@@ -170,26 +170,26 @@ function LinqsList({ actor }: { actor: Actor }) {
                     </div>
                   </TableCell>
                   <TableCell className="tabular-nums">
-                    {linq.humanClicks}
-                    <span className="text-muted-foreground"> + {linq.botClicks} bot</span>
+                    {link.humanClicks}
+                    <span className="text-muted-foreground"> + {link.botClicks} bot</span>
                   </TableCell>
                   <TableCell className="max-w-[10rem] truncate text-muted-foreground">
-                    {linq.ownerName}
+                    {link.ownerName}
                   </TableCell>
                   <TableCell>
-                    {linq.status === "archived" ? <Badge variant="outline">Archived</Badge> : null}
+                    {link.status === "archived" ? <Badge variant="outline">Archived</Badge> : null}
                   </TableCell>
                   <TableCell>
                     {/* Per row, not per page: an author owns some of these and not
                         others, and the server refuses the rest with a 403. */}
-                    {can.editLinq(actor, linq) ? (
+                    {can.editLink(actor, link) ? (
                       <Button
                         type="button"
                         size="sm"
-                        variant={linq.status === "active" ? "destructive" : "outline"}
-                        onClick={() => toggleStatus(linq)}
+                        variant={link.status === "active" ? "destructive" : "outline"}
+                        onClick={() => toggleStatus(link)}
                       >
-                        {linq.status === "active" ? "Archive" : "Restore"}
+                        {link.status === "active" ? "Archive" : "Restore"}
                       </Button>
                     ) : null}
                   </TableCell>

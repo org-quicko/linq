@@ -2,7 +2,7 @@ import { z } from "zod"
 import { paginationSchema, slugSchema, tagSchema, urlSchema, uuidSchema } from "./primitives.ts"
 import { resourceStatusSchema } from "./roles.ts"
 
-export const linqCreateSchema = z.object({
+export const linkCreateSchema = z.object({
   domainId: uuidSchema,
   /** Omit for a generated slug. */
   slug: slugSchema.optional(),
@@ -11,13 +11,13 @@ export const linqCreateSchema = z.object({
   tags: z.array(tagSchema).max(20).default([]),
   forwardQuery: z.boolean().default(true),
 })
-export type LinqCreate = z.input<typeof linqCreateSchema>
+export type LinkCreate = z.input<typeof linkCreateSchema>
 
 /**
  * `slug` and `domainId` are immutable: changing them would break live links.
  * Strict, so sending either is a 400 rather than a silently ignored field.
  */
-export const linqPatchSchema = z
+export const linkPatchSchema = z
   .strictObject({
     destination: urlSchema,
     name: z.string().trim().max(200).nullable(),
@@ -27,11 +27,11 @@ export const linqPatchSchema = z
     ownerId: uuidSchema,
   })
   .partial()
-export type LinqPatch = z.infer<typeof linqPatchSchema>
+export type LinkPatch = z.infer<typeof linkPatchSchema>
 
-export const linqListQuerySchema = paginationSchema.extend({
+export const linkListQuerySchema = paginationSchema.extend({
   search: z.string().trim().min(1).max(200).optional(),
-  /** Comma-separated; a linq matches when it carries any of them. */
+  /** Comma-separated; a link matches when it carries any of them. */
   tags: z
     .string()
     .optional()
@@ -50,7 +50,7 @@ export const linqListQuerySchema = paginationSchema.extend({
   order: z.enum(["asc", "desc"]).default("desc"),
 })
 
-export type Linq = {
+export type Link = {
   id: string
   domainId: string
   domainHost: string

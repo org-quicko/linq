@@ -1,4 +1,4 @@
-# linq — Plan 2: tag filtering, logging, shadcn/ui, permission-aware controls
+# link — Plan 2: tag filtering, logging, shadcn/ui, permission-aware controls
 
 Follows `plans/Plan_1.md`, whose milestones 1–7 are complete.
 
@@ -72,31 +72,31 @@ request; all are fixed as part of the work below rather than left for later.
 
 ### D1 — Owner select is enabled for users the server forbids, then traps itself
 
-`apps/admin/app/linqs/detail/page.tsx:197`
+`apps/admin/app/links/detail/page.tsx:197`
 
 ```ts
-disabled={!canEdit || (!canTransferToAnyone && linq.ownerId !== ownerId)}
+disabled={!canEdit || (!canTransferToAnyone && link.ownerId !== ownerId)}
 ```
 
-`ownerId` is local draft state seeded from `linq.ownerId` (`:111`), so this
-compares the linq's owner against **the currently selected dropdown value**, not
+`ownerId` is local draft state seeded from `link.ownerId` (`:111`), so this
+compares the link's owner against **the currently selected dropdown value**, not
 against the signed-in user. Two consequences:
 
 1. On first render the two are equal, so the clause is `false` and the select is
    **enabled for any non-admin with `canEdit`** — including an editor editing
-   someone else's linq, whom the server refuses at
-   `apps/server/src/http/api/linqs.ts:195-197`.
+   someone else's link, whom the server refuses at
+   `apps/server/src/http/api/links.ts:195-197`.
 2. The moment a non-admin picks a different user, the clause flips to `true` and
    the select **disables itself**, trapping the draft value with no way to revert
    short of a reload. `save()` (`:127`) then ships the `ownerId` and takes a 403.
 
-The comparison the hint at `:189-193` implies is `linq.ownerId !== userId` — but
+The comparison the hint at `:189-193` implies is `link.ownerId !== userId` — but
 `userId` is never passed into `SettingsCard`, whose props (`:100-105`) are only
-`linq`, `canEdit`, `canTransferToAnyone`, `onSaved`.
+`link`, `canEdit`, `canTransferToAnyone`, `onSaved`.
 
 **Severity:** user-visible; silently produces a 403 on a legitimate-looking
 action, and strands unsaved edits.
-**Fixed in:** §4, via `can.transferLinq(me, linq)` plus threading `userId` into
+**Fixed in:** §4, via `can.transferLink(me, link)` plus threading `userId` into
 `SettingsCard`. Covered by the role walkthrough in Verification.
 
 ### D2 — The MaxMind licence key can be written to the logs
@@ -130,7 +130,7 @@ scrubbed.
 ### D3 — `Button` silently overrides a caller's `type`
 
 `apps/admin/components/ui.tsx:25` — `type="button"` is set **before** the props
-spread, so `<Button type="submit">` is ignored. The login and create-linq forms
+spread, so `<Button type="submit">` is ignored. The login and create-link forms
 submit only because their handlers are also wired to `onSubmit`.
 **Fixed in:** §3, during the shadcn port.
 
@@ -147,13 +147,13 @@ the users table.
 
 **Already works server-side.** No API change:
 
-- `packages/shared/src/linqs.ts:35-45` — `tags` is a comma-separated string,
+- `packages/shared/src/links.ts:35-45` — `tags` is a comma-separated string,
   transformed to a lowercased `string[]`.
-- `apps/server/src/http/api/linqs.ts:135` — `arrayOverlaps(linqs.tags, q.tags)`,
-  Postgres `&&`, matching a linq carrying **any** of the tags.
-- `apps/server/src/db/schema.ts:90` — `linqs_tags_idx` GIN index backs it.
-- `GET /api/v1/tags` (`http/api/linqs.ts:226-241`) returns `[{tag, count}]` over
-  active linqs, busiest first. Nothing in the admin consumes it today.
+- `apps/server/src/http/api/links.ts:135` — `arrayOverlaps(links.tags, q.tags)`,
+  Postgres `&&`, matching a link carrying **any** of the tags.
+- `apps/server/src/db/schema.ts:90` — `links_tags_idx` GIN index backs it.
+- `GET /api/v1/tags` (`http/api/links.ts:226-241`) returns `[{tag, count}]` over
+  active links, busiest first. Nothing in the admin consumes it today.
 
 Semantics stay **ANY**, matching Plan 1.
 
@@ -162,16 +162,16 @@ Semantics stay **ANY**, matching Plan 1.
 - New `apps/admin/components/tag-filter.tsx` — a shadcn Popover + Command
   multi-select fed by `useApi<{tag,count}[]>("/v1/tags")`, showing each tag with
   its count, plus removable chips for the selection.
-- `apps/admin/app/linqs/page.tsx:77-81` — replaces the free-text `Input`. The
+- `apps/admin/app/links/page.tsx:77-81` — replaces the free-text `Input`. The
   page already serialises `filters.tags` through `qs()`, so the wire format is
   unchanged (`?tags=a,b`); the component just produces that string.
-- Reused for **tag entry** on `app/linqs/new/page.tsx` and the settings card in
-  `app/linqs/detail/page.tsx` (both comma-split free text today), in a
+- Reused for **tag entry** on `app/links/new/page.tsx` and the settings card in
+  `app/links/detail/page.tsx` (both comma-split free text today), in a
   `creatable` mode allowing a tag not yet in the list.
 - **Debounce:** the list refetches on every keystroke of the search box
-  (`app/linqs/page.tsx:45-48`). Add 300 ms.
+  (`app/links/page.tsx:45-48`). Add 300 ms.
 
-**Tests:** server behaviour is already covered in `test/linqs.test.ts`. No new
+**Tests:** server behaviour is already covered in `test/links.test.ts`. No new
 server tests; UI verification is manual.
 
 ---
@@ -222,7 +222,7 @@ build. Tests use `LINQ_LOG_LEVEL: "silent"`.
 
 Modified: `config.ts`, `main.ts`, `http/app.ts`, `http/redirect.ts`,
 `clicks/geo.ts`, `clicks/record.ts`, `bootstrap.ts`, `rules/store.ts`,
-`http/api/{users,linqs}.ts`, `apps/server/package.json`.
+`http/api/{users,links}.ts`, `apps/server/package.json`.
 
 One file, not a `log/` directory — ~110 lines split four ways buys nothing.
 
@@ -248,7 +248,7 @@ logs it once, with the request id.
 
 ### Correlation: AsyncLocalStorage
 
-Service functions take `(db, …)`, not the Hono context: `listRules(db, linqId)`
+Service functions take `(db, …)`, not the Hono context: `listRules(db, linkId)`
 is called from both `redirect.ts` and `http/api/rules.ts`, and `bootstrap()`
 runs with no request at all.
 
@@ -289,7 +289,7 @@ info  "response" { reqId, method, route, path, status, ms }
 debug            { params: c.req.param(), query: [...keys] }
 ```
 
-`path` is the **pathname only** — a linq forwards arbitrary customer query
+`path` is the **pathname only** — a link forwards arbitrary customer query
 strings, and a log file is a different disclosure surface from the
 `clicks.query` column. Query **keys** at debug, never values. No request body,
 no response body, ever (see below). `/admin/_next/*` sets the context but logs
@@ -304,9 +304,9 @@ example below).
 
 **~12 service functions** get a `span`: `bootstrap`/`bootstrapAdmin`/
 `seedDefaultDomain`, `runMigrations`, `startGeo`/`downloadMmdb`,
-`recordClick`'s inner insert, `findActiveDomain`/`findActiveLinq`, `listRules`,
-`matchRules`, `loadLinq`/`fetchLinq`/`insertLinq` (the slug retry loop logs
-`attempts`), `fetchDomain`/`assertNoActiveLinqs`, `aggregateClicks`.
+`recordClick`'s inner insert, `findActiveDomain`/`findActiveLink`, `listRules`,
+`matchRules`, `loadLink`/`fetchLink`/`insertLink` (the slug retry loop logs
+`attempts`), `fetchDomain`/`assertNoActiveLinks`, `aggregateClicks`.
 
 **Deliberately not instrumented:**
 
@@ -391,7 +391,7 @@ writing every minted key to disk. Responses log **status and duration only**.
 ### Volume — a number worth knowing
 
 At info level a single redirect emits ~12 lines (~2.4 KB): request start/end
-plus start/end for `findActiveDomain`, `findActiveLinq`, `listRules`,
+plus start/end for `findActiveDomain`, `findActiveLink`, `listRules`,
 `recordClick`. At 1000 rps that is ~2.4 MB/s, so the default 100 MB budget
 retains **roughly 40 seconds** of history.
 
@@ -408,7 +408,7 @@ twelve lines reconstruct anyway. Worth revisiting once real traffic exists.
 | `bootstrap.ts:35` admin key | **stays `console.log`.** A plaintext admin key in a rotating file on a mounted volume, retained for 100 MB of history, is strictly worse than today. It reaches the operator's terminal and nothing else. Add `log.warn({ event: "bootstrap.admin_key_printed" })` — no secret — so the log records *that* one was minted |
 | `bootstrap.ts:50` seeded domain | `log.info({ host }, …)` |
 | `clicks/geo.ts:40` geo failure | `log.error({ err }, …)` — layer 3 strips the licence key. **Leak closed (D2)** |
-| `clicks/record.ts:17` insert failure | `reqLog().error({ err, linqId, domainId }, …)` — `reqLog()` because `recordClick` runs inside the request's ALS context even though it is not awaited, so a failed insert correlates to the redirect that caused it |
+| `clicks/record.ts:17` insert failure | `reqLog().error({ err, linkId, domainId }, …)` — `reqLog()` because `recordClick` runs inside the request's ALS context even though it is not awaited, so a failed insert correlates to the redirect that caused it |
 | `config.ts:24` bad config | **unchanged** — the logger's own configuration is what failed to parse |
 | `http/app.ts:38` unhandled error | `reqLog().error({ err }, …)` — the single place an error object is serialised |
 | `main.ts:23` listening | `log.info({ port, version }, …)` |
@@ -530,19 +530,19 @@ invented its own gate. Five gaps:
 
 | # | Location | Problem |
 |---|---|---|
-| 1 | `app/linqs/page.tsx:154` | Archive/Restore shown to any `author` on **every** row; server needs owner-or-editor → 403 |
-| 2 | `app/linqs/new/page.tsx` | **No gate at all** — `AppShell`'s `me` is discarded at `:19`; a viewer gets a live create form |
+| 1 | `app/links/page.tsx:154` | Archive/Restore shown to any `author` on **every** row; server needs owner-or-editor → 403 |
+| 2 | `app/links/new/page.tsx` | **No gate at all** — `AppShell`'s `me` is discarded at `:19`; a viewer gets a live create form |
 | 3 | `app/users/page.tsx` | **No page-level admin gate**; only the nav link is hidden, so a direct URL renders the whole page for any role |
-| 4 | `app/linqs/detail/page.tsx:197` | **(D1)** Owner `Select` `disabled` compares `linq.ownerId !== ownerId` — draft state, not the current user. Enabled for an editor the server forbids, and once a non-admin changes it, it **disables itself and traps the value** with no way back short of a reload |
+| 4 | `app/links/detail/page.tsx:197` | **(D1)** Owner `Select` `disabled` compares `link.ownerId !== ownerId` — draft state, not the current user. Enabled for an editor the server forbids, and once a non-admin changes it, it **disables itself and traps the value** with no way back short of a reload |
 | 5 | everywhere except `detail` | Only `detail/page.tsx:54` models ownership at all |
 
 **Fix — one shared predicate module.** New `packages/shared/src/permissions.ts`,
 re-exported from `index.ts`, of pure functions over `{userId, role}`:
 
 ```ts
-can.createLinq(p)                 // author+
-can.editLinq(p, { ownerId })      // editor+ OR (author AND owner)
-can.transferLinq(p, { ownerId })  // admin OR (owner AND author+)
+can.createLink(p)                 // author+
+can.editLink(p, { ownerId })      // editor+ OR (author AND owner)
+can.transferLink(p, { ownerId })  // admin OR (owner AND author+)
 can.manageDomains(p)              // admin
 can.manageUsers(p)                // admin
 can.changeRoleOf(p, targetId)     // admin AND not self
@@ -553,14 +553,14 @@ These encode rules that today live only in `apps/server/src/http/api/*.ts`.
 
 - **Server** — `auth/permissions.ts` keeps `assertRole`/`assertOwnerOrRole` as
   throwing wrappers that delegate. `assertOwnerOrRole` is only ever called with
-  its default `min = "editor"` (`linqs.ts:190`, `linqs.ts:217`, `rules.ts:41`),
-  so `can.editLinq` covers all three exactly. The inline transfer guard at
-  `linqs.ts:195-197` becomes `can.transferLinq`. **Behaviour must not change** —
-  `test/permissions.test.ts`, `test/users.test.ts` and `test/linqs.test.ts` are
+  its default `min = "editor"` (`links.ts:190`, `links.ts:217`, `rules.ts:41`),
+  so `can.editLink` covers all three exactly. The inline transfer guard at
+  `links.ts:195-197` becomes `can.transferLink`. **Behaviour must not change** —
+  `test/permissions.test.ts`, `test/users.test.ts` and `test/links.test.ts` are
   the regression proof.
 - **Admin** — delete the local `RANK`/`atLeast`, import `can` from
-  `@linq/shared`, and apply it to gaps 1–5: per-row `can.editLinq` on the list,
-  a page-level guard for `new` and `users`, and `can.transferLinq(me, linq)` for
+  `@linq/shared`, and apply it to gaps 1–5: per-row `can.editLink` on the list,
+  a page-level guard for `new` and `users`, and `can.transferLink(me, link)` for
   the Owner select (which needs `userId` threaded into `SettingsCard`, whose
   props at `:100-105` omit it).
 
@@ -613,17 +613,17 @@ ls -la data/logs/
 
 Admin UI at `localhost:3000/admin` — mint one key per role and confirm:
 
-- **viewer** — no "New linq"; `/admin/linqs/new/` and `/admin/users/` reached by
+- **viewer** — no "New link"; `/admin/links/new/` and `/admin/users/` reached by
   direct URL refuse rather than rendering a live form; no Archive on any row;
   rules editor read-only.
-- **author** — Archive only on owned rows; can hand over its own linq, and the
+- **author** — Archive only on owned rows; can hand over its own link, and the
   Owner select stays usable after changing it.
-- **editor** — can edit any linq; Owner select **disabled** on linqs it does not
+- **editor** — can edit any link; Owner select **disabled** on links it does not
   own.
 - **admin** — everything, except its own role select and its own Disable button.
 
 Tag picker: the dropdown lists tags with counts from `/v1/tags`, selecting two
-filters to linqs carrying **either**, and the wire format is still `?tags=a,b`.
+filters to links carrying **either**, and the wire format is still `?tags=a,b`.
 
 ## Risks
 

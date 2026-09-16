@@ -24,7 +24,7 @@ export default function LoginPage() {
 
   // Someone who still holds a valid key never sees this screen.
   useEffect(() => {
-    if (getKey()) router.replace("/linqs/")
+    if (getKey()) router.replace("/links/")
   }, [router])
 
   async function onSubmit(event: SyntheticEvent) {
@@ -37,7 +37,7 @@ export default function LoginPage() {
     try {
       setKey(candidate)
       await api("/v1/me")
-      router.replace("/linqs/")
+      router.replace("/links/")
     } catch (err) {
       // api() already cleared the key on a 401.
       setError(err instanceof Error ? err.message : "That key was not accepted.")

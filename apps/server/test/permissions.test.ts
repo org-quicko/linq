@@ -69,36 +69,36 @@ const mine = { ownerId: ME }
 const theirs = { ownerId: OTHER }
 
 describe("can", () => {
-  test("createLinq needs author or better", () => {
-    expect(ROLES.filter((role) => can.createLinq(actor(role)))).toEqual([
+  test("createLink needs author or better", () => {
+    expect(ROLES.filter((role) => can.createLink(actor(role)))).toEqual([
       "author",
       "editor",
       "admin",
     ])
   })
 
-  test("editLinq: own from author upwards, anyone else's from editor upwards", () => {
-    expect(ROLES.filter((role) => can.editLinq(actor(role), mine))).toEqual([
+  test("editLink: own from author upwards, anyone else's from editor upwards", () => {
+    expect(ROLES.filter((role) => can.editLink(actor(role), mine))).toEqual([
       "author",
       "editor",
       "admin",
     ])
-    expect(ROLES.filter((role) => can.editLinq(actor(role), theirs))).toEqual(["editor", "admin"])
+    expect(ROLES.filter((role) => can.editLink(actor(role), theirs))).toEqual(["editor", "admin"])
   })
 
-  test("transferLinq: own from author upwards, anyone else's admin only", () => {
-    expect(ROLES.filter((role) => can.transferLinq(actor(role), mine))).toEqual([
+  test("transferLink: own from author upwards, anyone else's admin only", () => {
+    expect(ROLES.filter((role) => can.transferLink(actor(role), mine))).toEqual([
       "author",
       "editor",
       "admin",
     ])
-    expect(ROLES.filter((role) => can.transferLinq(actor(role), theirs))).toEqual(["admin"])
+    expect(ROLES.filter((role) => can.transferLink(actor(role), theirs))).toEqual(["admin"])
   })
 
-  test("transferLinq never permits what editLinq refuses", () => {
+  test("transferLink never permits what editLink refuses", () => {
     for (const role of ROLES) {
-      for (const linq of [mine, theirs]) {
-        if (can.transferLinq(actor(role), linq)) expect(can.editLinq(actor(role), linq)).toBe(true)
+      for (const link of [mine, theirs]) {
+        if (can.transferLink(actor(role), link)) expect(can.editLink(actor(role), link)).toBe(true)
       }
     }
   })

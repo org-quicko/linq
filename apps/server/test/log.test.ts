@@ -103,20 +103,20 @@ describe("plumbing", () => {
   })
 
   test("the request id survives an await on the database driver", async () => {
-    // `linq.findActive` only starts after `domain.findActive` has awaited a
+    // `link.findActive` only starts after `domain.findActive` has awaited a
     // query, so a matching reqId proves async storage crosses the driver.
     const out = await capture()
     const h = await createHarness()
     const domainId = await h.createDomain("localhost")
     const { key } = await h.actor("author")
-    const linq = await h.createLinq(key, domainId, { slug: "traced" })
+    const link = await h.createLink(key, domainId, { slug: "traced" })
 
     out.lines.length = 0
-    await h.request(`/${linq.slug}`)
+    await h.request(`/${link.slug}`)
 
     const reqId = out.find("request")?.reqId
     expect(reqId).toBeTruthy()
-    const found = out.entries().filter((e) => e.op === "linq.findActive")
+    const found = out.entries().filter((e) => e.op === "link.findActive")
     expect(found.length).toBeGreaterThan(0)
     for (const entry of found) expect(entry.reqId).toBe(reqId)
   })
@@ -183,7 +183,7 @@ describe("spans", () => {
   test("an ApiError is an answer, not a fault, so no error line is written", async () => {
     const out = await capture()
     const h = await createHarness()
-    const res = await h.request("/api/v1/linqs")
+    const res = await h.request("/api/v1/links")
 
     expect(res.status).toBe(401)
     expect(out.entries().some((e) => e.msg === "unhandled error")).toBe(false)
@@ -285,7 +285,7 @@ describe("privacy", () => {
 
 describe("rotation", () => {
   test("the file rolls at LINQ_LOG_MAX_SIZE and old files are pruned", async () => {
-    const dir = mkdtempSync(join(tmpdir(), "linq-log-"))
+    const dir = mkdtempSync(join(tmpdir(), "link-log-"))
     try {
       // A discarding sink stands in for stdout, so the file is the only output.
       await initLogger(

@@ -15,11 +15,11 @@ export function recordClick(db: Db, click: ClickInput): void {
   const insert = span(
     "click.record",
     () => db.insert(clicks).values({ id: Bun.randomUUIDv7(), ...click }),
-    { in: { linqId: click.linqId ?? null, domainId: click.domainId, slug: click.slugRequested } },
+    { in: { linkId: click.linkId ?? null, domainId: click.domainId, slug: click.slugRequested } },
   )
     // `reqLog()` still resolves here: the insert is not awaited, but it starts
     // inside the redirect request's async scope, so a failure correlates to it.
-    .catch((err) => reqLog().error({ err, linqId: click.linqId ?? null }, "click insert failed"))
+    .catch((err) => reqLog().error({ err, linkId: click.linkId ?? null }, "click insert failed"))
     .finally(() => pending.delete(insert))
   pending.add(insert)
 }

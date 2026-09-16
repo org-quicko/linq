@@ -7,8 +7,9 @@
     "packages/*"
   ],
   "scripts": {
-    "dev": "bun --filter @linq/server dev",
-    "start": "bun --filter @linq/server start",
+    "dev": "bun --watch apps/server/src/main.ts",
+    "dev:admin": "bun --filter @linq/admin dev",
+    "start": "bun apps/server/src/main.ts",
     "build:admin": "bun --filter @linq/admin build",
     "test": "bun test apps/server/test",
     "typecheck": "tsc -b --force",

@@ -13,10 +13,10 @@ beforeAll(async () => {
   domain = await h.createDomain("links.test")
 })
 
-describe("POST /api/v1/linqs", () => {
+describe("POST /api/v1/links", () => {
   test("a viewer may not create one", async () => {
     const viewer = await h.actor("viewer")
-    const res = await h.post("/api/v1/linqs", viewer.key, {
+    const res = await h.post("/api/v1/links", viewer.key, {
       domainId: domain,
       destination: "https://example.com/",
     })
@@ -24,12 +24,12 @@ describe("POST /api/v1/linqs", () => {
   })
 
   test("generates a slug of the configured length and owns it to the caller", async () => {
-    const linq = await h.createLinq(author.key, domain, { destination: "https://example.com/a" })
-    expect(linq.slug).toHaveLength(6)
-    expect(linq.slug).toMatch(/^[A-Za-z0-9]{6}$/)
-    expect(linq.ownerId).toBe(author.userId)
-    expect(linq.shortUrl).toBe(`https://links.test/${linq.slug}`)
-    expect(linq).toMatchObject({
+    const link = await h.createLink(author.key, domain, { destination: "https://example.com/a" })
+    expect(link.slug).toHaveLength(6)
+    expect(link.slug).toMatch(/^[A-Za-z0-9]{6}$/)
+    expect(link.ownerId).toBe(author.userId)
+    expect(link.shortUrl).toBe(`https://links.test/${link.slug}`)
+    expect(link).toMatchObject({
       status: "active",
       forwardQuery: true,
       humanClicks: 0,
@@ -38,12 +38,12 @@ describe("POST /api/v1/linqs", () => {
   })
 
   test("accepts a custom slug", async () => {
-    const linq = await h.createLinq(author.key, domain, { slug: "launch" })
-    expect(linq.slug).toBe("launch")
+    const link = await h.createLink(author.key, domain, { slug: "launch" })
+    expect(link.slug).toBe("launch")
   })
 
   test("refuses a slug already taken on the domain, archived ones included", async () => {
-    const taken = await h.post("/api/v1/linqs", author.key, {
+    const taken = await h.post("/api/v1/links", author.key, {
       domainId: domain,
       destination: "https://example.com/",
       slug: "launch",
@@ -51,9 +51,9 @@ describe("POST /api/v1/linqs", () => {
     expect(taken.status).toBe(409)
 
     // ADR 0002: archiving never releases a slug.
-    const doomed = await h.createLinq(author.key, domain, { slug: "doomed" })
-    await h.request(`/api/v1/linqs/${doomed.id}`, { key: author.key, method: "DELETE" })
-    const reuse = await h.post("/api/v1/linqs", author.key, {
+    const doomed = await h.createLink(author.key, domain, { slug: "doomed" })
+    await h.request(`/api/v1/links/${doomed.id}`, { key: author.key, method: "DELETE" })
+    const reuse = await h.post("/api/v1/links", author.key, {
       domainId: domain,
       destination: "https://example.com/",
       slug: "doomed",
@@ -63,13 +63,13 @@ describe("POST /api/v1/linqs", () => {
 
   test("the same slug is free on a different domain", async () => {
     const other = await h.createDomain("other.test")
-    const linq = await h.createLinq(author.key, other, { slug: "launch" })
-    expect(linq.slug).toBe("launch")
+    const link = await h.createLink(author.key, other, { slug: "launch" })
+    expect(link.slug).toBe("launch")
   })
 
   test("rejects reserved slugs", async () => {
     for (const slug of ["api", "admin", "health", "robots.txt", "favicon.ico", "ADMIN"]) {
-      const res = await h.post("/api/v1/linqs", author.key, {
+      const res = await h.post("/api/v1/links", author.key, {
         domainId: domain,
         destination: "https://example.com/",
         slug,
@@ -79,14 +79,14 @@ describe("POST /api/v1/linqs", () => {
   })
 
   test("rejects a malformed slug and a non-http destination", async () => {
-    const badSlug = await h.post("/api/v1/linqs", author.key, {
+    const badSlug = await h.post("/api/v1/links", author.key, {
       domainId: domain,
       destination: "https://example.com/",
       slug: "has spaces/and-slash",
     })
     expect(badSlug.status).toBe(400)
 
-    const badDestination = await h.post("/api/v1/linqs", author.key, {
+    const badDestination = await h.post("/api/v1/links", author.key, {
       domainId: domain,
       destination: "javascript:alert(1)",
     })
@@ -94,7 +94,7 @@ describe("POST /api/v1/linqs", () => {
   })
 
   test("an unknown domain is a 404", async () => {
-    const res = await h.post("/api/v1/linqs", author.key, {
+    const res = await h.post("/api/v1/links", author.key, {
       domainId: "00000000-0000-7000-8000-000000000000",
       destination: "https://example.com/",
     })
@@ -102,121 +102,121 @@ describe("POST /api/v1/linqs", () => {
   })
 
   test("lowercases tags", async () => {
-    const linq = await h.createLinq(author.key, domain, { tags: ["Launch", "Q3"] })
-    expect(linq.tags).toEqual(["launch", "q3"])
+    const link = await h.createLink(author.key, domain, { tags: ["Launch", "Q3"] })
+    expect(link.tags).toEqual(["launch", "q3"])
   })
 })
 
-describe("PATCH /api/v1/linqs/:id", () => {
+describe("PATCH /api/v1/links/:id", () => {
   test("slug and domainId are immutable and rejected outright", async () => {
-    const linq = await h.createLinq(author.key, domain)
+    const link = await h.createLink(author.key, domain)
     const other = await h.createDomain("immutable.test")
 
-    expect((await h.patch(`/api/v1/linqs/${linq.id}`, author.key, { slug: "nope" })).status).toBe(
+    expect((await h.patch(`/api/v1/links/${link.id}`, author.key, { slug: "nope" })).status).toBe(
       400,
     )
     expect(
-      (await h.patch(`/api/v1/linqs/${linq.id}`, author.key, { domainId: other })).status,
+      (await h.patch(`/api/v1/links/${link.id}`, author.key, { domainId: other })).status,
     ).toBe(400)
 
     const unchanged = await (
-      await h.request(`/api/v1/linqs/${linq.id}`, { key: author.key })
+      await h.request(`/api/v1/links/${link.id}`, { key: author.key })
     ).json()
-    expect(unchanged.slug).toBe(linq.slug)
+    expect(unchanged.slug).toBe(link.slug)
     expect(unchanged.domainId).toBe(domain)
   })
 
-  test("an author edits its own linq but not another one", async () => {
-    const mine = await h.createLinq(author.key, domain)
+  test("an author edits its own link but not another one", async () => {
+    const mine = await h.createLink(author.key, domain)
     const stranger = await h.actor("author")
-    const theirs = await h.createLinq(stranger.key, domain)
+    const theirs = await h.createLink(stranger.key, domain)
 
-    const ok = await h.patch(`/api/v1/linqs/${mine.id}`, author.key, {
+    const ok = await h.patch(`/api/v1/links/${mine.id}`, author.key, {
       destination: "https://example.com/moved",
     })
     expect(ok.status).toBe(200)
     expect(await ok.json()).toMatchObject({ destination: "https://example.com/moved" })
 
-    const denied = await h.patch(`/api/v1/linqs/${theirs.id}`, author.key, {
+    const denied = await h.patch(`/api/v1/links/${theirs.id}`, author.key, {
       destination: "https://example.com/hijack",
     })
     expect(denied.status).toBe(403)
   })
 
-  test("an editor edits any linq", async () => {
+  test("an editor edits any link", async () => {
     const editor = await h.actor("editor")
-    const linq = await h.createLinq(author.key, domain)
-    const res = await h.patch(`/api/v1/linqs/${linq.id}`, editor.key, { name: "Edited" })
+    const link = await h.createLink(author.key, domain)
+    const res = await h.patch(`/api/v1/links/${link.id}`, editor.key, { name: "Edited" })
     expect(res.status).toBe(200)
   })
 
   test("a viewer edits nothing", async () => {
     const viewer = await h.actor("viewer")
-    const linq = await h.createLinq(author.key, domain)
-    expect((await h.patch(`/api/v1/linqs/${linq.id}`, viewer.key, { name: "No" })).status).toBe(403)
+    const link = await h.createLink(author.key, domain)
+    expect((await h.patch(`/api/v1/links/${link.id}`, viewer.key, { name: "No" })).status).toBe(403)
   })
 })
 
 describe("ownership transfer", () => {
-  test("an author hands over a linq it owns", async () => {
-    const linq = await h.createLinq(author.key, domain)
+  test("an author hands over a link it owns", async () => {
+    const link = await h.createLink(author.key, domain)
     const recipient = await h.createUser({ role: "author", name: "Recipient" })
 
-    const res = await h.patch(`/api/v1/linqs/${linq.id}`, author.key, { ownerId: recipient })
+    const res = await h.patch(`/api/v1/links/${link.id}`, author.key, { ownerId: recipient })
     expect(res.status).toBe(200)
     expect(await res.json()).toMatchObject({ ownerId: recipient, ownerName: "Recipient" })
   })
 
-  test("an editor may edit a linq it does not own but not reassign it", async () => {
+  test("an editor may edit a link it does not own but not reassign it", async () => {
     const editor = await h.actor("editor")
-    const linq = await h.createLinq(author.key, domain)
+    const link = await h.createLink(author.key, domain)
 
-    const res = await h.patch(`/api/v1/linqs/${linq.id}`, editor.key, { ownerId: editor.userId })
+    const res = await h.patch(`/api/v1/links/${link.id}`, editor.key, { ownerId: editor.userId })
     expect(res.status).toBe(403)
   })
 
   test("an admin reassigns anything", async () => {
-    const linq = await h.createLinq(author.key, domain)
-    const res = await h.patch(`/api/v1/linqs/${linq.id}`, admin.key, { ownerId: admin.userId })
+    const link = await h.createLink(author.key, domain)
+    const res = await h.patch(`/api/v1/links/${link.id}`, admin.key, { ownerId: admin.userId })
     expect(res.status).toBe(200)
   })
 
   test("transferring to an unknown user is a 404", async () => {
-    const linq = await h.createLinq(author.key, domain)
-    const res = await h.patch(`/api/v1/linqs/${linq.id}`, admin.key, {
+    const link = await h.createLink(author.key, domain)
+    const res = await h.patch(`/api/v1/links/${link.id}`, admin.key, {
       ownerId: "00000000-0000-7000-8000-000000000000",
     })
     expect(res.status).toBe(404)
   })
 })
 
-describe("archiving a linq", () => {
+describe("archiving a link", () => {
   test("DELETE archives, and archived can go back to active", async () => {
-    const linq = await h.createLinq(author.key, domain)
+    const link = await h.createLink(author.key, domain)
 
-    const archived = await h.request(`/api/v1/linqs/${linq.id}`, {
+    const archived = await h.request(`/api/v1/links/${link.id}`, {
       key: author.key,
       method: "DELETE",
     })
     expect(archived.status).toBe(200)
     expect(await archived.json()).toMatchObject({ status: "archived" })
 
-    const back = await h.patch(`/api/v1/linqs/${linq.id}`, author.key, { status: "active" })
+    const back = await h.patch(`/api/v1/links/${link.id}`, author.key, { status: "active" })
     expect(await back.json()).toMatchObject({ status: "active" })
   })
 })
 
-describe("GET /api/v1/linqs", () => {
-  test("hides archived linqs unless asked", async () => {
+describe("GET /api/v1/links", () => {
+  test("hides archived links unless asked", async () => {
     const scoped = await h.createDomain("filters.test")
-    const live = await h.createLinq(author.key, scoped, { slug: "live" })
-    const dead = await h.createLinq(author.key, scoped, { slug: "dead" })
-    await h.request(`/api/v1/linqs/${dead.id}`, { key: author.key, method: "DELETE" })
+    const live = await h.createLink(author.key, scoped, { slug: "live" })
+    const dead = await h.createLink(author.key, scoped, { slug: "dead" })
+    await h.request(`/api/v1/links/${dead.id}`, { key: author.key, method: "DELETE" })
 
     const list = async (query: string) =>
       (
         await (
-          await h.request(`/api/v1/linqs?domainId=${scoped}${query}`, { key: author.key })
+          await h.request(`/api/v1/links?domainId=${scoped}${query}`, { key: author.key })
         ).json()
       ).data as { id: string }[]
 
@@ -228,17 +228,17 @@ describe("GET /api/v1/linqs", () => {
   test("filters by tag, owner and search term", async () => {
     const scoped = await h.createDomain("search.test")
     const other = await h.actor("author")
-    const tagged = await h.createLinq(author.key, scoped, {
+    const tagged = await h.createLink(author.key, scoped, {
       slug: "quarterly",
       tags: ["report"],
       name: "Quarterly report",
     })
-    await h.createLinq(other.key, scoped, { slug: "misc", tags: ["other"] })
+    await h.createLink(other.key, scoped, { slug: "misc", tags: ["other"] })
 
     const list = async (query: string) =>
       (
         await (
-          await h.request(`/api/v1/linqs?domainId=${scoped}&${query}`, { key: author.key })
+          await h.request(`/api/v1/links?domainId=${scoped}&${query}`, { key: author.key })
         ).json()
       ).data as { id: string }[]
 
@@ -251,27 +251,27 @@ describe("GET /api/v1/linqs", () => {
 
   test("paginates and reports the matching total, not the page size", async () => {
     const scoped = await h.createDomain("paged.test")
-    for (let i = 0; i < 3; i++) await h.createLinq(author.key, scoped, { slug: `p${i}` })
+    for (let i = 0; i < 3; i++) await h.createLink(author.key, scoped, { slug: `p${i}` })
 
-    const res = await h.request(`/api/v1/linqs?domainId=${scoped}&limit=2`, { key: author.key })
+    const res = await h.request(`/api/v1/links?domainId=${scoped}&limit=2`, { key: author.key })
     const body = await res.json()
     expect(body.data).toHaveLength(2)
     expect(body).toMatchObject({ total: 3, limit: 2, offset: 0 })
   })
 
   test("rejects a limit above the cap", async () => {
-    const res = await h.request("/api/v1/linqs?limit=500", { key: author.key })
+    const res = await h.request("/api/v1/links?limit=500", { key: author.key })
     expect(res.status).toBe(400)
   })
 
   test("sorts by click count", async () => {
     const scoped = await h.createDomain("sorted.test")
-    const cold = await h.createLinq(author.key, scoped, { slug: "cold" })
-    const hot = await h.createLinq(author.key, scoped, { slug: "hot" })
+    const cold = await h.createLink(author.key, scoped, { slug: "cold" })
+    const hot = await h.createLink(author.key, scoped, { slug: "hot" })
     await h.recordClicks(hot.id, scoped, { human: 2, bot: 1 })
     await h.recordClicks(cold.id, scoped, { human: 1, bot: 0 })
 
-    const res = await h.request(`/api/v1/linqs?domainId=${scoped}&sort=clicks`, { key: author.key })
+    const res = await h.request(`/api/v1/links?domainId=${scoped}&sort=clicks`, { key: author.key })
     const body = await res.json()
     expect(body.data.map((l: { id: string }) => l.id)).toEqual([hot.id, cold.id])
     expect(body.data[0]).toMatchObject({ humanClicks: 2, botClicks: 1 })
@@ -280,15 +280,15 @@ describe("GET /api/v1/linqs", () => {
 
 describe("GET /api/v1/tags", () => {
   // Tags are counted across the whole instance, so this needs a database of its own.
-  test("counts tags over active linqs, most used first", async () => {
+  test("counts tags over active links, most used first", async () => {
     const fresh = await createHarness()
     const owner = await fresh.actor("author")
     const scoped = await fresh.createDomain("tags.test")
 
-    await fresh.createLinq(owner.key, scoped, { slug: "t1", tags: ["shared", "solo"] })
-    await fresh.createLinq(owner.key, scoped, { slug: "t2", tags: ["shared"] })
-    const archived = await fresh.createLinq(owner.key, scoped, { slug: "t3", tags: ["gone"] })
-    await fresh.request(`/api/v1/linqs/${archived.id}`, { key: owner.key, method: "DELETE" })
+    await fresh.createLink(owner.key, scoped, { slug: "t1", tags: ["shared", "solo"] })
+    await fresh.createLink(owner.key, scoped, { slug: "t2", tags: ["shared"] })
+    const archived = await fresh.createLink(owner.key, scoped, { slug: "t3", tags: ["gone"] })
+    await fresh.request(`/api/v1/links/${archived.id}`, { key: owner.key, method: "DELETE" })
 
     const tags = await (await fresh.request("/api/v1/tags", { key: owner.key })).json()
     expect(tags).toEqual([

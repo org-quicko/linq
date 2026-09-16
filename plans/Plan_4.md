@@ -1,4 +1,4 @@
-# linq — Plan 4: the geo database as an external cache
+# link — Plan 4: the geo database as an external cache
 
 Follows `plans/Plan_3.md`, which is implemented.
 
@@ -31,7 +31,7 @@ DB-IP.
 What is genuinely wrong is one level down. `LINQ_DATA_DIR` has exactly two
 consumers: the geo database (`apps/server/src/clicks/geo.ts:38`) and the rotating
 log file (`apps/server/src/config.ts:30`). So one volume holds an 8 MB
-**regenerable cache** next to the only **durable** thing linq writes to disk. An
+**regenerable cache** next to the only **durable** thing link writes to disk. An
 operator backing up `/data` backs up a file they could re-download; an operator
 sizing `/data` sizes it for both.
 
@@ -39,12 +39,12 @@ Two smaller gaps fall out of the same area:
 
 - An operator with restricted egress or an air gap has one option today,
   `LINQ_GEO_ENABLED=false`, which loses country entirely. There is no way to hand
-  linq a database it already has.
+  link a database it already has.
 - Refresh is driven by a 30-day staleness check (`geo.ts:8`), but DB-IP publishes
   monthly. A copy downloaded on the 2nd is not replaced until the 2nd of the
   following month, so a whole publication cycle can be missed.
 
-linq has never shipped — one commit, `ed6e47b Initial commit`, and Plan 1's
+link has never shipped — one commit, `ed6e47b Initial commit`, and Plan 1's
 milestone 8 is still blocked — so there are no live `/data` volumes to migrate
 and no orphaned `.mmdb` to clean up.
 
@@ -56,7 +56,7 @@ and no orphaned `.mmdb` to clean up.
 |---|---|---|
 | `LINQ_GEO_ENABLED` | `true` | Master switch. `false` means no lookup at all. |
 | `LINQ_GEO_DB_PATH` | unset | Read this file; never download, never manage it. |
-| `LINQ_GEO_DIR` | `LINQ_DATA_DIR` (code), `/geo` (image) | Where linq's *own* download lands. |
+| `LINQ_GEO_DIR` | `LINQ_DATA_DIR` (code), `/geo` (image) | Where link's *own* download lands. |
 
 **`LINQ_GEO_ENABLED=false` wins over everything.** The two are not on the same
 axis: `ENABLED` decides whether geo runs, `DB_PATH` decides where the data comes

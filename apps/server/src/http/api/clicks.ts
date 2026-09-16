@@ -5,7 +5,7 @@ import { z } from "zod"
 import { clicks } from "../../db/schema.ts"
 import type { Env } from "../env.ts"
 import { validate } from "../validate.ts"
-import { loadLinq } from "./linqs.ts"
+import { loadLink } from "./links.ts"
 
 const idParam = validate("param", z.object({ id: uuidSchema }))
 
@@ -13,7 +13,7 @@ const idParam = validate("param", z.object({ id: uuidSchema }))
 function toClick(row: typeof clicks.$inferSelect): Click {
   return {
     id: row.id,
-    linqId: row.linqId,
+    linkId: row.linkId,
     domainId: row.domainId,
     slugRequested: row.slugRequested,
     occurredAt: row.occurredAt.toISOString(),
@@ -48,7 +48,7 @@ export function clickFilters(q: {
   return filters
 }
 
-/** Mounted on /linqs; serves the raw click log of one linq, newest first. */
+/** Mounted on /links; serves the raw click log of one link, newest first. */
 export const clickRoutes = new Hono<Env>().get(
   "/:id/clicks",
   idParam,
@@ -56,10 +56,10 @@ export const clickRoutes = new Hono<Env>().get(
   async (c) => {
     const { id } = c.req.valid("param")
     const q = c.req.valid("query")
-    // Load first, so an unknown linq is a 404 rather than an empty page.
-    await loadLinq(c.var.db, id)
+    // Load first, so an unknown link is a 404 rather than an empty page.
+    await loadLink(c.var.db, id)
 
-    const where = and(eq(clicks.linqId, id), ...clickFilters(q))
+    const where = and(eq(clicks.linkId, id), ...clickFilters(q))
     const rows = await c.var.db
       .select()
       .from(clicks)

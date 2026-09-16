@@ -32,7 +32,7 @@ export function ruleMatches(rule: Pick<Rule, "conditions">, ctx: MatchContext): 
 }
 
 /**
- * The destination of the first matching rule, or null to use the linq's default.
+ * The destination of the first matching rule, or null to use the link's default.
  * `rules` must already be in `position` order; `listRules` is what guarantees it.
  */
 export function matchRules<T extends Pick<Rule, "conditions" | "destination">>(

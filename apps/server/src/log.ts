@@ -213,7 +213,7 @@ export async function withRequestLog(c: Context<Env>, next: Next): Promise<void>
     const path = c.req.path
     child.info({ method, path }, "request")
     if (child.isLevelEnabled("debug")) {
-      // Keys only: a linq forwards arbitrary customer query strings.
+      // Keys only: a link forwards arbitrary customer query strings.
       const query = [...new URL(c.req.url).searchParams.keys()]
       child.debug({ method, path, params: c.req.param(), query }, "request params")
     }

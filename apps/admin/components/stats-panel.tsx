@@ -35,7 +35,7 @@ const MAX_BARS = 20
  * Charts one stats endpoint, whichever it is.
  *
  * `path` is the endpoint without its query string, so the same panel serves a
- * linq, a domain and the whole instance. `groups` narrows the picker where a
+ * link, a domain and the whole instance. `groups` narrows the picker where a
  * grouping would be meaningless, such as destination on the orphan slice.
  */
 export function StatsPanel({

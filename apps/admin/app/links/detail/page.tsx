@@ -4,12 +4,12 @@ import {
   type Actor,
   type Click,
   can,
-  type Linq,
+  type Link,
   type Page,
   type Rule,
   type UserSummary,
 } from "@linq/shared"
-import Link from "next/link"
+import NextLink from "next/link"
 import { useRouter, useSearchParams } from "next/navigation"
 import { Suspense, useState } from "react"
 import { toast } from "sonner"
@@ -38,32 +38,32 @@ import { del, patch, qs } from "../../../lib/api"
 import { useApi } from "../../../lib/use-api"
 
 /**
- * Everything about one linq: its settings, its rules, its click history.
+ * Everything about one link: its settings, its rules, its click history.
  *
  * The id arrives in the query string rather than the path because the Admin UI
- * is a static export, which cannot pre-render a page per linq id.
+ * is a static export, which cannot pre-render a page per link id.
  */
-export default function LinqDetailPage() {
+export default function LinkDetailPage() {
   return (
     // useSearchParams needs a Suspense boundary under the App Router.
     <Suspense fallback={<p className="p-8 text-sm text-muted-foreground">Loading…</p>}>
-      <AppShell>{(actor) => <LinqDetail actor={actor} />}</AppShell>
+      <AppShell>{(actor) => <LinkDetail actor={actor} />}</AppShell>
     </Suspense>
   )
 }
 
-function LinqDetail({ actor }: { actor: Actor }) {
+function LinkDetail({ actor }: { actor: Actor }) {
   const id = useSearchParams().get("id")
-  const linq = useApi<Linq>(id ? `/v1/linqs/${id}` : null)
-  const rules = useApi<Rule[]>(id ? `/v1/linqs/${id}/rules` : null)
+  const link = useApi<Link>(id ? `/v1/links/${id}` : null)
+  const rules = useApi<Rule[]>(id ? `/v1/links/${id}/rules` : null)
 
-  if (!id) return <p className="text-sm text-destructive">No linq id in the URL.</p>
-  if (linq.loading || !linq.data) {
-    return <QueryState loading={linq.loading} error={linq.error} />
+  if (!id) return <p className="text-sm text-destructive">No link id in the URL.</p>
+  if (link.loading || !link.data) {
+    return <QueryState loading={link.loading} error={link.error} />
   }
 
-  const current = linq.data
-  const canEdit = can.editLinq(actor, current)
+  const current = link.data
+  const canEdit = can.editLink(actor, current)
 
   return (
     <div className="flex flex-col gap-4">
@@ -78,43 +78,43 @@ function LinqDetail({ actor }: { actor: Actor }) {
             Created <When iso={current.createdAt} /> by {current.ownerName}
           </p>
         </div>
-        <Link href="/linqs/" className="ml-auto">
+        <NextLink href="/links/" className="ml-auto">
           <Button type="button" variant="outline">
-            Back to linqs
+            Back to links
           </Button>
-        </Link>
+        </NextLink>
       </div>
 
-      <StatsPanel path={`/v1/linqs/${id}/stats`} title="Clicks" />
+      <StatsPanel path={`/v1/links/${id}/stats`} title="Clicks" />
 
       <SettingsCard
-        linq={current}
+        link={current}
         canEdit={canEdit}
-        canTransfer={can.transferLinq(actor, current)}
+        canTransfer={can.transferLink(actor, current)}
         canPurge={can.purge(actor)}
-        onSaved={linq.reload}
+        onSaved={link.reload}
       />
 
       {rules.data ? (
-        <RulesEditor linqId={id} rules={rules.data} readOnly={!canEdit} onSaved={rules.reload} />
+        <RulesEditor linkId={id} rules={rules.data} readOnly={!canEdit} onSaved={rules.reload} />
       ) : (
         <QueryState loading={rules.loading} error={rules.error} />
       )}
 
-      <ClicksCard linqId={id} />
+      <ClicksCard linkId={id} />
     </div>
   )
 }
 
-/** The editable fields of a linq. Slug and domain are shown but never editable. */
+/** The editable fields of a link. Slug and domain are shown but never editable. */
 function SettingsCard({
-  linq,
+  link,
   canEdit,
   canTransfer,
   canPurge,
   onSaved,
 }: {
-  linq: Linq
+  link: Link
   canEdit: boolean
   /** Decided from the signed-in user, never from the draft owner in the dropdown. */
   canTransfer: boolean
@@ -123,22 +123,22 @@ function SettingsCard({
 }) {
   const router = useRouter()
   const users = useApi<Page<UserSummary>>("/v1/users?limit=200")
-  const [destination, setDestination] = useState(linq.destination)
-  const [name, setName] = useState(linq.name ?? "")
-  const [tags, setTags] = useState<string[]>(linq.tags)
-  const [forwardQuery, setForwardQuery] = useState(linq.forwardQuery)
-  const [ownerId, setOwnerId] = useState(linq.ownerId)
+  const [destination, setDestination] = useState(link.destination)
+  const [name, setName] = useState(link.name ?? "")
+  const [tags, setTags] = useState<string[]>(link.tags)
+  const [forwardQuery, setForwardQuery] = useState(link.forwardQuery)
+  const [ownerId, setOwnerId] = useState(link.ownerId)
   const [saving, setSaving] = useState(false)
 
   async function save() {
     setSaving(true)
     try {
-      await patch(`/v1/linqs/${linq.id}`, {
+      await patch(`/v1/links/${link.id}`, {
         destination: destination.trim(),
         name: name.trim() || null,
         tags,
         forwardQuery,
-        ...(ownerId !== linq.ownerId ? { ownerId } : {}),
+        ...(ownerId !== link.ownerId ? { ownerId } : {}),
       })
       toast.success("Saved.")
       onSaved()
@@ -151,8 +151,8 @@ function SettingsCard({
 
   async function toggleArchived() {
     try {
-      if (linq.status === "active") await del(`/v1/linqs/${linq.id}`)
-      else await patch(`/v1/linqs/${linq.id}`, { status: "active" })
+      if (link.status === "active") await del(`/v1/links/${link.id}`)
+      else await patch(`/v1/links/${link.id}`, { status: "active" })
       onSaved()
     } catch (err) {
       toast.error(err instanceof Error ? err.message : "That did not work.")
@@ -162,9 +162,9 @@ function SettingsCard({
   /** There is no row left to reload afterwards, so this leaves the page. */
   async function purge() {
     try {
-      await del(`/v1/linqs/${linq.id}/purge`)
-      toast.success(`Purged /${linq.slug}. The slug is free again.`)
-      router.push("/linqs/")
+      await del(`/v1/links/${link.id}/purge`)
+      toast.success(`Purged /${link.slug}. The slug is free again.`)
+      router.push("/links/")
     } catch (err) {
       toast.error(err instanceof Error ? err.message : "That did not work.")
     }
@@ -176,9 +176,9 @@ function SettingsCard({
         <CardTitle>Settings</CardTitle>
         {canEdit ? (
           <CardAction className="flex gap-2">
-            {linq.status === "active" ? (
+            {link.status === "active" ? (
               <ConfirmButton
-                title={`Archive ${linq.domainHost}/${linq.slug}?`}
+                title={`Archive ${link.domainHost}/${link.slug}?`}
                 description="The short URL stops resolving immediately. Nothing is deleted, and the slug stays taken, so you can restore it later."
                 confirmLabel="Archive"
                 onConfirm={toggleArchived}
@@ -194,10 +194,10 @@ function SettingsCard({
                     alternative to it, and the server enforces that too. */}
                 {canPurge ? (
                   <ConfirmButton
-                    title={`Purge ${linq.domainHost}/${linq.slug}?`}
-                    description={`This destroys the linq and its rules for good, and frees the slug for anyone to claim on ${linq.domainHost}. Its clicks are kept as orphans. It cannot be undone.`}
+                    title={`Purge ${link.domainHost}/${link.slug}?`}
+                    description={`This destroys the link and its rules for good, and frees the slug for anyone to claim on ${link.domainHost}. Its clicks are kept as orphans. It cannot be undone.`}
                     confirmLabel="Purge for good"
-                    confirmText={linq.slug}
+                    confirmText={link.slug}
                     onConfirm={purge}
                   >
                     Purge
@@ -239,7 +239,7 @@ function SettingsCard({
             hint={
               canTransfer
                 ? "Handing this over gives up your own access unless your role covers it."
-                : "Only an admin, or the owner, may hand a linq over."
+                : "Only an admin, or the owner, may hand a link over."
             }
           >
             <Picker
@@ -254,11 +254,11 @@ function SettingsCard({
           </Field>
 
           <Field label="Slug" hint="Immutable, and never reused once taken.">
-            <Input value={linq.slug} disabled readOnly />
+            <Input value={link.slug} disabled readOnly />
           </Field>
 
           <Field label="Domain" hint="Immutable.">
-            <Input value={linq.domainHost} disabled readOnly />
+            <Input value={link.domainHost} disabled readOnly />
           </Field>
         </div>
 
@@ -276,9 +276,9 @@ function SettingsCard({
 }
 
 /** The raw click log, newest first, with the human/bot filter the API offers. */
-function ClicksCard({ linqId }: { linqId: string }) {
+function ClicksCard({ linkId }: { linkId: string }) {
   const [bot, setBot] = useState<"any" | "true" | "false">("any")
-  const clicks = useApi<Page<Click>>(`/v1/linqs/${linqId}/clicks${qs({ bot, limit: 25 })}`)
+  const clicks = useApi<Page<Click>>(`/v1/links/${linkId}/clicks${qs({ bot, limit: 25 })}`)
   const rows = clicks.data?.data ?? []
 
   return (

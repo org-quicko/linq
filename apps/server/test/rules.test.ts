@@ -118,24 +118,24 @@ describe("the rules API", () => {
     domain = await h.createDomain("rules.test")
   })
 
-  const put = (linqId: string, key: string, body: unknown) =>
-    h.request(`/api/v1/linqs/${linqId}/rules`, { key, method: "PUT", body: JSON.stringify(body) })
+  const put = (linkId: string, key: string, body: unknown) =>
+    h.request(`/api/v1/links/${linkId}/rules`, { key, method: "PUT", body: JSON.stringify(body) })
 
   const androidRule = {
     destination: "https://example.com/app",
     conditions: [{ type: "platform", value: "android" }],
   }
 
-  test("a linq starts with no rules", async () => {
-    const linq = await h.createLinq(author.key, domain)
-    const res = await h.request(`/api/v1/linqs/${linq.id}/rules`, { key: author.key })
+  test("a link starts with no rules", async () => {
+    const link = await h.createLink(author.key, domain)
+    const res = await h.request(`/api/v1/links/${link.id}/rules`, { key: author.key })
     expect(res.status).toBe(200)
     expect(await res.json()).toEqual([])
   })
 
   test("PUT assigns positions in body order and replaces the whole set", async () => {
-    const linq = await h.createLinq(author.key, domain)
-    const first = await put(linq.id, author.key, [
+    const link = await h.createLink(author.key, domain)
+    const first = await put(link.id, author.key, [
       androidRule,
       { destination: "https://example.com/ios", conditions: [{ type: "platform", value: "ios" }] },
     ])
@@ -146,7 +146,7 @@ describe("the rules API", () => {
     ])
 
     // A second PUT is a full replacement, not a merge.
-    const second = await put(linq.id, author.key, [
+    const second = await put(link.id, author.key, [
       { destination: "https://example.com/only", conditions: [{ type: "country", value: "in" }] },
     ])
     const body = await second.json()
@@ -157,21 +157,21 @@ describe("the rules API", () => {
   })
 
   test("an empty array clears every rule", async () => {
-    const linq = await h.createLinq(author.key, domain)
-    await put(linq.id, author.key, [androidRule])
-    expect(await (await put(linq.id, author.key, [])).json()).toEqual([])
+    const link = await h.createLink(author.key, domain)
+    await put(link.id, author.key, [androidRule])
+    expect(await (await put(link.id, author.key, [])).json()).toEqual([])
   })
 
   test("rejects a rule with no conditions", async () => {
-    const linq = await h.createLinq(author.key, domain)
-    const res = await put(linq.id, author.key, [
+    const link = await h.createLink(author.key, domain)
+    const res = await put(link.id, author.key, [
       { destination: "https://example.com/x", conditions: [] },
     ])
     expect(res.status).toBe(400)
   })
 
   test("rejects a bad destination, country code and condition type", async () => {
-    const linq = await h.createLinq(author.key, domain)
+    const link = await h.createLink(author.key, domain)
     const cases = [
       [{ destination: "/relative", conditions: [{ type: "platform", value: "android" }] }],
       [{ destination: "https://e.test/", conditions: [{ type: "country", value: "IND" }] }],
@@ -179,41 +179,41 @@ describe("the rules API", () => {
       [{ destination: "https://e.test/", conditions: [{ type: "platform", value: "windows" }] }],
     ]
     for (const body of cases) {
-      expect((await put(linq.id, author.key, body)).status).toBe(400)
+      expect((await put(link.id, author.key, body)).status).toBe(400)
     }
   })
 
-  test("permissions follow the linq, not the rules", async () => {
-    const linq = await h.createLinq(author.key, domain)
+  test("permissions follow the link, not the rules", async () => {
+    const link = await h.createLink(author.key, domain)
     const viewer = await h.actor("viewer")
     const stranger = await h.actor("author")
     const editor = await h.actor("editor")
 
     // Everyone may read.
-    expect((await h.request(`/api/v1/linqs/${linq.id}/rules`, { key: viewer.key })).status).toBe(
+    expect((await h.request(`/api/v1/links/${link.id}/rules`, { key: viewer.key })).status).toBe(
       200,
     )
 
-    expect((await put(linq.id, viewer.key, [androidRule])).status).toBe(403)
-    expect((await put(linq.id, stranger.key, [androidRule])).status).toBe(403)
-    expect((await put(linq.id, author.key, [androidRule])).status).toBe(200)
-    expect((await put(linq.id, editor.key, [androidRule])).status).toBe(200)
+    expect((await put(link.id, viewer.key, [androidRule])).status).toBe(403)
+    expect((await put(link.id, stranger.key, [androidRule])).status).toBe(403)
+    expect((await put(link.id, author.key, [androidRule])).status).toBe(200)
+    expect((await put(link.id, editor.key, [androidRule])).status).toBe(200)
   })
 
-  test("an unknown linq is a 404 on both verbs", async () => {
+  test("an unknown link is a 404 on both verbs", async () => {
     const missing = "00000000-0000-7000-8000-000000000000"
-    expect((await h.request(`/api/v1/linqs/${missing}/rules`, { key: author.key })).status).toBe(
+    expect((await h.request(`/api/v1/links/${missing}/rules`, { key: author.key })).status).toBe(
       404,
     )
     expect((await put(missing, author.key, [])).status).toBe(404)
   })
 
-  test("archiving a linq leaves its rules alone", async () => {
-    const linq = await h.createLinq(author.key, domain)
-    await put(linq.id, author.key, [androidRule])
-    await h.request(`/api/v1/linqs/${linq.id}`, { key: author.key, method: "DELETE" })
+  test("archiving a link leaves its rules alone", async () => {
+    const link = await h.createLink(author.key, domain)
+    await put(link.id, author.key, [androidRule])
+    await h.request(`/api/v1/links/${link.id}`, { key: author.key, method: "DELETE" })
 
-    const res = await h.request(`/api/v1/linqs/${linq.id}/rules`, { key: author.key })
+    const res = await h.request(`/api/v1/links/${link.id}/rules`, { key: author.key })
     expect(await res.json()).toHaveLength(1)
   })
 })
@@ -237,11 +237,11 @@ describe("rules in the redirect", () => {
     (await get(path, userAgent)).headers.get("location")
 
   test("a platform rule wins over the default destination", async () => {
-    const linq = await h.createLinq(author.key, domain, {
+    const link = await h.createLink(author.key, domain, {
       slug: "app",
       destination: "https://example.com/web",
     })
-    await h.request(`/api/v1/linqs/${linq.id}/rules`, {
+    await h.request(`/api/v1/links/${link.id}/rules`, {
       key: author.key,
       method: "PUT",
       body: JSON.stringify([
@@ -262,11 +262,11 @@ describe("rules in the redirect", () => {
   })
 
   test("the click records the destination the rule chose, not the default", async () => {
-    const linq = await h.createLinq(author.key, domain, {
+    const link = await h.createLink(author.key, domain, {
       slug: "tracked",
       destination: "https://example.com/web",
     })
-    await h.request(`/api/v1/linqs/${linq.id}/rules`, {
+    await h.request(`/api/v1/links/${link.id}/rules`, {
       key: author.key,
       method: "PUT",
       body: JSON.stringify([
@@ -282,7 +282,7 @@ describe("rules in the redirect", () => {
     const [row] = await h.db
       .select()
       .from(clicks)
-      .where(eq(clicks.linqId, linq.id))
+      .where(eq(clicks.linkId, link.id))
       .orderBy(desc(clicks.id))
       .limit(1)
     expect(row).toMatchObject({
@@ -292,7 +292,7 @@ describe("rules in the redirect", () => {
   })
 
   test("the first matching rule wins when several could", async () => {
-    const linq = await h.createLinq(author.key, domain, {
+    const link = await h.createLink(author.key, domain, {
       slug: "ordered",
       destination: "https://example.com/default",
     })
@@ -303,7 +303,7 @@ describe("rules in the redirect", () => {
         conditions: [{ type: "query_param", key: "b" }],
       },
     ]
-    await h.request(`/api/v1/linqs/${linq.id}/rules`, {
+    await h.request(`/api/v1/links/${link.id}/rules`, {
       key: author.key,
       method: "PUT",
       body: JSON.stringify(body),
@@ -314,11 +314,11 @@ describe("rules in the redirect", () => {
   })
 
   test("a matched destination still gets the incoming query merged into it", async () => {
-    const linq = await h.createLinq(author.key, domain, {
+    const link = await h.createLink(author.key, domain, {
       slug: "merged",
       destination: "https://example.com/web",
     })
-    await h.request(`/api/v1/linqs/${linq.id}/rules`, {
+    await h.request(`/api/v1/links/${link.id}/rules`, {
       key: author.key,
       method: "PUT",
       body: JSON.stringify([
@@ -341,14 +341,14 @@ describe("rules in the redirect", () => {
     })
     const owner = await located.actor("author")
     const scoped = await located.createDomain("geo-rules.test")
-    const linq = await located.createLinq(owner.key, scoped, {
+    const link = await located.createLink(owner.key, scoped, {
       slug: "here",
       destination: "https://example.com/global",
     })
     const rulesBody = JSON.stringify([
       { destination: "https://example.com/in", conditions: [{ type: "country", value: "IN" }] },
     ])
-    await located.request(`/api/v1/linqs/${linq.id}/rules`, {
+    await located.request(`/api/v1/links/${link.id}/rules`, {
       key: owner.key,
       method: "PUT",
       body: rulesBody,
@@ -364,11 +364,11 @@ describe("rules in the redirect", () => {
     const blind = await createHarness()
     const blindOwner = await blind.actor("author")
     const blindDomain = await blind.createDomain("geo-rules.test")
-    const blindLinq = await blind.createLinq(blindOwner.key, blindDomain, {
+    const blindLink = await blind.createLink(blindOwner.key, blindDomain, {
       slug: "here",
       destination: "https://example.com/global",
     })
-    await blind.request(`/api/v1/linqs/${blindLinq.id}/rules`, {
+    await blind.request(`/api/v1/links/${blindLink.id}/rules`, {
       key: blindOwner.key,
       method: "PUT",
       body: rulesBody,

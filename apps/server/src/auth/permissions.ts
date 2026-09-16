@@ -12,9 +12,9 @@ export function assertRole(principal: Principal, min: Role): void {
   if (!roleAtLeast(principal.role, min)) throw ApiError.forbidden()
 }
 
-/** Throws 403 unless the principal may change this linq. See `can.editLinq`. */
+/** Throws 403 unless the principal may change this link. See `can.editLink`. */
 export function assertCanEdit(principal: Principal, ownerId: string): void {
-  if (!can.editLinq(principal, { ownerId })) throw ApiError.forbidden()
+  if (!can.editLink(principal, { ownerId })) throw ApiError.forbidden()
 }
 
 /** Throws 403 unless the principal may purge. See `can.purge`. */
@@ -22,9 +22,9 @@ export function assertCanPurge(principal: Principal): void {
   if (!can.purge(principal)) throw ApiError.forbidden("only an admin purges")
 }
 
-/** Throws 403 unless the principal may hand this linq to someone else. */
+/** Throws 403 unless the principal may hand this link to someone else. */
 export function assertCanTransfer(principal: Principal, ownerId: string): void {
-  if (!can.transferLinq(principal, { ownerId })) {
-    throw ApiError.forbidden("only an admin transfers a linq it does not own")
+  if (!can.transferLink(principal, { ownerId })) {
+    throw ApiError.forbidden("only an admin transfers a link it does not own")
   }
 }

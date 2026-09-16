@@ -23,9 +23,9 @@ function cacheControl(path: string): string {
 /**
  * Serves the exported Admin UI at /admin.
  *
- * `trailingSlash` is on in the export, so `/admin/linqs/` maps to
- * `linqs/index.html`; a path without the slash is tried as a file first and then
- * as a directory, which is what makes `/admin/linqs` work too.
+ * `trailingSlash` is on in the export, so `/admin/links/` maps to
+ * `links/index.html`; a path without the slash is tried as a file first and then
+ * as a directory, which is what makes `/admin/links` work too.
  *
  * Must be mounted before the catch-all redirect, or `/admin` would be read as a
  * slug. Returns 404 when no export is present, so a server running without a

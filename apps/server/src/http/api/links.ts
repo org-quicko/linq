@@ -1,9 +1,9 @@
 import {
   ApiError,
-  type Linq,
-  linqCreateSchema,
-  linqListQuerySchema,
-  linqPatchSchema,
+  type Link,
+  linkCreateSchema,
+  linkListQuerySchema,
+  linkPatchSchema,
   uuidSchema,
 } from "@linq/shared"
 import { and, arrayOverlaps, asc, count, desc, eq, ilike, or, type SQL, sql } from "drizzle-orm"
@@ -16,7 +16,7 @@ import {
   assertRole,
 } from "../../auth/permissions.ts"
 import type { Db } from "../../db/client.ts"
-import { clicks, domains, linqs, users } from "../../db/schema.ts"
+import { clicks, domains, links, users } from "../../db/schema.ts"
 import { span } from "../../log.ts"
 import { randomSlug } from "../../slug.ts"
 import type { Env } from "../env.ts"
@@ -24,8 +24,8 @@ import { validate } from "../validate.ts"
 
 const idParam = validate("param", z.object({ id: uuidSchema }))
 
-type LinqRow = {
-  linq: typeof linqs.$inferSelect
+type LinkRow = {
+  link: typeof links.$inferSelect
   domainHost: string
   ownerName: string
   humanClicks: number
@@ -38,109 +38,109 @@ function shortUrl(host: string, slug: string): string {
   return `${scheme}://${host}/${slug}`
 }
 
-/** Maps a joined linq row to the JSON shape the API returns. */
-function toLinq(row: LinqRow): Linq {
-  const { linq } = row
+/** Maps a joined link row to the JSON shape the API returns. */
+function toLink(row: LinkRow): Link {
+  const { link } = row
   return {
-    id: linq.id,
-    domainId: linq.domainId,
+    id: link.id,
+    domainId: link.domainId,
     domainHost: row.domainHost,
-    slug: linq.slug,
-    shortUrl: shortUrl(row.domainHost, linq.slug),
-    destination: linq.destination,
-    name: linq.name,
-    tags: linq.tags,
-    forwardQuery: linq.forwardQuery,
-    status: linq.status,
-    ownerId: linq.ownerId,
+    slug: link.slug,
+    shortUrl: shortUrl(row.domainHost, link.slug),
+    destination: link.destination,
+    name: link.name,
+    tags: link.tags,
+    forwardQuery: link.forwardQuery,
+    status: link.status,
+    ownerId: link.ownerId,
     ownerName: row.ownerName,
     humanClicks: row.humanClicks,
     botClicks: row.botClicks,
-    createdAt: linq.createdAt.toISOString(),
-    updatedAt: linq.updatedAt.toISOString(),
+    createdAt: link.createdAt.toISOString(),
+    updatedAt: link.updatedAt.toISOString(),
   }
 }
 
 /**
- * Every linq response carries its click totals, so the joins live in one place.
+ * Every link response carries its click totals, so the joins live in one place.
  * `total` is exposed separately because `sort=clicks` orders on it.
  */
-function linqQuery(db: Db) {
+function linkQuery(db: Db) {
   const totals = db
     .select({
-      linqId: clicks.linqId,
+      linkId: clicks.linkId,
       human: sql<number>`count(*) filter (where not ${clicks.isBot})`.as("human"),
       bot: sql<number>`count(*) filter (where ${clicks.isBot})`.as("bot"),
     })
     .from(clicks)
-    .groupBy(clicks.linqId)
+    .groupBy(clicks.linkId)
     .as("click_totals")
 
   const query = db
     .select({
-      linq: linqs,
+      link: links,
       domainHost: domains.host,
       ownerName: users.name,
       humanClicks: sql<number>`coalesce(${totals.human}, 0)`.mapWith(Number),
       botClicks: sql<number>`coalesce(${totals.bot}, 0)`.mapWith(Number),
     })
-    .from(linqs)
-    .innerJoin(domains, eq(domains.id, linqs.domainId))
-    .innerJoin(users, eq(users.id, linqs.ownerId))
-    .leftJoin(totals, eq(totals.linqId, linqs.id))
+    .from(links)
+    .innerJoin(domains, eq(domains.id, links.domainId))
+    .innerJoin(users, eq(users.id, links.ownerId))
+    .leftJoin(totals, eq(totals.linkId, links.id))
 
   return { query, total: sql`coalesce(${totals.human}, 0) + coalesce(${totals.bot}, 0)` }
 }
 
-/** Loads one linq as a complete API response, joins and click totals included, or throws 404. */
-function fetchLinq(db: Db, id: string): Promise<Linq> {
+/** Loads one link as a complete API response, joins and click totals included, or throws 404. */
+function fetchLink(db: Db, id: string): Promise<Link> {
   return span(
-    "linq.fetch",
+    "link.fetch",
     async () => {
-      const [row] = await linqQuery(db).query.where(eq(linqs.id, id)).limit(1)
-      if (!row) throw ApiError.notFound("linq")
-      return toLinq(row)
+      const [row] = await linkQuery(db).query.where(eq(links.id, id)).limit(1)
+      if (!row) throw ApiError.notFound("link")
+      return toLink(row)
     },
-    { in: { linqId: id }, out: (linq) => ({ slug: linq.slug, status: linq.status }) },
+    { in: { linkId: id }, out: (link) => ({ slug: link.slug, status: link.status }) },
   )
 }
 
 /** The raw row, for permission checks that run before the response is built. */
-export function loadLinq(db: Db, id: string): Promise<typeof linqs.$inferSelect> {
+export function loadLink(db: Db, id: string): Promise<typeof links.$inferSelect> {
   return span(
-    "linq.load",
+    "link.load",
     async () => {
-      const [row] = await db.select().from(linqs).where(eq(linqs.id, id)).limit(1)
-      if (!row) throw ApiError.notFound("linq")
+      const [row] = await db.select().from(links).where(eq(links.id, id)).limit(1)
+      if (!row) throw ApiError.notFound("link")
       return row
     },
-    { in: { linqId: id }, out: (linq) => ({ ownerId: linq.ownerId, status: linq.status }) },
+    { in: { linkId: id }, out: (link) => ({ ownerId: link.ownerId, status: link.status }) },
   )
 }
 
 /**
  * Lets the database settle slug races: `onConflictDoNothing` returns no row when
  * the slug was taken, so two concurrent creates can never both claim one slug.
- * Archived linqs keep their slug, so a retry never resurrects a dead link.
+ * Archived links keep their slug, so a retry never resurrects a dead link.
  */
-function insertLinq(
+function insertLink(
   db: Db,
-  values: Omit<typeof linqs.$inferInsert, "id" | "slug">,
+  values: Omit<typeof links.$inferInsert, "id" | "slug">,
   opts: { slug?: string; slugLength: number },
-): Promise<typeof linqs.$inferSelect> {
+): Promise<typeof links.$inferSelect> {
   return span(
-    "linq.insert",
+    "link.insert",
     async () => {
       const attempts = opts.slug ? 1 : 5
       for (let i = 0; i < attempts; i++) {
         const [row] = await db
-          .insert(linqs)
+          .insert(links)
           .values({
             ...values,
             id: Bun.randomUUIDv7(),
             slug: opts.slug ?? randomSlug(opts.slugLength),
           })
-          .onConflictDoNothing({ target: [linqs.domainId, linqs.slug] })
+          .onConflictDoNothing({ target: [links.domainId, links.slug] })
           .returning()
         // The attempt count is the signal that LINQ_SLUG_LENGTH is running out.
         if (row) return { row, attempts: i + 1 }
@@ -150,42 +150,42 @@ function insertLinq(
     },
     {
       in: { domainId: values.domainId, slug: opts.slug ?? null },
-      out: ({ row, attempts }) => ({ linqId: row.id, slug: row.slug, attempts }),
+      out: ({ row, attempts }) => ({ linkId: row.id, slug: row.slug, attempts }),
     },
   ).then(({ row }) => row)
 }
 
-export const linqRoutes = new Hono<Env>()
-  .get("/", validate("query", linqListQuerySchema), async (c) => {
+export const linkRoutes = new Hono<Env>()
+  .get("/", validate("query", linkListQuerySchema), async (c) => {
     const q = c.req.valid("query")
-    const { query, total } = linqQuery(c.var.db)
+    const { query, total } = linkQuery(c.var.db)
 
     const filters: SQL[] = []
-    if (q.status !== "all") filters.push(eq(linqs.status, q.status))
-    if (q.domainId) filters.push(eq(linqs.domainId, q.domainId))
-    if (q.ownerId) filters.push(eq(linqs.ownerId, q.ownerId))
-    if (q.tags.length) filters.push(arrayOverlaps(linqs.tags, q.tags))
+    if (q.status !== "all") filters.push(eq(links.status, q.status))
+    if (q.domainId) filters.push(eq(links.domainId, q.domainId))
+    if (q.ownerId) filters.push(eq(links.ownerId, q.ownerId))
+    if (q.tags.length) filters.push(arrayOverlaps(links.tags, q.tags))
     if (q.search) {
       const term = `%${q.search}%`
       filters.push(
-        or(ilike(linqs.slug, term), ilike(linqs.name, term), ilike(linqs.destination, term)) as SQL,
+        or(ilike(links.slug, term), ilike(links.name, term), ilike(links.destination, term)) as SQL,
       )
     }
     const where = filters.length ? and(...filters) : undefined
 
-    const column = q.sort === "clicks" ? total : linqs.createdAt
+    const column = q.sort === "clicks" ? total : links.createdAt
     const rows = await query
       .where(where)
       .orderBy(q.order === "asc" ? asc(column) : desc(column))
       .limit(q.limit)
       .offset(q.offset)
 
-    const [{ total: matched }] = await c.var.db.select({ total: count() }).from(linqs).where(where)
+    const [{ total: matched }] = await c.var.db.select({ total: count() }).from(links).where(where)
 
-    return c.json({ data: rows.map(toLinq), total: matched, limit: q.limit, offset: q.offset })
+    return c.json({ data: rows.map(toLink), total: matched, limit: q.limit, offset: q.offset })
   })
 
-  .post("/", validate("json", linqCreateSchema), async (c) => {
+  .post("/", validate("json", linkCreateSchema), async (c) => {
     assertRole(c.var.principal, "author")
     const body = c.req.valid("json")
 
@@ -197,7 +197,7 @@ export const linqRoutes = new Hono<Env>()
     if (!domain) throw ApiError.notFound("domain")
     if (domain.status === "archived") throw ApiError.conflict("domain is archived")
 
-    const row = await insertLinq(
+    const row = await insertLink(
       c.var.db,
       {
         domainId: body.domainId,
@@ -210,15 +210,15 @@ export const linqRoutes = new Hono<Env>()
       { slug: body.slug, slugLength: c.var.config.LINQ_SLUG_LENGTH },
     )
 
-    return c.json(await fetchLinq(c.var.db, row.id), 201)
+    return c.json(await fetchLink(c.var.db, row.id), 201)
   })
 
-  .get("/:id", idParam, async (c) => c.json(await fetchLinq(c.var.db, c.req.valid("param").id)))
+  .get("/:id", idParam, async (c) => c.json(await fetchLink(c.var.db, c.req.valid("param").id)))
 
-  .patch("/:id", idParam, validate("json", linqPatchSchema), async (c) => {
+  .patch("/:id", idParam, validate("json", linkPatchSchema), async (c) => {
     const { id } = c.req.valid("param")
     const patch = c.req.valid("json")
-    const existing = await loadLinq(c.var.db, id)
+    const existing = await loadLink(c.var.db, id)
     assertCanEdit(c.var.principal, existing.ownerId)
 
     if (patch.ownerId !== undefined) {
@@ -232,29 +232,29 @@ export const linqRoutes = new Hono<Env>()
     }
 
     await c.var.db
-      .update(linqs)
+      .update(links)
       .set({ ...patch, updatedAt: new Date() })
-      .where(eq(linqs.id, id))
-    return c.json(await fetchLinq(c.var.db, id))
+      .where(eq(links.id, id))
+    return c.json(await fetchLink(c.var.db, id))
   })
 
-  /** DELETE is an alias for archiving; linqs are never dropped. See docs/adr/0002. */
+  /** DELETE is an alias for archiving; links are never dropped. See docs/adr/0002. */
   .delete("/:id", idParam, async (c) => {
     const { id } = c.req.valid("param")
-    const existing = await loadLinq(c.var.db, id)
+    const existing = await loadLink(c.var.db, id)
     assertCanEdit(c.var.principal, existing.ownerId)
 
     await c.var.db
-      .update(linqs)
+      .update(links)
       .set({ status: "archived", updatedAt: new Date() })
-      .where(eq(linqs.id, id))
-    return c.json(await fetchLinq(c.var.db, id))
+      .where(eq(links.id, id))
+    return c.json(await fetchLink(c.var.db, id))
   })
 
   /**
-   * Destroys an archived linq for good. Admin only, and archived-first, so a live
+   * Destroys an archived link for good. Admin only, and archived-first, so a live
    * short URL can never be destroyed by one call. Rules go with it; clicks stay
-   * as orphans, which is what the `set null` on `clicks.linq_id` is for.
+   * as orphans, which is what the `set null` on `clicks.link_id` is for.
    *
    * Unlike archiving, this **releases the slug** for reuse on that domain. See
    * docs/adr/0002.
@@ -262,23 +262,23 @@ export const linqRoutes = new Hono<Env>()
   .delete("/:id/purge", idParam, async (c) => {
     assertCanPurge(c.var.principal)
     const { id } = c.req.valid("param")
-    const existing = await loadLinq(c.var.db, id)
+    const existing = await loadLink(c.var.db, id)
     if (existing.status !== "archived") {
-      throw ApiError.conflict("archive the linq before purging it")
+      throw ApiError.conflict("archive the link before purging it")
     }
 
-    await span("linq.purge", async () => c.var.db.delete(linqs).where(eq(linqs.id, id)), {
-      in: { linqId: id, slug: existing.slug },
+    await span("link.purge", async () => c.var.db.delete(links).where(eq(links.id, id)), {
+      in: { linkId: id, slug: existing.slug },
     })
     return c.body(null, 204)
   })
 
-/** Tags are derived from active linqs; there is no tag table to keep in step. */
+/** Tags are derived from active links; there is no tag table to keep in step. */
 export const tagRoutes = new Hono<Env>().get("/", async (c) => {
   const expanded = c.var.db
-    .select({ tag: sql<string>`unnest(${linqs.tags})`.as("tag") })
-    .from(linqs)
-    .where(eq(linqs.status, "active"))
+    .select({ tag: sql<string>`unnest(${links.tags})`.as("tag") })
+    .from(links)
+    .where(eq(links.status, "active"))
     .as("expanded")
 
   const rows = await c.var.db
