@@ -1,17 +1,24 @@
 "use client"
 
-import { type Actor, can, type Domain, type Page } from "@linq/shared"
+import { type Actor, can, type Domain } from "@linq/shared"
 import { useState } from "react"
 import { toast } from "sonner"
 import { AppShell } from "@/components/app-shell"
-import { ConfirmButton, DataTable, Field, QueryState } from "@/components/common"
+import { ConfirmButton, DataTable, Field, QueryState, TableSkeleton } from "@/components/common"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
 import { TableCell, TableRow } from "@/components/ui/table"
-import { del, patch, post } from "../../../lib/api"
-import { useApi } from "../../../lib/use-api"
+import { errorMessage } from "../../lib/api"
+import {
+  useArchiveDomainMutation,
+  useCreateDomainMutation,
+  useListDomainsQuery,
+  useUpdateDomainMutation,
+} from "../../lib/store/domains"
+
+const HEAD = ["Host", "Fallback URL", "Active links", "", ""]
 
 /**
  * Domains and their fallback URLs.
@@ -25,17 +32,19 @@ export default function DomainsPage() {
 }
 
 function DomainsList({ actor }: { actor: Actor }) {
-  const domains = useApi<Page<Domain>>("/v1/domains?limit=200")
+  const domains = useListDomainsQuery({ limit: 200 })
+  const [createDomain] = useCreateDomainMutation()
+  const [updateDomain] = useUpdateDomainMutation()
+  const [archiveDomain] = useArchiveDomainMutation()
   const isAdmin = can.manageDomains(actor)
   const rows = domains.data?.data ?? []
 
-  /** Runs a write, surfaces the server's message, and refreshes the list. */
+  /** Runs a write and surfaces the server's message on failure. */
   async function run(action: () => Promise<unknown>) {
     try {
       await action()
-      domains.reload()
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : "That did not work.")
+      toast.error(errorMessage(err, "That did not work."))
     }
   }
 
@@ -43,36 +52,38 @@ function DomainsList({ actor }: { actor: Actor }) {
     <div className="flex flex-col gap-4">
       <h1 className="font-heading text-xl font-semibold">Domains</h1>
 
-      {isAdmin ? <NewDomainCard onCreate={(body) => run(() => post("/v1/domains", body))} /> : null}
+      {isAdmin ? (
+        <NewDomainCard onCreate={(body) => run(() => createDomain(body).unwrap())} />
+      ) : null}
 
       <Card>
         <CardContent>
           <QueryState
-            loading={domains.loading}
+            isLoading={domains.isLoading}
+            isFetching={domains.isFetching}
             error={domains.error}
             empty={rows.length === 0}
             emptyMessage="No domains yet."
+            skeleton={<TableSkeleton head={HEAD} />}
           />
 
           {rows.length > 0 ? (
-            <DataTable head={["Host", "Fallback URL", "Active links", "", ""]}>
+            <DataTable head={HEAD}>
               {rows.map((domain) => (
                 <DomainRow
                   key={domain.id}
                   domain={domain}
                   isAdmin={isAdmin}
-                  canPurge={can.purge(actor)}
                   onSaveFallback={(fallbackUrl) =>
-                    run(() => patch(`/v1/domains/${domain.id}`, { fallbackUrl }))
+                    run(() => updateDomain({ id: domain.id, body: { fallbackUrl } }).unwrap())
                   }
                   onToggleStatus={() =>
                     run(() =>
                       domain.status === "active"
-                        ? del(`/v1/domains/${domain.id}`)
-                        : patch(`/v1/domains/${domain.id}`, { status: "active" }),
+                        ? archiveDomain(domain.id).unwrap()
+                        : updateDomain({ id: domain.id, body: { status: "active" } }).unwrap(),
                     )
                   }
-                  onPurge={() => run(() => del(`/v1/domains/${domain.id}/purge`))}
                 />
               ))}
             </DataTable>
@@ -87,17 +98,13 @@ function DomainsList({ actor }: { actor: Actor }) {
 function DomainRow({
   domain,
   isAdmin,
-  canPurge,
   onSaveFallback,
   onToggleStatus,
-  onPurge,
 }: {
   domain: Domain
   isAdmin: boolean
-  canPurge: boolean
   onSaveFallback: (fallbackUrl: string | null) => void
   onToggleStatus: () => void
-  onPurge: () => void
 }) {
   const [fallback, setFallback] = useState(domain.fallbackUrl ?? "")
   const changed = fallback !== (domain.fallbackUrl ?? "")
@@ -141,25 +148,9 @@ function DomainRow({
               Archive
             </ConfirmButton>
           ) : (
-            <div className="flex items-center gap-2">
-              <Button type="button" variant="outline" onClick={onToggleStatus}>
-                Restore
-              </Button>
-              {/* Purge is offered only once the domain is archived: the server
-                  refuses it otherwise, and on an active row it would read as an
-                  alternative to archiving rather than a step after it. */}
-              {canPurge ? (
-                <ConfirmButton
-                  title={`Purge ${domain.host}?`}
-                  description="This destroys the domain and every click ever recorded on it. It cannot be undone. The server refuses this while any link still points at the host, archived ones included."
-                  confirmLabel="Purge for good"
-                  confirmText={domain.host}
-                  onConfirm={onPurge}
-                >
-                  Purge
-                </ConfirmButton>
-              ) : null}
-            </div>
+            <Button type="button" variant="outline" onClick={onToggleStatus}>
+              Restore
+            </Button>
           )
         ) : null}
       </TableCell>

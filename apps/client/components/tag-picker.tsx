@@ -13,9 +13,7 @@ import {
   CommandList,
 } from "@/components/ui/command"
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
-import { useApi } from "../lib/use-api"
-
-type TagCount = { tag: string; count: number }
+import { useListTagsQuery } from "../lib/store/stats"
 
 /** The server lowercases tags on the way in, so the picker does too. */
 function normalise(tag: string): string {
@@ -46,11 +44,11 @@ export function TagPicker({
   disabled?: boolean
   placeholder?: string
 }) {
-  const tags = useApi<TagCount[]>("/v1/tags")
+  const { data: tags, isLoading: tagsLoading } = useListTagsQuery()
   const [open, setOpen] = useState(false)
   const [typed, setTyped] = useState("")
 
-  const known = tags.data ?? []
+  const known = tags ?? []
   const candidate = normalise(typed)
   // Offer to create only what is genuinely new, so the option never duplicates
   // a row already in the list.
@@ -89,7 +87,7 @@ export function TagPicker({
               onValueChange={setTyped}
             />
             <CommandList>
-              <CommandEmpty>{tags.loading ? "Loading…" : "No tags yet."}</CommandEmpty>
+              <CommandEmpty>{tagsLoading ? "Loading…" : "No tags yet."}</CommandEmpty>
 
               {showCreate ? (
                 <CommandGroup>

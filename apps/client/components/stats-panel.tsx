@@ -1,6 +1,6 @@
 "use client"
 
-import { GROUP_BY, type GroupBy, type StatsBucket } from "@linq/shared"
+import { GROUP_BY, type GroupBy } from "@linq/shared"
 import { useState } from "react"
 import {
   Bar,
@@ -14,8 +14,7 @@ import {
 } from "recharts"
 import { GeoAttribution, Picker, QueryState } from "@/components/common"
 import { Card, CardAction, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
-import { qs } from "../lib/api"
-import { useApi } from "../lib/use-api"
+import { useGetStatsQuery } from "../lib/store/stats"
 
 /** Human-readable names for each grouping the stats endpoints accept. */
 const GROUP_LABELS: Record<GroupBy, string> = {
@@ -52,15 +51,20 @@ export function StatsPanel({
   extraParams?: Record<string, string | undefined>
 }) {
   const [groupBy, setGroupBy] = useState<GroupBy>(initialGroupBy)
-  const stats = useApi<StatsBucket[]>(`${path}${qs({ ...extraParams, groupBy })}`)
+  const {
+    data: stats,
+    isLoading,
+    isFetching,
+    error,
+  } = useGetStatsQuery({ path, params: { ...extraParams, groupBy } })
 
-  const buckets = (stats.data ?? []).slice(0, MAX_BARS).map((bucket) => ({
+  const buckets = (stats ?? []).slice(0, MAX_BARS).map((bucket) => ({
     ...bucket,
     // An empty key means the dimension was never recorded for those clicks.
     key: bucket.key === "" ? "(not recorded)" : bucket.key,
   }))
 
-  const totals = (stats.data ?? []).reduce(
+  const totals = (stats ?? []).reduce(
     (sum, bucket) => ({ human: sum.human + bucket.human, bot: sum.bot + bucket.bot }),
     { human: 0, bot: 0 },
   )
@@ -86,8 +90,9 @@ export function StatsPanel({
         </p>
 
         <QueryState
-          loading={stats.loading}
-          error={stats.error}
+          isLoading={isLoading}
+          isFetching={isFetching}
+          error={error}
           empty={buckets.length === 0}
           emptyMessage="No clicks recorded yet."
         />

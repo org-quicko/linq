@@ -74,9 +74,9 @@ export function createApp({ db, config, geo = noGeo }: AppDeps) {
   v1.route("/keys", keyRoutes)
   app.route("/api/v1", v1)
 
-  app.get("/robots.txt", (c) => c.text("User-agent: *\nDisallow: /api\nDisallow: /admin\n"))
+  app.get("/robots.txt", (c) => c.text("User-agent: *\nDisallow: /api\nDisallow: /home\n"))
 
-  // The exported Admin UI. Before the catch-all, or /admin reads as a slug.
+  // The exported Admin UI. Before the catch-all, or /home reads as a slug.
   mountAdmin(app)
 
   // Last: the catch-all redirect, so every reserved path above wins the match.

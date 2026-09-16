@@ -1,19 +1,25 @@
 "use client"
 
-import { type Actor, can, type Domain, type Link, type Page } from "@linq/shared"
+import { type Actor, can, type Link } from "@linq/shared"
 import NextLink from "next/link"
 import { useState } from "react"
 import { toast } from "sonner"
 import { AppShell } from "@/components/app-shell"
-import { CopyButton, DataTable, Picker, QueryState } from "@/components/common"
+import { CopyButton, DataTable, Picker, QueryState, TableSkeleton } from "@/components/common"
 import { TagPicker } from "@/components/tag-picker"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
 import { TableCell, TableRow } from "@/components/ui/table"
-import { del, patch, qs } from "../../lib/api"
-import { useApi, useDebounced } from "../../lib/use-api"
+import { errorMessage, qs } from "../../lib/api"
+import { useListDomainsQuery } from "../../lib/store/domains"
+import {
+  useArchiveLinkMutation,
+  useListLinksQuery,
+  useUpdateLinkMutation,
+} from "../../lib/store/links"
+import { useDebounced } from "../../lib/use-api"
 
 type Filters = {
   domainId: string
@@ -25,6 +31,8 @@ const EMPTY: Filters = { domainId: "", status: "active", sort: "createdAt" }
 
 /** Radix refuses an item whose value is "", so "no filter" needs a real value. */
 const ANY_DOMAIN = "__any__"
+
+const HEAD = ["Short URL", "Destination", "Tags", "Clicks", "Owner", "", ""]
 
 /** The main list: every link, filtered the same way the API filters them. */
 export default function LinksPage() {
@@ -41,10 +49,16 @@ function LinksList({ actor }: { actor: Actor }) {
   // The box stays responsive while the request waits for the typing to stop.
   const settledSearch = useDebounced(search)
 
-  const domains = useApi<Page<Domain>>("/v1/domains?limit=200")
-  const links = useApi<Page<Link>>(
-    `/v1/links${qs({ ...filters, search: settledSearch, tags: tags.join(","), limit, offset })}`,
-  )
+  const domains = useListDomainsQuery({ limit: 200 })
+  const links = useListLinksQuery({
+    ...filters,
+    search: settledSearch,
+    tags: tags.join(","),
+    limit,
+    offset,
+  })
+  const [archiveLink] = useArchiveLinkMutation()
+  const [updateLink] = useUpdateLinkMutation()
 
   /** Applies a filter change and returns to the first page of results. */
   function update(next: Partial<Filters>) {
@@ -54,11 +68,10 @@ function LinksList({ actor }: { actor: Actor }) {
 
   async function toggleStatus(link: Link) {
     try {
-      if (link.status === "active") await del(`/v1/links/${link.id}`)
-      else await patch(`/v1/links/${link.id}`, { status: "active" })
-      links.reload()
+      if (link.status === "active") await archiveLink(link.id).unwrap()
+      else await updateLink({ id: link.id, body: { status: "active" } }).unwrap()
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : "That did not work.")
+      toast.error(errorMessage(err, "That did not work."))
     }
   }
 
@@ -128,14 +141,16 @@ function LinksList({ actor }: { actor: Actor }) {
       <Card>
         <CardContent>
           <QueryState
-            loading={links.loading}
+            isLoading={links.isLoading}
+            isFetching={links.isFetching}
             error={links.error}
             empty={rows.length === 0}
             emptyMessage="No links match these filters."
+            skeleton={<TableSkeleton head={HEAD} />}
           />
 
           {rows.length > 0 ? (
-            <DataTable head={["Short URL", "Destination", "Tags", "Clicks", "Owner", "", ""]}>
+            <DataTable head={HEAD}>
               {rows.map((link) => (
                 <TableRow
                   key={link.id}

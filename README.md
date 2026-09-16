@@ -100,7 +100,7 @@ In a **second terminal**, leaving the server running in the first:
 bun run dev:admin
 ```
 
-Open **http://localhost:3001/admin/** and fill in the form. It asks for a server,
+Open **http://localhost:3001/home/** and fill in the form. It asks for a server,
 not just a key:
 
 | Field | Value |
@@ -140,8 +140,8 @@ The server you added is still in your browser, so the UI opens straight onto it.
 
 | URL | What it is |
 |---|---|
-| http://localhost:3001/admin/ | Admin UI, in development |
-| http://localhost:3000/admin/ | Admin UI, when the server serves the built export |
+| http://localhost:3001/home/ | Admin UI, in development |
+| http://localhost:3000/home/ | Admin UI, when the server serves the built export |
 | http://localhost:3000/api/v1 | REST API |
 | http://localhost:3000/`slug` | A short link, which redirects |
 
@@ -156,7 +156,7 @@ bun run test      # server and admin suites, in that order
 bun run typecheck # tsc -b --force
 bun run lint      # biome check .
 bun run format    # biome check --write .
-bun run build:admin             # the export the server serves at /admin
+bun run build:admin             # the export the server serves at /home
 bun run build:admin:standalone  # the export for a static host, at a domain root
 bun run db:generate  # generate a migration after editing db/schema.ts
 ```
@@ -165,16 +165,16 @@ bun run db:generate  # generate a migration after editing db/schema.ts
 
 There are two supported shapes, from one codebase.
 
-**Served by linq**, the default. `bun run build:admin` writes `apps/admin/out`,
-built for the `/admin` sub-path, and the server serves it from there. One process,
+**Served by linq**, the default. `bun run build:admin` writes `apps/client/out`,
+built for the `/home` sub-path, and the server serves it from there. One process,
 one deployment, nothing to configure — this is what the Docker image does.
 
 **On its own**, anywhere that serves static files. `bun run build:admin:standalone`
-writes `apps/admin/out-standalone`, built for a domain root. Upload that directory
+writes `apps/client/out-standalone`, built for a domain root. Upload that directory
 to Vercel, Netlify, Cloudflare Pages, S3, nginx — it is plain files with no runtime.
 Two things to get right:
 
-- **Build it from a checkout of this repo**, not from `apps/admin` alone. The UI
+- **Build it from a checkout of this repo**, not from `apps/client` alone. The UI
   imports `@linq/shared` as TypeScript over a workspace link and its tsconfig
   reaches the repo root, so the build command is `bun install && bun run
   build:admin:standalone` with the whole repository present.
@@ -183,7 +183,7 @@ Two things to get right:
   index document configured.
 
 The two outputs are kept in separate directories on purpose: a root-path export
-sitting in `apps/admin/out` would be served by the server at `/admin` with every
+sitting in `apps/client/out` would be served by the server at `/home` with every
 asset path wrong.
 
 The UI needs no build-time configuration either way — no API URL is compiled in.
@@ -210,7 +210,7 @@ the compose file, set a real password and `LINQ_DEFAULT_DOMAIN`, then
 `docker compose up`.
 
 If you deploy the UI separately, the image still works with the export left out —
-the server answers 404 on `/admin/*` and carries on serving the API and the
+the server answers 404 on `/home/*` and carries on serving the API and the
 redirects. Dropping the first build stage and the `COPY --from=build` line gives
 you a smaller, API-only image.
 

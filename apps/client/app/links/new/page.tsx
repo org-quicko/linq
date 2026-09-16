@@ -1,6 +1,6 @@
 "use client"
 
-import { can, type Domain, type Link, type Page } from "@linq/shared"
+import { can } from "@linq/shared"
 import { useRouter } from "next/navigation"
 import { type SyntheticEvent, useState } from "react"
 import { toast } from "sonner"
@@ -12,8 +12,9 @@ import { Card, CardContent } from "@/components/ui/card"
 import { Checkbox } from "@/components/ui/checkbox"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
-import { post, qs } from "../../../lib/api"
-import { useApi } from "../../../lib/use-api"
+import { errorMessage, qs } from "../../../lib/api"
+import { useListDomainsQuery } from "../../../lib/store/domains"
+import { useCreateLinkMutation } from "../../../lib/store/links"
 
 /**
  * Creates one link.
@@ -29,7 +30,8 @@ export default function NewLinkPage() {
 
 function NewLinkForm() {
   const router = useRouter()
-  const domains = useApi<Page<Domain>>("/v1/domains?limit=200")
+  const domains = useListDomainsQuery({ limit: 200 })
+  const [createLink] = useCreateLinkMutation()
   const active = (domains.data?.data ?? []).filter((domain) => domain.status === "active")
 
   const [domainId, setDomainId] = useState("")
@@ -46,17 +48,17 @@ function NewLinkForm() {
     event.preventDefault()
     setSaving(true)
     try {
-      const created = await post<Link>("/v1/links", {
+      const created = await createLink({
         domainId: chosenDomain,
         slug: slug.trim() || undefined,
         destination: destination.trim(),
         name: name.trim() || undefined,
         tags,
         forwardQuery,
-      })
+      }).unwrap()
       router.push(`/links/detail/${qs({ id: created.id })}`)
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : "Could not create the link.")
+      toast.error(errorMessage(err, "Could not create the link."))
       setSaving(false)
     }
   }
@@ -68,9 +70,10 @@ function NewLinkForm() {
       <Card>
         <CardContent>
           <QueryState
-            loading={domains.loading}
+            isLoading={domains.isLoading}
+            isFetching={domains.isFetching}
             error={domains.error}
-            empty={!domains.loading && active.length === 0}
+            empty={!domains.isLoading && active.length === 0}
             emptyMessage="No active domain to create a link on. An admin must add one first."
           />
 

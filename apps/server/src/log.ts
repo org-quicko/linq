@@ -205,7 +205,7 @@ export async function withRequestLog(c: Context<Env>, next: Next): Promise<void>
   c.header("x-request-id", reqId)
 
   // One admin page load is ~30 hashed chunk requests. None of them is diagnostic.
-  if (c.req.path.startsWith("/admin/_next/")) return next()
+  if (c.req.path.startsWith("/home/_next/")) return next()
 
   const child = log.child({ reqId })
   await als.run(child, async () => {

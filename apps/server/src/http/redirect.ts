@@ -97,7 +97,7 @@ export const redirectHandler = factory.createHandlers(async (c) => {
   const slug = url.pathname.slice(1)
 
   // 1. Reserved paths belong to the API, the Admin UI and robots.txt. Matching on
-  //    the first segment covers /api/v1/typo and /admin/whatever too, so an
+  //    the first segment covers /api/v1/typo and /home/whatever too, so an
   //    unclaimed one 404s instead of becoming an orphan click on the fallback.
   const firstSegment = slug.split("/")[0]?.toLowerCase() ?? ""
   if (RESERVED_SLUGS.has(firstSegment)) return c.text("Not Found", 404)

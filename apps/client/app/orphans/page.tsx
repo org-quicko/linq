@@ -1,12 +1,11 @@
 "use client"
 
-import type { Domain, Page } from "@linq/shared"
 import { useState } from "react"
 import { AppShell } from "@/components/app-shell"
 import { Picker } from "@/components/common"
 import { StatsPanel } from "@/components/stats-panel"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
-import { useApi } from "../../lib/use-api"
+import { useListDomainsQuery } from "../../lib/store/domains"
 
 /** Radix refuses an item whose value is "", so "no filter" needs a real value. */
 const ANY_DOMAIN = "__any__"
@@ -25,7 +24,7 @@ export default function OrphansPage() {
 }
 
 function Orphans() {
-  const domains = useApi<Page<Domain>>("/v1/domains?limit=200")
+  const domains = useListDomainsQuery({ limit: 200 })
   const [domainId, setDomainId] = useState("")
 
   return (

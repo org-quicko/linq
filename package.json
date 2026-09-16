@@ -12,7 +12,7 @@
     "start": "bun apps/server/src/main.ts",
     "build:admin": "bun --filter @linq/admin build",
     "build:admin:standalone": "bun --filter @linq/admin build:standalone",
-    "test": "bun test apps/server/test && bun test apps/admin/test",
+    "test": "bun test apps/server/test && bun test apps/client/test",
     "typecheck": "tsc -b --force",
     "lint": "biome check .",
     "format": "biome check --write .",

@@ -1,10 +1,11 @@
 "use client"
 
-import type { Domain, Link as LinkRecord, Page } from "@linq/shared"
 import { AppShell } from "@/components/app-shell"
+import { CardSkeleton } from "@/components/common"
 import { StatsPanel } from "@/components/stats-panel"
 import { Card, CardContent } from "@/components/ui/card"
-import { useApi } from "../../lib/use-api"
+import { useListDomainsQuery } from "../../lib/store/domains"
+import { useListLinksQuery } from "../../lib/store/links"
 
 /**
  * Where a connected server opens: what it holds, and what it has been doing.
@@ -18,9 +19,9 @@ export default function OverviewPage() {
 }
 
 function Overview() {
-  const links = useApi<Page<LinkRecord>>("/v1/links?limit=1")
-  const archived = useApi<Page<LinkRecord>>("/v1/links?limit=1&status=archived")
-  const domains = useApi<Page<Domain>>("/v1/domains?limit=1")
+  const links = useListLinksQuery({ limit: 1 })
+  const archived = useListLinksQuery({ limit: 1, status: "archived" })
+  const domains = useListDomainsQuery({ limit: 1 })
 
   return (
     <div className="flex flex-col gap-4">
@@ -30,9 +31,9 @@ function Overview() {
       </div>
 
       <div className="grid gap-4 sm:grid-cols-3">
-        <Stat label="Active links" value={links.data?.total} />
-        <Stat label="Archived links" value={archived.data?.total} />
-        <Stat label="Domains" value={domains.data?.total} />
+        <Stat label="Active links" value={links.data?.total} isLoading={links.isLoading} />
+        <Stat label="Archived links" value={archived.data?.total} isLoading={archived.isLoading} />
+        <Stat label="Domains" value={domains.data?.total} isLoading={domains.isLoading} />
       </div>
 
       <StatsPanel path="/v1/stats" title="Clicks" />
@@ -40,7 +41,16 @@ function Overview() {
   )
 }
 
-function Stat({ label, value }: { label: string; value: number | undefined }) {
+function Stat({
+  label,
+  value,
+  isLoading,
+}: {
+  label: string
+  value: number | undefined
+  isLoading: boolean
+}) {
+  if (isLoading) return <CardSkeleton />
   return (
     <Card>
       <CardContent>

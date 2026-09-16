@@ -1,18 +1,18 @@
 # syntax=docker/dockerfile:1
 
 # Stage 1 builds the Admin UI into a static export. Nothing from here ships
-# except apps/admin/out.
+# except apps/client/out.
 FROM oven/bun:1.4 AS build
 WORKDIR /app
 
 COPY package.json bun.lock tsconfig.base.json ./
 COPY apps/server/package.json apps/server/
-COPY apps/admin/package.json apps/admin/
+COPY apps/client/package.json apps/client/
 COPY packages/shared/package.json packages/shared/
 RUN bun install --frozen-lockfile
 
 COPY packages/shared/src packages/shared/src
-COPY apps/admin apps/admin
+COPY apps/client apps/client
 RUN bun --filter '@linq/admin' build
 
 # Stage 2 is the runtime: Bun executes the server sources directly, so there is
@@ -31,7 +31,7 @@ ENV LINQ_LOG_LEVEL=info
 
 COPY package.json bun.lock ./
 COPY apps/server/package.json apps/server/
-COPY apps/admin/package.json apps/admin/
+COPY apps/client/package.json apps/client/
 COPY packages/shared/package.json packages/shared/
 # The admin package.json is present only to keep the lockfile whole; --filter
 # keeps next and react out of the runtime image.
@@ -41,7 +41,7 @@ COPY tsconfig.base.json ./
 COPY packages/shared/src packages/shared/src
 COPY apps/server/src apps/server/src
 COPY apps/server/drizzle apps/server/drizzle
-COPY --from=build /app/apps/admin/out apps/admin/out
+COPY --from=build /app/apps/client/out apps/client/out
 
 VOLUME /data
 VOLUME /geo

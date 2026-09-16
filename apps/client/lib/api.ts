@@ -60,17 +60,20 @@ export async function api<T>(path: string, init: RequestInit = {}): Promise<T> {
   return (await res.json()) as T
 }
 
-/** POST/PATCH/PUT shorthands: every write in the UI goes through one of these. */
-export const post = <T>(path: string, body: unknown) =>
-  api<T>(path, { method: "POST", body: JSON.stringify(body) })
-
-export const patch = <T>(path: string, body: unknown) =>
-  api<T>(path, { method: "PATCH", body: JSON.stringify(body) })
-
-export const put = <T>(path: string, body: unknown) =>
-  api<T>(path, { method: "PUT", body: JSON.stringify(body) })
-
-export const del = <T>(path: string) => api<T>(path, { method: "DELETE" })
+/**
+ * Reads a message off whatever a catch block caught: an `Error`, or the
+ * `{status, code, message}` object an RTK Query mutation's `.unwrap()` throws.
+ */
+export function errorMessage(err: unknown, fallback: string): string {
+  if (
+    err &&
+    typeof err === "object" &&
+    typeof (err as { message?: unknown }).message === "string"
+  ) {
+    return (err as { message: string }).message
+  }
+  return fallback
+}
 
 /** Builds a query string, dropping empty values so the URL stays readable. */
 export function qs(params: Record<string, string | number | boolean | undefined | null>): string {

@@ -7,7 +7,7 @@ export const platformSchema = z.enum(PLATFORMS)
 export const uuidSchema = z.uuid()
 
 /** Paths linq answers itself; they can never be slugs. */
-export const RESERVED_SLUGS = new Set(["api", "admin", "health", "robots.txt", "favicon.ico"])
+export const RESERVED_SLUGS = new Set(["api", "home", "health", "robots.txt", "favicon.ico"])
 
 export const SLUG_PATTERN = /^[A-Za-z0-9_-]{1,64}$/
 

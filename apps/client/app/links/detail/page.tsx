@@ -1,14 +1,7 @@
 "use client"
 
-import {
-  type Actor,
-  type Click,
-  can,
-  type Link,
-  type Page,
-  type Rule,
-  type UserSummary,
-} from "@linq/shared"
+import { type Actor, can, type Link } from "@linq/shared"
+import { skipToken } from "@reduxjs/toolkit/query/react"
 import NextLink from "next/link"
 import { useRouter, useSearchParams } from "next/navigation"
 import { Suspense, useState } from "react"
@@ -22,6 +15,7 @@ import {
   GeoAttribution,
   Picker,
   QueryState,
+  TableSkeleton,
   When,
 } from "@/components/common"
 import { RulesEditor } from "@/components/rules-editor"
@@ -34,8 +28,18 @@ import { Checkbox } from "@/components/ui/checkbox"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { TableCell, TableRow } from "@/components/ui/table"
-import { del, patch, qs } from "../../../lib/api"
-import { useApi } from "../../../lib/use-api"
+import { errorMessage } from "../../../lib/api"
+import {
+  useArchiveLinkMutation,
+  useGetLinkClicksQuery,
+  useGetLinkQuery,
+  useGetLinkRulesQuery,
+  usePurgeLinkMutation,
+  useUpdateLinkMutation,
+} from "../../../lib/store/links"
+import { useListUsersQuery } from "../../../lib/store/users"
+
+const CLICKS_HEAD = ["When", "Platform", "Location", "Referrer", "Sent to", ""]
 
 /**
  * Everything about one link: its settings, its rules, its click history.
@@ -54,12 +58,12 @@ export default function LinkDetailPage() {
 
 function LinkDetail({ actor }: { actor: Actor }) {
   const id = useSearchParams().get("id")
-  const link = useApi<Link>(id ? `/v1/links/${id}` : null)
-  const rules = useApi<Rule[]>(id ? `/v1/links/${id}/rules` : null)
+  const link = useGetLinkQuery(id ?? skipToken)
+  const rules = useGetLinkRulesQuery(id ?? skipToken)
 
   if (!id) return <p className="text-sm text-destructive">No link id in the URL.</p>
-  if (link.loading || !link.data) {
-    return <QueryState loading={link.loading} error={link.error} />
+  if (link.isLoading || !link.data) {
+    return <QueryState isLoading={link.isLoading} error={link.error} />
   }
 
   const current = link.data
@@ -92,13 +96,12 @@ function LinkDetail({ actor }: { actor: Actor }) {
         canEdit={canEdit}
         canTransfer={can.transferLink(actor, current)}
         canPurge={can.purge(actor)}
-        onSaved={link.reload}
       />
 
       {rules.data ? (
-        <RulesEditor linkId={id} rules={rules.data} readOnly={!canEdit} onSaved={rules.reload} />
+        <RulesEditor linkId={id} rules={rules.data} readOnly={!canEdit} />
       ) : (
-        <QueryState loading={rules.loading} error={rules.error} />
+        <QueryState isLoading={rules.isLoading} error={rules.error} />
       )}
 
       <ClicksCard linkId={id} />
@@ -112,17 +115,18 @@ function SettingsCard({
   canEdit,
   canTransfer,
   canPurge,
-  onSaved,
 }: {
   link: Link
   canEdit: boolean
   /** Decided from the signed-in user, never from the draft owner in the dropdown. */
   canTransfer: boolean
   canPurge: boolean
-  onSaved: () => void
 }) {
   const router = useRouter()
-  const users = useApi<Page<UserSummary>>("/v1/users?limit=200")
+  const users = useListUsersQuery({ limit: 200 })
+  const [updateLink] = useUpdateLinkMutation()
+  const [archiveLink] = useArchiveLinkMutation()
+  const [purgeLink] = usePurgeLinkMutation()
   const [destination, setDestination] = useState(link.destination)
   const [name, setName] = useState(link.name ?? "")
   const [tags, setTags] = useState<string[]>(link.tags)
@@ -133,17 +137,19 @@ function SettingsCard({
   async function save() {
     setSaving(true)
     try {
-      await patch(`/v1/links/${link.id}`, {
-        destination: destination.trim(),
-        name: name.trim() || null,
-        tags,
-        forwardQuery,
-        ...(ownerId !== link.ownerId ? { ownerId } : {}),
-      })
+      await updateLink({
+        id: link.id,
+        body: {
+          destination: destination.trim(),
+          name: name.trim() || null,
+          tags,
+          forwardQuery,
+          ...(ownerId !== link.ownerId ? { ownerId } : {}),
+        },
+      }).unwrap()
       toast.success("Saved.")
-      onSaved()
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : "Could not save.")
+      toast.error(errorMessage(err, "Could not save."))
     } finally {
       setSaving(false)
     }
@@ -151,22 +157,21 @@ function SettingsCard({
 
   async function toggleArchived() {
     try {
-      if (link.status === "active") await del(`/v1/links/${link.id}`)
-      else await patch(`/v1/links/${link.id}`, { status: "active" })
-      onSaved()
+      if (link.status === "active") await archiveLink(link.id).unwrap()
+      else await updateLink({ id: link.id, body: { status: "active" } }).unwrap()
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : "That did not work.")
+      toast.error(errorMessage(err, "That did not work."))
     }
   }
 
   /** There is no row left to reload afterwards, so this leaves the page. */
   async function purge() {
     try {
-      await del(`/v1/links/${link.id}/purge`)
+      await purgeLink(link.id).unwrap()
       toast.success(`Purged /${link.slug}. The slug is free again.`)
       router.push("/links/")
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : "That did not work.")
+      toast.error(errorMessage(err, "That did not work."))
     }
   }
 
@@ -278,7 +283,7 @@ function SettingsCard({
 /** The raw click log, newest first, with the human/bot filter the API offers. */
 function ClicksCard({ linkId }: { linkId: string }) {
   const [bot, setBot] = useState<"any" | "true" | "false">("any")
-  const clicks = useApi<Page<Click>>(`/v1/links/${linkId}/clicks${qs({ bot, limit: 25 })}`)
+  const clicks = useGetLinkClicksQuery({ linkId, bot })
   const rows = clicks.data?.data ?? []
 
   return (
@@ -301,14 +306,16 @@ function ClicksCard({ linkId }: { linkId: string }) {
 
       <CardContent>
         <QueryState
-          loading={clicks.loading}
+          isLoading={clicks.isLoading}
+          isFetching={clicks.isFetching}
           error={clicks.error}
           empty={rows.length === 0}
           emptyMessage="No clicks yet."
+          skeleton={<TableSkeleton head={CLICKS_HEAD} />}
         />
 
         {rows.length > 0 ? (
-          <DataTable head={["When", "Platform", "Location", "Referrer", "Sent to", ""]}>
+          <DataTable head={CLICKS_HEAD}>
             {rows.map((click) => (
               <TableRow key={click.id}>
                 <TableCell>

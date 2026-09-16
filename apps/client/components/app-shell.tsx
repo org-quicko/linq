@@ -9,14 +9,12 @@ import { QueryState } from "@/components/common"
 import { ServerSwitcher } from "@/components/server-switcher"
 import { Button } from "@/components/ui/button"
 import { activeServer, disconnect } from "../lib/servers"
-import { useApi } from "../lib/use-api"
-
-type Me = { user: { id: string; name: string; role: Role }; keyPrefix: string | null }
+import { type Me, useGetMeQuery } from "../lib/store/users"
 
 /**
  * Nav entries, each with the predicate that decides whether it is offered.
  *
- * Hrefs are basePath-free: `next/link` and `router` prepend `/admin` themselves,
+ * Hrefs are basePath-free: `next/link` and `router` prepend `/home` themselves,
  * and `usePathname` strips it back off, so writing it here would both double it
  * in the URL and stop the active-link comparison below from ever matching.
  * `lib/api.ts` is the one place that spells it out, because it navigates with
@@ -36,8 +34,20 @@ const NAV: (NavItem | NavGroup)[] = [
   {
     label: "Links",
     children: [
+      { href: "/links/overview/", label: "Overview", visible: () => true },
       { href: "/links/", label: "Short links", visible: () => true },
       { href: "/orphans/", label: "Orphans", visible: () => true },
+      // Trash holds only archived links, and only a purge admin can act on them.
+      { href: "/links/trash/", label: "Trash", visible: can.purge },
+    ],
+  },
+  {
+    label: "Domains",
+    children: [
+      { href: "/domains/overview/", label: "Overview", visible: () => true },
+      { href: "/domains/", label: "Domains", visible: () => true },
+      // Trash holds only archived domains, and only a purge admin can act on them.
+      { href: "/domains/trash/", label: "Trash", visible: can.purge },
     ],
   },
 ]
@@ -52,13 +62,29 @@ const NAV: (NavItem | NavGroup)[] = [
  */
 const SETTINGS: NavGroup = {
   label: "Settings",
-  children: [
-    { href: "/settings/domains/", label: "Domains", visible: () => true },
-    { href: "/settings/users/", label: "Users", visible: can.manageUsers },
-  ],
+  children: [{ href: "/settings/users/", label: "Users", visible: can.manageUsers }],
 }
 
 const isGroup = (item: NavItem | NavGroup): item is NavGroup => "children" in item
+
+/** Every href in the sidebar, flattened out of the nav's groups. */
+const ALL_HREFS = [...NAV, SETTINGS]
+  .flatMap((item) => (isGroup(item) ? item.children : [item]))
+  .map((item) => item.href)
+
+/**
+ * The href lit as active for a given path.
+ *
+ * Nesting means `/links/` is a prefix of `/links/trash/` as well as its own
+ * subpages, so a plain "starts with" per link would light up more than one
+ * entry at once. The longest matching href is the most specific one, and
+ * therefore the right one.
+ */
+function activeHref(pathname: string): string | undefined {
+  return ALL_HREFS.filter((href) => pathname.startsWith(href)).sort(
+    (a, b) => b.length - a.length,
+  )[0]
+}
 
 /**
  * Wraps every connected page: sends a visitor with no server back to the
@@ -80,7 +106,7 @@ export function AppShell({
   children: (actor: Actor) => ReactNode
 }) {
   const router = useRouter()
-  const { data: me, error, loading } = useApi<Me>("/v1/me")
+  const { data: me, error, isLoading } = useGetMeQuery()
 
   useEffect(() => {
     if (!activeServer()) router.replace("/")
@@ -89,12 +115,12 @@ export function AppShell({
   // A server the user typed the address of is one that can be unreachable, so
   // this is an ordinary state, not an edge case. It keeps the chrome: without
   // the switcher on screen there is no way to leave a server that never answers.
-  if (loading || error || !me) {
+  if (isLoading || error || !me) {
     return (
       <Chrome>
         <QueryState
-          loading={loading}
-          error={error ?? (me ? null : "Could not load your account.")}
+          isLoading={isLoading}
+          error={error ?? (me ? null : { message: "Could not load your account." })}
         />
       </Chrome>
     )
@@ -114,7 +140,7 @@ export function AppShell({
  * an unreachable server still has to be navigable away from.
  */
 function Chrome({ actor, me, children }: { actor?: Actor; me?: Me; children: ReactNode }) {
-  const pathname = usePathname()
+  const active = activeHref(usePathname())
   const router = useRouter()
 
   return (
@@ -129,15 +155,15 @@ function Chrome({ actor, me, children }: { actor?: Actor; me?: Me; children: Rea
         <nav className="flex flex-1 flex-col gap-0.5 px-2">
           {NAV.map((item) =>
             isGroup(item) ? (
-              <NavGroup key={item.label} group={item} actor={actor} pathname={pathname} />
+              <NavGroup key={item.label} group={item} actor={actor} active={active} />
             ) : !actor || item.visible(actor) ? (
-              <NavLink key={item.href} item={item} pathname={pathname} />
+              <NavLink key={item.href} item={item} active={active === item.href} />
             ) : null,
           )}
         </nav>
 
         <div className="flex flex-col gap-2 border-t p-2">
-          <NavGroup group={SETTINGS} actor={actor} pathname={pathname} />
+          <NavGroup group={SETTINGS} actor={actor} active={active} />
 
           {me ? (
             <div className="flex items-center gap-2 px-2.5 py-1">
@@ -181,15 +207,7 @@ function Chrome({ actor, me, children }: { actor?: Actor; me?: Me; children: Rea
  * Children are filtered before the heading renders, so a group whose entries a
  * role may not see disappears rather than leaving a label with nothing beneath it.
  */
-function NavGroup({
-  group,
-  actor,
-  pathname,
-}: {
-  group: NavGroup
-  actor?: Actor
-  pathname: string
-}) {
+function NavGroup({ group, actor, active }: { group: NavGroup; actor?: Actor; active?: string }) {
   const visible = group.children.filter((child) => !actor || child.visible(actor))
   if (visible.length === 0) return null
 
@@ -198,26 +216,14 @@ function NavGroup({
       <span className="px-2.5 text-xs font-medium text-muted-foreground">{group.label}</span>
       <div className="mt-0.5 flex flex-col gap-0.5">
         {visible.map((child) => (
-          <NavLink key={child.href} item={child} pathname={pathname} nested />
+          <NavLink key={child.href} item={child} active={active === child.href} nested />
         ))}
       </div>
     </div>
   )
 }
 
-function NavLink({
-  item,
-  pathname,
-  nested,
-}: {
-  item: NavItem
-  pathname: string
-  nested?: boolean
-}) {
-  // Prefix, not equality: "Short links" stays lit on /links/new/ and
-  // /links/detail/. No nav href is a prefix of another, so nothing double-lights.
-  const active = pathname.startsWith(item.href)
-
+function NavLink({ item, active, nested }: { item: NavItem; active: boolean; nested?: boolean }) {
   return (
     <Link
       href={item.href}

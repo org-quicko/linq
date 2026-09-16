@@ -68,7 +68,7 @@ describe("POST /api/v1/links", () => {
   })
 
   test("rejects reserved slugs", async () => {
-    for (const slug of ["api", "admin", "health", "robots.txt", "favicon.ico", "ADMIN"]) {
+    for (const slug of ["api", "home", "health", "robots.txt", "favicon.ico", "HOME"]) {
       const res = await h.post("/api/v1/links", author.key, {
         domainId: domain,
         destination: "https://example.com/",

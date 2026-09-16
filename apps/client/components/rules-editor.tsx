@@ -9,7 +9,8 @@ import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Card, CardAction, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
-import { put } from "../lib/api"
+import { errorMessage } from "../lib/api"
+import { useUpdateLinkRulesMutation } from "../lib/store/links"
 
 /** A rule being edited. Position is implied by array order, as it is on the wire. */
 type Draft = { destination: string; conditions: Condition[] }
@@ -47,18 +48,17 @@ export function RulesEditor({
   linkId,
   rules,
   readOnly,
-  onSaved,
 }: {
   linkId: string
   rules: Rule[]
   readOnly: boolean
-  onSaved: () => void
 }) {
   const [drafts, setDrafts] = useState<Draft[]>(() =>
     rules.map((rule) => ({ destination: rule.destination, conditions: rule.conditions })),
   )
   const [saving, setSaving] = useState(false)
   const [dirty, setDirty] = useState(false)
+  const [updateRules] = useUpdateLinkRulesMutation()
 
   /** Applies a change to one rule and marks the list unsaved. */
   function edit(index: number, next: Partial<Draft>) {
@@ -81,12 +81,11 @@ export function RulesEditor({
   async function save() {
     setSaving(true)
     try {
-      await put(`/v1/links/${linkId}/rules`, drafts)
+      await updateRules({ linkId, rules: drafts }).unwrap()
       setDirty(false)
       toast.success("Rules saved.")
-      onSaved()
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : "Could not save the rules.")
+      toast.error(errorMessage(err, "Could not save the rules."))
     } finally {
       setSaving(false)
     }

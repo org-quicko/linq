@@ -4,12 +4,13 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "dev": "NEXT_PUBLIC_BASE_PATH=/admin next dev -p 3001",
-    "build": "NEXT_PUBLIC_BASE_PATH=/admin next build",
+    "dev": "NEXT_PUBLIC_BASE_PATH=/home next dev -p 3001",
+    "build": "NEXT_PUBLIC_BASE_PATH=/home next build",
     "build:standalone": "rm -rf out-standalone && next build && mv out out-standalone"
   },
   "dependencies": {
     "@linq/shared": "workspace:*",
+    "@reduxjs/toolkit": "^2.12.0",
     "class-variance-authority": "^0.7.1",
     "cmdk": "^1.1.1",
     "cn": "^0.3.0",
@@ -19,6 +20,7 @@
     "radix-ui": "^1.6.7",
     "react": "^19.2.0",
     "react-dom": "^19.2.0",
+    "react-redux": "^9.3.0",
     "recharts": "^3.3.1",
     "shadcn": "^4.21.0",
     "sonner": "^2.0.8",

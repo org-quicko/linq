@@ -6,7 +6,7 @@ const isDev = process.env.NODE_ENV === "development"
 /**
  * Where this build is mounted. Two shapes ship from one codebase:
  *
- * - `/admin`, for the export a linq server serves alongside its own API.
+ * - `/home`, for the export a linq server serves alongside its own API.
  * - empty, for a static host that serves the UI at a domain root.
  *
  * `lib/base-path.ts` reads the same variable for the handful of

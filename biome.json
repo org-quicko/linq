@@ -9,7 +9,7 @@
       "!**/out",
       "!**/dist",
       "!**/drizzle",
-      "!apps/admin/components/ui"
+      "!apps/client/components/ui"
     ]
   },
   "css": {

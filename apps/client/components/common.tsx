@@ -21,7 +21,15 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select"
-import { Table, TableBody, TableHead, TableHeader, TableRow } from "@/components/ui/table"
+import { Skeleton } from "@/components/ui/skeleton"
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table"
 
 /**
  * The pieces every page shares that shadcn has no primitive for, plus two thin
@@ -56,29 +64,90 @@ export function Field({
 }
 
 /**
- * The three states every list has, in one place: still loading, failed, or
- * genuinely empty. Rendering `null` means the caller should show its rows.
+ * A table-shaped placeholder for a list's first load, matching `DataTable`'s
+ * own header so the skeleton is a complete, validly-nested table rather than
+ * bare rows dropped next to wherever `QueryState` renders it.
+ */
+export function TableSkeleton({ head, rows = 5 }: { head: ReactNode[]; rows?: number }) {
+  return (
+    <DataTable head={head}>
+      {Array.from({ length: rows }).map((_, r) => (
+        // biome-ignore lint/suspicious/noArrayIndexKey: static placeholder rows
+        <TableRow key={r}>
+          {head.map((_, c) => (
+            // biome-ignore lint/suspicious/noArrayIndexKey: static placeholder cells
+            <TableCell key={c}>
+              <Skeleton className="h-4 w-full" />
+            </TableCell>
+          ))}
+        </TableRow>
+      ))}
+    </DataTable>
+  )
+}
+
+/** A stat-card-shaped placeholder, for the overview pages' tiles. */
+export function CardSkeleton() {
+  return (
+    <div className="flex flex-col gap-2 rounded-lg border p-4">
+      <Skeleton className="h-4 w-24" />
+      <Skeleton className="h-7 w-16" />
+    </div>
+  )
+}
+
+/**
+ * The seam every page's data goes through: a skeleton while there is no data
+ * yet, a thin bar over the existing content while a background refetch is in
+ * flight, the error text, the empty text, or nothing — meaning the caller
+ * should render its real rows. Shaped to match what an RTK Query hook returns,
+ * so a call site passes its query result straight through.
  */
 export function QueryState({
-  loading,
+  isLoading,
+  isFetching,
   error,
   empty,
+  skeleton,
   emptyMessage = "Nothing here yet.",
 }: {
-  loading: boolean
-  error: string | null
+  isLoading: boolean
+  isFetching?: boolean
+  /** The shape RTK Query hooks actually return: its own error, or a `SerializedError`. */
+  error?: { message?: string } | null
   empty?: boolean
+  skeleton?: ReactNode
   emptyMessage?: string
 }) {
-  if (loading) return <p className="py-6 text-center text-sm text-muted-foreground">Loading…</p>
-  if (error)
-    return (
-      <p className="rounded-md bg-destructive/10 px-3 py-2 text-sm text-destructive" role="alert">
-        {error}
-      </p>
-    )
-  if (empty) return <p className="py-6 text-center text-sm text-muted-foreground">{emptyMessage}</p>
-  return null
+  return (
+    <>
+      {isFetching && !isLoading ? <LinearProgress /> : null}
+      {isLoading
+        ? (skeleton ?? <p className="py-6 text-center text-sm text-muted-foreground">Loading…</p>)
+        : null}
+      {!isLoading && error ? (
+        <p className="rounded-md bg-destructive/10 px-3 py-2 text-sm text-destructive" role="alert">
+          {error.message ?? "Something went wrong."}
+        </p>
+      ) : null}
+      {!isLoading && !error && empty ? (
+        <p className="py-6 text-center text-sm text-muted-foreground">{emptyMessage}</p>
+      ) : null}
+    </>
+  )
+}
+
+/** The sweep bar itself: indeterminate, non-blocking, sits above stale content. */
+function LinearProgress() {
+  return (
+    <div
+      className="relative mb-2 h-0.5 w-full overflow-hidden rounded-full bg-muted"
+      role="status"
+      aria-label="Refreshing"
+    >
+      <div className="absolute inset-y-0 w-1/3 animate-[linear-progress_1.1s_ease-in-out_infinite] rounded-full bg-primary" />
+    </div>
+  )
 }
 
 /** Copies text and briefly says so. Used for short URLs and new API keys. */

@@ -1,7 +1,7 @@
 /**
  * Where this build of the UI is mounted.
  *
- * Two shapes ship from one codebase: a linq server serves the UI at `/admin`,
+ * Two shapes ship from one codebase: a linq server serves the UI at `/home`,
  * and a static host serves it at a domain root. `next.config.ts` reads the same
  * variable for `basePath`, so the two can never disagree.
  *

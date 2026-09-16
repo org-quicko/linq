@@ -78,14 +78,14 @@ describe("reserved paths", () => {
   test("are answered by link itself and never tracked", async () => {
     const before = await clickCount()
 
-    // robots.txt is served, /admin normalises to its trailing-slash form, and the
+    // robots.txt is served, /home normalises to its trailing-slash form, and the
     // rest are simply unclaimed. None of them is a slug.
     const expected: Record<string, number> = {
       "/api": 404,
       "/health": 404,
       "/favicon.ico": 404,
       "/robots.txt": 200,
-      "/admin": 302,
+      "/home": 302,
     }
     for (const [path, status] of Object.entries(expected)) {
       expect((await get(path)).status).toBe(status)
@@ -100,7 +100,7 @@ describe("reserved paths", () => {
     // /api/v1/* belongs to the authenticated router, which answers before routing
     // and so does not leak which API paths exist.
     expect((await get("/api/v1/nope")).status).toBe(401)
-    expect((await get("/admin/not-a-page")).status).toBe(404)
+    expect((await get("/home/not-a-page")).status).toBe(404)
     // Routing is case-sensitive, so this one does reach the redirect handler.
     expect((await get("/API/v1/nope")).status).toBe(404)
 
