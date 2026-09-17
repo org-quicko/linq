@@ -28,12 +28,15 @@ describe("authentication", () => {
   })
 
   test("accepts a valid key and reports the principal", async () => {
-    const { userId, key } = await h.actor("manager")
+    const { keyId, key } = await h.actor("manager")
     const res = await h.request("/api/v1/me", { key })
     expect(res.status).toBe(200)
-    const body = await res.json()
-    expect(body.user).toMatchObject({ id: userId, role: "manager" })
-    expect(body.keyPrefix).toBe(key.slice(0, 12))
+    // /me is the key itself: there is no user behind it.
+    expect(await res.json()).toMatchObject({
+      id: keyId,
+      role: "manager",
+      prefix: key.slice(0, 12),
+    })
   })
 
   test("accepts the X-Api-Key fallback header", async () => {
@@ -43,18 +46,9 @@ describe("authentication", () => {
   })
 
   test("rejects an expired key", async () => {
-    const userId = await h.createUser({ role: "admin" })
-    const key = await h.createKey(userId, { expiresAt: new Date(Date.now() - 1000) })
+    const { key } = await h.createKey({ role: "admin", expiresAt: new Date(Date.now() - 1000) })
     const res = await h.request("/api/v1/me", { key })
     expect(res.status).toBe(401)
     expect((await res.json()).error.message).toContain("expired")
-  })
-
-  test("rejects every key of a disabled user", async () => {
-    const userId = await h.createUser({ role: "admin", status: "disabled" })
-    const key = await h.createKey(userId)
-    const res = await h.request("/api/v1/me", { key })
-    expect(res.status).toBe(401)
-    expect((await res.json()).error.message).toContain("disabled")
   })
 })

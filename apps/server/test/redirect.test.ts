@@ -11,7 +11,7 @@ const DESKTOP = "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537
 const BOT = "Mozilla/5.0 (compatible; Googlebot/2.1; +http://www.google.com/bot.html)"
 
 let h: Harness
-let author: { userId: string; key: string }
+let author: { keyId: string; key: string }
 let domain: string
 
 /** The redirect never awaits its insert, so tests drain it before asserting. */

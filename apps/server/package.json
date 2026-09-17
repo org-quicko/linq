@@ -6,7 +6,8 @@
   "scripts": {
     "dev": "bun --watch src/main.ts",
     "start": "bun src/main.ts",
-    "db:generate": "drizzle-kit generate"
+    "db:generate": "drizzle-kit generate",
+    "key:create": "bun src/cli/create-key.ts"
   },
   "dependencies": {
     "@hono/zod-validator": "^0.7.4",

@@ -16,10 +16,6 @@ export function roleAtLeast(role: Role, min: Role): boolean {
   return ROLES.indexOf(role) >= ROLES.indexOf(min)
 }
 
-export const USER_STATUSES = ["active", "disabled"] as const
-export type UserStatus = (typeof USER_STATUSES)[number]
-export const userStatusSchema = z.enum(USER_STATUSES)
-
 /** Links and domains are archived, never deleted. See docs/adr/0002. */
 export const RESOURCE_STATUSES = ["active", "archived"] as const
 export type ResourceStatus = (typeof RESOURCE_STATUSES)[number]

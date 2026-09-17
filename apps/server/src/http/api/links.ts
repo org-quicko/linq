@@ -17,7 +17,7 @@ import {
 } from "../../auth/permissions.ts"
 import { targetKey } from "../../cache.ts"
 import type { Db } from "../../db/client.ts"
-import { domains, links, users, visitCounts } from "../../db/schema.ts"
+import { apiKeys, domains, links, visitCounts } from "../../db/schema.ts"
 import { span } from "../../log.ts"
 import { randomSlug } from "../../slug.ts"
 import type { Env } from "../env.ts"
@@ -28,7 +28,7 @@ const idParam = validate("param", z.object({ id: uuidSchema }))
 type LinkRow = {
   link: typeof links.$inferSelect
   domainHost: string
-  ownerName: string
+  ownerName: string | null
   humanVisits: number
   botVisits: number
 }
@@ -76,13 +76,13 @@ function linkQuery(db: Db) {
     .select({
       link: links,
       domainHost: domains.host,
-      ownerName: users.name,
+      ownerName: apiKeys.name,
       humanVisits: sql<number>`coalesce(${visitCounts.human}, 0)`.mapWith(Number),
       botVisits: sql<number>`coalesce(${visitCounts.bot}, 0)`.mapWith(Number),
     })
     .from(links)
     .innerJoin(domains, eq(domains.id, links.domainId))
-    .innerJoin(users, eq(users.id, links.ownerId))
+    .leftJoin(apiKeys, eq(apiKeys.id, links.ownerId))
     .leftJoin(visitCounts, eq(visitCounts.linkId, links.id))
 
   return {
@@ -205,7 +205,7 @@ export const linkRoutes = new Hono<Env>()
         tags: body.tags,
         forwardQuery: body.forwardQuery,
         presetParams: body.presetParams,
-        ownerId: c.var.principal.userId,
+        ownerId: c.var.principal.keyId,
       },
       { slug: body.slug, slugLength: c.var.config.LINQ_SLUG_LENGTH },
     )
@@ -226,11 +226,11 @@ export const linkRoutes = new Hono<Env>()
     if (patch.ownerId !== undefined) {
       assertCanTransfer(c.var.principal, existing.ownerId)
       const [owner] = await c.var.db
-        .select({ id: users.id })
-        .from(users)
-        .where(eq(users.id, patch.ownerId))
+        .select({ id: apiKeys.id })
+        .from(apiKeys)
+        .where(eq(apiKeys.id, patch.ownerId))
         .limit(1)
-      if (!owner) throw ApiError.notFound("user")
+      if (!owner) throw ApiError.notFound("key")
     }
 
     await c.var.db

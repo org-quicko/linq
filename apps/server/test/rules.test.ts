@@ -95,7 +95,7 @@ describe("matchRules", () => {
 
 describe("the rules API", () => {
   let h: Harness
-  let author: { userId: string; key: string }
+  let author: { keyId: string; key: string }
   let domain: string
 
   beforeAll(async () => {
@@ -206,7 +206,7 @@ describe("the rules API", () => {
 
 describe("rules in the redirect", () => {
   let h: Harness
-  let author: { userId: string; key: string }
+  let author: { keyId: string; key: string }
   let domain: string
   const HOST = "ruled.test"
 

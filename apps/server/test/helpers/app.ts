@@ -2,7 +2,7 @@ import type { Link, Role } from "@linq/shared"
 import { generateKey, hashKey, keyPrefix } from "../../src/auth/keys.ts"
 import { type Cache, noCache } from "../../src/cache.ts"
 import type { Db } from "../../src/db/client.ts"
-import { apiKeys, domains, users, visits } from "../../src/db/schema.ts"
+import { apiKeys, domains, visits } from "../../src/db/schema.ts"
 import { createApp } from "../../src/http/app.ts"
 import { createTestDb, testConfig } from "./db.ts"
 
@@ -19,14 +19,12 @@ export type Harness = {
   ) => Promise<TestResponse>
   post: (path: string, key: string, body: unknown) => Promise<TestResponse>
   patch: (path: string, key: string, body: unknown) => Promise<TestResponse>
-  createUser: (opts: {
-    role: Role
-    name?: string
-    status?: "active" | "disabled"
-  }) => Promise<string>
-  createKey: (userId: string, opts?: { expiresAt?: Date }) => Promise<string>
-  /** A user of `role` plus a fresh key for it. */
-  actor: (role: Role) => Promise<{ userId: string; key: string }>
+  createKey: (opts: { role: Role; name?: string; expiresAt?: Date }) => Promise<{
+    keyId: string
+    key: string
+  }>
+  /** A key of `role`. The key is the principal, so this is the whole identity. */
+  actor: (role: Role) => Promise<{ keyId: string; key: string }>
   /** Inserted directly: most suites need a domain without exercising its API. */
   createDomain: (host: string, fallbackUrl?: string) => Promise<string>
   /** Goes through the API, so slug generation and ownership are the real thing. */
@@ -59,36 +57,27 @@ export async function createHarness(options: HarnessOptions = {}): Promise<Harne
     return await app.fetch(new Request(`http://${host}${path}`, { ...rest, headers }))
   }
 
-  const createUser: Harness["createUser"] = async ({ role, name = role, status = "active" }) => {
-    const id = Bun.randomUUIDv7()
-    await db.insert(users).values({ id, name, role, status })
-    return id
-  }
-
-  const createKey: Harness["createKey"] = async (userId, opts = {}) => {
+  const createKey: Harness["createKey"] = async ({ role, name = role, expiresAt }) => {
     const secret = generateKey()
+    const keyId = Bun.randomUUIDv7()
     await db.insert(apiKeys).values({
-      id: Bun.randomUUIDv7(),
-      userId,
-      label: "test",
+      id: keyId,
+      name,
+      role,
       keyHash: hashKey(secret),
       prefix: keyPrefix(secret),
-      expiresAt: opts.expiresAt ?? null,
+      expiresAt: expiresAt ?? null,
     })
-    return secret
+    return { keyId, key: secret }
   }
 
   return {
     db,
     request,
-    createUser,
     createKey,
     post: (path, key, body) => request(path, { key, method: "POST", body: JSON.stringify(body) }),
     patch: (path, key, body) => request(path, { key, method: "PATCH", body: JSON.stringify(body) }),
-    actor: async (role) => {
-      const userId = await createUser({ role })
-      return { userId, key: await createKey(userId) }
-    },
+    actor: (role) => createKey({ role }),
     createDomain: async (host, fallbackUrl) => {
       const id = Bun.randomUUIDv7()
       await db.insert(domains).values({ id, host, fallbackUrl: fallbackUrl ?? null })

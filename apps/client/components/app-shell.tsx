@@ -9,7 +9,7 @@ import { QueryState } from "@/components/common"
 import { ServerSwitcher } from "@/components/server-switcher"
 import { Button } from "@/components/ui/button"
 import { activeServer, disconnect } from "../lib/servers"
-import { type Me, useGetMeQuery } from "../lib/store/users"
+import { type Me, useGetMeQuery } from "../lib/store/keys"
 
 /**
  * Nav entries, each with the predicate that decides whether it is offered.
@@ -61,7 +61,7 @@ const NAV: (NavItem | NavGroup)[] = [
  */
 const SETTINGS: NavGroup = {
   label: "Settings",
-  children: [{ href: "/settings/users/", label: "Users", visible: can.manageUsers }],
+  children: [{ href: "/settings/keys/", label: "Keys", visible: can.manageKeys }],
 }
 
 const isGroup = (item: NavItem | NavGroup): item is NavGroup => "children" in item
@@ -125,11 +125,11 @@ export function AppShell({
     )
   }
 
-  const actor: Actor = { userId: me.user.id, role: me.user.role }
+  const actor: Actor = { keyId: me.id, role: me.role }
 
   return (
     <Chrome actor={actor} me={me}>
-      {requires && !requires(actor) ? <NotPermitted role={me.user.role} /> : children(actor)}
+      {requires && !requires(actor) ? <NotPermitted role={me.role} /> : children(actor)}
     </Chrome>
   )
 }
@@ -170,10 +170,10 @@ function Chrome({ actor, me, children }: { actor?: Actor; me?: Me; children: Rea
                 className="flex size-6 shrink-0 items-center justify-center rounded-full bg-muted text-xs font-medium"
                 aria-hidden
               >
-                {me.user.name.slice(0, 1).toUpperCase()}
+                {me.name.slice(0, 1).toUpperCase()}
               </span>
               <span className="min-w-0 flex-1 truncate text-xs text-muted-foreground">
-                {me.user.name} · {me.user.role}
+                {me.name} · {me.role}
               </span>
               <Button
                 type="button"

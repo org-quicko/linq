@@ -79,7 +79,7 @@ function LinksTrash() {
                     <span title={link.destination}>{link.destination}</span>
                   </TableCell>
                   <TableCell className="max-w-[10rem] truncate text-muted-foreground">
-                    {link.ownerName}
+                    {link.ownerName ?? "—"}
                   </TableCell>
                   <TableCell>
                     <ConfirmButton

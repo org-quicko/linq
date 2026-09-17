@@ -26,7 +26,6 @@ export const testConfig: Config = {
   LINQ_CACHE_MAX_ENTRIES: 10_000,
   LINQ_PORT: 3000,
   LINQ_DEFAULT_DOMAIN: undefined,
-  LINQ_INITIAL_API_KEY: undefined,
   LINQ_DATA_DIR: "./data",
   LINQ_SLUG_LENGTH: 6,
   // Silent by default, and no file: `initLogger` is only ever called by main.ts,

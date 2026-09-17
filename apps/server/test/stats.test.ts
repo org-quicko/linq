@@ -3,7 +3,7 @@ import type { StatsBucket } from "@linq/shared"
 import { createHarness, type Harness } from "./helpers/app.ts"
 
 let h: Harness
-let author: { userId: string; key: string }
+let author: { keyId: string; key: string }
 let domain: string
 let otherDomain: string
 let linkId: string

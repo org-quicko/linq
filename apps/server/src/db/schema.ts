@@ -17,40 +17,29 @@ import {
 } from "drizzle-orm/pg-core"
 
 export const roleEnum = pgEnum("role", ["viewer", "author", "manager", "admin"])
-export const userStatusEnum = pgEnum("user_status", ["active", "disabled"])
 export const resourceStatusEnum = pgEnum("resource_status", ["active", "archived"])
 export const platformEnum = pgEnum("platform", ["android", "ios", "desktop"])
 
 const createdAt = timestamp("created_at", { withTimezone: true }).notNull().defaultNow()
 const updatedAt = timestamp("updated_at", { withTimezone: true }).notNull().defaultNow()
 
-/** Owners and principals. Users never log in; they act through api keys. */
-export const users = pgTable("users", {
+/**
+ * The principal. A key is the only thing that acts — there are no user rows, so
+ * a key carries its own name and role. See docs/adr/0011.
+ *
+ * Only the sha256 of the secret is stored; `prefix` exists so a key is
+ * recognisable in a list.
+ */
+export const apiKeys = pgTable("api_keys", {
   id: uuid("id").primaryKey(),
   name: text("name").notNull(),
-  email: text("email").unique(),
   role: roleEnum("role").notNull(),
-  status: userStatusEnum("status").notNull().default("active"),
+  keyHash: text("key_hash").notNull().unique(),
+  prefix: text("prefix").notNull(),
+  expiresAt: timestamp("expires_at", { withTimezone: true }),
   createdAt,
   updatedAt,
 })
-
-/** Only the sha256 of the secret is stored; `prefix` exists so a key is recognisable. */
-export const apiKeys = pgTable(
-  "api_keys",
-  {
-    id: uuid("id").primaryKey(),
-    userId: uuid("user_id")
-      .notNull()
-      .references(() => users.id, { onDelete: "cascade" }),
-    label: text("label").notNull(),
-    keyHash: text("key_hash").notNull().unique(),
-    prefix: text("prefix").notNull(),
-    expiresAt: timestamp("expires_at", { withTimezone: true }),
-    createdAt,
-  },
-  (t) => [index("api_keys_user_id_idx").on(t.userId)],
-)
 
 export const domains = pgTable("domains", {
   id: uuid("id").primaryKey(),
@@ -80,9 +69,12 @@ export const links = pgTable(
     forwardQuery: boolean("forward_query").notNull().default(true),
     presetParams: jsonb("preset_params").$type<Record<string, string>>().notNull().default({}),
     status: resourceStatusEnum("status").notNull().default("active"),
-    ownerId: uuid("owner_id")
-      .notNull()
-      .references(() => users.id, { onDelete: "restrict" }),
+    /**
+     * The key that created it. Nullable: revoking a key must always succeed, so
+     * its links are left unowned rather than holding the revoke hostage. An
+     * unowned link is editable by a manager or admin. See docs/adr/0011.
+     */
+    ownerId: uuid("owner_id").references(() => apiKeys.id, { onDelete: "set null" }),
     createdAt,
     updatedAt,
   },
@@ -209,7 +201,6 @@ export const visitCounts = pgTable(
 )
 
 export const schema = {
-  users,
   apiKeys,
   domains,
   links,

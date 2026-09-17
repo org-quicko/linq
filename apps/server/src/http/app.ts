@@ -10,11 +10,11 @@ import type { Db } from "../db/client.ts"
 import { reqLog, withRequestLog } from "../log.ts"
 import { mountAdmin } from "./admin-static.ts"
 import { domainRoutes } from "./api/domains.ts"
+import { keyRoutes } from "./api/keys.ts"
 import { linkRoutes, tagRoutes } from "./api/links.ts"
 import { meRoutes } from "./api/me.ts"
 import { ruleRoutes } from "./api/rules.ts"
 import { domainStatsRoutes, globalStatsRoutes, linkStatsRoutes } from "./api/stats.ts"
-import { keyRoutes, userRoutes } from "./api/users.ts"
 import { visitRoutes } from "./api/visits.ts"
 import type { Env } from "./env.ts"
 import { redirectHandler } from "./redirect.ts"
@@ -73,7 +73,6 @@ export function createApp({ db, config, cache = noCache }: AppDeps) {
   v1.route("/stats", globalStatsRoutes)
   v1.route("/visits", visitRoutes)
   v1.route("/tags", tagRoutes)
-  v1.route("/users", userRoutes)
   v1.route("/keys", keyRoutes)
   app.route("/api/v1", v1)
 

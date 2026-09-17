@@ -7,8 +7,8 @@ import { createHarness, type Harness } from "./helpers/app.ts"
  */
 
 let h: Harness
-let admin: { userId: string; key: string }
-let author: { userId: string; key: string }
+let admin: { keyId: string; key: string }
+let author: { keyId: string; key: string }
 let domain: string
 
 const purge = (h: Harness, path: string, key: string) =>

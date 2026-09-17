@@ -42,7 +42,7 @@ describe.skipIf(!built)("the exported Client UI at /home", () => {
       "orphans",
       "domains",
       "domains/trash",
-      "settings/users",
+      "settings/keys",
     ]) {
       const res = await h.request(`/home/${page}/`)
       expect(res.status).toBe(200)

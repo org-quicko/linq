@@ -3,7 +3,7 @@ import { type Actor, can, ROLES, type Role } from "@linq/shared"
 import type { Principal } from "../src/auth/middleware.ts"
 import { assertCanEdit, assertCanTransfer, assertRole } from "../src/auth/permissions.ts"
 
-const principal = (role: Role, userId = "u1"): Principal => ({ role, userId, keyId: "k1" })
+const principal = (role: Role, keyId = "k1"): Principal => ({ role, keyId, name: "test" })
 /** True when `fn` does not throw, so a permission matrix reads as booleans. */
 const allows = (fn: () => void) => {
   try {
@@ -62,9 +62,9 @@ describe("assertCanTransfer", () => {
  * reads directly. The matrix is written out rather than derived, so a change to
  * the rules has to be made here too instead of quietly agreeing with itself.
  */
-const ME = "user-me"
-const OTHER = "user-other"
-const actor = (role: Role): Actor => ({ userId: ME, role })
+const ME = "key-me"
+const OTHER = "key-other"
+const actor = (role: Role): Actor => ({ keyId: ME, role })
 const mine = { ownerId: ME }
 const theirs = { ownerId: OTHER }
 
@@ -103,22 +103,22 @@ describe("can", () => {
     }
   })
 
-  test("domains and users are admin only", () => {
+  test("domains and keys are admin only", () => {
     expect(ROLES.filter((role) => can.manageDomains(actor(role)))).toEqual(["admin"])
-    expect(ROLES.filter((role) => can.manageUsers(actor(role)))).toEqual(["admin"])
+    expect(ROLES.filter((role) => can.manageKeys(actor(role)))).toEqual(["admin"])
   })
 
-  test("an admin may not change its own role or disable itself", () => {
+  test("an admin may not change the role of, or revoke, the key it is using", () => {
     expect(can.changeRoleOf(actor("admin"), ME)).toBe(false)
     expect(can.changeRoleOf(actor("admin"), OTHER)).toBe(true)
-    expect(can.disableUser(actor("admin"), ME)).toBe(false)
-    expect(can.disableUser(actor("admin"), OTHER)).toBe(true)
+    expect(can.revokeKey(actor("admin"), ME)).toBe(false)
+    expect(can.revokeKey(actor("admin"), OTHER)).toBe(true)
   })
 
   test("a non-admin changes nobody", () => {
     for (const role of ["viewer", "author", "manager"] as const) {
       expect(can.changeRoleOf(actor(role), OTHER)).toBe(false)
-      expect(can.disableUser(actor(role), OTHER)).toBe(false)
+      expect(can.revokeKey(actor(role), OTHER)).toBe(false)
     }
   })
 })

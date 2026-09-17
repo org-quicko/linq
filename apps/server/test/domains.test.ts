@@ -2,7 +2,7 @@ import { beforeAll, describe, expect, test } from "bun:test"
 import { createHarness, type Harness } from "./helpers/app.ts"
 
 let h: Harness
-let admin: { userId: string; key: string }
+let admin: { keyId: string; key: string }
 
 beforeAll(async () => {
   h = await createHarness()

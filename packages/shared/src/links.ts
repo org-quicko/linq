@@ -73,7 +73,7 @@ export type Link = {
   forwardQuery: boolean
   presetParams: Record<string, string>
   status: "active" | "archived"
-  ownerId: string
+  ownerId: string | null
   ownerName: string | null
   humanVisits: number
   botVisits: number

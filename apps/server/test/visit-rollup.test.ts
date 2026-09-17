@@ -68,8 +68,8 @@ async function rolledCounts(db: Db) {
 }
 
 let h: Harness
-let author: { userId: string; key: string }
-let admin: { userId: string; key: string }
+let author: { keyId: string; key: string }
+let admin: { keyId: string; key: string }
 let domain: string
 
 beforeEach(async () => {

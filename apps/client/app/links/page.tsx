@@ -196,7 +196,7 @@ function LinksList({ actor }: { actor: Actor }) {
                     <span className="text-muted-foreground"> + {link.botVisits} bot</span>
                   </TableCell>
                   <TableCell className="max-w-[10rem] truncate text-muted-foreground">
-                    {link.ownerName}
+                    {link.ownerName ?? "—"}
                   </TableCell>
                   <TableCell>
                     {link.status === "archived" ? <Badge variant="outline">Archived</Badge> : null}

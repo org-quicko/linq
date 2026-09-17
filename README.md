@@ -56,45 +56,32 @@ bun run dev
 
 Leave it running; it serves the API the Client UI talks to.
 
-On an **empty** database it also creates the `admin` user and prints that user's
-API key, once:
+On an instance that has **no keys** it mints an admin key and prints it, once:
 
 ```
   linq admin API key: linq_xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
   Store it now; it is not recoverable.
+  Create more with: bun run key:create --name <name> --role <role>
 ```
 
-Copy it now — only its hash is stored, so it cannot be read back. This happens
-only while the `users` table is empty: every later start prints nothing, which is
-what you will see on a database you have used before.
+Copy it now — only its hash is stored, so it cannot be read back. Every later
+start prints nothing, which is what you will see on a database you have used
+before.
 
-To choose the key yourself instead, set `LINQ_INITIAL_API_KEY` in `.env` **before**
-the first start.
+The guard is "no keys", not "never booted": if every key is ever revoked, the
+next restart mints a fresh one rather than leaving the instance unreachable.
 
 <details>
-<summary>Lost the key on a database you have already used</summary>
+<summary>Another key, without a restart</summary>
 
-Mint another one directly. Save this as `mint-key.ts` in the repo root and run
-`bun --env-file=.env mint-key.ts`:
-
-```ts
-import { SQL } from "bun"
-import { generateKey, hashKey, keyPrefix } from "./apps/server/src/auth/keys.ts"
-
-const db = new SQL(Bun.env.DATABASE_URL)
-const [user] = await db`select id from users where role = 'admin' order by created_at limit 1`
-if (!user) throw new Error("no admin user; start the server against an empty database instead")
-
-const key = generateKey()
-await db`insert into api_keys (id, user_id, label, key_hash, prefix)
-         values (${crypto.randomUUID()}, ${user.id}, 'recovered', ${hashKey(key)}, ${keyPrefix(key)})`
-console.log(`\n  linq admin API key: ${key}\n  Store it now; it is not recoverable.\n`)
-await db.end()
+```bash
+bun run key:create --name ops --role admin
 ```
 
-Emptying the `users` table to force a fresh bootstrap only works while no links
-exist: `links.owner_id` is `ON DELETE RESTRICT`, so once anything is owned, the
-delete is refused rather than quietly orphaning it.
+`--role` defaults to `admin`; `--expires <ISO date>` sets an expiry. This is the
+same mint the API and the Keys page use, and it is the way in when you would
+rather not restart to get one. Day to day, keys come from the Keys page or
+`POST /api/v1/keys`.
 </details>
 
 ### 5. Start the Client UI

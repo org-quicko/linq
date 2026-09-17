@@ -2,8 +2,8 @@ import { beforeAll, describe, expect, test } from "bun:test"
 import { createHarness, type Harness } from "./helpers/app.ts"
 
 let h: Harness
-let admin: { userId: string; key: string }
-let author: { userId: string; key: string }
+let admin: { keyId: string; key: string }
+let author: { keyId: string; key: string }
 let domain: string
 
 beforeAll(async () => {
@@ -27,7 +27,7 @@ describe("POST /api/v1/links", () => {
     const link = await h.createLink(author.key, domain, { destination: "https://example.com/a" })
     expect(link.slug).toHaveLength(6)
     expect(link.slug).toMatch(/^[A-Za-z0-9]{6}$/)
-    expect(link.ownerId).toBe(author.userId)
+    expect(link.ownerId).toBe(author.keyId)
     expect(link.shortUrl).toBe(`https://links.test/${link.slug}`)
     expect(link).toMatchObject({
       status: "active",
@@ -202,27 +202,68 @@ describe("preset params", () => {
   })
 })
 
+describe("an unowned link", () => {
+  /**
+   * Revoking a key nulls `owner_id` rather than being refused, so every link
+   * read has to survive a missing owner. `linkQuery` joins for `ownerName`, and
+   * an inner join would make these links vanish from the list entirely.
+   */
+  test("survives its owner being revoked, and stays listed", async () => {
+    const owner = await h.createKey({ role: "author", name: "Doomed" })
+    const link = await h.createLink(owner.key, domain, { slug: "outlives-its-owner" })
+
+    const revoked = await h.request(`/api/v1/keys/${owner.keyId}`, {
+      key: admin.key,
+      method: "DELETE",
+    })
+    expect(revoked.status).toBe(204)
+
+    const fetched = await (await h.request(`/api/v1/links/${link.id}`, { key: admin.key })).json()
+    expect(fetched).toMatchObject({ ownerId: null, ownerName: null, slug: "outlives-its-owner" })
+
+    const list = await (await h.request("/api/v1/links", { key: admin.key })).json()
+    expect(list.data.map((l: { id: string }) => l.id)).toContain(link.id)
+  })
+
+  test("is editable by a manager but not by an author", async () => {
+    const owner = await h.createKey({ role: "author" })
+    const link = await h.createLink(owner.key, domain)
+    await h.request(`/api/v1/keys/${owner.keyId}`, { key: admin.key, method: "DELETE" })
+
+    const manager = await h.actor("manager")
+    const stranger = await h.actor("author")
+    expect((await h.patch(`/api/v1/links/${link.id}`, stranger.key, { name: "no" })).status).toBe(
+      403,
+    )
+    expect((await h.patch(`/api/v1/links/${link.id}`, manager.key, { name: "yes" })).status).toBe(
+      200,
+    )
+  })
+})
+
 describe("ownership transfer", () => {
   test("an author hands over a link it owns", async () => {
     const link = await h.createLink(author.key, domain)
-    const recipient = await h.createUser({ role: "author", name: "Recipient" })
+    const recipient = await h.createKey({ role: "author", name: "Recipient" })
 
-    const res = await h.patch(`/api/v1/links/${link.id}`, author.key, { ownerId: recipient })
+    const res = await h.patch(`/api/v1/links/${link.id}`, author.key, {
+      ownerId: recipient.keyId,
+    })
     expect(res.status).toBe(200)
-    expect(await res.json()).toMatchObject({ ownerId: recipient, ownerName: "Recipient" })
+    expect(await res.json()).toMatchObject({ ownerId: recipient.keyId, ownerName: "Recipient" })
   })
 
   test("an manager may edit a link it does not own but not reassign it", async () => {
     const manager = await h.actor("manager")
     const link = await h.createLink(author.key, domain)
 
-    const res = await h.patch(`/api/v1/links/${link.id}`, manager.key, { ownerId: manager.userId })
+    const res = await h.patch(`/api/v1/links/${link.id}`, manager.key, { ownerId: manager.keyId })
     expect(res.status).toBe(403)
   })
 
   test("an admin reassigns anything", async () => {
     const link = await h.createLink(author.key, domain)
-    const res = await h.patch(`/api/v1/links/${link.id}`, admin.key, { ownerId: admin.userId })
+    const res = await h.patch(`/api/v1/links/${link.id}`, admin.key, { ownerId: admin.keyId })
     expect(res.status).toBe(200)
   })
 
@@ -288,7 +329,7 @@ describe("GET /api/v1/links", () => {
       ).data as { id: string }[]
 
     expect((await list("tags=report")).map((l) => l.id)).toEqual([tagged.id])
-    expect((await list(`ownerId=${other.userId}`)).map((l) => l.id)).toHaveLength(1)
+    expect((await list(`ownerId=${other.keyId}`)).map((l) => l.id)).toHaveLength(1)
     expect((await list("search=quarter")).map((l) => l.id)).toEqual([tagged.id])
     expect((await list("search=QUARTERLY+REPORT")).map((l) => l.id)).toEqual([tagged.id])
     expect(await list("tags=nothing")).toHaveLength(0)

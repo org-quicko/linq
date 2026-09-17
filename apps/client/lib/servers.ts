@@ -182,7 +182,7 @@ export function migrateLegacyKey(): boolean {
 }
 
 export type ProbeResult =
-  | { ok: true; user: { name: string; role: string }; version: string }
+  | { ok: true; key: { name: string; role: string }; version: string }
   | { ok: false; message: string }
 
 /**
@@ -190,7 +190,7 @@ export type ProbeResult =
  * how a UI ends up unable to explain why nothing loads.
  *
  * Two questions, two calls: `/api/health` says the URL is reachable and linq is
- * what answers, `/api/v1/me` says the key is good and who it belongs to. A form
+ * what answers, `/api/v1/me` says the key is good and what it can do. A form
  * that only pinged health would happily store a typo'd key.
  */
 export async function probeServer(apiUrl: string, apiKey: string): Promise<ProbeResult> {
@@ -215,12 +215,14 @@ export async function probeServer(apiUrl: string, apiKey: string): Promise<Probe
       return { ok: false, message: "The server answered, but it rejected that API key." }
     }
     if (!res.ok) return { ok: false, message: `The server answered with ${res.status}.` }
-    const body = (await res.json()) as { user?: { name?: string; role?: string } }
-    if (!body?.user) return { ok: false, message: reachedButNotLinq }
+    // `/me` is the key itself. `role` is the field that says this is linq
+    // answering rather than something else that happens to return 200.
+    const body = (await res.json()) as { name?: string; role?: string }
+    if (!body?.role) return { ok: false, message: reachedButNotLinq }
     return {
       ok: true,
       version,
-      user: { name: body.user.name ?? "unknown", role: body.user.role ?? "unknown" },
+      key: { name: body.name ?? "unknown", role: body.role },
     }
   } catch {
     return { ok: false, message: unreachable }

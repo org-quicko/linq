@@ -25,7 +25,6 @@ const schema = z
     LINQ_CACHE_MAX_ENTRIES: z.coerce.number().int().min(1).max(1_000_000).default(10_000),
     LINQ_PORT: z.coerce.number().int().min(1).max(65535).default(3000),
     LINQ_DEFAULT_DOMAIN: z.string().trim().min(1).optional(),
-    LINQ_INITIAL_API_KEY: z.string().trim().min(8).optional(),
     LINQ_DATA_DIR: z.string().default("./data"),
     LINQ_SLUG_LENGTH: z.coerce.number().int().min(4).max(32).default(6),
     LINQ_LOG_LEVEL: z

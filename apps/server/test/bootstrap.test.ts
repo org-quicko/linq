@@ -1,27 +1,19 @@
 import { describe, expect, test } from "bun:test"
-import { eq } from "drizzle-orm"
-import { hashKey } from "../src/auth/keys.ts"
 import { bootstrap } from "../src/bootstrap.ts"
-import { apiKeys, domains, users } from "../src/db/schema.ts"
+import { apiKeys, domains } from "../src/db/schema.ts"
 import { createTestDb, testConfig } from "./helpers/db.ts"
 
 describe("bootstrap", () => {
-  test("mints one admin and its key on an empty database", async () => {
-    const db = await createTestDb()
-    await bootstrap(db, { ...testConfig, LINQ_INITIAL_API_KEY: "linq_seeded_key_value" })
-
-    const [admin] = await db.select().from(users)
-    expect(admin).toMatchObject({ name: "admin", role: "admin", status: "active" })
-
-    const [key] = await db.select().from(apiKeys).where(eq(apiKeys.userId, admin.id))
-    expect(key.keyHash).toBe(hashKey("linq_seeded_key_value"))
-    expect(key.prefix).toBe("linq_seeded_")
-  })
-
-  test("generates a key when none is configured", async () => {
+  test("mints one admin key on an empty database", async () => {
     const db = await createTestDb()
     await bootstrap(db, testConfig)
-    expect(await db.select().from(apiKeys)).toHaveLength(1)
+
+    const keys = await db.select().from(apiKeys)
+    expect(keys).toHaveLength(1)
+    expect(keys[0]).toMatchObject({ name: "bootstrap", role: "admin", expiresAt: null })
+    // Only the hash is kept, and the prefix is the readable half of the secret.
+    expect(keys[0]?.keyHash).toHaveLength(64)
+    expect(keys[0]?.prefix).toStartWith("linq_")
   })
 
   test("is idempotent: a second boot adds nothing", async () => {
@@ -30,9 +22,25 @@ describe("bootstrap", () => {
     await bootstrap(db, config)
     await bootstrap(db, config)
 
-    expect(await db.select().from(users)).toHaveLength(1)
     expect(await db.select().from(apiKeys)).toHaveLength(1)
     expect(await db.select().from(domains)).toHaveLength(1)
+  })
+
+  /**
+   * The guard is "no keys", not "never booted": an instance whose last key was
+   * revoked mints itself a way back in rather than becoming unreachable.
+   */
+  test("mints again once every key is gone", async () => {
+    const db = await createTestDb()
+    await bootstrap(db, testConfig)
+    const [first] = await db.select().from(apiKeys)
+
+    await db.delete(apiKeys)
+    await bootstrap(db, testConfig)
+
+    const [second] = await db.select().from(apiKeys)
+    expect(second).toBeDefined()
+    expect(second?.id).not.toBe(first?.id)
   })
 
   test("seeds the default domain lowercased, and only when configured", async () => {

@@ -1,22 +1,22 @@
 import { eq } from "drizzle-orm"
 import { Hono } from "hono"
-import { apiKeys, users } from "../../db/schema.ts"
+import { apiKeys } from "../../db/schema.ts"
 import type { Env } from "../env.ts"
+import { toApiKey } from "./keys.ts"
 
-/** Identity of the calling key. The Client UI gates its menus on this. */
+/**
+ * The calling key itself. The Client UI gates its menus on this, and its server
+ * probe uses it to tell a linq instance from anything else that answers.
+ */
 export const meRoutes = new Hono<Env>().get("/", async (c) => {
-  const { userId, keyId } = c.var.principal
-
-  const [user] = await c.var.db
-    .select({ id: users.id, name: users.name, role: users.role })
-    .from(users)
-    .where(eq(users.id, userId))
-    .limit(1)
-  const [key] = await c.var.db
-    .select({ prefix: apiKeys.prefix })
+  const [row] = await c.var.db
+    .select()
     .from(apiKeys)
-    .where(eq(apiKeys.id, keyId))
+    .where(eq(apiKeys.id, c.var.principal.keyId))
     .limit(1)
 
-  return c.json({ user, keyPrefix: key?.prefix ?? null })
+  // The key authenticated moments ago, so its row cannot be missing without a
+  // concurrent revoke; 404 says so rather than serialising undefined.
+  if (!row) throw new Error("the calling key vanished mid-request")
+  return c.json(toApiKey(row))
 })

@@ -1,45 +1,44 @@
-import { generateKey, hashKey, keyPrefix } from "./auth/keys.ts"
+import { createApiKey } from "./auth/mint.ts"
 import type { Config } from "./config.ts"
 import type { Db } from "./db/client.ts"
-import { apiKeys, domains, users } from "./db/schema.ts"
+import { apiKeys, domains } from "./db/schema.ts"
 import { log, span } from "./log.ts"
 
 /**
  * First-boot setup. Both steps are skipped once their table has any row, so
- * restarting never mints a second admin or resurrects a deleted domain.
+ * restarting never mints a second key or resurrects a deleted domain.
  */
 export async function bootstrap(db: Db, config: Config): Promise<void> {
   await span("bootstrap", async () => {
-    await bootstrapAdmin(db, config)
+    await bootstrapKey(db)
     await seedDefaultDomain(db, config)
   })
 }
 
 /**
- * Creates the `admin` user and its first key, but only while the users table is
- * empty. The secret is printed once here and is unrecoverable afterwards.
+ * Mints an admin key while the instance has none, and prints it once.
+ *
+ * The guard is "no keys", not "first ever boot", so an instance whose last key
+ * was revoked mints itself a way back in on the next restart rather than
+ * becoming permanently unreachable. `bun run key:create` is the way in that
+ * does not need a restart. See docs/adr/0011.
  */
-async function bootstrapAdmin(db: Db, config: Config): Promise<void> {
-  await span("bootstrap.admin", async () => {
-    const [existing] = await db.select({ id: users.id }).from(users).limit(1)
+async function bootstrapKey(db: Db): Promise<void> {
+  await span("bootstrap.key", async () => {
+    const [existing] = await db.select({ id: apiKeys.id }).from(apiKeys).limit(1)
     if (existing) return
 
-    const secret = config.LINQ_INITIAL_API_KEY ?? generateKey()
-    const userId = Bun.randomUUIDv7()
-    await db.insert(users).values({ id: userId, name: "admin", role: "admin" })
-    await db.insert(apiKeys).values({
-      id: Bun.randomUUIDv7(),
-      userId,
-      label: "bootstrap",
-      keyHash: hashKey(secret),
-      prefix: keyPrefix(secret),
-    })
+    const { row, secret } = await createApiKey(db, { name: "bootstrap", role: "admin" })
 
     // Stays on console: a plaintext admin key in a rotating file on a mounted
     // volume is strictly worse than one line in the operator's terminal.
-    console.log(`\n  linq admin API key: ${secret}\n  Store it now; it is not recoverable.\n`)
+    console.log(`
+  linq admin API key: ${secret}
+  Store it now; it is not recoverable.
+  Create more with: bun run key:create --name <name> --role <role>
+`)
     // The log records only that a key was minted, never the key.
-    log.warn({ userId }, "bootstrap: admin created, key printed to stdout")
+    log.warn({ keyId: row.id }, "bootstrap: admin key minted, printed to stdout")
   })
 }
 

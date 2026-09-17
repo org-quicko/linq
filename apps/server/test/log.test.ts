@@ -12,7 +12,6 @@ import { testConfig } from "./helpers/db.ts"
 /** The boot-time secrets every scrubbing assertion below is written against. */
 const SECRETS = {
   DATABASE_URL: "postgres://linq:sup3rs3cretpw@db.internal:5432/linq",
-  LINQ_INITIAL_API_KEY: "linq_initial_key_abc123",
 } satisfies Partial<Config>
 
 type Captured = {
@@ -59,7 +58,7 @@ describe("plumbing", () => {
     const start = out.find("request")
     const end = out.find("response")
     expect(start).toMatchObject({ method: "GET", path: "/api/health" })
-    expect(end).toMatchObject({ method: "GET", path: "/api/health", status: 200, userId: null })
+    expect(end).toMatchObject({ method: "GET", path: "/api/health", status: 200, keyId: null })
     expect(typeof end?.ms).toBe("number")
   })
 
@@ -99,7 +98,7 @@ describe("plumbing", () => {
     const h = await createHarness()
     const admin = await h.actor("admin")
     await h.request("/api/v1/me", { key: admin.key })
-    expect(out.find("response")).toMatchObject({ status: 200, userId: admin.userId })
+    expect(out.find("response")).toMatchObject({ status: 200, keyId: admin.keyId })
   })
 
   test("the request id survives an await on the database driver", async () => {
@@ -213,7 +212,7 @@ describe("secrets never reach the log", () => {
     const h = await createHarness()
     const admin = await h.actor("admin")
 
-    const res = await h.post(`/api/v1/users/${admin.userId}/keys`, admin.key, { label: "ci" })
+    const res = await h.post("/api/v1/keys", admin.key, { name: "ci", role: "viewer" })
     expect(res.status).toBe(201)
     const { secret } = await res.json()
 
@@ -247,7 +246,7 @@ describe("secrets never reach the log", () => {
     const out = await capture()
     const h = await createHarness()
     const admin = await h.actor("admin")
-    await h.request("/api/v1/users", { key: admin.key })
+    await h.request("/api/v1/keys", { key: admin.key })
 
     const text = out.text()
     for (const secret of Object.values(SECRETS)) expect(text).not.toContain(secret)

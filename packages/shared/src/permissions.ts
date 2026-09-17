@@ -1,10 +1,10 @@
 import { type Role, roleAtLeast } from "./roles.ts"
 
 /** Who is acting: the two fields every rule below is decided from. */
-export type Actor = { userId: string; role: Role }
+export type Actor = { keyId: string; role: Role }
 
-/** Any resource that has an owner. Only `ownerId` is ever read. */
-export type Owned = { ownerId: string }
+/** Any resource that has an owner. Null means unowned — see docs/adr/0011. */
+export type Owned = { ownerId: string | null }
 
 /**
  * Every permission rule in linq, in one place.
@@ -22,21 +22,24 @@ export const can = {
   createLink: (actor: Actor): boolean => roleAtLeast(actor.role, "author"),
 
   /**
-   * Managers and admins act on anything; an author acts on what it owns. A viewer
-   * that happens to own a link, through a transfer, still cannot change it.
+   * Managers and admins act on anything; an author acts on what its own key
+   * created. A viewer that happens to own a link, through a transfer, still
+   * cannot change it, and an unowned link matches no actor — `keyId` is never
+   * null, so a null owner fails closed here rather than by a special case.
    */
   editLink: (actor: Actor, link: Owned): boolean =>
     roleAtLeast(actor.role, "manager") ||
-    (actor.userId === link.ownerId && roleAtLeast(actor.role, "author")),
+    (actor.keyId === link.ownerId && roleAtLeast(actor.role, "author")),
 
   /**
-   * Handing a link to someone else. A manager may change any link but hands over
-   * only its own; reassigning someone else's link is an admin move.
+   * Handing a link to another key. A manager may change any link but hands over
+   * only its own; reassigning someone else's link is an admin move. This is also
+   * how a key is rotated: mint, transfer, revoke.
    *
    * Strictly narrower than `editLink`, which the server checks first.
    */
   transferLink: (actor: Actor, link: Owned): boolean =>
-    actor.role === "admin" || (actor.userId === link.ownerId && roleAtLeast(actor.role, "author")),
+    actor.role === "admin" || (actor.keyId === link.ownerId && roleAtLeast(actor.role, "author")),
 
   /**
    * Destroying an archived Link or Domain for good. Admin only, and deliberately
@@ -48,18 +51,19 @@ export const can = {
   /** Adding, editing and archiving domains. */
   manageDomains: (actor: Actor): boolean => actor.role === "admin",
 
-  /** Reaching the users page at all, and creating or minting on it. */
-  manageUsers: (actor: Actor): boolean => actor.role === "admin",
+  /** Reaching the keys page at all, and minting or revoking on it. */
+  manageKeys: (actor: Actor): boolean => actor.role === "admin",
 
   /** Nobody changes their own role: it is the one-way door out of admin. */
-  changeRoleOf: (actor: Actor, targetUserId: string): boolean =>
-    actor.role === "admin" && actor.userId !== targetUserId,
+  changeRoleOf: (actor: Actor, targetKeyId: string): boolean =>
+    actor.role === "admin" && actor.keyId !== targetKeyId,
 
   /**
-   * Nobody disables themselves. A disabled user's keys all 401 and only an admin
-   * can re-enable one, so the last admin would lock the instance out of its own
-   * API. The server enforces this too.
+   * Nobody revokes the key they are calling with. Revocation is a real delete
+   * and there is no re-enabling, so the last admin would lock the instance out
+   * of its own API with only the CLI left as a way back. The server enforces
+   * this too.
    */
-  disableUser: (actor: Actor, targetUserId: string): boolean =>
-    actor.role === "admin" && actor.userId !== targetUserId,
+  revokeKey: (actor: Actor, targetKeyId: string): boolean =>
+    actor.role === "admin" && actor.keyId !== targetKeyId,
 }

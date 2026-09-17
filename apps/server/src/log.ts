@@ -60,7 +60,7 @@ const REDACT_PATHS = [
  * URL-encoded form, and the JSON-escaped form pino writes.
  */
 function collectSecrets(config: Config): string[] {
-  const values = [config.LINQ_INITIAL_API_KEY, config.DATABASE_URL, config.LINQ_REDIS_URL]
+  const values = [config.DATABASE_URL, config.LINQ_REDIS_URL]
   // The Redis URL is absent on every install that does not use it.
   for (const dsn of [config.DATABASE_URL, config.LINQ_REDIS_URL].filter((v) => v !== undefined)) {
     try {
@@ -197,7 +197,7 @@ const REQUEST_ID = /^[\w-]{1,64}$/
  *
  * What is deliberately absent: the client address, `x-forwarded-for`, query
  * string *values*, and any response body. See docs/adr/0003 — a log file is a
- * second copy of whatever it records, and `POST /users/:id/keys` returns a
+ * second copy of whatever it records, and `POST /keys` returns a
  * plaintext key.
  */
 export async function withRequestLog(c: Context<Env>, next: Next): Promise<void> {
@@ -231,7 +231,7 @@ export async function withRequestLog(c: Context<Env>, next: Next): Promise<void>
           route: c.req.matchedRoutes.at(-1)?.path ?? path,
           status,
           ms: elapsed(started),
-          userId: principal?.userId ?? null,
+          keyId: principal?.keyId ?? null,
         },
         "response",
       )

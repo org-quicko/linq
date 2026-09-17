@@ -9,7 +9,7 @@ Project linq {
   Note: '''
     A self-hosted URL shortener and dynamic-link service.
 
-    Eight tables in three groups: who acts (users, api_keys), what is served
+    Seven tables in three groups: who acts (api_keys), what is served
     (domains, links, rules), and what happened (visits, and the two rollups
     derived from it).
 
@@ -24,12 +24,7 @@ Enum role {
   viewer  [note: 'Reads everything.']
   author  [note: 'Also creates and manages its own links.']
   manager [note: 'Also manages any link.']
-  admin   [note: 'Also manages domains, users and keys, and may purge.']
-}
-
-Enum user_status {
-  active
-  disabled [note: 'Every key of a disabled user fails authentication.']
+  admin   [note: 'Also manages domains and keys, and may purge.']
 }
 
 Enum resource_status {
@@ -53,32 +48,23 @@ Enum visit_dimension {
 
 // ── Identity ─────────────────────────────────────────────────────────────────
 
-Table users {
-  id         uuid        [pk, note: 'UUIDv7, so ids sort by creation time']
-  name       text        [not null]
-  email      text        [unique]
-  role       role        [not null]
-  status     user_status [not null, default: 'active']
-  created_at timestamptz [not null, default: `now()`]
-  updated_at timestamptz [not null, default: `now()`]
-
-  Note: 'Owners and principals. Users never log in; they act through api keys.'
-}
-
 Table api_keys {
   id         uuid        [pk]
-  user_id    uuid        [not null]
-  label      text        [not null]
+  name       text        [not null, note: 'Who or what the key is for']
+  role       role        [not null]
   key_hash   text        [not null, unique, note: 'sha256 of the secret; the secret itself is shown once and never stored']
   prefix     text        [not null, note: 'First characters of the key, so it is recognisable in a list']
   expires_at timestamptz [note: 'Null never expires']
   created_at timestamptz [not null, default: `now()`]
+  updated_at timestamptz [not null, default: `now()`]
 
-  Indexes {
-    user_id [name: 'api_keys_user_id_idx']
-  }
+  Note: '''
+    The principal. There are no user rows: a key carries its own name and role,
+    so authentication is one row and no join. See docs/adr/0011.
 
-  Note: 'Revoking a key deletes the row. See docs/adr/0003 for what is logged.'
+    Revoking a key deletes the row, and its links are left unowned rather than
+    blocking the delete. See docs/adr/0003 for what is logged.
+  '''
 }
 
 // ── Routing ──────────────────────────────────────────────────────────────────
@@ -102,7 +88,7 @@ Table links {
   forward_query boolean         [not null, default: true, note: 'Merge the incoming query string over the destination']
   preset_params jsonb           [not null, default: `'{}'::jsonb`, note: 'Record<string,string>: set on the destination when forward_query is true, overriding its own query and the forwarded one. At most 20.']
   status        resource_status [not null, default: 'active']
-  owner_id      uuid            [not null]
+  owner_id      uuid            [note: 'The key that created it. Null once that key is revoked.']
   created_at    timestamptz     [not null, default: `now()`]
   updated_at    timestamptz     [not null, default: `now()`]
 
@@ -217,10 +203,9 @@ Table visit_counts {
 
 // ── Relationships ────────────────────────────────────────────────────────────
 
-Ref: api_keys.user_id > users.id [delete: cascade]
 
 Ref: links.domain_id > domains.id [delete: restrict]
-Ref: links.owner_id  > users.id   [delete: restrict]
+Ref: links.owner_id > api_keys.id [delete: set null]
 
 Ref: rules.link_id > links.id [delete: cascade]
 
@@ -237,7 +222,6 @@ Ref: visit_counts.domain_id > domains.id [delete: cascade]
 // ── Grouping ─────────────────────────────────────────────────────────────────
 
 TableGroup identity [color: #4f6d7a] {
-  users
   api_keys
 }
 

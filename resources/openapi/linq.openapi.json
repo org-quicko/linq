@@ -4,7 +4,7 @@
     "title": "linq",
     "version": "0.1.0",
     "summary": "Self-hosted URL shortener and dynamic-link service.",
-    "description": "Three things share one port: the REST API under `/api`, the Client UI's\nstatic export under `/home`, and the redirect on every other path.\n\n**Authentication.** Every `/api/v1/*` route needs an API key, sent as\n`Authorization: Bearer <key>` or `X-Api-Key: <key>`. Users never log in;\nthey act through keys. A key whose `expiresAt` has passed, or whose owner is\n`disabled`, fails with 401.\n\n**Roles** are ordered `viewer < author < manager < admin`. Each operation\nbelow states the minimum it needs.\n\n**Errors** all share one envelope, documented on the `Error` schema.\n\n**Lists** all share one envelope — `{ data, total, limit, offset }` — where\n`total` counts every row matching the filters, not just the page.\n\n---\n\nWritten by hand from `apps/server/src/http/`, which stays the source of\ntruth; the zod schemas in `packages/shared/src/` are what the server\nactually validates against, and the constraints here mirror them.\n"
+    "description": "Three things share one port: the REST API under `/api`, the Client UI's\nstatic export under `/home`, and the redirect on every other path.\n\n**Authentication.** Every `/api/v1/*` route needs an API key, sent as\n`Authorization: Bearer <key>` or `X-Api-Key: <key>`. A key is the principal:\nnobody logs in, and there are no user accounts. A key whose `expiresAt` has\npassed fails with 401.\n\n**Roles** are ordered `viewer < author < manager < admin`. Each operation\nbelow states the minimum it needs.\n\n**Errors** all share one envelope, documented on the `Error` schema.\n\n**Lists** all share one envelope — `{ data, total, limit, offset }` — where\n`total` counts every row matching the filters, not just the page.\n\n---\n\nWritten by hand from `apps/server/src/http/`, which stays the source of\ntruth; the zod schemas in `packages/shared/src/` are what the server\nactually validates against, and the constraints here mirror them.\n"
   },
   "servers": [
     {
@@ -51,8 +51,8 @@
       "description": "Visits, and the reports rolled up from them."
     },
     {
-      "name": "Users & keys",
-      "description": "Principals and their credentials. Admin only."
+      "name": "Keys",
+      "description": "Keys are the principals. Minting one is how access is granted; revoking it is how access is removed."
     },
     {
       "name": "Redirect",
@@ -106,47 +106,14 @@
         ],
         "operationId": "getMe",
         "summary": "The calling key's identity",
-        "description": "What the Client UI gates its menus on.",
+        "description": "The calling key. There is no user behind it: a key carries its own name and role, and this is what the Client UI gates its menus on.\n",
         "responses": {
           "200": {
-            "description": "The user behind the key, and the key's display prefix.",
+            "description": "The calling key.",
             "content": {
               "application/json": {
                 "schema": {
-                  "type": "object",
-                  "required": [
-                    "user",
-                    "keyPrefix"
-                  ],
-                  "properties": {
-                    "user": {
-                      "type": "object",
-                      "required": [
-                        "id",
-                        "name",
-                        "role"
-                      ],
-                      "properties": {
-                        "id": {
-                          "type": "string",
-                          "format": "uuid"
-                        },
-                        "name": {
-                          "type": "string"
-                        },
-                        "role": {
-                          "$ref": "#/components/schemas/Role"
-                        }
-                      }
-                    },
-                    "keyPrefix": {
-                      "type": [
-                        "string",
-                        "null"
-                      ],
-                      "description": "The first characters of the key, so it is recognisable in a list."
-                    }
-                  }
+                  "$ref": "#/components/schemas/ApiKey"
                 }
               }
             }
@@ -1088,14 +1055,14 @@
         }
       }
     },
-    "/api/v1/users": {
+    "/api/v1/keys": {
       "get": {
+        "operationId": "listKeys",
         "tags": [
-          "Users & keys"
+          "Keys"
         ],
-        "operationId": "listUsers",
-        "summary": "List users",
-        "description": "Every role may list users, but **only an admin sees more than\n`{ id, name }`** — the shape of `data` depends on the caller's role.\nOrdered by name.\n",
+        "summary": "List keys",
+        "description": "Every role may list keys, but only an admin sees more than `{ id, name }` — the Client UI needs the names to show a link's owner and to offer a transfer target.\n",
         "parameters": [
           {
             "$ref": "#/components/parameters/Limit"
@@ -1106,7 +1073,7 @@
         ],
         "responses": {
           "200": {
-            "description": "A page of users, full or summarised by role.",
+            "description": "A page of keys.",
             "content": {
               "application/json": {
                 "schema": {
@@ -1120,13 +1087,12 @@
                         "data": {
                           "type": "array",
                           "items": {
-                            "description": "`anyOf`, not `oneOf`: a full User also satisfies UserSummary, so the two are not mutually exclusive. Which shape you get depends on the caller's role.",
                             "anyOf": [
                               {
-                                "$ref": "#/components/schemas/User"
+                                "$ref": "#/components/schemas/ApiKey"
                               },
                               {
-                                "$ref": "#/components/schemas/UserSummary"
+                                "$ref": "#/components/schemas/ApiKeySummary"
                               }
                             ]
                           }
@@ -1137,199 +1103,16 @@
                 }
               }
             }
-          },
-          "401": {
-            "$ref": "#/components/responses/Unauthorized"
           }
         }
       },
       "post": {
+        "operationId": "createKey",
         "tags": [
-          "Users & keys"
+          "Keys"
         ],
-        "operationId": "createUser",
-        "summary": "Create a user",
-        "description": "Requires: **admin**. A new user has no keys until one is minted.",
-        "requestBody": {
-          "required": true,
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/UserCreate"
-              }
-            }
-          }
-        },
-        "responses": {
-          "201": {
-            "description": "The created user.",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/User"
-                }
-              }
-            }
-          },
-          "400": {
-            "$ref": "#/components/responses/ValidationFailed"
-          },
-          "401": {
-            "$ref": "#/components/responses/Unauthorized"
-          },
-          "403": {
-            "$ref": "#/components/responses/Forbidden"
-          },
-          "409": {
-            "description": "The email is already in use.",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Error"
-                }
-              }
-            }
-          }
-        }
-      }
-    },
-    "/api/v1/users/{id}": {
-      "parameters": [
-        {
-          "$ref": "#/components/parameters/Id"
-        }
-      ],
-      "get": {
-        "tags": [
-          "Users & keys"
-        ],
-        "operationId": "getUser",
-        "summary": "Read a user",
-        "description": "Requires: **admin**.",
-        "responses": {
-          "200": {
-            "description": "The user.",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/User"
-                }
-              }
-            }
-          },
-          "401": {
-            "$ref": "#/components/responses/Unauthorized"
-          },
-          "403": {
-            "$ref": "#/components/responses/Forbidden"
-          },
-          "404": {
-            "$ref": "#/components/responses/NotFound"
-          }
-        }
-      },
-      "patch": {
-        "tags": [
-          "Users & keys"
-        ],
-        "operationId": "updateUser",
-        "summary": "Update a user",
-        "description": "Requires: **admin**. Two self-inflicted lockouts are refused with 403:\nchanging your **own role**, and disabling **yourself** — a disabled\nuser's keys all 401, and only an admin can re-enable one.\n",
-        "requestBody": {
-          "required": true,
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/UserPatch"
-              }
-            }
-          }
-        },
-        "responses": {
-          "200": {
-            "description": "The updated user.",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/User"
-                }
-              }
-            }
-          },
-          "400": {
-            "$ref": "#/components/responses/ValidationFailed"
-          },
-          "401": {
-            "$ref": "#/components/responses/Unauthorized"
-          },
-          "403": {
-            "description": "Insufficient permissions, or a self-inflicted lockout.",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Error"
-                }
-              }
-            }
-          },
-          "404": {
-            "$ref": "#/components/responses/NotFound"
-          },
-          "409": {
-            "description": "The email is already in use.",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Error"
-                }
-              }
-            }
-          }
-        }
-      }
-    },
-    "/api/v1/users/{id}/keys": {
-      "parameters": [
-        {
-          "$ref": "#/components/parameters/Id"
-        }
-      ],
-      "get": {
-        "tags": [
-          "Users & keys"
-        ],
-        "operationId": "listUserKeys",
-        "summary": "List a user's keys",
-        "description": "Requires: **admin**. Oldest first. The secret is never returned here —\nonly its `prefix`, which exists so a key is recognisable.\n",
-        "responses": {
-          "200": {
-            "description": "The user's keys.",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "type": "array",
-                  "items": {
-                    "$ref": "#/components/schemas/ApiKey"
-                  }
-                }
-              }
-            }
-          },
-          "401": {
-            "$ref": "#/components/responses/Unauthorized"
-          },
-          "403": {
-            "$ref": "#/components/responses/Forbidden"
-          }
-        }
-      },
-      "post": {
-        "tags": [
-          "Users & keys"
-        ],
-        "operationId": "createUserKey",
-        "summary": "Mint a key for a user",
-        "description": "Requires: **admin**.\n\n**The only response that ever carries the plaintext secret.** It is\nstored as a sha256 hash and cannot be recovered — if it is lost, revoke\nthe key and mint another.\n",
+        "summary": "Mint a key",
+        "description": "Requires **admin**. The only response that ever carries the plaintext secret.\n",
         "requestBody": {
           "required": true,
           "content": {
@@ -1342,7 +1125,7 @@
         },
         "responses": {
           "201": {
-            "description": "The created key, including its secret.",
+            "description": "The minted key, secret included.",
             "content": {
               "application/json": {
                 "schema": {
@@ -1350,35 +1133,70 @@
                 }
               }
             }
-          },
-          "400": {
-            "$ref": "#/components/responses/ValidationFailed"
-          },
-          "401": {
-            "$ref": "#/components/responses/Unauthorized"
-          },
-          "403": {
-            "$ref": "#/components/responses/Forbidden"
-          },
-          "404": {
-            "$ref": "#/components/responses/NotFound"
           }
         }
       }
     },
     "/api/v1/keys/{id}": {
-      "parameters": [
-        {
-          "$ref": "#/components/parameters/Id"
+      "get": {
+        "operationId": "getKey",
+        "tags": [
+          "Keys"
+        ],
+        "summary": "Get a key",
+        "description": "Requires **admin**.\n",
+        "parameters": null,
+        "responses": {
+          "200": {
+            "description": "The key.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiKey"
+                }
+              }
+            }
+          }
         }
-      ],
+      },
+      "patch": {
+        "operationId": "updateKey",
+        "tags": [
+          "Keys"
+        ],
+        "summary": "Update a key",
+        "description": "Requires **admin**. Changing the role of the key you are calling with is a 403.\n",
+        "parameters": null,
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/KeyPatch"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "The updated key.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiKey"
+                }
+              }
+            }
+          }
+        }
+      },
       "delete": {
         "tags": [
-          "Users & keys"
+          "Keys"
         ],
         "operationId": "revokeKey",
         "summary": "Revoke a key",
-        "description": "Requires: **admin**. A real delete, not an archive — a revoked key has\nno history worth keeping. Takes effect on the next request that uses it.\n",
+        "description": "Requires **admin**. A real delete, not an archive. Any link the key owned becomes unowned rather than blocking the revoke, so a leaked key is always revocable at once. Revoking the key you are calling with is a 403.\n",
         "responses": {
           "204": {
             "description": "Revoked."
@@ -1614,7 +1432,7 @@
         }
       },
       "Unauthorized": {
-        "description": "Missing, unknown or expired key, or the owning user is disabled.",
+        "description": "Missing, unknown or expired key.",
         "content": {
           "application/json": {
             "schema": {
@@ -2230,75 +2048,7 @@
           }
         }
       },
-      "User": {
-        "type": "object",
-        "description": "Returned in full only to an admin.",
-        "required": [
-          "id",
-          "name",
-          "email",
-          "role",
-          "status",
-          "createdAt",
-          "updatedAt"
-        ],
-        "properties": {
-          "id": {
-            "type": "string",
-            "format": "uuid"
-          },
-          "name": {
-            "type": "string",
-            "minLength": 1,
-            "maxLength": 100
-          },
-          "email": {
-            "type": [
-              "string",
-              "null"
-            ],
-            "format": "email",
-            "maxLength": 200
-          },
-          "role": {
-            "$ref": "#/components/schemas/Role"
-          },
-          "status": {
-            "type": "string",
-            "enum": [
-              "active",
-              "disabled"
-            ],
-            "description": "Every key of a disabled user fails authentication."
-          },
-          "createdAt": {
-            "type": "string",
-            "format": "date-time"
-          },
-          "updatedAt": {
-            "type": "string",
-            "format": "date-time"
-          }
-        }
-      },
-      "UserSummary": {
-        "type": "object",
-        "description": "What every non-admin role sees about other users.",
-        "required": [
-          "id",
-          "name"
-        ],
-        "properties": {
-          "id": {
-            "type": "string",
-            "format": "uuid"
-          },
-          "name": {
-            "type": "string"
-          }
-        }
-      },
-      "UserCreate": {
+      "KeyCreate": {
         "type": "object",
         "required": [
           "name",
@@ -2310,58 +2060,8 @@
             "minLength": 1,
             "maxLength": 100
           },
-          "email": {
-            "type": [
-              "string",
-              "null"
-            ],
-            "format": "email",
-            "maxLength": 200
-          },
           "role": {
             "$ref": "#/components/schemas/Role"
-          }
-        }
-      },
-      "UserPatch": {
-        "type": "object",
-        "minProperties": 1,
-        "properties": {
-          "name": {
-            "type": "string",
-            "minLength": 1,
-            "maxLength": 100
-          },
-          "email": {
-            "type": [
-              "string",
-              "null"
-            ],
-            "format": "email",
-            "maxLength": 200
-          },
-          "role": {
-            "$ref": "#/components/schemas/Role"
-          },
-          "status": {
-            "type": "string",
-            "enum": [
-              "active",
-              "disabled"
-            ]
-          }
-        }
-      },
-      "KeyCreate": {
-        "type": "object",
-        "required": [
-          "label"
-        ],
-        "properties": {
-          "label": {
-            "type": "string",
-            "minLength": 1,
-            "maxLength": 100
           },
           "expiresAt": {
             "type": [
@@ -2375,25 +2075,28 @@
       },
       "ApiKey": {
         "type": "object",
+        "description": "An API key: the principal. Revoking one is a real delete, and leaves any link it owned unowned.\n",
         "required": [
           "id",
-          "userId",
-          "label",
+          "name",
+          "role",
           "prefix",
           "expiresAt",
-          "createdAt"
+          "createdAt",
+          "updatedAt"
         ],
         "properties": {
           "id": {
             "type": "string",
             "format": "uuid"
           },
-          "userId": {
+          "name": {
             "type": "string",
-            "format": "uuid"
+            "maxLength": 100,
+            "description": "Who or what the key is for. Not unique."
           },
-          "label": {
-            "type": "string"
+          "role": {
+            "$ref": "#/components/schemas/Role"
           },
           "prefix": {
             "type": "string",
@@ -2407,6 +2110,10 @@
             "format": "date-time"
           },
           "createdAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "updatedAt": {
             "type": "string",
             "format": "date-time"
           }
@@ -2433,6 +2140,45 @@
             }
           }
         ]
+      },
+      "ApiKeySummary": {
+        "type": "object",
+        "description": "What every role below admin sees about another key.\n",
+        "required": [
+          "id",
+          "name"
+        ],
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "name": {
+            "type": "string"
+          }
+        }
+      },
+      "KeyPatch": {
+        "type": "object",
+        "minProperties": 1,
+        "description": "Changing the role of, or revoking, the key you are calling with is a 403: it is the one-way door out of admin.\n",
+        "properties": {
+          "name": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 100
+          },
+          "role": {
+            "$ref": "#/components/schemas/Role"
+          },
+          "expiresAt": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date-time"
+          }
+        }
       }
     }
   }

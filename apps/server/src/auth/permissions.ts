@@ -13,7 +13,7 @@ export function assertRole(principal: Principal, min: Role): void {
 }
 
 /** Throws 403 unless the principal may change this link. See `can.editLink`. */
-export function assertCanEdit(principal: Principal, ownerId: string): void {
+export function assertCanEdit(principal: Principal, ownerId: string | null): void {
   if (!can.editLink(principal, { ownerId })) throw ApiError.forbidden()
 }
 
@@ -23,7 +23,7 @@ export function assertCanPurge(principal: Principal): void {
 }
 
 /** Throws 403 unless the principal may hand this link to someone else. */
-export function assertCanTransfer(principal: Principal, ownerId: string): void {
+export function assertCanTransfer(principal: Principal, ownerId: string | null): void {
   if (!can.transferLink(principal, { ownerId })) {
     throw ApiError.forbidden("only an admin transfers a link it does not own")
   }

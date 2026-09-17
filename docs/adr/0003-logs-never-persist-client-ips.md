@@ -26,6 +26,6 @@ The address was, when this was written, still read in-request for geolocation an
 
 - No per-IP abuse tracing, rate-limit forensics or "which address hit this link" question can be answered from the logs. The request id correlates a request across lines; nothing correlates two requests from one caller.
 - ADR 0001's guarantee holds for the product, not only for one table, so neither the database nor the log volume needs anonymisation or retention rules.
-- Response bodies are never logged, because `POST /api/v1/users/:id/keys` returns a plaintext API key and a generic body logger would write every minted key to disk.
+- Response bodies are never logged, because `POST /api/v1/keys` returns a plaintext API key and a generic body logger would write every minted key to disk.
 - A future contributor asked for "proper access logs" has to reopen this decision rather than add `x-forwarded-for` in a five-line change.
 - If per-IP tracing becomes a requirement, the upgrade path is the same as 0001's: a salted, rotating hash, decided deliberately — not the raw address.

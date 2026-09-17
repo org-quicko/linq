@@ -25,6 +25,7 @@ import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { VisitsCard } from "@/components/visits-card"
 import { errorMessage } from "../../../lib/api"
+import { useListKeysQuery } from "../../../lib/store/keys"
 import {
   useArchiveLinkMutation,
   useGetLinkQuery,
@@ -32,7 +33,6 @@ import {
   usePurgeLinkMutation,
   useUpdateLinkMutation,
 } from "../../../lib/store/links"
-import { useListUsersQuery } from "../../../lib/store/users"
 
 /**
  * Everything about one link: its settings, its rules, its visit history.
@@ -72,7 +72,7 @@ function LinkDetail({ actor }: { actor: Actor }) {
             {current.status === "archived" ? <Badge variant="outline">Archived</Badge> : null}
           </h1>
           <p className="text-sm text-muted-foreground">
-            Created <When iso={current.createdAt} /> by {current.ownerName}
+            Created <When iso={current.createdAt} /> by {current.ownerName ?? "a revoked key"}
           </p>
         </div>
         <NextLink href="/links/" className="ml-auto">
@@ -111,12 +111,12 @@ function SettingsCard({
 }: {
   link: Link
   canEdit: boolean
-  /** Decided from the signed-in user, never from the draft owner in the dropdown. */
+  /** Decided from the calling key, never from the draft owner in the dropdown. */
   canTransfer: boolean
   canPurge: boolean
 }) {
   const router = useRouter()
-  const users = useListUsersQuery({ limit: 200 })
+  const keys = useListKeysQuery({ limit: 200 })
   const [updateLink] = useUpdateLinkMutation()
   const [archiveLink] = useArchiveLinkMutation()
   const [purgeLink] = usePurgeLinkMutation()
@@ -127,7 +127,7 @@ function SettingsCard({
   const [presetParams, setPresetParams] = useState<PresetParamRow[]>(() =>
     presetParamsToRows(link.presetParams),
   )
-  const [ownerId, setOwnerId] = useState(link.ownerId)
+  const [ownerId, setOwnerId] = useState(link.ownerId ?? "")
   const [saving, setSaving] = useState(false)
 
   async function save() {
@@ -240,17 +240,17 @@ function SettingsCard({
             label="Owner"
             hint={
               canTransfer
-                ? "Handing this over gives up your own access unless your role covers it."
-                : "Only an admin, or the owner, may hand a link over."
+                ? "Handing this to another key gives up your own access unless your role covers it."
+                : "Only an admin, or the owning key, may hand a link over."
             }
           >
             <Picker
               value={ownerId}
               disabled={!canEdit || !canTransfer}
               onChange={setOwnerId}
-              options={(users.data?.data ?? []).map((user) => ({
-                value: user.id,
-                label: user.name,
+              options={(keys.data?.data ?? []).map((key) => ({
+                value: key.id,
+                label: key.name,
               }))}
             />
           </Field>
