@@ -176,18 +176,22 @@ describe("the summary counts", () => {
 })
 
 describe("purge", () => {
-  /** Purging a link detaches its visits; the rollups must detach with them. */
-  test("a purged link's rollups become orphan rollups", async () => {
+  /** Purging a link destroys its rollups; existing orphan rollups are untouched. */
+  test("a purged link's rollups are destroyed, not orphaned", async () => {
     const { one } = await traffic()
     const before = { days: await liveDays(h.db, "total"), counts: await liveCounts(h.db) }
     expect(before.days.length).toBeGreaterThan(1)
 
+    const orphanBefore = await h.db
+      .select()
+      .from(visitCounts)
+      .where(and(eq(visitCounts.domainId, domain), isNull(visitCounts.linkId)))
+
     await h.request(`/api/v1/links/${one.id}`, { key: author.key, method: "DELETE" })
     await h.request(`/api/v1/links/${one.id}/purge`, { key: admin.key, method: "DELETE" })
 
-    // `visits.link_id` is now null for those rows, so the live aggregate has
-    // moved too — and the rollup must have moved with it, merged into the
-    // orphan rows that were already there.
+    // `visits.link_id` is ON DELETE cascade, so the live aggregate has shrunk
+    // with it — the rollup must shrink the same way, not merge into orphan.
     for (const dimension of Object.keys(DIMENSIONS) as (keyof typeof DIMENSIONS)[]) {
       expect(await rolledDays(h.db, dimension)).toEqual(await liveDays(h.db, dimension))
     }
@@ -195,12 +199,24 @@ describe("purge", () => {
 
     const leftBehind = await h.db.select().from(visitDays).where(eq(visitDays.linkId, one.id))
     expect(leftBehind).toHaveLength(0)
+
+    // The domain's genuine orphan traffic (from `traffic()`'s unknown slug and
+    // root path) is exactly as it was — this link's counts were never merged in.
+    const orphanAfter = await h.db
+      .select()
+      .from(visitCounts)
+      .where(and(eq(visitCounts.domainId, domain), isNull(visitCounts.linkId)))
+    expect(orphanAfter).toEqual(orphanBefore)
   })
 
   test("a purged domain takes its rollups with it", async () => {
     const spare = await h.createDomain("spare.test")
     const link = await h.createLink(author.key, spare, { slug: "doomed" })
     await h.request("/doomed", { host: "spare.test", headers: { "user-agent": DESKTOP } })
+    // Genuine orphan traffic, so there's still an orphan-scoped rollup row on
+    // `spare` after the link below is purged — proving domain purge, not link
+    // purge, is what removes it.
+    await h.recordVisits(null, spare, { human: 1 })
     await flushVisits()
     expect(
       await h.db.select().from(visitDays).where(eq(visitDays.domainId, spare)),
@@ -208,6 +224,13 @@ describe("purge", () => {
 
     await h.request(`/api/v1/links/${link.id}`, { key: author.key, method: "DELETE" })
     await h.request(`/api/v1/links/${link.id}/purge`, { key: admin.key, method: "DELETE" })
+
+    const orphanAfterLinkPurge = await h.db
+      .select()
+      .from(visitCounts)
+      .where(and(eq(visitCounts.domainId, spare), isNull(visitCounts.linkId)))
+    expect(orphanAfterLinkPurge).not.toHaveLength(0)
+
     await h.request(`/api/v1/domains/${spare}`, { key: admin.key, method: "DELETE" })
     await h.request(`/api/v1/domains/${spare}/purge`, { key: admin.key, method: "DELETE" })
 

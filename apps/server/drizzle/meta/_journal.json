@@ -71,6 +71,13 @@
       "when": 1789655288411,
       "tag": "0009_key_is_the_principal",
       "breakpoints": true
+    },
+    {
+      "idx": 10,
+      "version": "7",
+      "when": 1789669841044,
+      "tag": "0010_purge_destroys_visits",
+      "breakpoints": true
     }
   ]
 }

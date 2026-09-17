@@ -36,10 +36,13 @@ The trigger **increments**; it does not recompute the day. A recompute would be
 self-healing but would re-aggregate a whole day on every hit, which is the cost
 this decision exists to avoid.
 
-Purging a link turns its visits into orphans, so a second trigger on the links
-table merges that link's rollup rows into the orphan scope, set-based, rather
-than leaving them pointing at an id that no longer exists. Purging a domain
-takes its rollups with it by cascade, as it already takes its visits.
+Purging a link destroys its rollup rows outright, in the same trigger that
+runs on `links`' `AFTER DELETE`. It has to: `visits.link_id` is
+`ON DELETE CASCADE`, so purge already destroys the link's own visits, and the
+rollups must always equal a live aggregate over `visits` — leaving rollup rows
+behind, orphaned or not, would break that equivalence the moment the visits
+they summarize are gone. Purging a domain takes its rollups with it by
+cascade, as it already takes its visits.
 
 Because the rollup's grain is a day, the stats API takes `from` and `to` as
 dates rather than timestamps. The raw visit log still filters on timestamps and

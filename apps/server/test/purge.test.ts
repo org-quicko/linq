@@ -77,7 +77,7 @@ describe("DELETE /api/v1/links/:id/purge", () => {
     expect(reborn.id).not.toBe(link.id)
   })
 
-  test("its visits survive as orphans", async () => {
+  test("its visits are destroyed with it", async () => {
     const fresh = await createHarness()
     const boss = await fresh.actor("admin")
     const host = await fresh.createDomain("orphans.test")
@@ -89,9 +89,9 @@ describe("DELETE /api/v1/links/:id/purge", () => {
     await archive(fresh, `links/${link.id}`, boss.key)
     expect((await purge(fresh, `links/${link.id}`, boss.key)).status).toBe(204)
 
-    // Nothing lost, only detached: `visits.link_id` is ON DELETE set null.
-    expect(await totalVisits(fresh, "", boss.key)).toBe(4)
-    expect(await totalVisits(fresh, "orphan=true", boss.key)).toBe(4)
+    // Gone, not detached: `visits.link_id` is ON DELETE cascade.
+    expect(await totalVisits(fresh, "", boss.key)).toBe(0)
+    expect(await totalVisits(fresh, "orphan=true", boss.key)).toBe(0)
   })
 
   test("its rules go with it", async () => {

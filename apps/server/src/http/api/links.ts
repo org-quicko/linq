@@ -257,8 +257,9 @@ export const linkRoutes = new Hono<Env>()
 
   /**
    * Destroys an archived link for good. Admin only, and archived-first, so a live
-   * short URL can never be destroyed by one call. Rules go with it; visits stay
-   * as orphans, which is what the `set null` on `visits.link_id` is for.
+   * short URL can never be destroyed by one call. Rules and visits go with it —
+   * `visits.link_id` is `ON DELETE CASCADE`, so a link's own traffic is
+   * destroyed, not reclassified as orphan traffic.
    *
    * Unlike archiving, this **releases the slug** for reuse on that domain. See
    * docs/adr/0002.

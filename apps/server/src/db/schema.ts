@@ -106,7 +106,7 @@ export const visits = pgTable(
   "visits",
   {
     id: uuid("id").primaryKey(),
-    linkId: uuid("link_id").references(() => links.id, { onDelete: "set null" }),
+    linkId: uuid("link_id").references(() => links.id, { onDelete: "cascade" }),
     domainId: uuid("domain_id")
       .notNull()
       .references(() => domains.id, { onDelete: "cascade" }),
