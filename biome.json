@@ -9,7 +9,8 @@
       "!**/out",
       "!**/dist",
       "!**/drizzle",
-      "!apps/client/components/ui"
+      "!apps/client/components/ui",
+      "!resources/*"
     ]
   },
   "css": {

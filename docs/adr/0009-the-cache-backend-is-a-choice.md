@@ -19,8 +19,8 @@ holding data that any one query can regenerate.
 There are two backends behind the `Cache` seam, selected by
 `LINQ_CACHE_BACKEND`:
 
-- `sqlite` — a `bun:sqlite` database opened at `:memory:`. In the process, no
-  file, no volume, nothing to run alongside linq.
+- `memory` — an `lru-cache` held in the process. No file, no volume, nothing
+  to run alongside linq.
 - `redis` — as before.
 
 `none` is also accepted and disables caching outright; it replaces the earlier
@@ -28,9 +28,9 @@ convention of setting `LINQ_CACHE_TTL` to zero, so there is one way to say it
 rather than two.
 
 Left unset, `LINQ_CACHE_BACKEND` follows `LINQ_CACHE_BACKEND ?? (LINQ_REDIS_URL
-? "redis" : "sqlite")`. Supplying a Redis URL is what says Redis is expected to
+? "redis" : "memory")`. Supplying a Redis URL is what says Redis is expected to
 exist; naming `redis` without a URL is rejected at boot, and an explicit
-`sqlite` wins over a URL that is present, so one can be left in `.env` while
+`memory` wins over a URL that is present, so one can be left in `.env` while
 trying the other.
 
 **A configured Redis must be a reachable Redis.** `startCache` does not catch
@@ -40,22 +40,35 @@ quietly instead of loudly.
 
 Both backends honour `LINQ_CACHE_TTL` — 300 seconds by default — identically,
 so switching between them changes where an entry lives and nothing about how
-long. SQLite has no expiring row, so there the TTL is stored as an `expires_at`
-column, enforced on read against the clock, and reclaimed by a sweep on a
-timer. The read path is what makes it correct; the sweep only reclaims memory.
+long. The TTL runs from the write and never slides: refreshing it on read would
+cost a write per cache hit, and a permanently hot key would then never re-read
+a row that changed behind the API's back.
+
+The memory backend is additionally capped by `LINQ_CACHE_MAX_ENTRIES`, which
+Redis cannot honour — a client has no way to cap a keyspace by count, so that
+is `maxmemory` in `redis.conf` instead.
 
 ## Consequences
 
 - **Neither backend is the recommended one.** They differ in exactly one way:
-  the SQLite store lives in one process, so its invalidations reach only that
+  the memory store lives in one process, so its invalidations reach only that
   process, and a second instance can serve an entry the first one has already
   cleared until the TTL expires. Everything else — the keys, the TTL, the
   negative caching, the invalidation points — is identical. Which of those
   matters is a property of a deployment, not of linq.
 - Postgres is once again the only thing linq requires to be running.
-- The SQLite store is empty at every start, so a restart costs one query per
-  link until it warms. It is also bounded: a cap on rows keeps a flood of
-  requests for random slugs from growing it without limit, at the price of
-  evicting by expiry rather than by use.
+- The memory store is empty at every start, so a restart costs one query per
+  link until it warms. It is bounded by `LINQ_CACHE_MAX_ENTRIES`, which keeps a
+  flood of requests for random slugs from growing it without limit, and which
+  evicts by use rather than by age.
+- That cap counts entries, not bytes, so the memory it implies varies with what
+  is cached — roughly 2 MB of negative entries or 20 MB of rule-carrying links
+  at the default of 10 000. A byte cap was considered and rejected: it needs a
+  size estimator whose number cannot be validated from inside the process, and
+  would read as precise while being approximate.
+- `lru-cache` is the first runtime dependency the server has taken for
+  something a built-in could do. A map with delete-and-reinsert on read is an
+  LRU in about twenty lines; the package is used because eviction and expiry
+  interact in ways worth not reimplementing.
 - The shipped cache is now testable without anything external, so the suite
   exercises the real implementation rather than a stand-in.

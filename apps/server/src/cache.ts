@@ -1,5 +1,5 @@
-import { Database } from "bun:sqlite"
 import { RedisClient } from "bun"
+import { LRUCache } from "lru-cache"
 import type { Config } from "./config.ts"
 import { log, reqLog } from "./log.ts"
 
@@ -94,8 +94,8 @@ export async function startCache(config: Config): Promise<Cache> {
       return noCache
     case "redis":
       return await redisCache(config)
-    case "sqlite":
-      return sqliteCache(config)
+    case "memory":
+      return memoryCache(config)
   }
 }
 
@@ -124,96 +124,45 @@ async function redisCache(config: Config): Promise<Cache> {
   }
 }
 
-/** How often expired rows are reclaimed. Correctness never waits for this. */
-const SWEEP_EVERY_MS = 60_000
-
-/**
- * The most rows the table is allowed to hold.
- *
- * Without it a flood of requests for random slugs would grow the table without
- * limit, since every 404 writes a negative entry. Eviction under pressure is by
- * expiry, which under one TTL is first-in-first-out rather than
- * least-recently-used: the flood's own entries are the newest, so they survive
- * while real links get dropped and re-read from Postgres on their next hit.
- * Memory stays flat, which is the property worth having; if that churn ever
- * shows up in practice, the fix is a `last_read_at` column and true LRU, paid
- * for with a write on every read.
- */
-export const MAX_ENTRIES = 50_000
-
 /**
  * An in-process store, so nothing outside linq has to be running.
  *
  * It is per-process by definition: invalidations reach only the process that
  * made them, which is the whole of the difference from Redis. See docs/adr/0009.
  */
-export function sqliteCache(config: Config): Cache & { sweep: () => number } {
+export function memoryCache(config: Config): Cache {
   const ttl = config.LINQ_CACHE_TTL
-  const db = new Database(":memory:")
+  const max = config.LINQ_CACHE_MAX_ENTRIES
 
-  db.run(`create table cache (
-    key        text    primary key,
-    value      text    not null,
-    expires_at integer not null
-  ) strict`)
-  db.run("create index cache_expires_idx on cache (expires_at)")
+  // The entry is stored as the `Hit` wrapper rather than the value itself, so a
+  // cached `null` is still a real object: lru-cache refuses a nullish value, and
+  // the wrapper is the shape `get` has to return anyway.
+  //
+  // `updateAgeOnGet` stays off, so the TTL runs from the write and never slides.
+  // Refreshing it on read would cost a write per cache *hit*, and a permanently
+  // hot key would then never re-read a row that changed behind the API's back.
+  const store = new LRUCache<string, Hit<unknown>>({
+    max,
+    ttl: ttl * 1000,
+    updateAgeOnGet: false,
+  })
 
-  // `query` compiles once and caches; these four are every statement there is.
-  const read = db.query<{ value: string }, [string, number]>(
-    "select value from cache where key = ? and expires_at > ?",
-  )
-  const write = db.query<void, [string, string, number]>(
-    `insert into cache (key, value, expires_at) values (?, ?, ?)
-     on conflict (key) do update set value = excluded.value, expires_at = excluded.expires_at`,
-  )
-  const drop = db.query<void, [string]>("delete from cache where key = ?")
-  const expire = db.query<void, [number]>("delete from cache where expires_at <= ?")
-  const trim = db.query<void, [number]>(
-    // `max(0, …)` is load-bearing: a negative LIMIT means *no* limit in SQLite,
-    // so without it a table under the cap would delete itself entirely.
-    `delete from cache where key in (
-       select key from cache order by expires_at limit max(0, (select count(*) from cache) - ?)
-     )`,
-  )
-  const size = db.query<{ n: number }, []>("select count(*) as n from cache")
-
-  /**
-   * Reclaims what the read path has already stopped returning, and returns how
-   * many rows are left. Named rather than written inline in the timer so the
-   * tests can drive it without waiting out a minute.
-   */
-  const sweep = () => {
-    expire.run(Date.now())
-    trim.run(MAX_ENTRIES)
-    return size.get()?.n ?? 0
-  }
-
-  const timer = setInterval(sweep, SWEEP_EVERY_MS)
-  timer.unref?.()
-  log.info({ backend: "sqlite", ttl }, "cache: ready")
+  log.info({ backend: "memory", ttl, max }, "cache: ready")
 
   return {
-    sweep,
-    async get(key) {
-      // The expiry is enforced here, against the clock, so an entry reads as a
-      // miss the instant it lapses whether or not the sweep has been round.
-      const row = read.get(key, Date.now())
-      return row ? { value: JSON.parse(row.value) } : null
+    async get<T>(key: string) {
+      // Expiry is checked on access, so an entry reads as a miss the instant it
+      // lapses, whether or not anything has evicted it yet.
+      return (store.get(key) as Hit<T> | undefined) ?? null
     },
     async set(key, value) {
-      // Absolute from the write, never sliding: refreshing on read would cost a
-      // write per cache hit, and a hot key would then never re-read a row that
-      // changed in the database behind the API's back.
-      write.run(key, JSON.stringify(value), Date.now() + ttl * 1000)
+      // No serialisation: the value never leaves this process. That relies on
+      // nothing mutating a cached object — the redirect only ever reads one.
+      store.set(key, { value })
     },
     async del(...keys) {
-      // bun:sqlite cannot bind an array to one placeholder, and every call site
-      // passes a single key, so a loop beats generating placeholders.
-      for (const key of keys) drop.run(key)
+      for (const key of keys) store.delete(key)
     },
-    stop: () => {
-      clearInterval(timer)
-      db.close()
-    },
+    stop: () => store.clear(),
   }
 }

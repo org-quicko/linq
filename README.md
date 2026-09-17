@@ -13,7 +13,7 @@ Self-hosted SaaS including URL Shortener, Dynamic Link and Link Tree Creator
   server exits on boot with `ERR_POSTGRES_CONNECTION_REFUSED`.
 
 That is the whole list. The redirect cache runs inside the linq process by
-default, on an in-memory SQLite store, so nothing else has to be running.
+default, on an in-memory LRU, so nothing else has to be running.
 Setting `LINQ_REDIS_URL` moves it to Redis instead — a shared store, which one
 instance's invalidations reach all of. `docs/adr/0009` describes what the two
 differ in; neither is the recommended one. A configured Redis has to be

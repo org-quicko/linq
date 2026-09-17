@@ -12,7 +12,7 @@ const schema = z
      * `LINQ_REDIS_URL`: supplying a URL is what makes Redis expected to exist.
      * `none` turns caching off entirely. See docs/adr/0009.
      */
-    LINQ_CACHE_BACKEND: z.enum(["sqlite", "redis", "none"]).optional(),
+    LINQ_CACHE_BACKEND: z.enum(["memory", "redis", "none"]).optional(),
     /** Only read when the backend is `redis`, and then it must be reachable. */
     LINQ_REDIS_URL: z.string().min(1).optional(),
     /**
@@ -20,6 +20,12 @@ const schema = z
      * invalidation that was missed, not the invalidation mechanism.
      */
     LINQ_CACHE_TTL: z.coerce.number().int().min(1).default(300),
+    /**
+     * Entries the in-memory backend holds before evicting the least recently
+     * used. Redis cannot be capped by a client; use `maxmemory` in redis.conf.
+     * Bounded above because lru-cache pre-allocates its index arrays to it.
+     */
+    LINQ_CACHE_MAX_ENTRIES: z.coerce.number().int().min(1).max(1_000_000).default(10_000),
     LINQ_PORT: z.coerce.number().int().min(1).max(65535).default(3000),
     LINQ_DEFAULT_DOMAIN: z.string().trim().min(1).optional(),
     LINQ_INITIAL_API_KEY: z.string().trim().min(8).optional(),
@@ -65,7 +71,7 @@ const schema = z
     // Unset means "whichever one was configured": a Redis URL selects Redis,
     // and nothing at all selects the in-process store. An explicit setting
     // always wins, so a URL can be left in `.env` while trying the other one.
-    LINQ_CACHE_BACKEND: c.LINQ_CACHE_BACKEND ?? (c.LINQ_REDIS_URL ? "redis" : "sqlite"),
+    LINQ_CACHE_BACKEND: c.LINQ_CACHE_BACKEND ?? (c.LINQ_REDIS_URL ? "redis" : "memory"),
   }))
 
 export type Config = z.infer<typeof schema>

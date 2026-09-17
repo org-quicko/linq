@@ -19,10 +19,11 @@ export async function createTestDb(): Promise<Db> {
 export const testConfig: Config = {
   DATABASE_URL: "memory://pglite",
   // Every harness runs on `noCache` unless a suite asks for a real one, and the
-  // only real one a test can open without external services is the sqlite store.
-  LINQ_CACHE_BACKEND: "sqlite",
+  // only real one a test can open without external services is the memory store.
+  LINQ_CACHE_BACKEND: "memory",
   LINQ_REDIS_URL: undefined,
   LINQ_CACHE_TTL: 300,
+  LINQ_CACHE_MAX_ENTRIES: 10_000,
   LINQ_PORT: 3000,
   LINQ_DEFAULT_DOMAIN: undefined,
   LINQ_INITIAL_API_KEY: undefined,

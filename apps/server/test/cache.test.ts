@@ -1,7 +1,7 @@
 import { afterEach, beforeEach, describe, expect, test } from "bun:test"
 import { eq } from "drizzle-orm"
 import type { Cache } from "../src/cache.ts"
-import { domainKey, MAX_ENTRIES, sqliteCache, targetKey } from "../src/cache.ts"
+import { domainKey, memoryCache, targetKey } from "../src/cache.ts"
 import { links } from "../src/db/schema.ts"
 import { createHarness, type Harness } from "./helpers/app.ts"
 import { testConfig } from "./helpers/db.ts"
@@ -10,7 +10,7 @@ const HOST = "cache.test"
 const UA = "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 Chrome/120"
 
 let h: Harness
-let cache: ReturnType<typeof sqliteCache>
+let cache: Cache
 let author: { userId: string; key: string }
 let admin: { userId: string; key: string }
 let domain: string
@@ -24,7 +24,7 @@ let domain: string
  * anything other than the code that ships.
  */
 beforeEach(async () => {
-  cache = sqliteCache(testConfig)
+  cache = memoryCache(testConfig)
   h = await createHarness({ cache })
   author = await h.actor("author")
   admin = await h.actor("admin")
@@ -174,8 +174,9 @@ describe("invalidation", () => {
  * Expiry is two separate mechanisms — exact on read, lazy on reclaim — and
  * either can break without the other noticing, so each gets its own case.
  */
-describe("the sqlite backend", () => {
-  const open = (ttl = 300) => sqliteCache({ ...testConfig, LINQ_CACHE_TTL: ttl })
+describe("the memory backend", () => {
+  const open = (ttl = 300, max = 10_000) =>
+    memoryCache({ ...testConfig, LINQ_CACHE_TTL: ttl, LINQ_CACHE_MAX_ENTRIES: max })
 
   test("a value round trips", async () => {
     const c = open()
@@ -221,36 +222,37 @@ describe("the sqlite backend", () => {
     c.stop()
   })
 
-  test("the sweep is what actually reclaims the row", async () => {
-    const c = open(1)
-    await c.set("k", "value")
-    await Bun.sleep(1100)
+  test("the cap evicts, so a flood cannot grow the store without limit", async () => {
+    const c = open(300, 3)
+    for (const k of ["a", "b", "c", "d"]) await c.set(k, k)
 
-    // Already unreadable, but still occupying the table: correctness is the
-    // read path's job and the sweep's job is only memory.
+    expect(await c.get("a")).toBeNull()
+    expect(await c.get("d")).toEqual({ value: "d" })
+    c.stop()
+  })
+
+  /**
+   * The difference between an LRU and the eviction-by-expiry it replaced: under
+   * one uniform TTL that was first-in-first-out, so a read could not save an
+   * entry. This is the case that would have failed before.
+   */
+  test("reading an entry saves it from the next eviction", async () => {
+    const c = open(300, 3)
+    for (const k of ["a", "b", "c"]) await c.set(k, k)
+
+    await c.get("a")
+    await c.set("d", "d")
+
+    expect(await c.get("a")).toEqual({ value: "a" })
+    expect(await c.get("b")).toBeNull()
+    c.stop()
+  })
+
+  test("stop empties the store", async () => {
+    const c = open()
+    await c.set("k", "value")
+    c.stop()
     expect(await c.get("k")).toBeNull()
-    await c.set("survivor", "value")
-    c.sweep()
-
-    expect(await c.get("survivor")).toEqual({ value: "value" })
-    c.stop()
-  })
-
-  test("the cap bounds the table, however much is written", async () => {
-    const c = open()
-    for (let i = 0; i <= MAX_ENTRIES + 10; i++) await c.set(`k${i}`, i)
-
-    // Nothing has expired — this is the flood case, where the cap is the only
-    // thing keeping an in-memory store from growing with the request count.
-    expect(c.sweep()).toBe(MAX_ENTRIES)
-    c.stop()
-  })
-
-  test("stop closes the store", async () => {
-    const c = open()
-    await c.set("k", "value")
-    c.stop()
-    expect(c.get("k")).rejects.toThrow()
   })
 })
 
@@ -288,11 +290,5 @@ describe("degradation", () => {
 
   test("a cache that throws on every call still redirects", async () => {
     await redirectsAnyway(broken)
-  })
-
-  test("a sqlite store closed underneath the server still redirects", async () => {
-    const c = sqliteCache(testConfig)
-    c.stop()
-    await redirectsAnyway(c)
   })
 })
