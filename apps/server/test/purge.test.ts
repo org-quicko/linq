@@ -50,8 +50,8 @@ describe("DELETE /api/v1/links/:id/purge", () => {
     await archive(h, `links/${link.id}`, author.key)
 
     expect((await purge(h, `links/${link.id}`, author.key)).status).toBe(403)
-    const editor = await h.actor("editor")
-    expect((await purge(h, `links/${link.id}`, editor.key)).status).toBe(403)
+    const manager = await h.actor("manager")
+    expect((await purge(h, `links/${link.id}`, manager.key)).status).toBe(403)
     // …and the row survived both refusals.
     expect((await h.request(`/api/v1/links/${link.id}`, { key: admin.key })).status).toBe(200)
   })

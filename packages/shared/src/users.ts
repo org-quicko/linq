@@ -1,5 +1,5 @@
 import { z } from "zod"
-import { roleSchema, userStatusSchema } from "./roles.ts"
+import { type Role, roleSchema, userStatusSchema } from "./roles.ts"
 
 export const userCreateSchema = z.object({
   name: z.string().trim().min(1).max(100),
@@ -26,7 +26,7 @@ export type User = {
   id: string
   name: string
   email: string | null
-  role: "viewer" | "author" | "editor" | "admin"
+  role: Role
   status: "active" | "disabled"
   createdAt: string
   updatedAt: string

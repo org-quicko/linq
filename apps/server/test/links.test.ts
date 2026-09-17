@@ -143,10 +143,10 @@ describe("PATCH /api/v1/links/:id", () => {
     expect(denied.status).toBe(403)
   })
 
-  test("an editor edits any link", async () => {
-    const editor = await h.actor("editor")
+  test("an manager edits any link", async () => {
+    const manager = await h.actor("manager")
     const link = await h.createLink(author.key, domain)
-    const res = await h.patch(`/api/v1/links/${link.id}`, editor.key, { name: "Edited" })
+    const res = await h.patch(`/api/v1/links/${link.id}`, manager.key, { name: "Edited" })
     expect(res.status).toBe(200)
   })
 
@@ -167,11 +167,11 @@ describe("ownership transfer", () => {
     expect(await res.json()).toMatchObject({ ownerId: recipient, ownerName: "Recipient" })
   })
 
-  test("an editor may edit a link it does not own but not reassign it", async () => {
-    const editor = await h.actor("editor")
+  test("an manager may edit a link it does not own but not reassign it", async () => {
+    const manager = await h.actor("manager")
     const link = await h.createLink(author.key, domain)
 
-    const res = await h.patch(`/api/v1/links/${link.id}`, editor.key, { ownerId: editor.userId })
+    const res = await h.patch(`/api/v1/links/${link.id}`, manager.key, { ownerId: manager.userId })
     expect(res.status).toBe(403)
   })
 

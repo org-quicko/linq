@@ -17,9 +17,9 @@ const allows = (fn: () => void) => {
 describe("assertRole", () => {
   test("admits exactly the roles at or above the minimum", () => {
     const matrix: Record<Role, Role[]> = {
-      viewer: ["viewer", "author", "editor", "admin"],
-      author: ["author", "editor", "admin"],
-      editor: ["editor", "admin"],
+      viewer: ["viewer", "author", "manager", "admin"],
+      author: ["author", "manager", "admin"],
+      manager: ["manager", "admin"],
       admin: ["admin"],
     }
     for (const min of ROLES) {
@@ -31,8 +31,8 @@ describe("assertRole", () => {
 })
 
 describe("assertCanEdit", () => {
-  test("editors and admins act on anything", () => {
-    expect(allows(() => assertCanEdit(principal("editor"), "someone-else"))).toBe(true)
+  test("managers and admins act on anything", () => {
+    expect(allows(() => assertCanEdit(principal("manager"), "someone-else"))).toBe(true)
     expect(allows(() => assertCanEdit(principal("admin"), "someone-else"))).toBe(true)
   })
 
@@ -47,9 +47,9 @@ describe("assertCanEdit", () => {
 })
 
 describe("assertCanTransfer", () => {
-  test("an editor hands over only its own", () => {
-    expect(allows(() => assertCanTransfer(principal("editor", "u1"), "u1"))).toBe(true)
-    expect(allows(() => assertCanTransfer(principal("editor", "u1"), "u2"))).toBe(false)
+  test("an manager hands over only its own", () => {
+    expect(allows(() => assertCanTransfer(principal("manager", "u1"), "u1"))).toBe(true)
+    expect(allows(() => assertCanTransfer(principal("manager", "u1"), "u2"))).toBe(false)
   })
 
   test("an admin hands over anyone's", () => {
@@ -72,24 +72,24 @@ describe("can", () => {
   test("createLink needs author or better", () => {
     expect(ROLES.filter((role) => can.createLink(actor(role)))).toEqual([
       "author",
-      "editor",
+      "manager",
       "admin",
     ])
   })
 
-  test("editLink: own from author upwards, anyone else's from editor upwards", () => {
+  test("editLink: own from author upwards, anyone else's from manager upwards", () => {
     expect(ROLES.filter((role) => can.editLink(actor(role), mine))).toEqual([
       "author",
-      "editor",
+      "manager",
       "admin",
     ])
-    expect(ROLES.filter((role) => can.editLink(actor(role), theirs))).toEqual(["editor", "admin"])
+    expect(ROLES.filter((role) => can.editLink(actor(role), theirs))).toEqual(["manager", "admin"])
   })
 
   test("transferLink: own from author upwards, anyone else's admin only", () => {
     expect(ROLES.filter((role) => can.transferLink(actor(role), mine))).toEqual([
       "author",
-      "editor",
+      "manager",
       "admin",
     ])
     expect(ROLES.filter((role) => can.transferLink(actor(role), theirs))).toEqual(["admin"])
@@ -116,7 +116,7 @@ describe("can", () => {
   })
 
   test("a non-admin changes nobody", () => {
-    for (const role of ["viewer", "author", "editor"] as const) {
+    for (const role of ["viewer", "author", "manager"] as const) {
       expect(can.changeRoleOf(actor(role), OTHER)).toBe(false)
       expect(can.disableUser(actor(role), OTHER)).toBe(false)
     }

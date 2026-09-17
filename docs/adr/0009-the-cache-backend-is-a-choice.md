@@ -48,6 +48,14 @@ The memory backend is additionally capped by `LINQ_CACHE_MAX_ENTRIES`, which
 Redis cannot honour — a client has no way to cap a keyspace by count, so that
 is `maxmemory` in `redis.conf` instead.
 
+It also sweeps. `lru-cache` does not remove lapsed entries on its own: they keep
+their slot and keep counting toward the cap, so a store full of expired keys can
+evict live ones. One interval calls `purgeStale`, on the TTL and capped at a
+minute, so an entry outlives its expiry by at most one period. It is one timer
+for the store rather than `ttlAutopurge`, which arms a timeout per cached entry
+and pays a `clearTimeout`/`setTimeout` on every write — the redirect's miss path.
+This changes no answer: expiry was already checked on access.
+
 ## Consequences
 
 - **Neither backend is the recommended one.** They differ in exactly one way:

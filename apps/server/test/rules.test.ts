@@ -173,7 +173,7 @@ describe("the rules API", () => {
     const link = await h.createLink(author.key, domain)
     const viewer = await h.actor("viewer")
     const stranger = await h.actor("author")
-    const editor = await h.actor("editor")
+    const manager = await h.actor("manager")
 
     // Everyone may read.
     expect((await h.request(`/api/v1/links/${link.id}/rules`, { key: viewer.key })).status).toBe(
@@ -183,7 +183,7 @@ describe("the rules API", () => {
     expect((await put(link.id, viewer.key, [androidRule])).status).toBe(403)
     expect((await put(link.id, stranger.key, [androidRule])).status).toBe(403)
     expect((await put(link.id, author.key, [androidRule])).status).toBe(200)
-    expect((await put(link.id, editor.key, [androidRule])).status).toBe(200)
+    expect((await put(link.id, manager.key, [androidRule])).status).toBe(200)
   })
 
   test("an unknown link is a 404 on both verbs", async () => {

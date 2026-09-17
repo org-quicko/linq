@@ -4,7 +4,7 @@
     "title": "linq",
     "version": "0.1.0",
     "summary": "Self-hosted URL shortener and dynamic-link service.",
-    "description": "Three things share one port: the REST API under `/api`, the Client UI's\nstatic export under `/home`, and the redirect on every other path.\n\n**Authentication.** Every `/api/v1/*` route needs an API key, sent as\n`Authorization: Bearer <key>` or `X-Api-Key: <key>`. Users never log in;\nthey act through keys. A key whose `expiresAt` has passed, or whose owner is\n`disabled`, fails with 401.\n\n**Roles** are ordered `viewer < author < editor < admin`. Each operation\nbelow states the minimum it needs.\n\n**Errors** all share one envelope, documented on the `Error` schema.\n\n**Lists** all share one envelope — `{ data, total, limit, offset }` — where\n`total` counts every row matching the filters, not just the page.\n\n---\n\nWritten by hand from `apps/server/src/http/`, which stays the source of\ntruth; the zod schemas in `packages/shared/src/` are what the server\nactually validates against, and the constraints here mirror them.\n"
+    "description": "Three things share one port: the REST API under `/api`, the Client UI's\nstatic export under `/home`, and the redirect on every other path.\n\n**Authentication.** Every `/api/v1/*` route needs an API key, sent as\n`Authorization: Bearer <key>` or `X-Api-Key: <key>`. Users never log in;\nthey act through keys. A key whose `expiresAt` has passed, or whose owner is\n`disabled`, fails with 401.\n\n**Roles** are ordered `viewer < author < manager < admin`. Each operation\nbelow states the minimum it needs.\n\n**Errors** all share one envelope, documented on the `Error` schema.\n\n**Lists** all share one envelope — `{ data, total, limit, offset }` — where\n`total` counts every row matching the filters, not just the page.\n\n---\n\nWritten by hand from `apps/server/src/http/`, which stays the source of\ntruth; the zod schemas in `packages/shared/src/` are what the server\nactually validates against, and the constraints here mirror them.\n"
   },
   "servers": [
     {
@@ -673,7 +673,7 @@
         ],
         "operationId": "updateLink",
         "summary": "Update a link",
-        "description": "Requires: **author** for a link you own, **editor** for any link.\n\n`slug` and `domainId` are immutable, and the body is strict, so sending\neither is a 400 rather than a silently ignored field. Changing\n`ownerId` additionally needs **admin**, unless you are transferring your\nown link.\n",
+        "description": "Requires: **author** for a link you own, **manager** for any link.\n\n`slug` and `domainId` are immutable, and the body is strict, so sending\neither is a 400 rather than a silently ignored field. Changing\n`ownerId` additionally needs **admin**, unless you are transferring your\nown link.\n",
         "requestBody": {
           "required": true,
           "content": {
@@ -715,7 +715,7 @@
         ],
         "operationId": "archiveLink",
         "summary": "Archive a link",
-        "description": "Requires: **author** for a link you own, **editor** for any link.\n\n`DELETE` archives; it never destroys. An archived link stops\nredirecting — its slug becomes an orphan visit — but keeps its row, its\nvisits and its reservation on that slug. Reversible by\n`PATCH { \"status\": \"active\" }`. See `docs/adr/0002`.\n",
+        "description": "Requires: **author** for a link you own, **manager** for any link.\n\n`DELETE` archives; it never destroys. An archived link stops\nredirecting — its slug becomes an orphan visit — but keeps its row, its\nvisits and its reservation on that slug. Reversible by\n`PATCH { \"status\": \"active\" }`. See `docs/adr/0002`.\n",
         "responses": {
           "200": {
             "description": "The archived link.",
@@ -819,7 +819,7 @@
         ],
         "operationId": "replaceLinkRules",
         "summary": "Replace a link's rules",
-        "description": "Requires: **author** for a link you own, **editor** for any link.\n\nReplaces the whole ordered set in one transaction; the server owns\n`position` and assigns it from the array order. Send `[]` to remove\nevery rule.\n",
+        "description": "Requires: **author** for a link you own, **manager** for any link.\n\nReplaces the whole ordered set in one transaction; the server owns\n`position` and assigns it from the array order. Send `[]` to remove\nevery rule.\n",
         "requestBody": {
           "required": true,
           "content": {
@@ -1722,7 +1722,7 @@
         "enum": [
           "viewer",
           "author",
-          "editor",
+          "manager",
           "admin"
         ]
       },

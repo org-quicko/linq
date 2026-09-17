@@ -30,7 +30,7 @@ describe("GET /api/v1/users", () => {
 
 describe("POST /api/v1/users", () => {
   test("only an admin may create users", async () => {
-    for (const role of ["viewer", "author", "editor"] as Role[]) {
+    for (const role of ["viewer", "author", "manager"] as Role[]) {
       const { key } = await h.actor(role)
       const res = await post("/api/v1/users", key, { name: role, role: "viewer" })
       expect(res.status).toBe(403)
@@ -66,9 +66,9 @@ describe("POST /api/v1/users", () => {
 describe("PATCH /api/v1/users/:id", () => {
   test("an admin may change the role of another user", async () => {
     const target = await h.createUser({ role: "viewer", name: "Target" })
-    const res = await patch(`/api/v1/users/${target}`, admin.key, { role: "editor" })
+    const res = await patch(`/api/v1/users/${target}`, admin.key, { role: "manager" })
     expect(res.status).toBe(200)
-    expect(await res.json()).toMatchObject({ role: "editor" })
+    expect(await res.json()).toMatchObject({ role: "manager" })
   })
 
   test("nobody changes their own role", async () => {
@@ -89,7 +89,7 @@ describe("PATCH /api/v1/users/:id", () => {
   })
 
   test("disabling a user kills its keys immediately", async () => {
-    const victim = await h.actor("editor")
+    const victim = await h.actor("manager")
     expect((await h.request("/api/v1/me", { key: victim.key })).status).toBe(200)
 
     await patch(`/api/v1/users/${victim.userId}`, admin.key, { status: "disabled" })
@@ -118,12 +118,12 @@ describe("keys", () => {
   })
 
   test("a non-admin may not mint or revoke keys", async () => {
-    const editor = await h.actor("editor")
-    const mint = await post(`/api/v1/users/${editor.userId}/keys`, editor.key, { label: "x" })
+    const manager = await h.actor("manager")
+    const mint = await post(`/api/v1/users/${manager.userId}/keys`, manager.key, { label: "x" })
     expect(mint.status).toBe(403)
 
     const revoke = await h.request("/api/v1/keys/00000000-0000-7000-8000-000000000000", {
-      key: editor.key,
+      key: manager.key,
       method: "DELETE",
     })
     expect(revoke.status).toBe(403)

@@ -222,6 +222,26 @@ describe("the memory backend", () => {
     c.stop()
   })
 
+  /**
+   * Lapsed entries keep their slot and keep counting toward `max`, so a store
+   * full of them evicts live ones. `size` counts them until something reclaims
+   * them, so with no sweep this would still read 2.
+   *
+   * Neither key is read: a read reclaims on access and would prove nothing. The
+   * sweep runs on the TTL, so the wait has to clear expiry *and* the sweep that
+   * follows it — hence 2.2 s against a 1 s TTL rather than something tighter.
+   */
+  test("the sweep reclaims lapsed entries nothing has touched", async () => {
+    const c = open(1)
+    await c.set("a", 1)
+    await c.set("b", 2)
+    expect(c.size()).toBe(2)
+
+    await Bun.sleep(2200)
+    expect(c.size()).toBe(0)
+    c.stop()
+  })
+
   test("the cap evicts, so a flood cannot grow the store without limit", async () => {
     const c = open(300, 3)
     for (const k of ["a", "b", "c", "d"]) await c.set(k, k)

@@ -11,8 +11,8 @@ beforeAll(async () => {
 
 describe("POST /api/v1/domains", () => {
   test("only an admin creates domains", async () => {
-    const editor = await h.actor("editor")
-    const res = await h.post("/api/v1/domains", editor.key, { host: "nope.test" })
+    const manager = await h.actor("manager")
+    const res = await h.post("/api/v1/domains", manager.key, { host: "nope.test" })
     expect(res.status).toBe(403)
   })
 
@@ -124,9 +124,9 @@ describe("archiving a domain", () => {
 describe("PATCH /api/v1/domains/:id", () => {
   test("only an admin may change a fallback", async () => {
     const domain = await h.createDomain("fallback.test")
-    const editor = await h.actor("editor")
+    const manager = await h.actor("manager")
     expect(
-      (await h.patch(`/api/v1/domains/${domain}`, editor.key, { fallbackUrl: null })).status,
+      (await h.patch(`/api/v1/domains/${domain}`, manager.key, { fallbackUrl: null })).status,
     ).toBe(403)
 
     const ok = await h.patch(`/api/v1/domains/${domain}`, admin.key, {

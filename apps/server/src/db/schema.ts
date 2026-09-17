@@ -16,7 +16,7 @@ import {
   uuid,
 } from "drizzle-orm/pg-core"
 
-export const roleEnum = pgEnum("role", ["viewer", "author", "editor", "admin"])
+export const roleEnum = pgEnum("role", ["viewer", "author", "manager", "admin"])
 export const userStatusEnum = pgEnum("user_status", ["active", "disabled"])
 export const resourceStatusEnum = pgEnum("resource_status", ["active", "archived"])
 export const platformEnum = pgEnum("platform", ["android", "ios", "desktop"])

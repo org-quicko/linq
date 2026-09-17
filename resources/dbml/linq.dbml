@@ -23,7 +23,7 @@ Project linq {
 Enum role {
   viewer  [note: 'Reads everything.']
   author  [note: 'Also creates and manages its own links.']
-  editor  [note: 'Also manages any link.']
+  manager [note: 'Also manages any link.']
   admin   [note: 'Also manages domains, users and keys, and may purge.']
 }
 

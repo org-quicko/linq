@@ -17,6 +17,6 @@ The ubiquitous language of linq. Terms only; no implementation details.
 - **Server**: one linq instance, as the Client UI knows it: a name, an absolute URL and a Key, saved in one browser. The UI holds a list and talks to whichever is selected; it never assumes the instance that served it. See docs/adr/0006.
 - **User**: an owner and principal. Has a Role and a status (active | disabled). Never logs in; acts only through Keys.
 - **Key**: an API key belonging to a User. Shown once, stored hashed. May expire.
-- **Role**: `viewer` < `author` < `editor` < `admin`. Viewer reads; author also creates and manages own Links; editor also manages any Link; admin also manages Domains, Users and Keys.
+- **Role**: `viewer` < `author` < `manager` < `admin`. Viewer reads; author also creates and manages own Links; manager also manages any Link; admin also manages Domains, Users and Keys.
 - **Archived**: the soft-deleted status of a Link or Domain. An archived Slug never redirects, and keeps its Visits and its reservation. Reversible; the only route out of it other than restoring is a Purge.
 - **Purge**: the irreversible destruction of an archived Link or Domain, by an admin. Distinct from archiving, which is what `DELETE` does. Purging a Link releases its Slug and leaves its Visits as Orphan Visits; purging a Domain destroys its Visits with it.

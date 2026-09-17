@@ -22,15 +22,15 @@ export const can = {
   createLink: (actor: Actor): boolean => roleAtLeast(actor.role, "author"),
 
   /**
-   * Editors and admins act on anything; an author acts on what it owns. A viewer
+   * Managers and admins act on anything; an author acts on what it owns. A viewer
    * that happens to own a link, through a transfer, still cannot change it.
    */
   editLink: (actor: Actor, link: Owned): boolean =>
-    roleAtLeast(actor.role, "editor") ||
+    roleAtLeast(actor.role, "manager") ||
     (actor.userId === link.ownerId && roleAtLeast(actor.role, "author")),
 
   /**
-   * Handing a link to someone else. An editor may change any link but hands over
+   * Handing a link to someone else. A manager may change any link but hands over
    * only its own; reassigning someone else's link is an admin move.
    *
    * Strictly narrower than `editLink`, which the server checks first.

@@ -28,11 +28,11 @@ describe("authentication", () => {
   })
 
   test("accepts a valid key and reports the principal", async () => {
-    const { userId, key } = await h.actor("editor")
+    const { userId, key } = await h.actor("manager")
     const res = await h.request("/api/v1/me", { key })
     expect(res.status).toBe(200)
     const body = await res.json()
-    expect(body.user).toMatchObject({ id: userId, role: "editor" })
+    expect(body.user).toMatchObject({ id: userId, role: "manager" })
     expect(body.keyPrefix).toBe(key.slice(0, 12))
   })
 

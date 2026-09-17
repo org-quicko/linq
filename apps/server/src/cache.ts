@@ -124,13 +124,19 @@ async function redisCache(config: Config): Promise<Cache> {
   }
 }
 
+/** Never leave a lapsed entry holding a slot longer than this. */
+const SWEEP_CEILING_MS = 60_000
+
 /**
  * An in-process store, so nothing outside linq has to be running.
  *
  * It is per-process by definition: invalidations reach only the process that
  * made them, which is the whole of the difference from Redis. See docs/adr/0009.
  */
-export function memoryCache(config: Config): Cache {
+export function memoryCache(config: Config): Cache & {
+  /** Entries held, lapsed ones included until a sweep. For tests and debugging. */
+  size(): number
+} {
   const ttl = config.LINQ_CACHE_TTL
   const max = config.LINQ_CACHE_MAX_ENTRIES
 
@@ -147,9 +153,27 @@ export function memoryCache(config: Config): Cache {
     updateAgeOnGet: false,
   })
 
-  log.info({ backend: "memory", ttl, max }, "cache: ready")
+  // lru-cache never removes stale entries on its own: they keep their slot and
+  // keep counting toward `max`, so a store full of lapsed keys evicts live ones.
+  // Expiry is already checked on access, so this changes no answer — only how
+  // long a dead entry occupies a slot.
+  //
+  // Sweeping on the TTL bounds that: an entry outlives its expiry by at most one
+  // period. Capped at a minute so a long TTL still reclaims promptly. No floor is
+  // needed — LINQ_CACHE_TTL is min(1) second, so this cannot go below 1000 ms.
+  //
+  // One timer for the whole store, not `ttlAutopurge`: that arms a timeout per
+  // cached entry, up to `max` of them, and pays a clearTimeout + setTimeout on
+  // every write — which is the redirect's miss path.
+  const sweepMs = Math.min(ttl * 1000, SWEEP_CEILING_MS)
+  const sweep = setInterval(() => store.purgeStale(), sweepMs)
+  // The sweep must never be the reason the process stays alive.
+  sweep.unref?.()
+
+  log.info({ backend: "memory", ttl, max, sweepMs }, "cache: ready")
 
   return {
+    size: () => store.size,
     async get<T>(key: string) {
       // Expiry is checked on access, so an entry reads as a miss the instant it
       // lapses, whether or not anything has evicted it yet.
@@ -163,6 +187,9 @@ export function memoryCache(config: Config): Cache {
     async del(...keys) {
       for (const key of keys) store.delete(key)
     },
-    stop: () => store.clear(),
+    stop: () => {
+      clearInterval(sweep)
+      store.clear()
+    },
   }
 }

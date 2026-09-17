@@ -50,6 +50,13 @@
       "when": 1789650719972,
       "tag": "0006_drop_geolocation",
       "breakpoints": true
+    },
+    {
+      "idx": 7,
+      "version": "7",
+      "when": 1789653750147,
+      "tag": "0007_rename_editor_to_manager",
+      "breakpoints": true
     }
   ]
 }

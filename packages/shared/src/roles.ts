@@ -1,15 +1,19 @@
 import { z } from "zod"
 
 /** Ordered least to most privileged. Comparisons rely on this order. */
-export const ROLES = ["viewer", "author", "editor", "admin"] as const
+export const ROLES = ["viewer", "author", "manager", "admin"] as const
 export type Role = (typeof ROLES)[number]
 export const roleSchema = z.enum(ROLES)
 
-const RANK: Record<Role, number> = { viewer: 0, author: 1, editor: 2, admin: 3 }
-
-/** True when `role` is at least as privileged as `min`. */
+/**
+ * True when `role` is at least as privileged as `min`.
+ *
+ * Position in `ROLES` is the rank, so the order is stated once. A value outside
+ * the tuple scores -1 and compares as less privileged than every real role,
+ * which fails closed — though `roleSchema` guards the boundary in any case.
+ */
 export function roleAtLeast(role: Role, min: Role): boolean {
-  return RANK[role] >= RANK[min]
+  return ROLES.indexOf(role) >= ROLES.indexOf(min)
 }
 
 export const USER_STATUSES = ["active", "disabled"] as const
