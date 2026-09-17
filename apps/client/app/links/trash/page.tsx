@@ -84,7 +84,7 @@ function LinksTrash() {
                   <TableCell>
                     <ConfirmButton
                       title={`Purge ${link.domainHost}/${link.slug}?`}
-                      description="This destroys the link and every click ever recorded on it. It cannot be undone, and the slug becomes free for reuse on this domain."
+                      description="This destroys the link and every visit ever recorded on it. It cannot be undone, and the slug becomes free for reuse on this domain."
                       confirmLabel="Purge for good"
                       confirmText={link.slug}
                       size="sm"

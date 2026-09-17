@@ -13,7 +13,7 @@ const HEAD = ["Host", "Fallback URL", ""]
 
 /**
  * Archived domains, admin only. Restoring happens on the main list; this page
- * is only for the one-way trip: purging drops the domain and its clicks for
+ * is only for the one-way trip: purging drops the domain and its visits for
  * good, so it lives apart from the everyday archive/restore toggle.
  */
 export default function DomainsTrashPage() {
@@ -65,7 +65,7 @@ function DomainsTrash() {
                   <TableCell>
                     <ConfirmButton
                       title={`Purge ${domain.host}?`}
-                      description="This destroys the domain and every click ever recorded on it. It cannot be undone. The server refuses this while any link still points at the host, archived ones included."
+                      description="This destroys the domain and every visit ever recorded on it. It cannot be undone. The server refuses this while any link still points at the host, archived ones included."
                       confirmLabel="Purge for good"
                       confirmText={domain.host}
                       size="sm"

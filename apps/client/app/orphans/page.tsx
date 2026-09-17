@@ -5,13 +5,14 @@ import { AppShell } from "@/components/app-shell"
 import { Picker } from "@/components/common"
 import { StatsPanel } from "@/components/stats-panel"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
+import { VisitsCard } from "@/components/visits-card"
 import { useListDomainsQuery } from "../../lib/store/domains"
 
 /** Radix refuses an item whose value is "", so "no filter" needs a real value. */
 const ANY_DOMAIN = "__any__"
 
 /**
- * Clicks that resolved to no link: an unknown slug, an archived link, or a bare
+ * Visits that resolved to no link: an unknown slug, an archived link, or a bare
  * visit to the domain root.
  *
  * Grouping by requested slug is the point of the page — it is what turns "some
@@ -30,7 +31,7 @@ function Orphans() {
   return (
     <div className="flex flex-col gap-4">
       <div>
-        <h1 className="font-heading text-xl font-semibold">Orphan clicks</h1>
+        <h1 className="font-heading text-xl font-semibold">Orphan visits</h1>
         <p className="text-sm text-muted-foreground">
           Requests that hit a live domain but matched no active link.
         </p>
@@ -62,6 +63,11 @@ function Orphans() {
         initialGroupBy="slug"
         groups={["slug", "day", "country", "region", "platform", "referer"]}
         extraParams={{ orphan: "true", domainId: domainId || undefined }}
+      />
+
+      <VisitsCard
+        title="Missed requests"
+        scope={{ orphan: "true", domainId: domainId || undefined }}
       />
     </div>
   )

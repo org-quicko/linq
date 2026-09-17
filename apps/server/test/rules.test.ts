@@ -1,9 +1,9 @@
 import { beforeAll, describe, expect, test } from "bun:test"
 import type { Condition } from "@linq/shared"
 import { desc, eq } from "drizzle-orm"
-import { flushClicks } from "../src/clicks/record.ts"
-import { clicks } from "../src/db/schema.ts"
+import { visits } from "../src/db/schema.ts"
 import { matchRules, ruleMatches } from "../src/rules/match.ts"
+import { flushVisits } from "../src/visits/record.ts"
 import { createHarness, type Harness } from "./helpers/app.ts"
 
 const ANDROID = "Mozilla/5.0 (Linux; Android 14; Pixel 8) AppleWebKit/537.36 Chrome/120 Mobile"
@@ -261,7 +261,7 @@ describe("rules in the redirect", () => {
     expect(await location("/app", DESKTOP)).toBe("https://example.com/web")
   })
 
-  test("the click records the destination the rule chose, not the default", async () => {
+  test("the visit records the destination the rule chose, not the default", async () => {
     const link = await h.createLink(author.key, domain, {
       slug: "tracked",
       destination: "https://example.com/web",
@@ -278,12 +278,12 @@ describe("rules in the redirect", () => {
     })
 
     await get("/tracked", ANDROID)
-    await flushClicks()
+    await flushVisits()
     const [row] = await h.db
       .select()
-      .from(clicks)
-      .where(eq(clicks.linkId, link.id))
-      .orderBy(desc(clicks.id))
+      .from(visits)
+      .where(eq(visits.linkId, link.id))
+      .orderBy(desc(visits.id))
       .limit(1)
     expect(row).toMatchObject({
       destination: "https://example.com/android",
@@ -380,7 +380,7 @@ describe("rules in the redirect", () => {
     expect(without.headers.get("location")).toBe("https://example.com/global")
   })
 
-  test("an orphan click never consults rules", async () => {
+  test("an orphan visit never consults rules", async () => {
     const res = await get("/no-such-slug")
     expect(res.status).toBe(404)
   })

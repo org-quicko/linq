@@ -235,7 +235,7 @@ describe("secrets never reach the log", () => {
     const out = await capture()
     log.error(
       { err: new Error(`failed to connect to ${SECRETS.DATABASE_URL}`) },
-      "click insert failed",
+      "visit insert failed",
     )
 
     const text = out.text()

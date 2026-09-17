@@ -1,9 +1,10 @@
 import type { Link, Role } from "@linq/shared"
 import { generateKey, hashKey, keyPrefix } from "../../src/auth/keys.ts"
-import { type Geo, noGeo } from "../../src/clicks/geo.ts"
+import { type Cache, noCache } from "../../src/cache.ts"
 import type { Db } from "../../src/db/client.ts"
-import { apiKeys, clicks, domains, users } from "../../src/db/schema.ts"
+import { apiKeys, domains, users, visits } from "../../src/db/schema.ts"
 import { createApp } from "../../src/http/app.ts"
+import { type Geo, noGeo } from "../../src/visits/geo.ts"
 import { createTestDb, testConfig } from "./db.ts"
 
 /** `json()` is deliberately loose: the assertion in each test does the narrowing. */
@@ -31,16 +32,16 @@ export type Harness = {
   createDomain: (host: string, fallbackUrl?: string) => Promise<string>
   /** Goes through the API, so slug generation and ownership are the real thing. */
   createLink: (key: string, domainId: string, body?: Record<string, unknown>) => Promise<Link>
-  /** Click rows written straight to the table; the redirect handler lands in milestone 4. */
-  recordClicks: (
+  /** Visit rows written straight to the table; the redirect handler lands in milestone 4. */
+  recordVisits: (
     linkId: string | null,
     domainId: string,
     counts: { human?: number; bot?: number },
-    overrides?: Partial<typeof clicks.$inferInsert>,
+    overrides?: Partial<typeof visits.$inferInsert>,
   ) => Promise<void>
 }
 
-export type HarnessOptions = { geo?: Geo; config?: Partial<typeof testConfig> }
+export type HarnessOptions = { geo?: Geo; cache?: Cache; config?: Partial<typeof testConfig> }
 
 /**
  * Builds one isolated app and database, plus the shorthands the suites share.
@@ -49,7 +50,7 @@ export type HarnessOptions = { geo?: Geo; config?: Partial<typeof testConfig> }
 export async function createHarness(options: HarnessOptions = {}): Promise<Harness> {
   const db = await createTestDb()
   const config = { ...testConfig, ...options.config }
-  const app = createApp({ db, config, geo: options.geo ?? noGeo })
+  const app = createApp({ db, config, geo: options.geo ?? noGeo, cache: options.cache ?? noCache })
 
   const request: Harness["request"] = async (path, init = {}) => {
     const { key, host = "localhost", ...rest } = init
@@ -104,7 +105,7 @@ export async function createHarness(options: HarnessOptions = {}): Promise<Harne
         throw new Error(`createLink failed: ${res.status} ${await res.text()}`)
       return (await res.json()) as Link
     },
-    recordClicks: async (linkId, domainId, counts, overrides = {}) => {
+    recordVisits: async (linkId, domainId, counts, overrides = {}) => {
       const rows = [
         ...Array.from({ length: counts.human ?? 0 }, () => false),
         ...Array.from({ length: counts.bot ?? 0 }, () => true),
@@ -117,7 +118,7 @@ export async function createHarness(options: HarnessOptions = {}): Promise<Harne
         platform: "desktop" as const,
         ...overrides,
       }))
-      if (rows.length) await db.insert(clicks).values(rows)
+      if (rows.length) await db.insert(visits).values(rows)
     },
   }
 }

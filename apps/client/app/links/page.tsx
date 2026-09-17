@@ -5,7 +5,14 @@ import NextLink from "next/link"
 import { useState } from "react"
 import { toast } from "sonner"
 import { AppShell } from "@/components/app-shell"
-import { CopyButton, DataTable, Picker, QueryState, TableSkeleton } from "@/components/common"
+import {
+  CopyButton,
+  DataTable,
+  Pager,
+  Picker,
+  QueryState,
+  TableSkeleton,
+} from "@/components/common"
 import { TagPicker } from "@/components/tag-picker"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
@@ -24,7 +31,7 @@ import { useDebounced } from "../../lib/use-api"
 type Filters = {
   domainId: string
   status: "active" | "archived" | "all"
-  sort: "createdAt" | "clicks"
+  sort: "createdAt" | "visits"
 }
 
 const EMPTY: Filters = { domainId: "", status: "active", sort: "createdAt" }
@@ -32,7 +39,7 @@ const EMPTY: Filters = { domainId: "", status: "active", sort: "createdAt" }
 /** Radix refuses an item whose value is "", so "no filter" needs a real value. */
 const ANY_DOMAIN = "__any__"
 
-const HEAD = ["Short URL", "Destination", "Tags", "Clicks", "Owner", "", ""]
+const HEAD = ["Short URL", "Destination", "Tags", "Visits", "Owner", "", ""]
 
 /** The main list: every link, filtered the same way the API filters them. */
 export default function LinksPage() {
@@ -132,7 +139,7 @@ function LinksList({ actor }: { actor: Actor }) {
             onChange={(value) => update({ sort: value as Filters["sort"] })}
             options={[
               { value: "createdAt", label: "Newest first" },
-              { value: "clicks", label: "Most clicks" },
+              { value: "visits", label: "Most visits" },
             ]}
           />
         </CardContent>
@@ -185,8 +192,8 @@ function LinksList({ actor }: { actor: Actor }) {
                     </div>
                   </TableCell>
                   <TableCell className="tabular-nums">
-                    {link.humanClicks}
-                    <span className="text-muted-foreground"> + {link.botClicks} bot</span>
+                    {link.humanVisits}
+                    <span className="text-muted-foreground"> + {link.botVisits} bot</span>
                   </TableCell>
                   <TableCell className="max-w-[10rem] truncate text-muted-foreground">
                     {link.ownerName}
@@ -213,31 +220,7 @@ function LinksList({ actor }: { actor: Actor }) {
             </DataTable>
           ) : null}
 
-          {total > limit ? (
-            <div className="mt-4 flex items-center justify-between text-sm text-muted-foreground">
-              <span>
-                {offset + 1}–{Math.min(offset + limit, total)} of {total}
-              </span>
-              <div className="flex gap-2">
-                <Button
-                  type="button"
-                  variant="outline"
-                  disabled={offset === 0}
-                  onClick={() => setOffset(Math.max(0, offset - limit))}
-                >
-                  Previous
-                </Button>
-                <Button
-                  type="button"
-                  variant="outline"
-                  disabled={offset + limit >= total}
-                  onClick={() => setOffset(offset + limit)}
-                >
-                  Next
-                </Button>
-              </div>
-            </div>
-          ) : null}
+          <Pager total={total} limit={limit} offset={offset} onChange={setOffset} />
         </CardContent>
       </Card>
     </div>

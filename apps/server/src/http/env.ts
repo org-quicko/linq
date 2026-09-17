@@ -1,7 +1,8 @@
 import type { Principal } from "../auth/middleware.ts"
-import type { Geo } from "../clicks/geo.ts"
+import type { Cache } from "../cache.ts"
 import type { Config } from "../config.ts"
 import type { Db } from "../db/client.ts"
+import type { Geo } from "../visits/geo.ts"
 
 /** Everything a route handler reads off the context. */
 export type Env = {
@@ -13,6 +14,7 @@ export type Env = {
     db: Db
     config: Config
     geo: Geo
+    cache: Cache
     /** Set by the auth middleware; only present under /api/v1. */
     principal: Principal
   }

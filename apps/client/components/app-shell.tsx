@@ -31,6 +31,7 @@ type NavGroup = { label: string; children: NavItem[] }
 /** What you look at. */
 const NAV: (NavItem | NavGroup)[] = [
   { href: "/overview/", label: "Overview", visible: () => true },
+  { href: "/visits/", label: "Visits", visible: () => true },
   {
     label: "Links",
     children: [

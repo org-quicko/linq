@@ -1,23 +1,38 @@
-import { RESERVED_SLUGS } from "@linq/shared"
+import { type Condition, RESERVED_SLUGS } from "@linq/shared"
 import { and, eq, inArray } from "drizzle-orm"
 import type { Context } from "hono"
 import { createFactory } from "hono/factory"
-import { detectBot } from "../clicks/bot.ts"
-import { detectPlatform } from "../clicks/platform.ts"
-import { recordClick } from "../clicks/record.ts"
+import { domainKey, targetKey } from "../cache.ts"
 import type { Db } from "../db/client.ts"
 import { domains, links } from "../db/schema.ts"
 import { reqLog, span } from "../log.ts"
 import { matchRules } from "../rules/match.ts"
 import { listRules } from "../rules/store.ts"
+import { detectBot } from "../visits/bot.ts"
+import { detectPlatform } from "../visits/platform.ts"
+import { recordVisit } from "../visits/record.ts"
 import type { Env } from "./env.ts"
+
+/** The part of a domain row the redirect needs. Null means no active domain. */
+export type ResolvedDomain = { id: string; fallbackUrl: string | null }
+
+/**
+ * Everything one slug on one domain resolves to, rules included, so a cache hit
+ * answers the whole redirect. Null means no active link, i.e. an orphan visit.
+ */
+export type ResolvedTarget = {
+  linkId: string
+  destination: string
+  forwardQuery: boolean
+  rules: { destination: string; conditions: Condition[] }[]
+}
 
 /**
  * A domain row may carry a port or not. The host is tried exactly as sent first,
  * then with its port stripped, so one `links.example.com` row also answers
  * requests on a non-standard port while `localhost:3000` still matches verbatim.
  */
-function findActiveDomain(db: Db, hostHeader: string) {
+function findActiveDomain(db: Db, hostHeader: string): Promise<ResolvedDomain | null> {
   return span(
     "domain.findActive",
     async () => {
@@ -26,21 +41,22 @@ function findActiveDomain(db: Db, hostHeader: string) {
       const candidates = bare === host ? [host] : [host, bare]
 
       const rows = await db
-        .select()
+        .select({ id: domains.id, host: domains.host, fallbackUrl: domains.fallbackUrl })
         .from(domains)
         .where(and(inArray(domains.host, candidates), eq(domains.status, "active")))
 
-      return rows.find((row) => row.host === host) ?? rows[0] ?? null
+      const row = rows.find((r) => r.host === host) ?? rows[0] ?? null
+      return row ? { id: row.id, fallbackUrl: row.fallbackUrl } : null
     },
-    {
-      in: { host: hostHeader },
-      out: (domain) => ({ domainId: domain?.id ?? null, host: domain?.host ?? null }),
-    },
+    { in: { host: hostHeader }, out: (domain) => ({ domainId: domain?.id ?? null }) },
   )
 }
 
-/** Looks up the link a slug points at on one domain. Archived links are invisible here. */
-function findActiveLink(db: Db, domainId: string, slug: string) {
+/**
+ * Looks up what a slug resolves to on one domain, rules included. Archived links
+ * are invisible here.
+ */
+function findActiveTarget(db: Db, domainId: string, slug: string): Promise<ResolvedTarget | null> {
   return span(
     "link.findActive",
     async () => {
@@ -49,10 +65,36 @@ function findActiveLink(db: Db, domainId: string, slug: string) {
         .from(links)
         .where(and(eq(links.domainId, domainId), eq(links.slug, slug), eq(links.status, "active")))
         .limit(1)
-      return row ?? null
+      if (!row) return null
+      // Rules ride inside the same entry: every hit that resolves reads them, so
+      // caching the link without them would leave a query behind on the hot path.
+      const ordered = await listRules(db, row.id)
+      return {
+        linkId: row.id,
+        destination: row.destination,
+        forwardQuery: row.forwardQuery,
+        rules: ordered.map((r) => ({ destination: r.destination, conditions: r.conditions })),
+      }
     },
-    { in: { domainId, slug }, out: (link) => ({ linkId: link?.id ?? null }) },
+    { in: { domainId, slug }, out: (target) => ({ linkId: target?.linkId ?? null }) },
   )
+}
+
+/**
+ * Reads one key through the cache, falling back to `load` on a miss and writing
+ * the answer back — a `null` answer included, so an unknown host or slug costs
+ * one query per TTL rather than one per request.
+ */
+async function through<T>(
+  c: Context<Env>,
+  key: string,
+  load: () => Promise<T | null>,
+): Promise<T | null> {
+  const hit = await c.var.cache.get<T | null>(key)
+  if (hit) return hit.value
+  const value = await load()
+  await c.var.cache.set(key, value)
+  return value
 }
 
 /**
@@ -66,7 +108,7 @@ export function mergeQuery(destination: string, incoming: URLSearchParams): stri
   return url.toString()
 }
 
-/** The click's record of what the caller asked for, before any merging. */
+/** The visit's record of what the caller asked for, before any merging. */
 export function queryMap(params: URLSearchParams): Record<string, string[]> | null {
   const out: Record<string, string[]> = {}
   for (const [key, value] of params) {
@@ -98,20 +140,25 @@ export const redirectHandler = factory.createHandlers(async (c) => {
 
   // 1. Reserved paths belong to the API, the Client UI and robots.txt. Matching on
   //    the first segment covers /api/v1/typo and /home/whatever too, so an
-  //    unclaimed one 404s instead of becoming an orphan click on the fallback.
+  //    unclaimed one 404s instead of becoming an orphan visit on the fallback.
   const firstSegment = slug.split("/")[0]?.toLowerCase() ?? ""
   if (RESERVED_SLUGS.has(firstSegment)) return c.text("Not Found", 404)
 
   // 2. An unknown or archived domain is not ours to report on.
-  const domain = await findActiveDomain(c.var.db, c.req.header("host") ?? url.host)
+  const host = c.req.header("host") ?? url.host
+  const domain = await through(c, domainKey(host), () => findActiveDomain(c.var.db, host))
   if (!domain) return c.text("Not Found", 404)
 
   // HEAD is answered exactly like GET but never tracked.
   const tracked = c.req.method === "GET"
   const userAgent = c.req.header("user-agent") ?? null
-  const link = slug ? await findActiveLink(c.var.db, domain.id, slug) : null
+  const link = slug
+    ? await through(c, targetKey(domain.id, slug), () =>
+        findActiveTarget(c.var.db, domain.id, slug),
+      )
+    : null
 
-  const click = {
+  const visit = {
     domainId: domain.id,
     slugRequested: slug,
     isBot: detectBot(userAgent),
@@ -122,31 +169,31 @@ export const redirectHandler = factory.createHandlers(async (c) => {
     ...c.var.geo.lookup(clientIp(c)),
   }
 
-  // 3. Root path, unknown slug or archived link: an orphan click on a live domain.
+  // 3. Root path, unknown slug or archived link: an orphan visit on a live domain.
   if (!link) {
     const destination = domain.fallbackUrl
-    if (tracked) recordClick(c.var.db, { ...click, linkId: null, destination })
+    if (tracked) recordVisit(c.var.db, { ...visit, linkId: null, destination })
     if (!destination) return c.text("Not Found", 404)
     return sendRedirect(c, destination)
   }
 
   // 4-5. Build the match context, then let the first rule whose conditions all
   //      hold supply the destination. No match falls back to the link default.
-  const ruled = matchRules(await listRules(c.var.db, link.id), {
-    platform: click.platform,
+  const ruled = matchRules(link.rules, {
+    platform: visit.platform,
     query: url.searchParams,
-    country: click.country,
+    country: visit.country,
   })
   const chosen = ruled ?? link.destination
   // `matchRules` is synchronous and on the hot path, so it gets one line rather
   // than a span; which branch won is the only part worth recording.
-  reqLog().debug({ linkId: link.id, matchedRule: ruled !== null }, "rules matched")
+  reqLog().debug({ linkId: link.linkId, matchedRule: ruled !== null }, "rules matched")
 
   // 6. Forward the incoming query when the link asks for it.
   const destination = link.forwardQuery ? mergeQuery(chosen, url.searchParams) : chosen
 
   // 8. Insert after the response is built, and never await it.
-  if (tracked) recordClick(c.var.db, { ...click, linkId: link.id, destination })
+  if (tracked) recordVisit(c.var.db, { ...visit, linkId: link.linkId, destination })
 
   return sendRedirect(c, destination)
 })

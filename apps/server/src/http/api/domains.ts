@@ -10,6 +10,7 @@ import { and, asc, count, eq, sql } from "drizzle-orm"
 import { Hono } from "hono"
 import { z } from "zod"
 import { assertCanPurge, assertRole } from "../../auth/permissions.ts"
+import { domainKey } from "../../cache.ts"
 import type { Db } from "../../db/client.ts"
 import { domains, links } from "../../db/schema.ts"
 import { span } from "../../log.ts"
@@ -68,7 +69,7 @@ function fetchDomain(db: Db, id: string): Promise<Domain> {
 }
 
 /**
- * A purge takes the domain's clicks with it (`clicks.domain_id` is NOT NULL, so
+ * A purge takes the domain's visits with it (`visits.domain_id` is NOT NULL, so
  * they have nowhere to go), so it is refused while **any** link row still points
  * at the domain — archived ones included, unlike the archive check above.
  */
@@ -126,6 +127,8 @@ export const domainRoutes = new Hono<Env>()
       .returning()
     if (!row) throw ApiError.conflict(`domain ${body.host} already exists`)
 
+    // Clears the negative entry a request to this host left behind while it 404'd.
+    await c.var.cache.del(domainKey(row.host))
     return c.json(toDomain({ domain: row, linkCount: 0 }), 201)
   })
 
@@ -136,13 +139,16 @@ export const domainRoutes = new Hono<Env>()
     const { id } = c.req.valid("param")
     const patch = c.req.valid("json")
 
-    await fetchDomain(c.var.db, id)
+    const before = await fetchDomain(c.var.db, id)
     if (patch.status === "archived") await assertNoActiveLinks(c.var.db, id)
 
     await c.var.db
       .update(domains)
       .set({ ...patch, updatedAt: new Date() })
       .where(eq(domains.id, id))
+    // Both patchable fields — the fallback URL and the status — are what the
+    // redirect reads out of the cached entry.
+    await c.var.cache.del(domainKey(before.host))
     return c.json(await fetchDomain(c.var.db, id))
   })
 
@@ -151,18 +157,19 @@ export const domainRoutes = new Hono<Env>()
     assertRole(c.var.principal, "admin")
     const { id } = c.req.valid("param")
 
-    await fetchDomain(c.var.db, id)
+    const before = await fetchDomain(c.var.db, id)
     await assertNoActiveLinks(c.var.db, id)
 
     await c.var.db
       .update(domains)
       .set({ status: "archived", updatedAt: new Date() })
       .where(eq(domains.id, id))
+    await c.var.cache.del(domainKey(before.host))
     return c.json(await fetchDomain(c.var.db, id))
   })
 
   /**
-   * Destroys an archived, empty domain for good, and its clicks with it. Admin
+   * Destroys an archived, empty domain for good, and its visits with it. Admin
    * only, and archived-first. See docs/adr/0002.
    */
   .delete("/:id/purge", idParam, async (c) => {
@@ -178,5 +185,6 @@ export const domainRoutes = new Hono<Env>()
     await span("domain.purge", async () => c.var.db.delete(domains).where(eq(domains.id, id)), {
       in: { domainId: id, host: domain.host },
     })
+    await c.var.cache.del(domainKey(domain.host))
     return c.body(null, 204)
   })

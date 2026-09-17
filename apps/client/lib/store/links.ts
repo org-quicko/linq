@@ -1,11 +1,11 @@
-import type { Click, Link, Page, Rule } from "@linq/shared"
+import type { Link, Page, Rule } from "@linq/shared"
 import { qs } from "../api"
 import { apiSlice } from "./api"
 
 type LinkFilters = {
   domainId?: string
   status?: "active" | "archived" | "all"
-  sort?: "createdAt" | "clicks"
+  sort?: "createdAt" | "visits"
   search?: string
   tags?: string
   limit?: number
@@ -33,11 +33,6 @@ export const linksApi = apiSlice.injectEndpoints({
     getLinkRules: build.query<Rule[], string>({
       query: (linkId) => ({ path: `/v1/links/${linkId}/rules` }),
       providesTags: (_result, _error, linkId) => [{ type: "Link", id: `${linkId}-rules` }],
-    }),
-
-    getLinkClicks: build.query<Page<Click>, { linkId: string; bot: "any" | "true" | "false" }>({
-      query: ({ linkId, bot }) => ({ path: `/v1/links/${linkId}/clicks${qs({ bot, limit: 25 })}` }),
-      providesTags: (_result, _error, { linkId }) => [{ type: "Link", id: `${linkId}-clicks` }],
     }),
 
     createLink: build.mutation<Link, Record<string, unknown>>({
@@ -84,7 +79,6 @@ export const {
   useListLinksQuery,
   useGetLinkQuery,
   useGetLinkRulesQuery,
-  useGetLinkClicksQuery,
   useCreateLinkMutation,
   useUpdateLinkMutation,
   useArchiveLinkMutation,

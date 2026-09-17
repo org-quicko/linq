@@ -12,7 +12,7 @@ import {
   XAxis,
   YAxis,
 } from "recharts"
-import { GeoAttribution, Picker, QueryState } from "@/components/common"
+import { GeoAttribution, Picker, QueryState, RangePicker, useRange } from "@/components/common"
 import { Card, CardAction, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { useGetStatsQuery } from "../lib/store/stats"
 
@@ -27,15 +27,6 @@ const GROUP_LABELS: Record<GroupBy, string> = {
   slug: "Requested slug",
 }
 
-/** How far back to query. "0" sends no `from`, i.e. the whole history. */
-const RANGES = [
-  { value: "7", label: "Last 7 days" },
-  { value: "30", label: "Last 30 days" },
-  { value: "90", label: "Last 90 days" },
-  { value: "0", label: "All time" },
-] as const
-type Range = (typeof RANGES)[number]["value"]
-
 /** Ranked dimensions beyond this are dropped: a long tail reads as noise. */
 const MAX_BARS = 20
 /** Days beyond this (only reachable via "All time") are dropped the same way. */
@@ -43,7 +34,7 @@ const MAX_DAYS = 90
 
 /**
  * One bucket per day in the window. The aggregate only returns days that had a
- * click, which would otherwise draw a gap-free axis that misreads as
+ * visit, which would otherwise draw a gap-free axis that misreads as
  * consecutive days.
  */
 function fillDays(buckets: StatsBucket[], from: string | undefined): StatsBucket[] {
@@ -85,18 +76,8 @@ export function StatsPanel({
   extraParams?: Record<string, string | undefined>
 }) {
   const [groupBy, setGroupBy] = useState<GroupBy>(initialGroupBy)
-  const [range, setRange] = useState<Range>("7")
+  const { range, setRange, from } = useRange()
   const horizontal = groupBy !== "day"
-
-  // Memoized on `range` alone: computing this fresh every render (Date.now()
-  // has millisecond precision) would give RTK Query a new query arg on every
-  // render, since it caches by serialized args — an endless refetch loop that
-  // never lets `isFetching` settle back to false.
-  const from = useMemo(
-    () =>
-      range === "0" ? undefined : new Date(Date.now() - Number(range) * 86_400_000).toISOString(),
-    [range],
-  )
 
   const {
     data: stats,
@@ -113,7 +94,7 @@ export function StatsPanel({
     const trimmed = horizontal ? all.slice(0, MAX_BARS) : fillDays(all, from).slice(-MAX_DAYS)
     return trimmed.map((bucket) => ({
       ...bucket,
-      // An empty key means the dimension was never recorded for those clicks.
+      // An empty key means the dimension was never recorded for those visits.
       key: bucket.key === "" ? "(not recorded)" : bucket.key,
     }))
   }, [all, from, horizontal])
@@ -130,12 +111,7 @@ export function StatsPanel({
       <CardHeader className="border-b">
         <CardTitle>{title}</CardTitle>
         <CardAction className="flex gap-2">
-          <Picker
-            className="w-36"
-            value={range}
-            onChange={(value) => setRange(value as Range)}
-            options={RANGES.map((r) => ({ value: r.value, label: r.label }))}
-          />
+          <RangePicker value={range} onChange={setRange} />
           <Picker
             className="w-48"
             value={groupBy}
@@ -157,7 +133,7 @@ export function StatsPanel({
           isFetching={isFetching}
           error={error}
           empty={buckets.length === 0}
-          emptyMessage="No clicks recorded yet."
+          emptyMessage="No visits recorded yet."
         />
 
         {buckets.length > 0 ? (

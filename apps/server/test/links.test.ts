@@ -32,8 +32,8 @@ describe("POST /api/v1/links", () => {
     expect(link).toMatchObject({
       status: "active",
       forwardQuery: true,
-      humanClicks: 0,
-      botClicks: 0,
+      humanVisits: 0,
+      botVisits: 0,
     })
   })
 
@@ -264,17 +264,17 @@ describe("GET /api/v1/links", () => {
     expect(res.status).toBe(400)
   })
 
-  test("sorts by click count", async () => {
+  test("sorts by visit count", async () => {
     const scoped = await h.createDomain("sorted.test")
     const cold = await h.createLink(author.key, scoped, { slug: "cold" })
     const hot = await h.createLink(author.key, scoped, { slug: "hot" })
-    await h.recordClicks(hot.id, scoped, { human: 2, bot: 1 })
-    await h.recordClicks(cold.id, scoped, { human: 1, bot: 0 })
+    await h.recordVisits(hot.id, scoped, { human: 2, bot: 1 })
+    await h.recordVisits(cold.id, scoped, { human: 1, bot: 0 })
 
-    const res = await h.request(`/api/v1/links?domainId=${scoped}&sort=clicks`, { key: author.key })
+    const res = await h.request(`/api/v1/links?domainId=${scoped}&sort=visits`, { key: author.key })
     const body = await res.json()
     expect(body.data.map((l: { id: string }) => l.id)).toEqual([hot.id, cold.id])
-    expect(body.data[0]).toMatchObject({ humanClicks: 2, botClicks: 1 })
+    expect(body.data[0]).toMatchObject({ humanVisits: 2, botVisits: 1 })
   })
 })
 

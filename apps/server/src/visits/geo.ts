@@ -34,7 +34,7 @@ export const noGeo: Geo = { lookup: () => NOWHERE, stop: () => {} }
  */
 export async function startGeo(config: Config): Promise<Geo> {
   if (!config.LINQ_GEO_ENABLED) {
-    log.info({ enabled: false }, "geo: disabled, clicks will have no location")
+    log.info({ enabled: false }, "geo: disabled, visits will have no location")
     return noGeo
   }
 
@@ -49,7 +49,7 @@ export async function startGeo(config: Config): Promise<Geo> {
       if (!supplied && (await isStale(path))) await downloadMmdb(config.LINQ_GEO_DIR, path)
       reader = new Reader<CountryResponse>(await readFile(path))
     } catch (err) {
-      log.error({ err }, `geo: ${EDITION} unavailable, clicks will have no location`)
+      log.error({ err }, `geo: ${EDITION} unavailable, visits will have no location`)
     }
   }
 

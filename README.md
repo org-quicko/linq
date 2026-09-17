@@ -8,9 +8,17 @@ Self-hosted SaaS including URL Shortener, Dynamic Link and Link Tree Creator
 
 - **Bun 1.4+** — `bun --version`. If the command is not found, it installs to
   `~/.bun/bin` and that directory has to be on your `PATH`.
-- **PostgreSQL 14+**, running and reachable on `localhost:5432`. linq never runs
+- **PostgreSQL 15+**, running and reachable on `localhost:5432`. linq never runs
   Postgres itself, locally or in Docker — start it before the steps below, or the
   server exits on boot with `ERR_POSTGRES_CONNECTION_REFUSED`.
+
+That is the whole list. The redirect cache runs inside the linq process by
+default, on an in-memory SQLite store, so nothing else has to be running.
+Setting `LINQ_REDIS_URL` moves it to Redis instead — a shared store, which one
+instance's invalidations reach all of. `docs/adr/0009` describes what the two
+differ in; neither is the recommended one. A configured Redis has to be
+reachable or the server will not start, though one that goes down *later*
+degrades to Postgres rather than failing requests.
 
 ### 1. Install dependencies
 
@@ -35,9 +43,10 @@ the install's `bin` directory. Any client will do; so will your existing tooling
 cp .env.example .env
 ```
 
-Then edit `.env` and set `DATABASE_URL` to your own Postgres credentials. That is
-the only required value; everything else has a working default. The defaults put
-the server on port 3000 and seed `localhost:3000` as the first domain.
+Then edit `.env` and set `DATABASE_URL` to your own Postgres credentials. That
+is the only required value; everything else has a working default. The defaults
+put the server on port 3000, seed `localhost:3000` as the first domain, and
+cache redirect lookups in the process for five minutes.
 
 ### 4. Start the API server
 
@@ -89,7 +98,7 @@ delete is refused rather than quietly orphaning it.
 </details>
 
 The server also downloads the ~8 MB DB-IP geolocation database on first boot. It
-needs no account or key, and a failure is logged and ignored — clicks just have
+needs no account or key, and a failure is logged and ignored — visits just have
 no country. Set `LINQ_GEO_ENABLED=false` to skip it entirely.
 
 ### 5. Start the Client UI
@@ -205,7 +214,8 @@ regenerable geolocation cache. See `docs/adr/0005-geo-database-is-an-external-ca
 ## Docker
 
 `Dockerfile` and `docker-compose.example.yml` build an image that serves the API,
-the redirects and the Client UI from one process. Postgres stays external. Copy
+the redirects and the Client UI from one process. Postgres stays external, and
+so does Redis if you opt into it. Copy
 the compose file, set a real password and `LINQ_DEFAULT_DOMAIN`, then
 `docker compose up`.
 

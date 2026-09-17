@@ -7,17 +7,7 @@ import { useRouter, useSearchParams } from "next/navigation"
 import { Suspense, useState } from "react"
 import { toast } from "sonner"
 import { AppShell } from "@/components/app-shell"
-import {
-  ConfirmButton,
-  CopyButton,
-  DataTable,
-  Field,
-  GeoAttribution,
-  Picker,
-  QueryState,
-  TableSkeleton,
-  When,
-} from "@/components/common"
+import { ConfirmButton, CopyButton, Field, Picker, QueryState, When } from "@/components/common"
 import { RulesEditor } from "@/components/rules-editor"
 import { StatsPanel } from "@/components/stats-panel"
 import { TagPicker } from "@/components/tag-picker"
@@ -27,11 +17,10 @@ import { Card, CardAction, CardContent, CardHeader, CardTitle } from "@/componen
 import { Checkbox } from "@/components/ui/checkbox"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
-import { TableCell, TableRow } from "@/components/ui/table"
+import { VisitsCard } from "@/components/visits-card"
 import { errorMessage } from "../../../lib/api"
 import {
   useArchiveLinkMutation,
-  useGetLinkClicksQuery,
   useGetLinkQuery,
   useGetLinkRulesQuery,
   usePurgeLinkMutation,
@@ -39,10 +28,8 @@ import {
 } from "../../../lib/store/links"
 import { useListUsersQuery } from "../../../lib/store/users"
 
-const CLICKS_HEAD = ["When", "Platform", "Location", "Referrer", "Sent to", ""]
-
 /**
- * Everything about one link: its settings, its rules, its click history.
+ * Everything about one link: its settings, its rules, its visit history.
  *
  * The id arrives in the query string rather than the path because the Client UI
  * is a static export, which cannot pre-render a page per link id.
@@ -89,7 +76,7 @@ function LinkDetail({ actor }: { actor: Actor }) {
         </NextLink>
       </div>
 
-      <StatsPanel path={`/v1/links/${id}/stats`} title="Clicks" />
+      <StatsPanel path={`/v1/links/${id}/stats`} title="Visits" />
 
       <SettingsCard
         link={current}
@@ -104,7 +91,7 @@ function LinkDetail({ actor }: { actor: Actor }) {
         <QueryState isLoading={rules.isLoading} error={rules.error} />
       )}
 
-      <ClicksCard linkId={id} />
+      <VisitsCard scope={{ linkId: id }} />
     </div>
   )
 }
@@ -200,7 +187,7 @@ function SettingsCard({
                 {canPurge ? (
                   <ConfirmButton
                     title={`Purge ${link.domainHost}/${link.slug}?`}
-                    description={`This destroys the link and its rules for good, and frees the slug for anyone to claim on ${link.domainHost}. Its clicks are kept as orphans. It cannot be undone.`}
+                    description={`This destroys the link and its rules for good, and frees the slug for anyone to claim on ${link.domainHost}. Its visits are kept as orphans. It cannot be undone.`}
                     confirmLabel="Purge for good"
                     confirmText={link.slug}
                     onConfirm={purge}
@@ -275,69 +262,6 @@ function SettingsCard({
           />
           Forward incoming query parameters to the destination
         </Label>
-      </CardContent>
-    </Card>
-  )
-}
-
-/** The raw click log, newest first, with the human/bot filter the API offers. */
-function ClicksCard({ linkId }: { linkId: string }) {
-  const [bot, setBot] = useState<"any" | "true" | "false">("any")
-  const clicks = useGetLinkClicksQuery({ linkId, bot })
-  const rows = clicks.data?.data ?? []
-
-  return (
-    <Card>
-      <CardHeader className="border-b">
-        <CardTitle>Recent clicks</CardTitle>
-        <CardAction>
-          <Picker
-            className="w-40"
-            value={bot}
-            onChange={(value) => setBot(value as typeof bot)}
-            options={[
-              { value: "any", label: "Everyone" },
-              { value: "false", label: "Humans only" },
-              { value: "true", label: "Bots only" },
-            ]}
-          />
-        </CardAction>
-      </CardHeader>
-
-      <CardContent>
-        <QueryState
-          isLoading={clicks.isLoading}
-          isFetching={clicks.isFetching}
-          error={clicks.error}
-          empty={rows.length === 0}
-          emptyMessage="No clicks yet."
-          skeleton={<TableSkeleton head={CLICKS_HEAD} />}
-        />
-
-        {rows.length > 0 ? (
-          <DataTable head={CLICKS_HEAD}>
-            {rows.map((click) => (
-              <TableRow key={click.id}>
-                <TableCell>
-                  <When iso={click.occurredAt} />
-                </TableCell>
-                <TableCell>{click.platform}</TableCell>
-                <TableCell className="text-muted-foreground">
-                  {[click.region, click.country].filter(Boolean).join(", ") || "—"}
-                </TableCell>
-                <TableCell className="max-w-[12rem] truncate text-muted-foreground">
-                  {click.referer ?? "—"}
-                </TableCell>
-                <TableCell className="max-w-[16rem] truncate text-muted-foreground">
-                  <span title={click.destination ?? ""}>{click.destination ?? "—"}</span>
-                </TableCell>
-                <TableCell>{click.isBot ? <Badge variant="outline">Bot</Badge> : null}</TableCell>
-              </TableRow>
-            ))}
-          </DataTable>
-        ) : null}
-
-        <GeoAttribution />
       </CardContent>
     </Card>
   )

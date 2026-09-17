@@ -1,7 +1,7 @@
 import { beforeAll, describe, expect, test } from "bun:test"
 import { desc, eq, isNull } from "drizzle-orm"
-import { flushClicks } from "../src/clicks/record.ts"
-import { clicks } from "../src/db/schema.ts"
+import { visits } from "../src/db/schema.ts"
+import { flushVisits } from "../src/visits/record.ts"
 import { createHarness, type Harness } from "./helpers/app.ts"
 
 const HOST = "links.test"
@@ -15,16 +15,16 @@ let author: { userId: string; key: string }
 let domain: string
 
 /** The redirect never awaits its insert, so tests drain it before asserting. */
-async function lastClick() {
-  await flushClicks()
-  const [row] = await h.db.select().from(clicks).orderBy(desc(clicks.id)).limit(1)
+async function lastVisit() {
+  await flushVisits()
+  const [row] = await h.db.select().from(visits).orderBy(desc(visits.id)).limit(1)
   return row
 }
 
-/** Total rows in `clicks`, drained first so nothing is still in flight. */
-async function clickCount() {
-  await flushClicks()
-  return (await h.db.select().from(clicks)).length
+/** Total rows in `visits`, drained first so nothing is still in flight. */
+async function visitCount() {
+  await flushVisits()
+  return (await h.db.select().from(visits)).length
 }
 
 beforeAll(async () => {
@@ -38,10 +38,10 @@ const get = (path: string, init: RequestInit & { host?: string } = {}) =>
 
 describe("domain resolution", () => {
   test("an unknown host is an untracked 404", async () => {
-    const before = await clickCount()
+    const before = await visitCount()
     const res = await get("/anything", { host: "nobody.test" })
     expect(res.status).toBe(404)
-    expect(await clickCount()).toBe(before)
+    expect(await visitCount()).toBe(before)
   })
 
   test("an archived domain is an untracked 404 for everything", async () => {
@@ -51,10 +51,10 @@ describe("domain resolution", () => {
     await h.request(`/api/v1/links/${link.id}`, { key: author.key, method: "DELETE" })
     await h.request(`/api/v1/domains/${closed}`, { key: admin.key, method: "DELETE" })
 
-    const before = await clickCount()
+    const before = await visitCount()
     expect((await get("/live", { host: "closed.test" })).status).toBe(404)
     expect((await get("/", { host: "closed.test" })).status).toBe(404)
-    expect(await clickCount()).toBe(before)
+    expect(await visitCount()).toBe(before)
   })
 
   test("a row without a port also answers a request carrying one", async () => {
@@ -76,7 +76,7 @@ describe("domain resolution", () => {
 
 describe("reserved paths", () => {
   test("are answered by link itself and never tracked", async () => {
-    const before = await clickCount()
+    const before = await visitCount()
 
     // robots.txt is served, /home normalises to its trailing-slash form, and the
     // rest are simply unclaimed. None of them is a slug.
@@ -91,11 +91,11 @@ describe("reserved paths", () => {
       expect((await get(path)).status).toBe(status)
     }
 
-    expect(await clickCount()).toBe(before)
+    expect(await visitCount()).toBe(before)
   })
 
-  test("cover their subpaths, so an API typo never becomes an orphan click", async () => {
-    const before = await clickCount()
+  test("cover their subpaths, so an API typo never becomes an orphan visit", async () => {
+    const before = await visitCount()
 
     // /api/v1/* belongs to the authenticated router, which answers before routing
     // and so does not leak which API paths exist.
@@ -104,20 +104,20 @@ describe("reserved paths", () => {
     // Routing is case-sensitive, so this one does reach the redirect handler.
     expect((await get("/API/v1/nope")).status).toBe(404)
 
-    expect(await clickCount()).toBe(before)
+    expect(await visitCount()).toBe(before)
   })
 
   test("but a deep path that is not reserved is still an orphan", async () => {
-    const before = await clickCount()
+    const before = await visitCount()
     const res = await get("/marketing/spring")
     expect(res.status).toBe(302)
-    expect(await clickCount()).toBe(before + 1)
-    expect(await lastClick()).toMatchObject({ linkId: null, slugRequested: "marketing/spring" })
+    expect(await visitCount()).toBe(before + 1)
+    expect(await lastVisit()).toMatchObject({ linkId: null, slugRequested: "marketing/spring" })
   })
 })
 
 describe("redirecting an active link", () => {
-  test("302s with no-store and records the click", async () => {
+  test("302s with no-store and records the visit", async () => {
     const link = await h.createLink(author.key, domain, {
       slug: "hello",
       destination: "https://example.com/landing",
@@ -130,7 +130,7 @@ describe("redirecting an active link", () => {
     expect(res.headers.get("location")).toBe("https://example.com/landing")
     expect(res.headers.get("cache-control")).toBe("no-store")
 
-    expect(await lastClick()).toMatchObject({
+    expect(await lastVisit()).toMatchObject({
       linkId: link.id,
       domainId: domain,
       slugRequested: "hello",
@@ -143,34 +143,34 @@ describe("redirecting an active link", () => {
     })
   })
 
-  test("an archived link falls through to an orphan click", async () => {
+  test("an archived link falls through to an orphan visit", async () => {
     const link = await h.createLink(author.key, domain, { slug: "retired" })
     await h.request(`/api/v1/links/${link.id}`, { key: author.key, method: "DELETE" })
 
     const res = await get("/retired")
     expect(res.status).toBe(302)
     expect(res.headers.get("location")).toBe("https://example.com/fallback")
-    expect(await lastClick()).toMatchObject({ linkId: null, slugRequested: "retired" })
+    expect(await lastVisit()).toMatchObject({ linkId: null, slugRequested: "retired" })
   })
 })
 
-describe("orphan clicks", () => {
+describe("orphan visits", () => {
   test("an unknown slug records the slug asked for and follows the fallback", async () => {
     const res = await get("/never-existed")
     expect(res.status).toBe(302)
     expect(res.headers.get("location")).toBe("https://example.com/fallback")
     expect(res.headers.get("cache-control")).toBe("no-store")
-    expect(await lastClick()).toMatchObject({
+    expect(await lastVisit()).toMatchObject({
       linkId: null,
       slugRequested: "never-existed",
       destination: "https://example.com/fallback",
     })
   })
 
-  test("the root path is an orphan click too", async () => {
+  test("the root path is an orphan visit too", async () => {
     const res = await get("/")
     expect(res.status).toBe(302)
-    expect(await lastClick()).toMatchObject({ linkId: null, slugRequested: "" })
+    expect(await lastVisit()).toMatchObject({ linkId: null, slugRequested: "" })
   })
 
   test("a domain with no fallback 404s but still records the orphan", async () => {
@@ -178,19 +178,19 @@ describe("orphan clicks", () => {
     const res = await get("/missing", { host: "bare.test" })
     expect(res.status).toBe(404)
 
-    await flushClicks()
+    await flushVisits()
     const [row] = await h.db
       .select()
-      .from(clicks)
-      .where(eq(clicks.domainId, bare))
-      .orderBy(desc(clicks.id))
+      .from(visits)
+      .where(eq(visits.domainId, bare))
+      .orderBy(desc(visits.id))
       .limit(1)
     expect(row).toMatchObject({ linkId: null, slugRequested: "missing", destination: null })
   })
 
-  test("orphan clicks are the rows with a null link", async () => {
-    await flushClicks()
-    const orphans = await h.db.select().from(clicks).where(isNull(clicks.linkId))
+  test("orphan visits are the rows with a null link", async () => {
+    await flushVisits()
+    const orphans = await h.db.select().from(visits).where(isNull(visits.linkId))
     expect(orphans.length).toBeGreaterThan(0)
   })
 })
@@ -229,7 +229,7 @@ describe("query forwarding", () => {
 
     const res = await get("/sealed?b=2")
     expect(res.headers.get("location")).toBe("https://example.com/?a=1")
-    expect((await lastClick()).query).toEqual({ b: ["2"] })
+    expect((await lastVisit()).query).toEqual({ b: ["2"] })
   })
 
   test("a link with no incoming query keeps its destination byte for byte", async () => {
@@ -239,7 +239,7 @@ describe("query forwarding", () => {
     })
     const res = await get("/plain")
     expect(res.headers.get("location")).toBe("https://example.com/path?x=1#frag")
-    expect((await lastClick()).query).toBeNull()
+    expect((await lastVisit()).query).toBeNull()
   })
 })
 
@@ -253,7 +253,7 @@ describe("visitor detection", () => {
       [DESKTOP, "desktop"],
     ] as const) {
       await get("/ua", { headers: { "user-agent": userAgent } })
-      expect(await lastClick()).toMatchObject({ platform, isBot: false })
+      expect(await lastVisit()).toMatchObject({ platform, isBot: false })
     }
   })
 
@@ -261,10 +261,10 @@ describe("visitor detection", () => {
     await h.createLink(author.key, domain, { slug: "crawled" })
 
     await get("/crawled", { headers: { "user-agent": BOT } })
-    expect(await lastClick()).toMatchObject({ isBot: true })
+    expect(await lastVisit()).toMatchObject({ isBot: true })
 
     await h.request("/crawled", { host: HOST })
-    expect(await lastClick()).toMatchObject({ isBot: true, userAgent: null })
+    expect(await lastVisit()).toMatchObject({ isBot: true, userAgent: null })
   })
 })
 
@@ -272,15 +272,15 @@ describe("HEAD", () => {
   test("is answered like GET but never tracked", async () => {
     const link = await h.createLink(author.key, domain, { slug: "head" })
 
-    const before = await clickCount()
+    const before = await visitCount()
     const res = await get("/head", { method: "HEAD" })
     expect(res.status).toBe(302)
     expect(res.headers.get("location")).toBe(link.destination)
-    expect(await clickCount()).toBe(before)
+    expect(await visitCount()).toBe(before)
 
     // An orphan HEAD is not tracked either.
     await get("/head-missing", { method: "HEAD" })
-    expect(await clickCount()).toBe(before)
+    expect(await visitCount()).toBe(before)
   })
 })
 
@@ -307,8 +307,8 @@ describe("geo", () => {
     })
     expect(res.status).toBe(302)
 
-    await flushClicks()
-    const [row] = await located.db.select().from(clicks).limit(1)
+    await flushVisits()
+    const [row] = await located.db.select().from(visits).limit(1)
     expect(row).toMatchObject({ country: "IN", region: "Gujarat" })
     expect(Object.keys(row)).not.toContain("ip")
 
@@ -316,9 +316,9 @@ describe("geo", () => {
     expect(seen).toEqual(["203.0.113.9"])
   })
 
-  test("without a licence key every click has an empty location", async () => {
+  test("without a licence key every visit has an empty location", async () => {
     await h.createLink(author.key, domain, { slug: "nowhere" })
     await get("/nowhere", { headers: { "user-agent": DESKTOP, "x-forwarded-for": "203.0.113.9" } })
-    expect(await lastClick()).toMatchObject({ country: null, region: null })
+    expect(await lastVisit()).toMatchObject({ country: null, region: null })
   })
 })

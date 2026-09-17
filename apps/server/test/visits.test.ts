@@ -1,7 +1,7 @@
 import { describe, expect, test } from "bun:test"
-import { detectBot } from "../src/clicks/bot.ts"
-import { detectPlatform } from "../src/clicks/platform.ts"
 import { mergeQuery, queryMap } from "../src/http/redirect.ts"
+import { detectBot } from "../src/visits/bot.ts"
+import { detectPlatform } from "../src/visits/platform.ts"
 
 describe("detectPlatform", () => {
   test("maps the three families", () => {

@@ -3,6 +3,7 @@ import { eq } from "drizzle-orm"
 import { Hono } from "hono"
 import { z } from "zod"
 import { assertCanEdit } from "../../auth/permissions.ts"
+import { targetKey } from "../../cache.ts"
 import { rules } from "../../db/schema.ts"
 import { listRules } from "../../rules/store.ts"
 import type { Env } from "../env.ts"
@@ -57,5 +58,8 @@ export const ruleRoutes = new Hono<Env>()
       )
     })
 
+    // The redirect caches a link's rules inside its target entry, so replacing
+    // them has to clear it just as editing the link itself does.
+    await c.var.cache.del(targetKey(link.domainId, link.slug))
     return c.json((await listRules(c.var.db, id)).map(toRule))
   })

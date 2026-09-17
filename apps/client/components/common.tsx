@@ -1,7 +1,7 @@
 "use client"
 
 import { CheckIcon, CopyIcon } from "lucide-react"
-import { type ComponentProps, type ReactNode, useState } from "react"
+import { type ComponentProps, type ReactNode, useMemo, useState } from "react"
 import { Button } from "@/components/ui/button"
 import {
   Dialog,
@@ -344,5 +344,98 @@ export function GeoAttribution() {
         DB-IP
       </a>
     </p>
+  )
+}
+
+/** How far back to read. "0" sends no `from` at all, i.e. the whole history. */
+export const RANGES = [
+  { value: "7", label: "Last 7 days" },
+  { value: "30", label: "Last 30 days" },
+  { value: "90", label: "Last 90 days" },
+  { value: "0", label: "All time" },
+] as const
+export type Range = (typeof RANGES)[number]["value"]
+
+/**
+ * A range picker's state, plus the two spellings of its start the API takes: a
+ * whole UTC day for the reports, and that day's first instant for the raw log.
+ *
+ * Both are memoised on `range` alone and neither carries a clock reading, so a
+ * re-render never produces a new value. RTK Query caches by serialised args,
+ * and a fresh `Date.now()` every render is an endless refetch loop that never
+ * lets `isFetching` settle back to false.
+ *
+ * "Last 7 days" counts today as one of them, which is what a day-grained
+ * report means by it.
+ */
+export function useRange(initial: Range = "7") {
+  const [range, setRange] = useState<Range>(initial)
+  const from = useMemo(() => {
+    if (range === "0") return undefined
+    const day = new Date()
+    day.setUTCDate(day.getUTCDate() - (Number(range) - 1))
+    return day.toISOString().slice(0, 10)
+  }, [range])
+  return { range, setRange, from, fromInstant: from && `${from}T00:00:00.000Z` }
+}
+
+export function RangePicker({
+  value,
+  onChange,
+}: {
+  value: Range
+  onChange: (range: Range) => void
+}) {
+  return (
+    <Picker
+      className="w-36"
+      value={value}
+      onChange={(next) => onChange(next as Range)}
+      options={RANGES.map((r) => ({ value: r.value, label: r.label }))}
+    />
+  )
+}
+
+/**
+ * Offset pagination, shown only when there is more than one page of anything.
+ * The caller owns `offset` because it is also the thing a filter change has to
+ * reset.
+ */
+export function Pager({
+  total,
+  limit,
+  offset,
+  onChange,
+}: {
+  total: number
+  limit: number
+  offset: number
+  onChange: (offset: number) => void
+}) {
+  if (total <= limit) return null
+  return (
+    <div className="mt-4 flex items-center justify-between text-sm text-muted-foreground">
+      <span>
+        {offset + 1}–{Math.min(offset + limit, total)} of {total}
+      </span>
+      <div className="flex gap-2">
+        <Button
+          type="button"
+          variant="outline"
+          disabled={offset === 0}
+          onClick={() => onChange(Math.max(0, offset - limit))}
+        >
+          Previous
+        </Button>
+        <Button
+          type="button"
+          variant="outline"
+          disabled={offset + limit >= total}
+          onClick={() => onChange(offset + limit)}
+        >
+          Next
+        </Button>
+      </div>
+    </div>
   )
 }

@@ -4,7 +4,7 @@ import { resourceStatusSchema } from "./roles.ts"
 
 export const domainCreateSchema = z.object({
   host: hostSchema,
-  /** Where orphan clicks on this domain go. Absent means 404. */
+  /** Where orphan visits on this domain go. Absent means 404. */
   fallbackUrl: urlSchema.nullable().optional(),
 })
 

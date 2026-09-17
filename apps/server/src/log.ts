@@ -60,11 +60,14 @@ const REDACT_PATHS = [
  * URL-encoded form, and the JSON-escaped form pino writes.
  */
 function collectSecrets(config: Config): string[] {
-  const values = [config.LINQ_INITIAL_API_KEY, config.DATABASE_URL]
-  try {
-    values.push(new URL(config.DATABASE_URL).password)
-  } catch {
-    // A DSN the URL parser rejects has no password to pull out of it.
+  const values = [config.LINQ_INITIAL_API_KEY, config.DATABASE_URL, config.LINQ_REDIS_URL]
+  // The Redis URL is absent on every install that does not use it.
+  for (const dsn of [config.DATABASE_URL, config.LINQ_REDIS_URL].filter((v) => v !== undefined)) {
+    try {
+      values.push(new URL(dsn).password)
+    } catch {
+      // A DSN the URL parser rejects has no password to pull out of it.
+    }
   }
 
   const out = new Set<string>()

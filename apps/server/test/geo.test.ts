@@ -2,7 +2,7 @@ import { afterEach, describe, expect, test } from "bun:test"
 import { existsSync, mkdtempSync, rmSync, writeFileSync } from "node:fs"
 import { tmpdir } from "node:os"
 import { join } from "node:path"
-import { startGeo } from "../src/clicks/geo.ts"
+import { startGeo } from "../src/visits/geo.ts"
 import { testConfig } from "./helpers/db.ts"
 
 /**

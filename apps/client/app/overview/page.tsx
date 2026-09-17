@@ -36,7 +36,7 @@ function Overview() {
         <Stat label="Domains" value={domains.data?.total} isLoading={domains.isLoading} />
       </div>
 
-      <StatsPanel path="/v1/stats" title="Clicks" />
+      <StatsPanel path="/v1/stats" title="Visits" />
     </div>
   )
 }

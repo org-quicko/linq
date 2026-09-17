@@ -46,7 +46,7 @@ export const linkListQuerySchema = paginationSchema.extend({
   domainId: uuidSchema.optional(),
   ownerId: uuidSchema.optional(),
   status: z.enum(["active", "archived", "all"]).default("active"),
-  sort: z.enum(["createdAt", "clicks"]).default("createdAt"),
+  sort: z.enum(["createdAt", "visits"]).default("createdAt"),
   order: z.enum(["asc", "desc"]).default("desc"),
 })
 
@@ -63,8 +63,8 @@ export type Link = {
   status: "active" | "archived"
   ownerId: string
   ownerName: string | null
-  humanClicks: number
-  botClicks: number
+  humanVisits: number
+  botVisits: number
   createdAt: string
   updatedAt: string
 }

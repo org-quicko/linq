@@ -13,29 +13,43 @@ export const GROUP_BY = [
 ] as const
 export type GroupBy = (typeof GROUP_BY)[number]
 
-const dateRange = {
-  from: z.iso.datetime().optional(),
-  to: z.iso.datetime().optional(),
+/** Narrows a read to one link, one domain, or the orphan slice. */
+const scope = {
+  linkId: uuidSchema.optional(),
+  domainId: uuidSchema.optional(),
+  /** Restrict to visits that resolved to no link. */
+  orphan: z.enum(["true", "false"]).default("false"),
 }
 
-export const clickListQuerySchema = paginationSchema.extend({
-  ...dateRange,
+/**
+ * The raw log filters on instants, because that is what a visit row carries.
+ * `to` is inclusive.
+ */
+export const visitListQuerySchema = paginationSchema.extend({
+  ...scope,
+  from: z.iso.datetime().optional(),
+  to: z.iso.datetime().optional(),
   /** "any" keeps bots and humans together. */
   bot: z.enum(["true", "false", "any"]).default("any"),
 })
 
+/**
+ * Reports filter on whole UTC days, not instants: they are served from a
+ * day-grained rollup, and a window that cut a day in half could not be answered
+ * from it. Both ends are inclusive. See docs/adr/0007.
+ */
 export const statsQuerySchema = z.object({
-  ...dateRange,
+  from: z.iso.date().optional(),
+  to: z.iso.date().optional(),
   groupBy: z.enum(GROUP_BY).default("day"),
 })
 
 export const globalStatsQuerySchema = statsQuerySchema.extend({
-  /** Restrict to clicks that resolved to no link. */
-  orphan: z.enum(["true", "false"]).default("false"),
-  domainId: uuidSchema.optional(),
+  orphan: scope.orphan,
+  domainId: scope.domainId,
 })
 
-export type Click = {
+export type Visit = {
   id: string
   linkId: string | null
   domainId: string

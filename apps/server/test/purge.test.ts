@@ -18,7 +18,7 @@ const archive = (h: Harness, path: string, key: string) =>
   h.request(`/api/v1/${path}`, { key, method: "DELETE" })
 
 /** Sums the human and bot counts of a stats response. */
-async function totalClicks(h: Harness, query: string, key: string): Promise<number> {
+async function totalVisits(h: Harness, query: string, key: string): Promise<number> {
   const buckets = await (await h.request(`/api/v1/stats?${query}`, { key })).json()
   return buckets.reduce((n: number, b: { human: number; bot: number }) => n + b.human + b.bot, 0)
 }
@@ -77,21 +77,21 @@ describe("DELETE /api/v1/links/:id/purge", () => {
     expect(reborn.id).not.toBe(link.id)
   })
 
-  test("its clicks survive as orphans", async () => {
+  test("its visits survive as orphans", async () => {
     const fresh = await createHarness()
     const boss = await fresh.actor("admin")
     const host = await fresh.createDomain("orphans.test")
     const link = await fresh.createLink(boss.key, host, { slug: "counted" })
 
-    await fresh.recordClicks(link.id, host, { human: 3, bot: 1 })
-    expect(await totalClicks(fresh, "orphan=true", boss.key)).toBe(0)
+    await fresh.recordVisits(link.id, host, { human: 3, bot: 1 })
+    expect(await totalVisits(fresh, "orphan=true", boss.key)).toBe(0)
 
     await archive(fresh, `links/${link.id}`, boss.key)
     expect((await purge(fresh, `links/${link.id}`, boss.key)).status).toBe(204)
 
-    // Nothing lost, only detached: `clicks.link_id` is ON DELETE set null.
-    expect(await totalClicks(fresh, "", boss.key)).toBe(4)
-    expect(await totalClicks(fresh, "orphan=true", boss.key)).toBe(4)
+    // Nothing lost, only detached: `visits.link_id` is ON DELETE set null.
+    expect(await totalVisits(fresh, "", boss.key)).toBe(4)
+    expect(await totalVisits(fresh, "orphan=true", boss.key)).toBe(4)
   })
 
   test("its rules go with it", async () => {
@@ -144,20 +144,20 @@ describe("DELETE /api/v1/domains/:id/purge", () => {
     expect((await h.request(`/api/v1/domains/${host}`, { key: admin.key })).status).toBe(404)
   })
 
-  test("takes its clicks with it, and the global total shrinks", async () => {
+  test("takes its visits with it, and the global total shrinks", async () => {
     const fresh = await createHarness()
     const boss = await fresh.actor("admin")
     const kept = await fresh.createDomain("kept.test")
     const doomed = await fresh.createDomain("doomed.test")
 
-    await fresh.recordClicks(null, kept, { human: 2 })
-    await fresh.recordClicks(null, doomed, { human: 5, bot: 2 })
-    expect(await totalClicks(fresh, "", boss.key)).toBe(9)
+    await fresh.recordVisits(null, kept, { human: 2 })
+    await fresh.recordVisits(null, doomed, { human: 5, bot: 2 })
+    expect(await totalVisits(fresh, "", boss.key)).toBe(9)
 
     await archive(fresh, `domains/${doomed}`, boss.key)
     expect((await purge(fresh, `domains/${doomed}`, boss.key)).status).toBe(204)
 
-    // Unlike a link purge, these clicks are gone: `clicks.domain_id` is NOT NULL.
-    expect(await totalClicks(fresh, "", boss.key)).toBe(2)
+    // Unlike a link purge, these visits are gone: `visits.domain_id` is NOT NULL.
+    expect(await totalVisits(fresh, "", boss.key)).toBe(2)
   })
 })

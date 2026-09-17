@@ -25,7 +25,7 @@ beforeAll(async () => {
   quietLinkId = (await h.createLink(author.key, domain, { slug: "quiet" })).id
 
   // Two days of traffic on one link, with a deliberate spread of dimensions.
-  await h.recordClicks(
+  await h.recordVisits(
     linkId,
     domain,
     { human: 2 },
@@ -38,7 +38,7 @@ beforeAll(async () => {
       destination: "https://example.com/a",
     },
   )
-  await h.recordClicks(
+  await h.recordVisits(
     linkId,
     domain,
     { bot: 1 },
@@ -50,7 +50,7 @@ beforeAll(async () => {
       destination: "https://example.com/a",
     },
   )
-  await h.recordClicks(
+  await h.recordVisits(
     linkId,
     domain,
     { human: 1 },
@@ -63,8 +63,8 @@ beforeAll(async () => {
     },
   )
 
-  // An orphan click on the same domain, and one click on a different domain.
-  await h.recordClicks(
+  // An orphan visit on the same domain, and one visit on a different domain.
+  await h.recordVisits(
     null,
     domain,
     { human: 1 },
@@ -74,7 +74,7 @@ beforeAll(async () => {
       platform: "desktop",
     },
   )
-  await h.recordClicks(
+  await h.recordVisits(
     null,
     otherDomain,
     { human: 1 },
@@ -137,17 +137,23 @@ describe("GET /api/v1/links/:id/stats", () => {
     expect(buckets[0].key).toBe("2026-03-01")
   })
 
+  /** Whole UTC days, both ends inclusive: the rollup has no finer grain. */
   test("narrows to a time window", async () => {
-    const buckets = await stats(
-      `/api/v1/links/${linkId}/stats?from=2026-03-02T00:00:00Z&groupBy=day`,
-    )
+    const buckets = await stats(`/api/v1/links/${linkId}/stats?from=2026-03-02&groupBy=day`)
     expect(buckets).toEqual([{ key: "2026-03-02", human: 1, bot: 0 }])
 
-    const upTo = await stats(`/api/v1/links/${linkId}/stats?to=2026-03-01T23:59:59Z&groupBy=day`)
+    const upTo = await stats(`/api/v1/links/${linkId}/stats?to=2026-03-01&groupBy=day`)
     expect(upTo).toEqual([{ key: "2026-03-01", human: 2, bot: 1 }])
   })
 
-  test("a link with no clicks reports nothing rather than failing", async () => {
+  test("a window given as a timestamp is rejected", async () => {
+    const res = await h.request(`/api/v1/links/${linkId}/stats?from=2026-03-02T00:00:00Z`, {
+      key: author.key,
+    })
+    expect(res.status).toBe(400)
+  })
+
+  test("a link with no visits reports nothing rather than failing", async () => {
     expect(await stats(`/api/v1/links/${quietLinkId}/stats`)).toEqual([])
   })
 
@@ -170,7 +176,7 @@ describe("GET /api/v1/links/:id/stats", () => {
 })
 
 describe("GET /api/v1/domains/:id/stats", () => {
-  test("covers every click on the domain, orphans included", async () => {
+  test("covers every visit on the domain, orphans included", async () => {
     const buckets = await stats(`/api/v1/domains/${domain}/stats?groupBy=day`)
     expect(buckets).toEqual([
       { key: "2026-03-01", human: 2, bot: 1 },
@@ -178,7 +184,7 @@ describe("GET /api/v1/domains/:id/stats", () => {
     ])
   })
 
-  test("does not leak clicks from another domain", async () => {
+  test("does not leak visits from another domain", async () => {
     const buckets = await stats(`/api/v1/domains/${otherDomain}/stats?groupBy=day`)
     expect(buckets).toEqual([{ key: "2026-03-02", human: 1, bot: 0 }])
   })
@@ -215,9 +221,9 @@ describe("GET /api/v1/stats", () => {
   })
 })
 
-describe("GET /api/v1/links/:id/clicks", () => {
+describe("GET /api/v1/visits", () => {
   test("returns the raw log newest first, paginated", async () => {
-    const res = await h.request(`/api/v1/links/${linkId}/clicks?limit=2`, { key: author.key })
+    const res = await h.request(`/api/v1/visits?linkId=${linkId}&limit=2`, { key: author.key })
     expect(res.status).toBe(200)
     const body = await res.json()
 
@@ -235,33 +241,52 @@ describe("GET /api/v1/links/:id/clicks", () => {
 
   test("filters humans from bots", async () => {
     const humans = await (
-      await h.request(`/api/v1/links/${linkId}/clicks?bot=false`, { key: author.key })
+      await h.request(`/api/v1/visits?linkId=${linkId}&bot=false`, { key: author.key })
     ).json()
     expect(humans.total).toBe(3)
 
     const bots = await (
-      await h.request(`/api/v1/links/${linkId}/clicks?bot=true`, { key: author.key })
+      await h.request(`/api/v1/visits?linkId=${linkId}&bot=true`, { key: author.key })
     ).json()
     expect(bots.total).toBe(1)
     expect(bots.data[0].isBot).toBe(true)
   })
 
+  /** The raw log keeps instant precision; only the reports are day-grained. */
   test("filters by time window", async () => {
-    const res = await h.request(`/api/v1/links/${linkId}/clicks?from=2026-03-02T00:00:00Z`, {
+    const res = await h.request(`/api/v1/visits?linkId=${linkId}&from=2026-03-02T00:00:00Z`, {
       key: author.key,
     })
     expect((await res.json()).total).toBe(1)
   })
 
-  test("never returns another link's clicks, or an orphan", async () => {
-    const res = await h.request(`/api/v1/links/${quietLinkId}/clicks`, { key: author.key })
+  test("never returns another link's visits, or an orphan", async () => {
+    const res = await h.request(`/api/v1/visits?linkId=${quietLinkId}`, { key: author.key })
     expect(await res.json()).toMatchObject({ data: [], total: 0 })
   })
 
-  test("an unknown link is a 404", async () => {
-    const res = await h.request("/api/v1/links/00000000-0000-7000-8000-000000000000/clicks", {
+  test("narrows to one domain, and to the orphan slice", async () => {
+    const onDomain = await (
+      await h.request(`/api/v1/visits?domainId=${domain}`, { key: author.key })
+    ).json()
+    expect(onDomain.total).toBe(5)
+
+    const orphans = await (
+      await h.request("/api/v1/visits?orphan=true", { key: author.key })
+    ).json()
+    expect(orphans.total).toBe(2)
+    expect(orphans.data.every((v: { linkId: string | null }) => v.linkId === null)).toBe(true)
+  })
+
+  /**
+   * An unknown link reports nothing rather than 404ing: unlike the link-scoped
+   * report this route is not about one link, it is the log with a filter on it.
+   */
+  test("an unknown link reports nothing", async () => {
+    const res = await h.request("/api/v1/visits?linkId=00000000-0000-7000-8000-000000000000", {
       key: author.key,
     })
-    expect(res.status).toBe(404)
+    expect(res.status).toBe(200)
+    expect(await res.json()).toMatchObject({ data: [], total: 0 })
   })
 })

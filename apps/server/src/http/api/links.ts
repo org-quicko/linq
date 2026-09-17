@@ -15,8 +15,9 @@ import {
   assertCanTransfer,
   assertRole,
 } from "../../auth/permissions.ts"
+import { targetKey } from "../../cache.ts"
 import type { Db } from "../../db/client.ts"
-import { clicks, domains, links, users } from "../../db/schema.ts"
+import { domains, links, users, visitCounts } from "../../db/schema.ts"
 import { span } from "../../log.ts"
 import { randomSlug } from "../../slug.ts"
 import type { Env } from "../env.ts"
@@ -28,8 +29,8 @@ type LinkRow = {
   link: typeof links.$inferSelect
   domainHost: string
   ownerName: string
-  humanClicks: number
-  botClicks: number
+  humanVisits: number
+  botVisits: number
 }
 
 /** A port only ever appears in a local setup, where no TLS terminator is in front. */
@@ -54,45 +55,42 @@ function toLink(row: LinkRow): Link {
     status: link.status,
     ownerId: link.ownerId,
     ownerName: row.ownerName,
-    humanClicks: row.humanClicks,
-    botClicks: row.botClicks,
+    humanVisits: row.humanVisits,
+    botVisits: row.botVisits,
     createdAt: link.createdAt.toISOString(),
     updatedAt: link.updatedAt.toISOString(),
   }
 }
 
 /**
- * Every link response carries its click totals, so the joins live in one place.
- * `total` is exposed separately because `sort=clicks` orders on it.
+ * Every link response carries its visit totals, so the joins live in one place.
+ * `total` is exposed separately because `sort=visits` orders on it.
+ *
+ * The totals come off `visit_counts`, which a trigger keeps in step with the
+ * visits table: one indexed row per link rather than an unbounded aggregate run
+ * on every page of the list. See docs/adr/0007.
  */
 function linkQuery(db: Db) {
-  const totals = db
-    .select({
-      linkId: clicks.linkId,
-      human: sql<number>`count(*) filter (where not ${clicks.isBot})`.as("human"),
-      bot: sql<number>`count(*) filter (where ${clicks.isBot})`.as("bot"),
-    })
-    .from(clicks)
-    .groupBy(clicks.linkId)
-    .as("click_totals")
-
   const query = db
     .select({
       link: links,
       domainHost: domains.host,
       ownerName: users.name,
-      humanClicks: sql<number>`coalesce(${totals.human}, 0)`.mapWith(Number),
-      botClicks: sql<number>`coalesce(${totals.bot}, 0)`.mapWith(Number),
+      humanVisits: sql<number>`coalesce(${visitCounts.human}, 0)`.mapWith(Number),
+      botVisits: sql<number>`coalesce(${visitCounts.bot}, 0)`.mapWith(Number),
     })
     .from(links)
     .innerJoin(domains, eq(domains.id, links.domainId))
     .innerJoin(users, eq(users.id, links.ownerId))
-    .leftJoin(totals, eq(totals.linkId, links.id))
+    .leftJoin(visitCounts, eq(visitCounts.linkId, links.id))
 
-  return { query, total: sql`coalesce(${totals.human}, 0) + coalesce(${totals.bot}, 0)` }
+  return {
+    query,
+    total: sql`coalesce(${visitCounts.human}, 0) + coalesce(${visitCounts.bot}, 0)`,
+  }
 }
 
-/** Loads one link as a complete API response, joins and click totals included, or throws 404. */
+/** Loads one link as a complete API response, joins and visit totals included, or throws 404. */
 function fetchLink(db: Db, id: string): Promise<Link> {
   return span(
     "link.fetch",
@@ -173,7 +171,7 @@ export const linkRoutes = new Hono<Env>()
     }
     const where = filters.length ? and(...filters) : undefined
 
-    const column = q.sort === "clicks" ? total : links.createdAt
+    const column = q.sort === "visits" ? total : links.createdAt
     const rows = await query
       .where(where)
       .orderBy(q.order === "asc" ? asc(column) : desc(column))
@@ -210,6 +208,8 @@ export const linkRoutes = new Hono<Env>()
       { slug: body.slug, slugLength: c.var.config.LINQ_SLUG_LENGTH },
     )
 
+    // Clears the negative entry left behind while this slug was 404ing.
+    await c.var.cache.del(targetKey(row.domainId, row.slug))
     return c.json(await fetchLink(c.var.db, row.id), 201)
   })
 
@@ -235,6 +235,7 @@ export const linkRoutes = new Hono<Env>()
       .update(links)
       .set({ ...patch, updatedAt: new Date() })
       .where(eq(links.id, id))
+    await c.var.cache.del(targetKey(existing.domainId, existing.slug))
     return c.json(await fetchLink(c.var.db, id))
   })
 
@@ -248,13 +249,14 @@ export const linkRoutes = new Hono<Env>()
       .update(links)
       .set({ status: "archived", updatedAt: new Date() })
       .where(eq(links.id, id))
+    await c.var.cache.del(targetKey(existing.domainId, existing.slug))
     return c.json(await fetchLink(c.var.db, id))
   })
 
   /**
    * Destroys an archived link for good. Admin only, and archived-first, so a live
-   * short URL can never be destroyed by one call. Rules go with it; clicks stay
-   * as orphans, which is what the `set null` on `clicks.link_id` is for.
+   * short URL can never be destroyed by one call. Rules go with it; visits stay
+   * as orphans, which is what the `set null` on `visits.link_id` is for.
    *
    * Unlike archiving, this **releases the slug** for reuse on that domain. See
    * docs/adr/0002.
@@ -270,6 +272,7 @@ export const linkRoutes = new Hono<Env>()
     await span("link.purge", async () => c.var.db.delete(links).where(eq(links.id, id)), {
       in: { linkId: id, slug: existing.slug },
     })
+    await c.var.cache.del(targetKey(existing.domainId, existing.slug))
     return c.body(null, 204)
   })
 
