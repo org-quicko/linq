@@ -1,4 +1,5 @@
 import { beforeAll, describe, expect, test } from "bun:test"
+import type { Caddy } from "../src/caddy.ts"
 import { createHarness, type Harness } from "./helpers/app.ts"
 
 let h: Harness
@@ -143,5 +144,67 @@ describe("PATCH /api/v1/domains/:id", () => {
       key: admin.key,
     })
     expect(res.status).toBe(404)
+  })
+})
+
+describe("caddy sync", () => {
+  /** Records every call instead of talking to a real Caddy. */
+  function spyCaddy(): Caddy & { upserts: string[]; removes: string[] } {
+    const upserts: string[] = []
+    const removes: string[] = []
+    return {
+      upserts,
+      removes,
+      upsert: async (domainId) => void upserts.push(domainId),
+      remove: async (domainId) => void removes.push(domainId),
+    }
+  }
+
+  test("create upserts the new domain", async () => {
+    const caddy = spyCaddy()
+    const own = await createHarness({ caddy })
+    const owner = await own.actor("admin")
+
+    const res = await own.post("/api/v1/domains", owner.key, { host: "synced.test" })
+    const body = await res.json()
+    expect(caddy.upserts).toEqual([body.id])
+    expect(caddy.removes).toEqual([])
+  })
+
+  test("archiving removes the route, reactivating upserts it again", async () => {
+    const caddy = spyCaddy()
+    const own = await createHarness({ caddy })
+    const owner = await own.actor("admin")
+    const domain = await own.createDomain("archive-sync.test")
+
+    await own.request(`/api/v1/domains/${domain}`, { key: owner.key, method: "DELETE" })
+    expect(caddy.removes).toEqual([domain])
+
+    await own.patch(`/api/v1/domains/${domain}`, owner.key, { status: "active" })
+    expect(caddy.upserts).toEqual([domain])
+  })
+
+  test("a fallback-only patch touches neither", async () => {
+    const caddy = spyCaddy()
+    const own = await createHarness({ caddy })
+    const owner = await own.actor("admin")
+    const domain = await own.createDomain("fallback-sync.test")
+
+    await own.patch(`/api/v1/domains/${domain}`, owner.key, {
+      fallbackUrl: "https://example.com/x",
+    })
+    expect(caddy.upserts).toEqual([])
+    expect(caddy.removes).toEqual([])
+  })
+
+  test("purging an archived, empty domain removes its route", async () => {
+    const caddy = spyCaddy()
+    const own = await createHarness({ caddy })
+    const owner = await own.actor("admin")
+    const domain = await own.createDomain("purge-sync.test")
+
+    await own.request(`/api/v1/domains/${domain}`, { key: owner.key, method: "DELETE" })
+    await own.request(`/api/v1/domains/${domain}/purge`, { key: owner.key, method: "DELETE" })
+    expect(caddy.removes).toEqual([domain, domain])
   })
 })

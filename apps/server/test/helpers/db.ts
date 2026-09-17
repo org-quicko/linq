@@ -34,4 +34,6 @@ export const testConfig: Config = {
   LINQ_LOG_FILE: "",
   LINQ_LOG_MAX_SIZE: "20m",
   LINQ_LOG_RETAIN: 5,
+  LINQ_CADDY_ADMIN_URL: undefined,
+  LINQ_CADDY_UPSTREAM: undefined,
 }

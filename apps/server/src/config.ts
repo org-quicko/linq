@@ -34,6 +34,13 @@ const schema = z
     LINQ_LOG_FILE: z.string().optional(),
     LINQ_LOG_MAX_SIZE: z.string().trim().min(1).default("20m"),
     LINQ_LOG_RETAIN: z.coerce.number().int().min(1).max(100).default(5),
+    /**
+     * Caddy's admin API, e.g. `http://caddy:2019`. Left unset, domains are
+     * never synced anywhere — linq only ever writes the `domains` table.
+     */
+    LINQ_CADDY_ADMIN_URL: z.string().min(1).optional(),
+    /** Where Caddy reverse-proxies a matched domain to. Required once the admin URL is set. */
+    LINQ_CADDY_UPSTREAM: z.string().min(1).optional(),
   })
   // Naming redis without somewhere to reach it is the one combination that
   // cannot be resolved by a default, so it is rejected rather than guessed at.
@@ -43,6 +50,13 @@ const schema = z
         code: "custom",
         path: ["LINQ_REDIS_URL"],
         message: "required when LINQ_CACHE_BACKEND is redis",
+      })
+    }
+    if (c.LINQ_CADDY_ADMIN_URL && !c.LINQ_CADDY_UPSTREAM) {
+      ctx.addIssue({
+        code: "custom",
+        path: ["LINQ_CADDY_UPSTREAM"],
+        message: "required when LINQ_CADDY_ADMIN_URL is set",
       })
     }
   })

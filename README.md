@@ -206,6 +206,17 @@ the server answers 404 on `/home/*` and carries on serving the API and the
 redirects. Dropping the first build stage and the `COPY --from=build` line gives
 you a smaller, API-only image.
 
+### Custom domains with automatic HTTPS
+
+Uncomment the `caddy` service and the three marked lines on `linq` in
+`docker-compose.example.yml`. Once `LINQ_CADDY_ADMIN_URL` is set, every domain
+create, archive, reactivate and purge is pushed to Caddy as its own route —
+adding a domain in linq is enough to make it resolve over HTTPS, with nothing
+edited in Caddy by hand. `:2019`, Caddy's admin API, is never published to the
+host — only linq ever talks to it, over the compose network. A custom domain
+still needs its DNS pointed at the host before Caddy's automatic HTTPS can
+issue it a certificate; see `docs/adr/0012`.
+
 ## Further reading
 
 - `CONTEXT.md` — the domain vocabulary. Worth reading before the code.

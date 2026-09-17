@@ -5,6 +5,7 @@ import type { ContentfulStatusCode } from "hono/utils/http-status"
 import pkg from "../../package.json" with { type: "json" }
 import { authenticate } from "../auth/middleware.ts"
 import { type Cache, guarded, noCache } from "../cache.ts"
+import { type Caddy, guarded as guardedCaddy, noCaddy } from "../caddy.ts"
 import type { Config } from "../config.ts"
 import type { Db } from "../db/client.ts"
 import { reqLog, withRequestLog } from "../log.ts"
@@ -19,22 +20,26 @@ import { visitRoutes } from "./api/visits.ts"
 import type { Env } from "./env.ts"
 import { redirectHandler } from "./redirect.ts"
 
-export type AppDeps = { db: Db; config: Config; cache?: Cache }
+export type AppDeps = { db: Db; config: Config; cache?: Cache; caddy?: Caddy }
 
 /**
  * Route order matters: everything linq answers itself is mounted before the
  * catch-all redirect handler, so a reserved path can never be shadowed.
  */
-export function createApp({ db, config, cache = noCache }: AppDeps) {
+export function createApp({ db, config, cache = noCache, caddy = noCaddy }: AppDeps) {
   const app = new Hono<Env>()
   // Wrapped here rather than at the Redis client, so no route can be broken by
   // a cache that is down, whichever implementation it was handed.
   const safeCache = guarded(cache)
+  // Same reasoning: a domain mutation must succeed whether or not Caddy is
+  // currently reachable.
+  const safeCaddy = guardedCaddy(caddy)
 
   app.use("*", async (c, next) => {
     c.set("db", db)
     c.set("config", config)
     c.set("cache", safeCache)
+    c.set("caddy", safeCaddy)
     // The only global hook that sees both /api/* and redirect traffic, so the
     // request log cannot be ordered wrong.
     await withRequestLog(c, next)

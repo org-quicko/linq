@@ -129,6 +129,7 @@ export const domainRoutes = new Hono<Env>()
 
     // Clears the negative entry a request to this host left behind while it 404'd.
     await c.var.cache.del(domainKey(row.host))
+    await c.var.caddy.upsert(row.id, row.host)
     return c.json(toDomain({ domain: row, linkCount: 0 }), 201)
   })
 
@@ -149,6 +150,11 @@ export const domainRoutes = new Hono<Env>()
     // Both patchable fields — the fallback URL and the status — are what the
     // redirect reads out of the cached entry.
     await c.var.cache.del(domainKey(before.host))
+    // A fallback-URL-only patch changes nothing about routing.
+    if (patch.status !== undefined) {
+      if (patch.status === "archived") await c.var.caddy.remove(id)
+      else await c.var.caddy.upsert(id, before.host)
+    }
     return c.json(await fetchDomain(c.var.db, id))
   })
 
@@ -165,6 +171,7 @@ export const domainRoutes = new Hono<Env>()
       .set({ status: "archived", updatedAt: new Date() })
       .where(eq(domains.id, id))
     await c.var.cache.del(domainKey(before.host))
+    await c.var.caddy.remove(id)
     return c.json(await fetchDomain(c.var.db, id))
   })
 
@@ -186,5 +193,8 @@ export const domainRoutes = new Hono<Env>()
       in: { domainId: id, host: domain.host },
     })
     await c.var.cache.del(domainKey(domain.host))
+    // Defensive, not load-bearing: purging requires the domain already
+    // archived, so its route is normally gone already. Idempotent either way.
+    await c.var.caddy.remove(id)
     return c.body(null, 204)
   })

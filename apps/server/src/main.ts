@@ -1,6 +1,7 @@
 import pkg from "../package.json" with { type: "json" }
 import { bootstrap } from "./bootstrap.ts"
 import { startCache } from "./cache.ts"
+import { guarded as guardedCaddy, reconcileCaddy, startCaddy } from "./caddy.ts"
 import { loadConfig } from "./config.ts"
 import { createDb } from "./db/client.ts"
 import { runMigrations } from "./db/migrate.ts"
@@ -18,7 +19,12 @@ await runMigrations(db)
 await bootstrap(db, config)
 
 const cache = await startCache(config)
-const app = createApp({ db, config, cache })
+const caddy = guardedCaddy(startCaddy(config))
+const app = createApp({ db, config, cache, caddy })
+
+// Repairs Caddy's routes after its own restart, or a first boot alongside a
+// fresh Caddy container whose skeleton config has no routes yet.
+await reconcileCaddy(db, caddy)
 
 const server = Bun.serve({
   port: config.LINQ_PORT,

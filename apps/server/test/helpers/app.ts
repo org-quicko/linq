@@ -1,6 +1,7 @@
 import type { Link, Role } from "@linq/shared"
 import { generateKey, hashKey, keyPrefix } from "../../src/auth/keys.ts"
 import { type Cache, noCache } from "../../src/cache.ts"
+import { type Caddy, noCaddy } from "../../src/caddy.ts"
 import type { Db } from "../../src/db/client.ts"
 import { apiKeys, domains, visits } from "../../src/db/schema.ts"
 import { createApp } from "../../src/http/app.ts"
@@ -38,7 +39,11 @@ export type Harness = {
   ) => Promise<void>
 }
 
-export type HarnessOptions = { cache?: Cache; config?: Partial<typeof testConfig> }
+export type HarnessOptions = {
+  cache?: Cache
+  caddy?: Caddy
+  config?: Partial<typeof testConfig>
+}
 
 /**
  * Builds one isolated app and database, plus the shorthands the suites share.
@@ -47,7 +52,12 @@ export type HarnessOptions = { cache?: Cache; config?: Partial<typeof testConfig
 export async function createHarness(options: HarnessOptions = {}): Promise<Harness> {
   const db = await createTestDb()
   const config = { ...testConfig, ...options.config }
-  const app = createApp({ db, config, cache: options.cache ?? noCache })
+  const app = createApp({
+    db,
+    config,
+    cache: options.cache ?? noCache,
+    caddy: options.caddy ?? noCaddy,
+  })
 
   const request: Harness["request"] = async (path, init = {}) => {
     const { key, host = "localhost", ...rest } = init
