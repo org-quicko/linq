@@ -78,6 +78,7 @@ export const links = pgTable(
     name: text("name"),
     tags: text("tags").array().notNull().default(sql`'{}'::text[]`),
     forwardQuery: boolean("forward_query").notNull().default(true),
+    presetParams: jsonb("preset_params").$type<Record<string, string>>().notNull().default({}),
     status: resourceStatusEnum("status").notNull().default("active"),
     ownerId: uuid("owner_id")
       .notNull()

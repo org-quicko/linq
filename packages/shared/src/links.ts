@@ -2,6 +2,15 @@ import { z } from "zod"
 import { paginationSchema, slugSchema, tagSchema, urlSchema, uuidSchema } from "./primitives.ts"
 import { resourceStatusSchema } from "./roles.ts"
 
+/**
+ * Set on the destination at redirect time, overriding both the destination's
+ * own query and anything forwarded. Applied only when the link forwards; one
+ * value per key, so a repeated key is impossible by construction.
+ */
+export const presetParamsSchema = z
+  .record(z.string().trim().min(1).max(64), z.string().max(512))
+  .refine((p) => Object.keys(p).length <= 20, "at most 20 preset params")
+
 export const linkCreateSchema = z.object({
   domainId: uuidSchema,
   /** Omit for a generated slug. */
@@ -10,6 +19,7 @@ export const linkCreateSchema = z.object({
   name: z.string().trim().max(200).optional(),
   tags: z.array(tagSchema).max(20).default([]),
   forwardQuery: z.boolean().default(true),
+  presetParams: presetParamsSchema.default({}),
 })
 export type LinkCreate = z.input<typeof linkCreateSchema>
 
@@ -23,6 +33,7 @@ export const linkPatchSchema = z
     name: z.string().trim().max(200).nullable(),
     tags: z.array(tagSchema).max(20),
     forwardQuery: z.boolean(),
+    presetParams: presetParamsSchema,
     status: resourceStatusSchema,
     ownerId: uuidSchema,
   })
@@ -60,6 +71,7 @@ export type Link = {
   name: string | null
   tags: string[]
   forwardQuery: boolean
+  presetParams: Record<string, string>
   status: "active" | "archived"
   ownerId: string
   ownerName: string | null

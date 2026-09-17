@@ -8,6 +8,12 @@ import { Suspense, useState } from "react"
 import { toast } from "sonner"
 import { AppShell } from "@/components/app-shell"
 import { ConfirmButton, CopyButton, Field, Picker, QueryState, When } from "@/components/common"
+import {
+  type PresetParamRow,
+  PresetParamsEditor,
+  presetParamsToRows,
+  rowsToPresetParams,
+} from "@/components/preset-params-editor"
 import { RulesEditor } from "@/components/rules-editor"
 import { StatsPanel } from "@/components/stats-panel"
 import { TagPicker } from "@/components/tag-picker"
@@ -118,6 +124,9 @@ function SettingsCard({
   const [name, setName] = useState(link.name ?? "")
   const [tags, setTags] = useState<string[]>(link.tags)
   const [forwardQuery, setForwardQuery] = useState(link.forwardQuery)
+  const [presetParams, setPresetParams] = useState<PresetParamRow[]>(() =>
+    presetParamsToRows(link.presetParams),
+  )
   const [ownerId, setOwnerId] = useState(link.ownerId)
   const [saving, setSaving] = useState(false)
 
@@ -131,6 +140,7 @@ function SettingsCard({
           name: name.trim() || null,
           tags,
           forwardQuery,
+          presetParams: rowsToPresetParams(presetParams),
           ...(ownerId !== link.ownerId ? { ownerId } : {}),
         },
       }).unwrap()
@@ -251,6 +261,20 @@ function SettingsCard({
 
           <Field label="Domain" hint="Immutable.">
             <Input value={link.domainHost} disabled readOnly />
+          </Field>
+        </div>
+
+        <div className="mt-4">
+          <Field
+            label="Preset params"
+            hint="Set on the destination at redirect time, overriding its own query and any forwarded one."
+          >
+            <PresetParamsEditor
+              rows={presetParams}
+              onChange={setPresetParams}
+              readOnly={!canEdit}
+              forwardQuery={forwardQuery}
+            />
           </Field>
         </div>
 

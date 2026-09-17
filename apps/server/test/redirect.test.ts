@@ -244,6 +244,77 @@ describe("query forwarding", () => {
   })
 })
 
+describe("preset params", () => {
+  test("a preset overrides a forwarded param of the same key", async () => {
+    await h.createLink(author.key, domain, {
+      slug: "preset-vs-caller",
+      destination: "https://example.com/",
+      presetParams: { a: "preset" },
+    })
+
+    const res = await get("/preset-vs-caller?a=caller")
+    const location = new URL(res.headers.get("location") as string)
+    expect(location.searchParams.get("a")).toBe("preset")
+  })
+
+  test("a preset overrides the destination's own param", async () => {
+    await h.createLink(author.key, domain, {
+      slug: "preset-vs-dest",
+      destination: "https://example.com/?a=dest&keep=dest",
+      presetParams: { a: "preset" },
+    })
+
+    const res = await get("/preset-vs-dest")
+    const location = new URL(res.headers.get("location") as string)
+    expect(location.searchParams.get("a")).toBe("preset")
+    expect(location.searchParams.get("keep")).toBe("dest")
+  })
+
+  test("forwardQuery false leaves the destination untouched even with presets set", async () => {
+    await h.createLink(author.key, domain, {
+      slug: "preset-sealed",
+      destination: "https://example.com/?a=dest&keep=dest",
+      presetParams: { a: "preset", utm_source: "qr" },
+      forwardQuery: false,
+    })
+
+    const res = await get("/preset-sealed?a=caller&c=caller")
+    expect(res.headers.get("location")).toBe("https://example.com/?a=dest&keep=dest")
+  })
+
+  test("a link with no presets produces a byte-identical URL, fragment included", async () => {
+    await h.createLink(author.key, domain, {
+      slug: "no-presets",
+      destination: "https://example.com/path?x=1#frag",
+    })
+    const res = await get("/no-presets")
+    expect(res.headers.get("location")).toBe("https://example.com/path?x=1#frag")
+  })
+
+  test("presets apply to a rule's destination, not just the default one", async () => {
+    const link = await h.createLink(author.key, domain, {
+      slug: "preset-rule",
+      destination: "https://example.com/default",
+      presetParams: { a: "preset" },
+    })
+    await h.request(`/api/v1/links/${link.id}/rules`, {
+      key: author.key,
+      method: "PUT",
+      body: JSON.stringify([
+        {
+          destination: "https://example.com/android?a=dest",
+          conditions: [{ type: "platform", value: "android" }],
+        },
+      ]),
+    })
+
+    const res = await get("/preset-rule", { headers: { "user-agent": ANDROID } })
+    const location = new URL(res.headers.get("location") as string)
+    expect(location.origin + location.pathname).toBe("https://example.com/android")
+    expect(location.searchParams.get("a")).toBe("preset")
+  })
+})
+
 describe("visitor detection", () => {
   test("records the platform each user agent implies", async () => {
     await h.createLink(author.key, domain, { slug: "ua" })

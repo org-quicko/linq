@@ -6,6 +6,11 @@ import { type SyntheticEvent, useState } from "react"
 import { toast } from "sonner"
 import { AppShell } from "@/components/app-shell"
 import { Field, Picker, QueryState } from "@/components/common"
+import {
+  type PresetParamRow,
+  PresetParamsEditor,
+  rowsToPresetParams,
+} from "@/components/preset-params-editor"
 import { TagPicker } from "@/components/tag-picker"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent } from "@/components/ui/card"
@@ -40,6 +45,7 @@ function NewLinkForm() {
   const [name, setName] = useState("")
   const [tags, setTags] = useState<string[]>([])
   const [forwardQuery, setForwardQuery] = useState(true)
+  const [presetParams, setPresetParams] = useState<PresetParamRow[]>([])
   const [saving, setSaving] = useState(false)
 
   const chosenDomain = domainId || active[0]?.id || ""
@@ -55,6 +61,7 @@ function NewLinkForm() {
         name: name.trim() || undefined,
         tags,
         forwardQuery,
+        presetParams: rowsToPresetParams(presetParams),
       }).unwrap()
       router.push(`/links/detail/${qs({ id: created.id })}`)
     } catch (err) {
@@ -114,6 +121,18 @@ function NewLinkForm() {
 
               <Field label="Tags" hint="Pick one in use, or add a new one.">
                 <TagPicker value={tags} onChange={setTags} creatable placeholder="No tags" />
+              </Field>
+
+              <Field
+                label="Preset params"
+                hint="Set on the destination at redirect time, overriding its own query and any forwarded one."
+              >
+                <PresetParamsEditor
+                  rows={presetParams}
+                  onChange={setPresetParams}
+                  readOnly={false}
+                  forwardQuery={forwardQuery}
+                />
               </Field>
 
               <Label className="font-normal">

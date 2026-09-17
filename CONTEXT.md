@@ -6,6 +6,7 @@ The ubiquitous language of linq. Terms only; no implementation details.
 - **Slug**: the path segment after the host. Random or custom. Immutable. Reserved for as long as its Link exists, archived or not; released only by a Purge.
 - **Domain**: a host that Links live on. Has an optional Fallback URL.
 - **Destination**: the long URL a redirect Link sends people to. A Link has one default Destination; a Rule supplies an alternate one.
+- **Preset Param**: a key and value set on the Destination at redirect time, overriding the Destination's own query and any forwarded query on collision. Applied only when the Link forwards its query.
 - **Rule**: an ordered entry on a Link. An alternate Destination plus one or more Conditions, all of which must hold. First matching Rule wins. Also called a "dynamic link".
 - **Condition**: one predicate inside a Rule. `platform` (android | ios | desktop) or `query_param` (key with optional value; no value means "present").
 - **Visit**: one request to a Domain. Flagged human or bot. Carries platform, referer, user agent, forwarded query, and the Destination chosen. Never the client address.

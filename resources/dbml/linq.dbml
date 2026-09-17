@@ -100,6 +100,7 @@ Table links {
   name          text
   tags          "text[]"        [not null, default: `'{}'::text[]`]
   forward_query boolean         [not null, default: true, note: 'Merge the incoming query string over the destination']
+  preset_params jsonb           [not null, default: `'{}'::jsonb`, note: 'Record<string,string>: set on the destination when forward_query is true, overriding its own query and the forwarded one. At most 20.']
   status        resource_status [not null, default: 'active']
   owner_id      uuid            [not null]
   created_at    timestamptz     [not null, default: `now()`]

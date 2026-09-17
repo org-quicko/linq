@@ -1843,6 +1843,7 @@
           "name",
           "tags",
           "forwardQuery",
+          "presetParams",
           "status",
           "ownerId",
           "ownerName",
@@ -1892,7 +1893,16 @@
           },
           "forwardQuery": {
             "type": "boolean",
-            "description": "Merge the incoming query string over the destination's own."
+            "description": "Merge the incoming query string over the destination's own. Also gates presetParams: off, neither the incoming query nor the preset params touch the destination."
+          },
+          "presetParams": {
+            "type": "object",
+            "maxProperties": 20,
+            "additionalProperties": {
+              "type": "string",
+              "maxLength": 512
+            },
+            "description": "Set on the destination at redirect time, overriding both the destination's own query and anything forwarded. Applied only when forwardQuery is true."
           },
           "status": {
             "$ref": "#/components/schemas/ResourceStatus"
@@ -1960,6 +1970,16 @@
           "forwardQuery": {
             "type": "boolean",
             "default": true
+          },
+          "presetParams": {
+            "type": "object",
+            "maxProperties": 20,
+            "default": {},
+            "additionalProperties": {
+              "type": "string",
+              "maxLength": 512
+            },
+            "description": "Set on the destination at redirect time, overriding both the destination's own query and anything forwarded. Applied only when forwardQuery is true."
           }
         }
       },
@@ -1989,6 +2009,15 @@
           },
           "forwardQuery": {
             "type": "boolean"
+          },
+          "presetParams": {
+            "type": "object",
+            "maxProperties": 20,
+            "additionalProperties": {
+              "type": "string",
+              "maxLength": 512
+            },
+            "description": "Set on the destination at redirect time, overriding both the destination's own query and anything forwarded. Applied only when forwardQuery is true. Send {} to clear."
           },
           "status": {
             "$ref": "#/components/schemas/ResourceStatus"

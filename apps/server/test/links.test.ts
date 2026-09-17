@@ -32,6 +32,7 @@ describe("POST /api/v1/links", () => {
     expect(link).toMatchObject({
       status: "active",
       forwardQuery: true,
+      presetParams: {},
       humanVisits: 0,
       botVisits: 0,
     })
@@ -154,6 +155,50 @@ describe("PATCH /api/v1/links/:id", () => {
     const viewer = await h.actor("viewer")
     const link = await h.createLink(author.key, domain)
     expect((await h.patch(`/api/v1/links/${link.id}`, viewer.key, { name: "No" })).status).toBe(403)
+  })
+})
+
+describe("preset params", () => {
+  test("a PATCH sets presets and a later PATCH clears them with {}", async () => {
+    const link = await h.createLink(author.key, domain)
+
+    const set = await h.patch(`/api/v1/links/${link.id}`, author.key, {
+      presetParams: { utm_source: "qr" },
+    })
+    expect(set.status).toBe(200)
+    expect(await set.json()).toMatchObject({ presetParams: { utm_source: "qr" } })
+
+    const cleared = await h.patch(`/api/v1/links/${link.id}`, author.key, { presetParams: {} })
+    expect(cleared.status).toBe(200)
+    expect(await cleared.json()).toMatchObject({ presetParams: {} })
+  })
+
+  test("rejects an empty key", async () => {
+    const res = await h.post("/api/v1/links", author.key, {
+      domainId: domain,
+      destination: "https://example.com/",
+      presetParams: { "": "value" },
+    })
+    expect(res.status).toBe(400)
+  })
+
+  test("rejects an over-long value", async () => {
+    const res = await h.post("/api/v1/links", author.key, {
+      domainId: domain,
+      destination: "https://example.com/",
+      presetParams: { a: "x".repeat(513) },
+    })
+    expect(res.status).toBe(400)
+  })
+
+  test("rejects more than 20 keys", async () => {
+    const presetParams = Object.fromEntries(Array.from({ length: 21 }, (_, i) => [`k${i}`, "v"]))
+    const res = await h.post("/api/v1/links", author.key, {
+      domainId: domain,
+      destination: "https://example.com/",
+      presetParams,
+    })
+    expect(res.status).toBe(400)
   })
 })
 

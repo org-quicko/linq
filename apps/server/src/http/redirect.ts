@@ -24,6 +24,7 @@ export type ResolvedTarget = {
   linkId: string
   destination: string
   forwardQuery: boolean
+  presetParams: Record<string, string>
   rules: { destination: string; conditions: Condition[] }[]
 }
 
@@ -73,6 +74,7 @@ function findActiveTarget(db: Db, domainId: string, slug: string): Promise<Resol
         linkId: row.id,
         destination: row.destination,
         forwardQuery: row.forwardQuery,
+        presetParams: row.presetParams,
         rules: ordered.map((r) => ({ destination: r.destination, conditions: r.conditions })),
       }
     },
@@ -98,14 +100,21 @@ async function through<T>(
 }
 
 /**
- * Incoming parameters win per key, and repeats survive: every key the caller
- * sent replaces the destination's copy of that key entirely.
+ * The given parameters win per key, and repeats survive: every key in
+ * `overrides` replaces the destination's copy of that key entirely.
  */
-export function mergeQuery(destination: string, incoming: URLSearchParams): string {
+export function mergeQuery(destination: string, overrides: URLSearchParams): string {
   const url = new URL(destination)
-  for (const key of new Set(incoming.keys())) url.searchParams.delete(key)
-  for (const [key, value] of incoming) url.searchParams.append(key, value)
+  for (const key of new Set(overrides.keys())) url.searchParams.delete(key)
+  for (const [key, value] of overrides) url.searchParams.append(key, value)
   return url.toString()
+}
+
+/** Preset params win over everything already on the URL. None leaves it untouched. */
+function applyPresets(destination: string, presets: Record<string, string>): string {
+  return Object.keys(presets).length
+    ? mergeQuery(destination, new URLSearchParams(presets))
+    : destination
 }
 
 /** The visit's record of what the caller asked for, before any merging. */
@@ -178,8 +187,14 @@ export const redirectHandler = factory.createHandlers(async (c) => {
   // than a span; which branch won is the only part worth recording.
   reqLog().debug({ linkId: link.linkId, matchedRule: ruled !== null }, "rules matched")
 
-  // 6. Forward the incoming query when the link asks for it.
-  const destination = link.forwardQuery ? mergeQuery(chosen, url.searchParams) : chosen
+  // 6. `forwardQuery` is the link's switch for touching the outgoing query at
+  //    all: off passes the destination through exactly as written, presets
+  //    included. On, the incoming query merges in first and the link's own
+  //    preset params then overwrite whatever is there — the destination's query
+  //    and the forwarded one alike.
+  const destination = link.forwardQuery
+    ? applyPresets(mergeQuery(chosen, url.searchParams), link.presetParams)
+    : chosen
 
   // 8. Insert after the response is built, and never await it.
   if (tracked) recordVisit(c.var.db, { ...visit, linkId: link.linkId, destination })
