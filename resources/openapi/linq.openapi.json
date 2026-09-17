@@ -1,0 +1,2448 @@
+{
+  "openapi": "3.1.0",
+  "info": {
+    "title": "linq",
+    "version": "0.1.0",
+    "summary": "Self-hosted URL shortener and dynamic-link service.",
+    "description": "Three things share one port: the REST API under `/api`, the Client UI's\nstatic export under `/home`, and the redirect on every other path.\n\n**Authentication.** Every `/api/v1/*` route needs an API key, sent as\n`Authorization: Bearer <key>` or `X-Api-Key: <key>`. Users never log in;\nthey act through keys. A key whose `expiresAt` has passed, or whose owner is\n`disabled`, fails with 401.\n\n**Roles** are ordered `viewer < author < editor < admin`. Each operation\nbelow states the minimum it needs.\n\n**Errors** all share one envelope, documented on the `Error` schema.\n\n**Lists** all share one envelope — `{ data, total, limit, offset }` — where\n`total` counts every row matching the filters, not just the page.\n\n---\n\nWritten by hand from `apps/server/src/http/`, which stays the source of\ntruth; the zod schemas in `packages/shared/src/` are what the server\nactually validates against, and the constraints here mirror them.\n"
+  },
+  "servers": [
+    {
+      "url": "http://localhost:3000",
+      "description": "Local development"
+    },
+    {
+      "url": "https://{host}",
+      "description": "A deployed instance",
+      "variables": {
+        "host": {
+          "default": "links.example.com"
+        }
+      }
+    }
+  ],
+  "security": [
+    {
+      "bearerAuth": []
+    },
+    {
+      "apiKeyAuth": []
+    }
+  ],
+  "tags": [
+    {
+      "name": "Health",
+      "description": "Unauthenticated liveness."
+    },
+    {
+      "name": "Identity",
+      "description": "Who the calling key belongs to."
+    },
+    {
+      "name": "Domains",
+      "description": "The hosts links live on."
+    },
+    {
+      "name": "Links",
+      "description": "Short links, their rules and their reports."
+    },
+    {
+      "name": "Analytics",
+      "description": "Visits, and the reports rolled up from them."
+    },
+    {
+      "name": "Users & keys",
+      "description": "Principals and their credentials. Admin only."
+    },
+    {
+      "name": "Redirect",
+      "description": "What the public actually hits."
+    }
+  ],
+  "paths": {
+    "/api/health": {
+      "get": {
+        "tags": [
+          "Health"
+        ],
+        "operationId": "getHealth",
+        "summary": "Liveness and version",
+        "description": "The only route under `/api` that needs no key.",
+        "security": [],
+        "responses": {
+          "200": {
+            "description": "The server is up.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "status",
+                    "version"
+                  ],
+                  "properties": {
+                    "status": {
+                      "type": "string",
+                      "const": "ok"
+                    },
+                    "version": {
+                      "type": "string",
+                      "examples": [
+                        "0.1.0"
+                      ]
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/me": {
+      "get": {
+        "tags": [
+          "Identity"
+        ],
+        "operationId": "getMe",
+        "summary": "The calling key's identity",
+        "description": "What the Client UI gates its menus on.",
+        "responses": {
+          "200": {
+            "description": "The user behind the key, and the key's display prefix.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "user",
+                    "keyPrefix"
+                  ],
+                  "properties": {
+                    "user": {
+                      "type": "object",
+                      "required": [
+                        "id",
+                        "name",
+                        "role"
+                      ],
+                      "properties": {
+                        "id": {
+                          "type": "string",
+                          "format": "uuid"
+                        },
+                        "name": {
+                          "type": "string"
+                        },
+                        "role": {
+                          "$ref": "#/components/schemas/Role"
+                        }
+                      }
+                    },
+                    "keyPrefix": {
+                      "type": [
+                        "string",
+                        "null"
+                      ],
+                      "description": "The first characters of the key, so it is recognisable in a list."
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          }
+        }
+      }
+    },
+    "/api/v1/domains": {
+      "get": {
+        "tags": [
+          "Domains"
+        ],
+        "operationId": "listDomains",
+        "summary": "List domains",
+        "description": "Ordered by host. Every role may read.",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/Limit"
+          },
+          {
+            "$ref": "#/components/parameters/Offset"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "A page of domains.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "allOf": [
+                    {
+                      "$ref": "#/components/schemas/Page"
+                    },
+                    {
+                      "type": "object",
+                      "properties": {
+                        "data": {
+                          "type": "array",
+                          "items": {
+                            "$ref": "#/components/schemas/Domain"
+                          }
+                        }
+                      }
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          }
+        }
+      },
+      "post": {
+        "tags": [
+          "Domains"
+        ],
+        "operationId": "createDomain",
+        "summary": "Create a domain",
+        "description": "Requires: **admin**.",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/DomainCreate"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "The created domain.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Domain"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/ValidationFailed"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "409": {
+            "description": "The host already exists.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/domains/{id}": {
+      "parameters": [
+        {
+          "$ref": "#/components/parameters/Id"
+        }
+      ],
+      "get": {
+        "tags": [
+          "Domains"
+        ],
+        "operationId": "getDomain",
+        "summary": "Read a domain",
+        "responses": {
+          "200": {
+            "description": "The domain.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Domain"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          }
+        }
+      },
+      "patch": {
+        "tags": [
+          "Domains"
+        ],
+        "operationId": "updateDomain",
+        "summary": "Update a domain",
+        "description": "Requires: **admin**. `host` is immutable and is not accepted.\n\nArchiving is refused while any **active** link points at the domain.\n",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/DomainPatch"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "The updated domain.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Domain"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/ValidationFailed"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "409": {
+            "description": "The domain still has active links.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      },
+      "delete": {
+        "tags": [
+          "Domains"
+        ],
+        "operationId": "archiveDomain",
+        "summary": "Archive a domain",
+        "description": "Requires: **admin**. `DELETE` archives; it never destroys. An archived\ndomain returns an untracked 404 for everything. See `docs/adr/0002`.\n",
+        "responses": {
+          "200": {
+            "description": "The archived domain.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Domain"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "409": {
+            "description": "The domain still has active links.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/domains/{id}/purge": {
+      "parameters": [
+        {
+          "$ref": "#/components/parameters/Id"
+        }
+      ],
+      "delete": {
+        "tags": [
+          "Domains"
+        ],
+        "operationId": "purgeDomain",
+        "summary": "Destroy an archived domain",
+        "description": "Requires: **admin**. Irreversible, and refused unless the domain is\nalready archived — archiving and purging are always two deliberate\nsteps. Refused while **any** link row still points at the domain,\narchived ones included.\n\nThis is the one operation in linq that loses analytics history: a\ndomain's visits and rollups go with it.\n",
+        "responses": {
+          "204": {
+            "description": "Destroyed."
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "409": {
+            "description": "Not archived yet, or links still point at it.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/domains/{id}/stats": {
+      "parameters": [
+        {
+          "$ref": "#/components/parameters/Id"
+        }
+      ],
+      "get": {
+        "tags": [
+          "Analytics"
+        ],
+        "operationId": "getDomainStats",
+        "summary": "Grouped visit totals for one domain",
+        "description": "Every visit on the domain, orphans included.\n\nUnlike the link report this does **not** 404 on an unknown id: an\narchived domain still has a history worth reading, and an id that\nmatches nothing simply reports nothing.\n",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/StatsFrom"
+          },
+          {
+            "$ref": "#/components/parameters/StatsTo"
+          },
+          {
+            "$ref": "#/components/parameters/GroupBy"
+          }
+        ],
+        "responses": {
+          "200": {
+            "$ref": "#/components/responses/StatsBuckets"
+          },
+          "400": {
+            "$ref": "#/components/responses/ValidationFailed"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          }
+        }
+      }
+    },
+    "/api/v1/links": {
+      "get": {
+        "tags": [
+          "Links"
+        ],
+        "operationId": "listLinks",
+        "summary": "List links",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/Limit"
+          },
+          {
+            "$ref": "#/components/parameters/Offset"
+          },
+          {
+            "name": "search",
+            "in": "query",
+            "description": "Substring match, case-insensitive, over slug, name and destination.",
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 200
+            }
+          },
+          {
+            "name": "tags",
+            "in": "query",
+            "description": "Comma-separated. A link matches when it carries **any** of them.",
+            "schema": {
+              "type": "string",
+              "examples": [
+                "launch,press"
+              ]
+            }
+          },
+          {
+            "name": "domainId",
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "name": "ownerId",
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "name": "status",
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "enum": [
+                "active",
+                "archived",
+                "all"
+              ],
+              "default": "active"
+            }
+          },
+          {
+            "name": "sort",
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "enum": [
+                "createdAt",
+                "visits"
+              ],
+              "default": "createdAt"
+            }
+          },
+          {
+            "name": "order",
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "enum": [
+                "asc",
+                "desc"
+              ],
+              "default": "desc"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "A page of links.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "allOf": [
+                    {
+                      "$ref": "#/components/schemas/Page"
+                    },
+                    {
+                      "type": "object",
+                      "properties": {
+                        "data": {
+                          "type": "array",
+                          "items": {
+                            "$ref": "#/components/schemas/Link"
+                          }
+                        }
+                      }
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/ValidationFailed"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          }
+        }
+      },
+      "post": {
+        "tags": [
+          "Links"
+        ],
+        "operationId": "createLink",
+        "summary": "Create a link",
+        "description": "Requires: **author**. The caller becomes the owner.\n\nOmit `slug` for a generated one. A custom slug that is taken on that\ndomain — including by an archived link — is a 409.\n",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/LinkCreate"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "The created link.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Link"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/ValidationFailed"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "description": "The domain does not exist.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "The slug is taken, the domain is archived, or no free slug could be allocated.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/links/{id}": {
+      "parameters": [
+        {
+          "$ref": "#/components/parameters/Id"
+        }
+      ],
+      "get": {
+        "tags": [
+          "Links"
+        ],
+        "operationId": "getLink",
+        "summary": "Read a link",
+        "responses": {
+          "200": {
+            "description": "The link.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Link"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          }
+        }
+      },
+      "patch": {
+        "tags": [
+          "Links"
+        ],
+        "operationId": "updateLink",
+        "summary": "Update a link",
+        "description": "Requires: **author** for a link you own, **editor** for any link.\n\n`slug` and `domainId` are immutable, and the body is strict, so sending\neither is a 400 rather than a silently ignored field. Changing\n`ownerId` additionally needs **admin**, unless you are transferring your\nown link.\n",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/LinkPatch"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "The updated link.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Link"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/ValidationFailed"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          }
+        }
+      },
+      "delete": {
+        "tags": [
+          "Links"
+        ],
+        "operationId": "archiveLink",
+        "summary": "Archive a link",
+        "description": "Requires: **author** for a link you own, **editor** for any link.\n\n`DELETE` archives; it never destroys. An archived link stops\nredirecting — its slug becomes an orphan visit — but keeps its row, its\nvisits and its reservation on that slug. Reversible by\n`PATCH { \"status\": \"active\" }`. See `docs/adr/0002`.\n",
+        "responses": {
+          "200": {
+            "description": "The archived link.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Link"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          }
+        }
+      }
+    },
+    "/api/v1/links/{id}/purge": {
+      "parameters": [
+        {
+          "$ref": "#/components/parameters/Id"
+        }
+      ],
+      "delete": {
+        "tags": [
+          "Links"
+        ],
+        "operationId": "purgeLink",
+        "summary": "Destroy an archived link",
+        "description": "Requires: **admin**. Irreversible, and refused unless the link is\nalready archived.\n\nIts rules go with it. Its visits survive as **orphan visits**, and its\nrollups are merged into the orphan scope — history is kept, attribution\nis not. Unlike archiving, this **releases the slug** for anyone to claim\non that domain.\n",
+        "responses": {
+          "204": {
+            "description": "Destroyed."
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "409": {
+            "description": "The link is not archived yet.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/links/{id}/rules": {
+      "parameters": [
+        {
+          "$ref": "#/components/parameters/Id"
+        }
+      ],
+      "get": {
+        "tags": [
+          "Links"
+        ],
+        "operationId": "getLinkRules",
+        "summary": "Read a link's rules",
+        "description": "In `position` order, which is the order they are evaluated in.",
+        "responses": {
+          "200": {
+            "description": "The rules, lowest position first.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/Rule"
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          }
+        }
+      },
+      "put": {
+        "tags": [
+          "Links"
+        ],
+        "operationId": "replaceLinkRules",
+        "summary": "Replace a link's rules",
+        "description": "Requires: **author** for a link you own, **editor** for any link.\n\nReplaces the whole ordered set in one transaction; the server owns\n`position` and assigns it from the array order. Send `[]` to remove\nevery rule.\n",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "array",
+                "maxItems": 50,
+                "items": {
+                  "$ref": "#/components/schemas/RuleInput"
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "The stored rules, in their new order.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/Rule"
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/ValidationFailed"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          }
+        }
+      }
+    },
+    "/api/v1/links/{id}/stats": {
+      "parameters": [
+        {
+          "$ref": "#/components/parameters/Id"
+        }
+      ],
+      "get": {
+        "tags": [
+          "Analytics"
+        ],
+        "operationId": "getLinkStats",
+        "summary": "Grouped visit totals for one link",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/StatsFrom"
+          },
+          {
+            "$ref": "#/components/parameters/StatsTo"
+          },
+          {
+            "$ref": "#/components/parameters/GroupBy"
+          }
+        ],
+        "responses": {
+          "200": {
+            "$ref": "#/components/responses/StatsBuckets"
+          },
+          "400": {
+            "$ref": "#/components/responses/ValidationFailed"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          }
+        }
+      }
+    },
+    "/api/v1/stats": {
+      "get": {
+        "tags": [
+          "Analytics"
+        ],
+        "operationId": "getStats",
+        "summary": "Grouped visit totals across the instance",
+        "description": "Optionally narrowed to one domain, or to the orphan slice — the visits\nthat resolved to no link at all.\n",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/StatsFrom"
+          },
+          {
+            "$ref": "#/components/parameters/StatsTo"
+          },
+          {
+            "$ref": "#/components/parameters/GroupBy"
+          },
+          {
+            "$ref": "#/components/parameters/Orphan"
+          },
+          {
+            "name": "domainId",
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "$ref": "#/components/responses/StatsBuckets"
+          },
+          "400": {
+            "$ref": "#/components/responses/ValidationFailed"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          }
+        }
+      }
+    },
+    "/api/v1/visits": {
+      "get": {
+        "tags": [
+          "Analytics"
+        ],
+        "operationId": "listVisits",
+        "summary": "The raw visit log",
+        "description": "Newest first, narrowed by `linkId`, `domainId` or `orphan`. One route\nfor every scope, because the only thing that changes between them is a\npredicate.\n\nUnlike the reports above, this reads the detail table: a visit row is\nthe only place a user agent, a query string or an exact instant\nsurvives. Its window is therefore in **instants**, not whole days.\n\nAn id that matches nothing reports nothing rather than 404ing — this is\nthe log with a filter on it, not a view of one link.\n",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/Limit"
+          },
+          {
+            "$ref": "#/components/parameters/Offset"
+          },
+          {
+            "name": "from",
+            "in": "query",
+            "description": "Inclusive lower bound on `occurredAt`.",
+            "schema": {
+              "type": "string",
+              "format": "date-time"
+            }
+          },
+          {
+            "name": "to",
+            "in": "query",
+            "description": "Inclusive upper bound on `occurredAt`.",
+            "schema": {
+              "type": "string",
+              "format": "date-time"
+            }
+          },
+          {
+            "name": "bot",
+            "in": "query",
+            "description": "`any` keeps bots and humans together.",
+            "schema": {
+              "type": "string",
+              "enum": [
+                "true",
+                "false",
+                "any"
+              ],
+              "default": "any"
+            }
+          },
+          {
+            "name": "linkId",
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "name": "domainId",
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "$ref": "#/components/parameters/Orphan"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "A page of visits.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "allOf": [
+                    {
+                      "$ref": "#/components/schemas/Page"
+                    },
+                    {
+                      "type": "object",
+                      "properties": {
+                        "data": {
+                          "type": "array",
+                          "items": {
+                            "$ref": "#/components/schemas/Visit"
+                          }
+                        }
+                      }
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/ValidationFailed"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          }
+        }
+      }
+    },
+    "/api/v1/tags": {
+      "get": {
+        "tags": [
+          "Links"
+        ],
+        "operationId": "listTags",
+        "summary": "Tags in use, with counts",
+        "description": "Derived from active links; there is no tag table to keep in step.\nBusiest first, then alphabetical.\n",
+        "responses": {
+          "200": {
+            "description": "Every tag carried by at least one active link.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "type": "object",
+                    "required": [
+                      "tag",
+                      "count"
+                    ],
+                    "properties": {
+                      "tag": {
+                        "type": "string"
+                      },
+                      "count": {
+                        "type": "integer",
+                        "minimum": 1
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          }
+        }
+      }
+    },
+    "/api/v1/users": {
+      "get": {
+        "tags": [
+          "Users & keys"
+        ],
+        "operationId": "listUsers",
+        "summary": "List users",
+        "description": "Every role may list users, but **only an admin sees more than\n`{ id, name }`** — the shape of `data` depends on the caller's role.\nOrdered by name.\n",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/Limit"
+          },
+          {
+            "$ref": "#/components/parameters/Offset"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "A page of users, full or summarised by role.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "allOf": [
+                    {
+                      "$ref": "#/components/schemas/Page"
+                    },
+                    {
+                      "type": "object",
+                      "properties": {
+                        "data": {
+                          "type": "array",
+                          "items": {
+                            "description": "`anyOf`, not `oneOf`: a full User also satisfies UserSummary, so the two are not mutually exclusive. Which shape you get depends on the caller's role.",
+                            "anyOf": [
+                              {
+                                "$ref": "#/components/schemas/User"
+                              },
+                              {
+                                "$ref": "#/components/schemas/UserSummary"
+                              }
+                            ]
+                          }
+                        }
+                      }
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          }
+        }
+      },
+      "post": {
+        "tags": [
+          "Users & keys"
+        ],
+        "operationId": "createUser",
+        "summary": "Create a user",
+        "description": "Requires: **admin**. A new user has no keys until one is minted.",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UserCreate"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "The created user.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/User"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/ValidationFailed"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "409": {
+            "description": "The email is already in use.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/users/{id}": {
+      "parameters": [
+        {
+          "$ref": "#/components/parameters/Id"
+        }
+      ],
+      "get": {
+        "tags": [
+          "Users & keys"
+        ],
+        "operationId": "getUser",
+        "summary": "Read a user",
+        "description": "Requires: **admin**.",
+        "responses": {
+          "200": {
+            "description": "The user.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/User"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          }
+        }
+      },
+      "patch": {
+        "tags": [
+          "Users & keys"
+        ],
+        "operationId": "updateUser",
+        "summary": "Update a user",
+        "description": "Requires: **admin**. Two self-inflicted lockouts are refused with 403:\nchanging your **own role**, and disabling **yourself** — a disabled\nuser's keys all 401, and only an admin can re-enable one.\n",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UserPatch"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "The updated user.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/User"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/ValidationFailed"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "description": "Insufficient permissions, or a self-inflicted lockout.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "409": {
+            "description": "The email is already in use.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/users/{id}/keys": {
+      "parameters": [
+        {
+          "$ref": "#/components/parameters/Id"
+        }
+      ],
+      "get": {
+        "tags": [
+          "Users & keys"
+        ],
+        "operationId": "listUserKeys",
+        "summary": "List a user's keys",
+        "description": "Requires: **admin**. Oldest first. The secret is never returned here —\nonly its `prefix`, which exists so a key is recognisable.\n",
+        "responses": {
+          "200": {
+            "description": "The user's keys.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/ApiKey"
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          }
+        }
+      },
+      "post": {
+        "tags": [
+          "Users & keys"
+        ],
+        "operationId": "createUserKey",
+        "summary": "Mint a key for a user",
+        "description": "Requires: **admin**.\n\n**The only response that ever carries the plaintext secret.** It is\nstored as a sha256 hash and cannot be recovered — if it is lost, revoke\nthe key and mint another.\n",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/KeyCreate"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "The created key, including its secret.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiKeyCreated"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/ValidationFailed"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          }
+        }
+      }
+    },
+    "/api/v1/keys/{id}": {
+      "parameters": [
+        {
+          "$ref": "#/components/parameters/Id"
+        }
+      ],
+      "delete": {
+        "tags": [
+          "Users & keys"
+        ],
+        "operationId": "revokeKey",
+        "summary": "Revoke a key",
+        "description": "Requires: **admin**. A real delete, not an archive — a revoked key has\nno history worth keeping. Takes effect on the next request that uses it.\n",
+        "responses": {
+          "204": {
+            "description": "Revoked."
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          }
+        }
+      }
+    },
+    "/{slug}": {
+      "parameters": [
+        {
+          "name": "slug",
+          "in": "path",
+          "required": true,
+          "description": "The path segment after the host. An empty path is the domain root,\nwhich resolves to the fallback URL.\n",
+          "schema": {
+            "type": "string",
+            "examples": [
+              "a1B2c3"
+            ]
+          }
+        }
+      ],
+      "get": {
+        "tags": [
+          "Redirect"
+        ],
+        "operationId": "followLink",
+        "summary": "Follow a short link",
+        "description": "The product. Matched last, so every path linq answers itself — `/api`,\n`/home`, `/health`, `/robots.txt`, `/favicon.ico` — wins first and can\nnever be claimed as a slug.\n\nResolution: the `Host` header selects the domain, the slug selects the\nlink, then the first rule whose conditions all hold supplies the\ndestination, falling back to the link's own. With `forwardQuery` on,\nthe incoming query is merged over the destination's, incoming winning.\n\nAn unknown host, or an archived one, is an **untracked** 404. A live\ndomain with no matching active link is an **orphan visit**: recorded,\nthen sent to the domain's `fallbackUrl`, or 404 if it has none.\n\n`GET` is recorded; `HEAD` is answered identically and never recorded.\n",
+        "security": [],
+        "responses": {
+          "302": {
+            "description": "Always 302, never cached: the destination can change under a live\nslug at any time.\n",
+            "headers": {
+              "Location": {
+                "schema": {
+                  "type": "string",
+                  "format": "uri"
+                }
+              },
+              "Cache-Control": {
+                "schema": {
+                  "type": "string",
+                  "const": "no-store"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Unknown host, archived domain, or no link and no fallback URL.",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "type": "string",
+                  "const": "Not Found"
+                }
+              }
+            }
+          }
+        }
+      },
+      "head": {
+        "tags": [
+          "Redirect"
+        ],
+        "operationId": "resolveLink",
+        "summary": "Resolve a short link without recording a visit",
+        "security": [],
+        "responses": {
+          "302": {
+            "description": "As `GET`, but nothing is recorded.",
+            "headers": {
+              "Location": {
+                "schema": {
+                  "type": "string",
+                  "format": "uri"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "As `GET`."
+          }
+        }
+      }
+    },
+    "/robots.txt": {
+      "get": {
+        "tags": [
+          "Redirect"
+        ],
+        "operationId": "getRobotsTxt",
+        "summary": "Robots policy",
+        "description": "Disallows `/api` and `/home`; short links themselves are crawlable.",
+        "security": [],
+        "responses": {
+          "200": {
+            "description": "The policy.",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  },
+  "components": {
+    "securitySchemes": {
+      "bearerAuth": {
+        "type": "http",
+        "scheme": "bearer",
+        "description": "`Authorization: Bearer <key>`. The preferred form."
+      },
+      "apiKeyAuth": {
+        "type": "apiKey",
+        "in": "header",
+        "name": "X-Api-Key",
+        "description": "Accepted as a fallback for clients that cannot set `Authorization`."
+      }
+    },
+    "parameters": {
+      "Id": {
+        "name": "id",
+        "in": "path",
+        "required": true,
+        "schema": {
+          "type": "string",
+          "format": "uuid"
+        }
+      },
+      "Limit": {
+        "name": "limit",
+        "in": "query",
+        "schema": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 200,
+          "default": 50
+        }
+      },
+      "Offset": {
+        "name": "offset",
+        "in": "query",
+        "schema": {
+          "type": "integer",
+          "minimum": 0,
+          "default": 0
+        }
+      },
+      "StatsFrom": {
+        "name": "from",
+        "in": "query",
+        "description": "Inclusive first day, as `YYYY-MM-DD` in UTC. A whole day, not an\ninstant: reports are served from a day-grained rollup and a window that\ncut a day in half could not be answered from it. See `docs/adr/0007`.\n",
+        "schema": {
+          "type": "string",
+          "format": "date"
+        }
+      },
+      "StatsTo": {
+        "name": "to",
+        "in": "query",
+        "description": "Inclusive last day, as `YYYY-MM-DD` in UTC.",
+        "schema": {
+          "type": "string",
+          "format": "date"
+        }
+      },
+      "GroupBy": {
+        "name": "groupBy",
+        "in": "query",
+        "description": "The dimension to bucket on. `day` comes back in chronological order so a\nchart can plot it as given; every other dimension is ranked by volume,\nbusiest first.\n",
+        "schema": {
+          "type": "string",
+          "enum": [
+            "day",
+            "country",
+            "region",
+            "platform",
+            "referer",
+            "destination",
+            "slug"
+          ],
+          "default": "day"
+        }
+      },
+      "Orphan": {
+        "name": "orphan",
+        "in": "query",
+        "description": "Restrict to visits that resolved to no link at all.",
+        "schema": {
+          "type": "string",
+          "enum": [
+            "true",
+            "false"
+          ],
+          "default": "false"
+        }
+      }
+    },
+    "responses": {
+      "StatsBuckets": {
+        "description": "One bucket per key that had at least one visit. Buckets with no visits\nare **absent rather than zero** — only the caller knows which days the\nwindow was meant to cover, so filling the gaps is the caller's job.\n",
+        "content": {
+          "application/json": {
+            "schema": {
+              "type": "array",
+              "items": {
+                "$ref": "#/components/schemas/StatsBucket"
+              }
+            }
+          }
+        }
+      },
+      "ValidationFailed": {
+        "description": "The request failed schema validation. `details` carries the issues.",
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/Error"
+            }
+          }
+        }
+      },
+      "Unauthorized": {
+        "description": "Missing, unknown or expired key, or the owning user is disabled.",
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/Error"
+            }
+          }
+        }
+      },
+      "Forbidden": {
+        "description": "The caller is known but not allowed to do this.",
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/Error"
+            }
+          }
+        }
+      },
+      "NotFound": {
+        "description": "No such resource.",
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/Error"
+            }
+          }
+        }
+      }
+    },
+    "schemas": {
+      "Error": {
+        "type": "object",
+        "description": "Every error response in linq has this shape. `code` maps one-to-one onto\nthe status: `validation_failed` 400, `unauthorized` 401, `forbidden` 403,\n`not_found` 404, `conflict` 409, `internal` 500.\n",
+        "required": [
+          "error"
+        ],
+        "properties": {
+          "error": {
+            "type": "object",
+            "required": [
+              "code",
+              "message"
+            ],
+            "properties": {
+              "code": {
+                "type": "string",
+                "enum": [
+                  "validation_failed",
+                  "unauthorized",
+                  "forbidden",
+                  "not_found",
+                  "conflict",
+                  "internal"
+                ]
+              },
+              "message": {
+                "type": "string"
+              },
+              "details": {
+                "type": "array",
+                "description": "Present on `validation_failed`, carrying the zod issues.",
+                "items": {}
+              }
+            }
+          }
+        },
+        "examples": [
+          {
+            "error": {
+              "code": "not_found",
+              "message": "link not found"
+            }
+          }
+        ]
+      },
+      "Page": {
+        "type": "object",
+        "description": "The envelope every list shares. `total` counts all matching rows, not the page.",
+        "required": [
+          "data",
+          "total",
+          "limit",
+          "offset"
+        ],
+        "properties": {
+          "data": {
+            "type": "array",
+            "items": {}
+          },
+          "total": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "limit": {
+            "type": "integer"
+          },
+          "offset": {
+            "type": "integer"
+          }
+        }
+      },
+      "Role": {
+        "type": "string",
+        "description": "Ordered least to most privileged.",
+        "enum": [
+          "viewer",
+          "author",
+          "editor",
+          "admin"
+        ]
+      },
+      "ResourceStatus": {
+        "type": "string",
+        "description": "Links and domains are archived, never deleted.",
+        "enum": [
+          "active",
+          "archived"
+        ]
+      },
+      "Platform": {
+        "type": "string",
+        "description": "Derived from the user agent; anything unrecognised is `desktop`.",
+        "enum": [
+          "android",
+          "ios",
+          "desktop"
+        ]
+      },
+      "Domain": {
+        "type": "object",
+        "required": [
+          "id",
+          "host",
+          "fallbackUrl",
+          "status",
+          "linkCount",
+          "createdAt",
+          "updatedAt"
+        ],
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "host": {
+            "type": "string",
+            "maxLength": 253,
+            "pattern": "^[a-z0-9.-]+(:\\d{1,5})?$",
+            "description": "Lowercased, optionally carrying a port."
+          },
+          "fallbackUrl": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Where orphan visits go. Null means 404."
+          },
+          "status": {
+            "$ref": "#/components/schemas/ResourceStatus"
+          },
+          "linkCount": {
+            "type": "integer",
+            "description": "Active links only, because this is the count that decides whether the domain may be archived."
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "updatedAt": {
+            "type": "string",
+            "format": "date-time"
+          }
+        }
+      },
+      "DomainCreate": {
+        "type": "object",
+        "required": [
+          "host"
+        ],
+        "properties": {
+          "host": {
+            "type": "string",
+            "maxLength": 253,
+            "pattern": "^[a-z0-9.-]+(:\\d{1,5})?$"
+          },
+          "fallbackUrl": {
+            "$ref": "#/components/schemas/Url"
+          }
+        }
+      },
+      "DomainPatch": {
+        "type": "object",
+        "description": "`host` is immutable and is not accepted.",
+        "minProperties": 1,
+        "properties": {
+          "fallbackUrl": {
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/Url"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "status": {
+            "$ref": "#/components/schemas/ResourceStatus"
+          }
+        }
+      },
+      "Url": {
+        "type": "string",
+        "format": "uri",
+        "maxLength": 2048,
+        "description": "Absolute `http(s)` URL."
+      },
+      "Link": {
+        "type": "object",
+        "required": [
+          "id",
+          "domainId",
+          "domainHost",
+          "slug",
+          "shortUrl",
+          "destination",
+          "name",
+          "tags",
+          "forwardQuery",
+          "status",
+          "ownerId",
+          "ownerName",
+          "humanVisits",
+          "botVisits",
+          "createdAt",
+          "updatedAt"
+        ],
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "domainId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "domainHost": {
+            "type": "string"
+          },
+          "slug": {
+            "type": "string",
+            "pattern": "^[A-Za-z0-9_-]{1,64}$"
+          },
+          "shortUrl": {
+            "type": "string",
+            "format": "uri",
+            "description": "The full URL, assembled from the domain host and the slug."
+          },
+          "destination": {
+            "$ref": "#/components/schemas/Url"
+          },
+          "name": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "maxLength": 200
+          },
+          "tags": {
+            "type": "array",
+            "maxItems": 20,
+            "items": {
+              "type": "string",
+              "maxLength": 50
+            }
+          },
+          "forwardQuery": {
+            "type": "boolean",
+            "description": "Merge the incoming query string over the destination's own."
+          },
+          "status": {
+            "$ref": "#/components/schemas/ResourceStatus"
+          },
+          "ownerId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "ownerName": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "humanVisits": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "botVisits": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "updatedAt": {
+            "type": "string",
+            "format": "date-time"
+          }
+        }
+      },
+      "LinkCreate": {
+        "type": "object",
+        "required": [
+          "domainId",
+          "destination"
+        ],
+        "properties": {
+          "domainId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "slug": {
+            "type": "string",
+            "pattern": "^[A-Za-z0-9_-]{1,64}$",
+            "description": "Omit for a generated slug. Reserved words (`api`, `home`, `health`, `robots.txt`, `favicon.ico`) are rejected."
+          },
+          "destination": {
+            "$ref": "#/components/schemas/Url"
+          },
+          "name": {
+            "type": "string",
+            "maxLength": 200
+          },
+          "tags": {
+            "type": "array",
+            "maxItems": 20,
+            "default": [],
+            "items": {
+              "type": "string",
+              "maxLength": 50
+            }
+          },
+          "forwardQuery": {
+            "type": "boolean",
+            "default": true
+          }
+        }
+      },
+      "LinkPatch": {
+        "type": "object",
+        "description": "Strict: `slug` and `domainId` are immutable, and sending either is a 400 rather than a silently ignored field.",
+        "additionalProperties": false,
+        "minProperties": 1,
+        "properties": {
+          "destination": {
+            "$ref": "#/components/schemas/Url"
+          },
+          "name": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "maxLength": 200
+          },
+          "tags": {
+            "type": "array",
+            "maxItems": 20,
+            "items": {
+              "type": "string",
+              "maxLength": 50
+            }
+          },
+          "forwardQuery": {
+            "type": "boolean"
+          },
+          "status": {
+            "$ref": "#/components/schemas/ResourceStatus"
+          },
+          "ownerId": {
+            "type": "string",
+            "format": "uuid",
+            "description": "Transferring ownership. Your own link, or any link as an admin."
+          }
+        }
+      },
+      "Condition": {
+        "description": "One predicate inside a rule. All of a rule's conditions must hold for it to win.",
+        "oneOf": [
+          {
+            "type": "object",
+            "title": "platform",
+            "required": [
+              "type",
+              "value"
+            ],
+            "properties": {
+              "type": {
+                "type": "string",
+                "const": "platform"
+              },
+              "value": {
+                "$ref": "#/components/schemas/Platform"
+              }
+            }
+          },
+          {
+            "type": "object",
+            "title": "query_param",
+            "required": [
+              "type",
+              "key"
+            ],
+            "properties": {
+              "type": {
+                "type": "string",
+                "const": "query_param"
+              },
+              "key": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 64
+              },
+              "value": {
+                "type": "string",
+                "maxLength": 512,
+                "description": "Absent means \"the parameter is present with any value\", including an empty one."
+              }
+            }
+          },
+          {
+            "type": "object",
+            "title": "country",
+            "required": [
+              "type",
+              "value"
+            ],
+            "properties": {
+              "type": {
+                "type": "string",
+                "const": "country"
+              },
+              "value": {
+                "type": "string",
+                "pattern": "^[A-Za-z]{2}$",
+                "description": "ISO-3166 alpha-2. Stored uppercased."
+              }
+            }
+          }
+        ]
+      },
+      "RuleInput": {
+        "type": "object",
+        "required": [
+          "destination",
+          "conditions"
+        ],
+        "properties": {
+          "destination": {
+            "$ref": "#/components/schemas/Url"
+          },
+          "conditions": {
+            "type": "array",
+            "minItems": 1,
+            "maxItems": 10,
+            "description": "ANDed. A rule with no conditions is rejected on write, since it would otherwise match everything.",
+            "items": {
+              "$ref": "#/components/schemas/Condition"
+            }
+          }
+        }
+      },
+      "Rule": {
+        "allOf": [
+          {
+            "$ref": "#/components/schemas/RuleInput"
+          },
+          {
+            "type": "object",
+            "required": [
+              "id",
+              "linkId",
+              "position"
+            ],
+            "properties": {
+              "id": {
+                "type": "string",
+                "format": "uuid"
+              },
+              "linkId": {
+                "type": "string",
+                "format": "uuid"
+              },
+              "position": {
+                "type": "integer",
+                "minimum": 0,
+                "description": "Server-owned. The lowest matching position wins."
+              }
+            }
+          }
+        ]
+      },
+      "Visit": {
+        "type": "object",
+        "description": "One request to a domain.",
+        "required": [
+          "id",
+          "linkId",
+          "domainId",
+          "slugRequested",
+          "occurredAt",
+          "isBot",
+          "platform",
+          "userAgent",
+          "referer",
+          "country",
+          "region",
+          "destination",
+          "query"
+        ],
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "linkId": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "uuid",
+            "description": "Null is an orphan visit — unknown slug, archived link, or the root path."
+          },
+          "domainId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "slugRequested": {
+            "type": "string",
+            "description": "What the caller asked for, empty for the root path."
+          },
+          "occurredAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "isBot": {
+            "type": "boolean",
+            "description": "Decided once at ingest. A request with no user agent at all counts as a bot."
+          },
+          "platform": {
+            "$ref": "#/components/schemas/Platform"
+          },
+          "userAgent": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "referer": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "country": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "minLength": 2,
+            "maxLength": 2,
+            "description": "ISO-3166 alpha-2. The client IP is used for the lookup in-request and never stored. See `docs/adr/0001`."
+          },
+          "region": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "destination": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "The URL actually chosen, after rules and query merging."
+          },
+          "query": {
+            "type": [
+              "object",
+              "null"
+            ],
+            "description": "The incoming query as sent, before any merging.",
+            "additionalProperties": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              }
+            }
+          }
+        }
+      },
+      "StatsBucket": {
+        "type": "object",
+        "required": [
+          "key",
+          "human",
+          "bot"
+        ],
+        "properties": {
+          "key": {
+            "type": "string",
+            "description": "The bucket's value — a `YYYY-MM-DD` date when grouping by day, otherwise the dimension's value. An empty string means the dimension was never recorded for those visits."
+          },
+          "human": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "bot": {
+            "type": "integer",
+            "minimum": 0
+          }
+        }
+      },
+      "User": {
+        "type": "object",
+        "description": "Returned in full only to an admin.",
+        "required": [
+          "id",
+          "name",
+          "email",
+          "role",
+          "status",
+          "createdAt",
+          "updatedAt"
+        ],
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "name": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 100
+          },
+          "email": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "email",
+            "maxLength": 200
+          },
+          "role": {
+            "$ref": "#/components/schemas/Role"
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "active",
+              "disabled"
+            ],
+            "description": "Every key of a disabled user fails authentication."
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "updatedAt": {
+            "type": "string",
+            "format": "date-time"
+          }
+        }
+      },
+      "UserSummary": {
+        "type": "object",
+        "description": "What every non-admin role sees about other users.",
+        "required": [
+          "id",
+          "name"
+        ],
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "name": {
+            "type": "string"
+          }
+        }
+      },
+      "UserCreate": {
+        "type": "object",
+        "required": [
+          "name",
+          "role"
+        ],
+        "properties": {
+          "name": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 100
+          },
+          "email": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "email",
+            "maxLength": 200
+          },
+          "role": {
+            "$ref": "#/components/schemas/Role"
+          }
+        }
+      },
+      "UserPatch": {
+        "type": "object",
+        "minProperties": 1,
+        "properties": {
+          "name": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 100
+          },
+          "email": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "email",
+            "maxLength": 200
+          },
+          "role": {
+            "$ref": "#/components/schemas/Role"
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "active",
+              "disabled"
+            ]
+          }
+        }
+      },
+      "KeyCreate": {
+        "type": "object",
+        "required": [
+          "label"
+        ],
+        "properties": {
+          "label": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 100
+          },
+          "expiresAt": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date-time",
+            "description": "Absent or null means the key never expires."
+          }
+        }
+      },
+      "ApiKey": {
+        "type": "object",
+        "required": [
+          "id",
+          "userId",
+          "label",
+          "prefix",
+          "expiresAt",
+          "createdAt"
+        ],
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "userId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "label": {
+            "type": "string"
+          },
+          "prefix": {
+            "type": "string",
+            "description": "The first characters of the secret, so a key is recognisable in a list."
+          },
+          "expiresAt": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date-time"
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "date-time"
+          }
+        }
+      },
+      "ApiKeyCreated": {
+        "allOf": [
+          {
+            "$ref": "#/components/schemas/ApiKey"
+          },
+          {
+            "type": "object",
+            "required": [
+              "secret"
+            ],
+            "properties": {
+              "secret": {
+                "type": "string",
+                "description": "The plaintext key, returned exactly once. Only its sha256 is stored, so it cannot be recovered.",
+                "examples": [
+                  "linq_xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
+                ]
+              }
+            }
+          }
+        ]
+      }
+    }
+  }
+}
