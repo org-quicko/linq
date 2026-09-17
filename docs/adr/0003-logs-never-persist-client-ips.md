@@ -2,6 +2,10 @@
 
 **Status**: accepted · 2026-09-15
 
+> [0010](./0010-no-geolocation.md) removed geolocation and, with it, the last
+> code that read the client address. This decision is unchanged and now has
+> nothing left to guard against.
+
 ## Context
 
 link now writes structured logs to a rotating file under `LINQ_DATA_DIR`, a mounted volume that survives restarts and is retained for `LINQ_LOG_MAX_SIZE × LINQ_LOG_RETAIN` of history. A conventional HTTP access log records the client address on every line.
@@ -16,7 +20,7 @@ Request logs carry the request id, method, path, matched route, status, duration
 
 There is no configuration flag to turn this on. The answer is *never*, not *off by default*.
 
-The address is still read in-request for geolocation, exactly as ADR 0001 describes, and dropped afterwards. `geo.lookup` logs whether the address resolved, never what it was.
+The address was, when this was written, still read in-request for geolocation and dropped afterwards. Since 0010 it is not read at all.
 
 ## Consequences
 

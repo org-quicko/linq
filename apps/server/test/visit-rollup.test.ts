@@ -10,11 +10,9 @@ const DESKTOP = "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537
 const ANDROID = "Mozilla/5.0 (Linux; Android 14; Pixel 8) AppleWebKit/537.36 Chrome/120 Mobile"
 const BOT = "Mozilla/5.0 (compatible; Googlebot/2.1; +http://www.google.com/bot.html)"
 
-/** The seven dimensions the trigger writes, and the visit column each one reads. */
+/** The five dimensions the trigger writes, and the visit column each one reads. */
 const DIMENSIONS = {
   total: sql`''`,
-  country: sql`coalesce(${visits.country}, '')`,
-  region: sql`coalesce(${visits.region}, '')`,
   platform: sql`${visits.platform}::text`,
   referer: sql`coalesce(${visits.referer}, '')`,
   destination: sql`coalesce(${visits.destination}, '')`,

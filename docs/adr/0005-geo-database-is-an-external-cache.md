@@ -1,6 +1,6 @@
 # 0005 – The geolocation database is an external cache
 
-**Status**: accepted · 2026-09-15
+**Status**: superseded by [0010](./0010-no-geolocation.md) · 2026-09-15
 
 Follows [0004](./0004-keyless-geolocation-database.md), which chose the vendor. This one is about where the file lives and who owns it.
 

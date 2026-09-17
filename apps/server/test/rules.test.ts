@@ -10,10 +10,9 @@ const ANDROID = "Mozilla/5.0 (Linux; Android 14; Pixel 8) AppleWebKit/537.36 Chr
 const IPHONE = "Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X) AppleWebKit/605.1.15"
 const DESKTOP = "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 Chrome/120"
 
-const ctx = (over: { platform?: string; query?: string; country?: string | null } = {}) => ({
+const ctx = (over: { platform?: string; query?: string } = {}) => ({
   platform: (over.platform ?? "desktop") as "android" | "ios" | "desktop",
   query: new URLSearchParams(over.query ?? ""),
-  country: over.country === undefined ? null : over.country,
 })
 
 const rule = (destination: string, conditions: Condition[]) => ({ destination, conditions })
@@ -37,7 +36,9 @@ describe("ruleMatches", () => {
 
   test("a rule with no conditions never matches", () => {
     expect(ruleMatches({ conditions: [] }, ctx())).toBe(false)
-    expect(ruleMatches({ conditions: [] }, ctx({ platform: "android", country: "IN" }))).toBe(false)
+    expect(ruleMatches({ conditions: [] }, ctx({ platform: "android", query: "promo=1" }))).toBe(
+      false,
+    )
   })
 
   describe("query_param", () => {
@@ -64,27 +65,12 @@ describe("ruleMatches", () => {
       expect(ruleMatches({ conditions: c }, ctx({ query: "t=a&t=c" }))).toBe(false)
     })
   })
-
-  describe("country", () => {
-    test("matches the geo result, case-insensitively", () => {
-      const c: Condition[] = [{ type: "country", value: "IN" }]
-      expect(ruleMatches({ conditions: c }, ctx({ country: "IN" }))).toBe(true)
-      expect(ruleMatches({ conditions: c }, ctx({ country: "in" }))).toBe(true)
-      expect(ruleMatches({ conditions: c }, ctx({ country: "US" }))).toBe(false)
-    })
-
-    test("fails when geo is unavailable rather than matching everything", () => {
-      const c: Condition[] = [{ type: "country", value: "IN" }]
-      expect(ruleMatches({ conditions: c }, ctx({ country: null }))).toBe(false)
-    })
-  })
 })
 
 describe("matchRules", () => {
   const rules = [
     rule("https://example.com/android", [{ type: "platform", value: "android" }]),
     rule("https://example.com/promo", [{ type: "query_param", key: "promo" }]),
-    rule("https://example.com/india", [{ type: "country", value: "IN" }]),
   ]
 
   test("the first rule in order wins, even when a later one also matches", () => {
@@ -101,8 +87,8 @@ describe("matchRules", () => {
   })
 
   test("skips a non-matching rule to reach a later match", () => {
-    expect(matchRules(rules, ctx({ platform: "ios", country: "IN" }))).toBe(
-      "https://example.com/india",
+    expect(matchRules(rules, ctx({ platform: "ios", query: "promo=1" }))).toBe(
+      "https://example.com/promo",
     )
   })
 })
@@ -147,13 +133,12 @@ describe("the rules API", () => {
 
     // A second PUT is a full replacement, not a merge.
     const second = await put(link.id, author.key, [
-      { destination: "https://example.com/only", conditions: [{ type: "country", value: "in" }] },
+      { destination: "https://example.com/only", conditions: [{ type: "query_param", key: "q" }] },
     ])
     const body = await second.json()
     expect(body).toHaveLength(1)
     expect(body[0]).toMatchObject({ position: 0, destination: "https://example.com/only" })
-    // The country code is normalised to upper case on the way in.
-    expect(body[0].conditions).toEqual([{ type: "country", value: "IN" }])
+    expect(body[0].conditions).toEqual([{ type: "query_param", key: "q" }])
   })
 
   test("an empty array clears every rule", async () => {
@@ -170,11 +155,12 @@ describe("the rules API", () => {
     expect(res.status).toBe(400)
   })
 
-  test("rejects a bad destination, country code and condition type", async () => {
+  test("rejects a bad destination and condition type", async () => {
     const link = await h.createLink(author.key, domain)
     const cases = [
       [{ destination: "/relative", conditions: [{ type: "platform", value: "android" }] }],
-      [{ destination: "https://e.test/", conditions: [{ type: "country", value: "IND" }] }],
+      // `country` was removed with geolocation; it is now just an unknown type.
+      [{ destination: "https://e.test/", conditions: [{ type: "country", value: "IN" }] }],
       [{ destination: "https://e.test/", conditions: [{ type: "weather", value: "rain" }] }],
       [{ destination: "https://e.test/", conditions: [{ type: "platform", value: "windows" }] }],
     ]
@@ -333,51 +319,6 @@ describe("rules in the redirect", () => {
     expect(url.pathname).toBe("/app")
     expect(url.searchParams.get("ref")).toBe("rule")
     expect(url.searchParams.get("utm")).toBe("x")
-  })
-
-  test("a country rule needs geo, and is skipped without it", async () => {
-    const located = await createHarness({
-      geo: { lookup: () => ({ country: "IN", region: "Gujarat" }), stop: () => {} },
-    })
-    const owner = await located.actor("author")
-    const scoped = await located.createDomain("geo-rules.test")
-    const link = await located.createLink(owner.key, scoped, {
-      slug: "here",
-      destination: "https://example.com/global",
-    })
-    const rulesBody = JSON.stringify([
-      { destination: "https://example.com/in", conditions: [{ type: "country", value: "IN" }] },
-    ])
-    await located.request(`/api/v1/links/${link.id}/rules`, {
-      key: owner.key,
-      method: "PUT",
-      body: rulesBody,
-    })
-
-    const withGeo = await located.request("/here", {
-      host: "geo-rules.test",
-      headers: { "user-agent": DESKTOP },
-    })
-    expect(withGeo.headers.get("location")).toBe("https://example.com/in")
-
-    // Same rule, same request, but no geo database configured.
-    const blind = await createHarness()
-    const blindOwner = await blind.actor("author")
-    const blindDomain = await blind.createDomain("geo-rules.test")
-    const blindLink = await blind.createLink(blindOwner.key, blindDomain, {
-      slug: "here",
-      destination: "https://example.com/global",
-    })
-    await blind.request(`/api/v1/links/${blindLink.id}/rules`, {
-      key: blindOwner.key,
-      method: "PUT",
-      body: rulesBody,
-    })
-    const without = await blind.request("/here", {
-      host: "geo-rules.test",
-      headers: { "user-agent": DESKTOP },
-    })
-    expect(without.headers.get("location")).toBe("https://example.com/global")
   })
 
   test("an orphan visit never consults rules", async () => {

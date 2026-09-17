@@ -3,7 +3,6 @@ import { sql } from "drizzle-orm"
 import {
   bigint,
   boolean,
-  char,
   date,
   index,
   integer,
@@ -124,9 +123,6 @@ export const visits = pgTable(
     platform: platformEnum("platform").notNull(),
     userAgent: text("user_agent"),
     referer: text("referer"),
-    /** ISO-3166 alpha-2. The client IP itself is never stored, see docs/adr/0001. */
-    country: char("country", { length: 2 }),
-    region: text("region"),
     destination: text("destination"),
     query: jsonb("query").$type<Record<string, string[]>>(),
   },
@@ -145,8 +141,6 @@ export const visits = pgTable(
  */
 export const visitDimensionEnum = pgEnum("visit_dimension", [
   "total",
-  "country",
-  "region",
   "platform",
   "referer",
   "destination",

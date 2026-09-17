@@ -6,7 +6,6 @@ import { createDb } from "./db/client.ts"
 import { runMigrations } from "./db/migrate.ts"
 import { createApp } from "./http/app.ts"
 import { flushLogs, initLogger, log } from "./log.ts"
-import { startGeo } from "./visits/geo.ts"
 import { flushVisits } from "./visits/record.ts"
 
 const config = loadConfig()
@@ -18,15 +17,12 @@ const db = createDb(config.DATABASE_URL)
 await runMigrations(db)
 await bootstrap(db, config)
 
-const geo = await startGeo(config)
 const cache = await startCache(config)
-const app = createApp({ db, config, geo, cache })
+const app = createApp({ db, config, cache })
 
-// The server handle is passed through so the redirect can read the peer address
-// when LINQ_TRUST_PROXY is off.
 const server = Bun.serve({
   port: config.LINQ_PORT,
-  fetch: (req, s) => app.fetch(req, { server: s }),
+  fetch: app.fetch,
 })
 log.info({ port: config.LINQ_PORT, version: pkg.version }, "linq listening")
 
@@ -38,7 +34,6 @@ async function shutdown(signal: string): Promise<void> {
   log.info({ signal }, "shutting down")
   await server.stop()
   await flushVisits()
-  geo.stop()
   cache.stop()
   await flushLogs()
   process.exit(0)

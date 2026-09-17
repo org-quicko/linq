@@ -18,7 +18,6 @@ type Draft = { destination: string; conditions: Condition[] }
 const CONDITION_OPTIONS: { value: ConditionType; label: string }[] = [
   { value: "platform", label: "Platform is" },
   { value: "query_param", label: "Query parameter" },
-  { value: "country", label: "Country is" },
 ]
 
 const PLATFORM_OPTIONS = [
@@ -30,7 +29,6 @@ const PLATFORM_OPTIONS = [
 /** A blank condition of the chosen type, so switching type never leaves stale fields. */
 function blankCondition(type: ConditionType): Condition {
   if (type === "platform") return { type: "platform", value: "android" }
-  if (type === "country") return { type: "country", value: "IN" }
   return { type: "query_param", key: "" }
 }
 
@@ -254,17 +252,6 @@ function ConditionRow({
           disabled={readOnly}
           onChange={(value) => onChange({ type: "platform", value: value as Platform })}
           options={PLATFORM_OPTIONS}
-        />
-      ) : null}
-
-      {condition.type === "country" ? (
-        <Input
-          className="w-24"
-          value={condition.value}
-          disabled={readOnly}
-          maxLength={2}
-          placeholder="IN"
-          onChange={(event) => onChange({ type: "country", value: event.target.value })}
         />
       ) : null}
 

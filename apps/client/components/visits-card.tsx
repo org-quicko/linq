@@ -5,7 +5,6 @@ import { useEffect, useState } from "react"
 import type { Range } from "@/components/common"
 import {
   DataTable,
-  GeoAttribution,
   Pager,
   Picker,
   QueryState,
@@ -63,15 +62,7 @@ export function VisitsCard({
   // On a single link every row requested the same slug, so the column would say
   // the same thing all the way down.
   const showSlug = !scope.linkId
-  const head = [
-    "When",
-    ...(showSlug ? ["Slug"] : []),
-    "Platform",
-    "Location",
-    "Referrer",
-    "Sent to",
-    "",
-  ]
+  const head = ["When", ...(showSlug ? ["Slug"] : []), "Platform", "Referrer", "Sent to", ""]
 
   // Changing a filter puts the reader back on the first page; the list under
   // them is a different list now.
@@ -127,9 +118,6 @@ export function VisitsCard({
                   </TableCell>
                 ) : null}
                 <TableCell>{visit.platform}</TableCell>
-                <TableCell className="text-muted-foreground">
-                  {[visit.region, visit.country].filter(Boolean).join(", ") || "—"}
-                </TableCell>
                 <TableCell className="max-w-[12rem] truncate text-muted-foreground">
                   {visit.referer ?? "—"}
                 </TableCell>
@@ -143,7 +131,6 @@ export function VisitsCard({
         ) : null}
 
         <Pager total={total} limit={PAGE} offset={offset} onChange={setOffset} />
-        <GeoAttribution />
       </CardContent>
     </Card>
   )

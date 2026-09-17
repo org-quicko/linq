@@ -4,8 +4,6 @@ import type { Condition, Platform, Rule } from "@linq/shared"
 export type MatchContext = {
   platform: Platform
   query: URLSearchParams
-  /** Null when geo is unavailable, which makes any country condition fail. */
-  country: string | null
 }
 
 /** Evaluates a single condition against the request. */
@@ -18,8 +16,6 @@ function holds(condition: Condition, ctx: MatchContext): boolean {
       return condition.value === undefined
         ? ctx.query.has(condition.key)
         : ctx.query.getAll(condition.key).includes(condition.value)
-    case "country":
-      return ctx.country !== null && ctx.country.toUpperCase() === condition.value.toUpperCase()
   }
 }
 

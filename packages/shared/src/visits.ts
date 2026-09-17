@@ -3,8 +3,6 @@ import { paginationSchema, uuidSchema } from "./primitives.ts"
 
 export const GROUP_BY = [
   "day",
-  "country",
-  "region",
   "platform",
   "referer",
   "destination",
@@ -59,8 +57,6 @@ export type Visit = {
   platform: "android" | "ios" | "desktop"
   userAgent: string | null
   referer: string | null
-  country: string | null
-  region: string | null
   destination: string | null
   query: Record<string, string[]> | null
 }

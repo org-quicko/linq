@@ -119,15 +119,6 @@ export function queryMap(params: URLSearchParams): Record<string, string[]> | nu
   return Object.keys(out).length ? out : null
 }
 
-/** Never stored: the address is used for geo lookup and then dropped. See docs/adr/0001. */
-function clientIp(c: Context<Env>): string | null {
-  if (c.var.config.LINQ_TRUST_PROXY) {
-    const forwarded = c.req.header("x-forwarded-for")
-    if (forwarded) return forwarded.split(",")[0]?.trim() || null
-  }
-  return c.env?.server?.requestIP(c.req.raw)?.address ?? null
-}
-
 const factory = createFactory<Env>()
 
 /**
@@ -166,7 +157,6 @@ export const redirectHandler = factory.createHandlers(async (c) => {
     userAgent,
     referer: c.req.header("referer") ?? null,
     query: queryMap(url.searchParams),
-    ...c.var.geo.lookup(clientIp(c)),
   }
 
   // 3. Root path, unknown slug or archived link: an orphan visit on a live domain.
@@ -182,7 +172,6 @@ export const redirectHandler = factory.createHandlers(async (c) => {
   const ruled = matchRules(link.rules, {
     platform: visit.platform,
     query: url.searchParams,
-    country: visit.country,
   })
   const chosen = ruled ?? link.destination
   // `matchRules` is synchronous and on the hot path, so it gets one line rather

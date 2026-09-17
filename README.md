@@ -97,10 +97,6 @@ exist: `links.owner_id` is `ON DELETE RESTRICT`, so once anything is owned, the
 delete is refused rather than quietly orphaning it.
 </details>
 
-The server also downloads the ~8 MB DB-IP geolocation database on first boot. It
-needs no account or key, and a failure is logged and ignored — visits just have
-no country. Set `LINQ_GEO_ENABLED=false` to skip it entirely.
-
 ### 5. Start the Client UI
 
 In a **second terminal**, leaving the server running in the first:
@@ -206,10 +202,9 @@ ever involved; `docs/adr/0006` has the reasoning.
 
 ## Where things are written
 
-`./data` holds only the log file (`data/logs/linq.log`, rotated) and, in local
-development, the geolocation database. Both are gitignored. In Docker the two
-are split across separate volumes — `/data` for logs, `/geo` for the
-regenerable geolocation cache. See `docs/adr/0005-geo-database-is-an-external-cache.md`.
+`./data` holds only the log file (`data/logs/linq.log`, rotated), and is
+gitignored. In Docker it is the `/data` volume, and it is the one thing linq
+writes to disk that is worth backing up.
 
 ## Docker
 

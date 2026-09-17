@@ -1,9 +1,6 @@
 import { join } from "node:path"
 import { z } from "zod"
 
-/** Env vars are strings; "false" must not become `true`. */
-const boolFromEnv = z.enum(["true", "false", "1", "0"]).transform((v) => v === "true" || v === "1")
-
 const schema = z
   .object({
     DATABASE_URL: z.string().min(1, "DATABASE_URL is required"),
@@ -29,19 +26,8 @@ const schema = z
     LINQ_PORT: z.coerce.number().int().min(1).max(65535).default(3000),
     LINQ_DEFAULT_DOMAIN: z.string().trim().min(1).optional(),
     LINQ_INITIAL_API_KEY: z.string().trim().min(8).optional(),
-    /**
-     * The master switch: off means no lookup at all, whatever else is set.
-     * `LINQ_GEO_DB_PATH` names a database the operator manages, which is read as
-     * it is and never downloaded or expired. Left unset, linq downloads into
-     * `LINQ_GEO_DIR` and refreshes it. See docs/adr/0005.
-     */
-    LINQ_GEO_ENABLED: boolFromEnv.default(true),
-    LINQ_GEO_DB_PATH: z.string().trim().min(1).optional(),
-    /** Left unset it defaults to LINQ_DATA_DIR; the image points it at /geo. */
-    LINQ_GEO_DIR: z.string().optional(),
     LINQ_DATA_DIR: z.string().default("./data"),
     LINQ_SLUG_LENGTH: z.coerce.number().int().min(4).max(32).default(6),
-    LINQ_TRUST_PROXY: boolFromEnv.default(true),
     LINQ_LOG_LEVEL: z
       .enum(["trace", "debug", "info", "warn", "error", "fatal", "silent"])
       .default("info"),
@@ -62,12 +48,10 @@ const schema = z
     }
   })
   // The log file is the durable thing linq writes, so it lives under the data
-  // volume. The geolocation database is a regenerable cache and defaults here
-  // only for local development. See docs/adr/0005.
+  // volume.
   .transform((c) => ({
     ...c,
     LINQ_LOG_FILE: c.LINQ_LOG_FILE ?? join(c.LINQ_DATA_DIR, "logs", "linq.log"),
-    LINQ_GEO_DIR: c.LINQ_GEO_DIR ?? c.LINQ_DATA_DIR,
     // Unset means "whichever one was configured": a Redis URL selects Redis,
     // and nothing at all selects the in-process store. An explicit setting
     // always wins, so a URL can be left in `.env` while trying the other one.

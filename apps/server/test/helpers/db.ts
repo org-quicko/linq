@@ -27,12 +27,8 @@ export const testConfig: Config = {
   LINQ_PORT: 3000,
   LINQ_DEFAULT_DOMAIN: undefined,
   LINQ_INITIAL_API_KEY: undefined,
-  LINQ_GEO_ENABLED: false,
-  LINQ_GEO_DB_PATH: undefined,
-  LINQ_GEO_DIR: "./data",
   LINQ_DATA_DIR: "./data",
   LINQ_SLUG_LENGTH: 6,
-  LINQ_TRUST_PROXY: true,
   // Silent by default, and no file: `initLogger` is only ever called by main.ts,
   // so a suite that does not opt in writes nothing anywhere.
   LINQ_LOG_LEVEL: "silent",

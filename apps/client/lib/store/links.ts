@@ -1,4 +1,4 @@
-import type { Link, Page, Rule } from "@linq/shared"
+import type { Link, LinkCreate, LinkPatch, Page, Rule } from "@linq/shared"
 import { qs } from "../api"
 import { apiSlice } from "./api"
 
@@ -35,12 +35,12 @@ export const linksApi = apiSlice.injectEndpoints({
       providesTags: (_result, _error, linkId) => [{ type: "Link", id: `${linkId}-rules` }],
     }),
 
-    createLink: build.mutation<Link, Record<string, unknown>>({
+    createLink: build.mutation<Link, LinkCreate>({
       query: (body) => ({ path: "/v1/links", method: "POST", body }),
       invalidatesTags: [{ type: "Link", id: "LIST" }],
     }),
 
-    updateLink: build.mutation<Link, { id: string; body: Record<string, unknown> }>({
+    updateLink: build.mutation<Link, { id: string; body: LinkPatch }>({
       query: ({ id, body }) => ({ path: `/v1/links/${id}`, method: "PATCH", body }),
       invalidatesTags: (_result, _error, { id }) => [
         { type: "Link", id },

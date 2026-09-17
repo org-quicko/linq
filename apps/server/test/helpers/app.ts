@@ -4,7 +4,6 @@ import { type Cache, noCache } from "../../src/cache.ts"
 import type { Db } from "../../src/db/client.ts"
 import { apiKeys, domains, users, visits } from "../../src/db/schema.ts"
 import { createApp } from "../../src/http/app.ts"
-import { type Geo, noGeo } from "../../src/visits/geo.ts"
 import { createTestDb, testConfig } from "./db.ts"
 
 /** `json()` is deliberately loose: the assertion in each test does the narrowing. */
@@ -41,7 +40,7 @@ export type Harness = {
   ) => Promise<void>
 }
 
-export type HarnessOptions = { geo?: Geo; cache?: Cache; config?: Partial<typeof testConfig> }
+export type HarnessOptions = { cache?: Cache; config?: Partial<typeof testConfig> }
 
 /**
  * Builds one isolated app and database, plus the shorthands the suites share.
@@ -50,7 +49,7 @@ export type HarnessOptions = { geo?: Geo; cache?: Cache; config?: Partial<typeof
 export async function createHarness(options: HarnessOptions = {}): Promise<Harness> {
   const db = await createTestDb()
   const config = { ...testConfig, ...options.config }
-  const app = createApp({ db, config, geo: options.geo ?? noGeo, cache: options.cache ?? noCache })
+  const app = createApp({ db, config, cache: options.cache ?? noCache })
 
   const request: Harness["request"] = async (path, init = {}) => {
     const { key, host = "localhost", ...rest } = init

@@ -31,8 +31,6 @@ beforeAll(async () => {
     { human: 2 },
     {
       occurredAt: at("2026-03-01T10:00:00Z"),
-      country: "IN",
-      region: "Gujarat",
       platform: "android",
       referer: "https://news.test/",
       destination: "https://example.com/a",
@@ -44,8 +42,6 @@ beforeAll(async () => {
     { bot: 1 },
     {
       occurredAt: at("2026-03-01T11:00:00Z"),
-      country: "IN",
-      region: "Gujarat",
       platform: "android",
       destination: "https://example.com/a",
     },
@@ -56,8 +52,6 @@ beforeAll(async () => {
     { human: 1 },
     {
       occurredAt: at("2026-03-02T09:00:00Z"),
-      country: "US",
-      region: "Ohio",
       platform: "ios",
       destination: "https://example.com/b",
     },
@@ -104,14 +98,6 @@ describe("GET /api/v1/links/:id/stats", () => {
   })
 
   test("groups by every other dimension, busiest first", async () => {
-    expect(byKey(await stats(`/api/v1/links/${linkId}/stats?groupBy=country`))).toEqual({
-      IN: { human: 2, bot: 1 },
-      US: { human: 1, bot: 0 },
-    })
-    expect(byKey(await stats(`/api/v1/links/${linkId}/stats?groupBy=region`))).toEqual({
-      Gujarat: { human: 2, bot: 1 },
-      Ohio: { human: 1, bot: 0 },
-    })
     expect(byKey(await stats(`/api/v1/links/${linkId}/stats?groupBy=platform`))).toEqual({
       android: { human: 2, bot: 1 },
       ios: { human: 1, bot: 0 },
@@ -233,7 +219,6 @@ describe("GET /api/v1/visits", () => {
     expect(body.data[0]).toMatchObject({
       linkId,
       domainId: domain,
-      country: "US",
       platform: "ios",
       isBot: false,
     })

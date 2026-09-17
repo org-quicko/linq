@@ -17,8 +17,6 @@ function toVisit(row: typeof visits.$inferSelect): Visit {
     platform: row.platform,
     userAgent: row.userAgent,
     referer: row.referer,
-    country: row.country,
-    region: row.region,
     destination: row.destination,
     query: row.query,
   }

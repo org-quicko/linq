@@ -1567,8 +1567,6 @@
           "type": "string",
           "enum": [
             "day",
-            "country",
-            "region",
             "platform",
             "referer",
             "destination",
@@ -2045,25 +2043,6 @@
                 "description": "Absent means \"the parameter is present with any value\", including an empty one."
               }
             }
-          },
-          {
-            "type": "object",
-            "title": "country",
-            "required": [
-              "type",
-              "value"
-            ],
-            "properties": {
-              "type": {
-                "type": "string",
-                "const": "country"
-              },
-              "value": {
-                "type": "string",
-                "pattern": "^[A-Za-z]{2}$",
-                "description": "ISO-3166 alpha-2. Stored uppercased."
-              }
-            }
           }
         ]
       },
@@ -2131,8 +2110,6 @@
           "platform",
           "userAgent",
           "referer",
-          "country",
-          "region",
           "destination",
           "query"
         ],
@@ -2175,21 +2152,6 @@
             ]
           },
           "referer": {
-            "type": [
-              "string",
-              "null"
-            ]
-          },
-          "country": {
-            "type": [
-              "string",
-              "null"
-            ],
-            "minLength": 2,
-            "maxLength": 2,
-            "description": "ISO-3166 alpha-2. The client IP is used for the lookup in-request and never stored. See `docs/adr/0001`."
-          },
-          "region": {
             "type": [
               "string",
               "null"

@@ -45,8 +45,6 @@ Enum platform {
 
 Enum visit_dimension {
   total       [note: 'Every visit of the day. What the `day` grouping reads.']
-  country
-  region
   platform
   referer
   destination
@@ -127,7 +125,7 @@ Table rules {
   link_id     uuid    [not null]
   position    integer [not null, note: 'Server-owned. Lowest matching position wins.']
   destination text    [not null]
-  conditions  jsonb   [not null, note: 'Condition[]: platform | query_param | country. ANDed; at most 10, and never empty.']
+  conditions  jsonb   [not null, note: 'Condition[]: platform | query_param. ANDed; at most 10, and never empty.']
 
   Indexes {
     (link_id, position) [unique, name: 'rules_link_position_key']
@@ -148,8 +146,6 @@ Table visits {
   platform       platform    [not null]
   user_agent     text
   referer        text
-  country        "char(2)"   [note: 'ISO-3166 alpha-2. The client IP is used for the lookup and never stored — docs/adr/0001.']
-  region         text
   destination    text        [note: 'The URL actually chosen, after rules and query merging']
   query          jsonb       [note: 'Record<string, string[]> of the incoming query, before any merging']
 

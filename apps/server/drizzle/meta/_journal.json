@@ -43,6 +43,13 @@
       "when": 1789630798226,
       "tag": "0005_visit_rollup_triggers",
       "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "7",
+      "when": 1789650719972,
+      "tag": "0006_drop_geolocation",
+      "breakpoints": true
     }
   ]
 }

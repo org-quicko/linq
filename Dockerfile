@@ -22,9 +22,6 @@ WORKDIR /app
 
 ENV NODE_ENV=production
 ENV LINQ_DATA_DIR=/data
-# The geolocation database is a regenerable cache, so it gets its own volume and
-# leaves /data holding only what is worth backing up. See docs/adr/0005.
-ENV LINQ_GEO_DIR=/geo
 ENV LINQ_PORT=3000
 # Logs go to stdout and to /data/logs/linq.log, rotated and capped.
 ENV LINQ_LOG_LEVEL=info
@@ -44,6 +41,5 @@ COPY apps/server/drizzle apps/server/drizzle
 COPY --from=build /app/apps/client/out apps/client/out
 
 VOLUME /data
-VOLUME /geo
 EXPOSE 3000
 CMD ["bun", "apps/server/src/main.ts"]

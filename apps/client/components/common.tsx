@@ -326,27 +326,6 @@ export function ConfirmButton({
   )
 }
 
-/**
- * Required by the CC BY 4.0 licence on the country database, wherever its
- * results are displayed. Not decorative: dropping it ends the grant.
- * See docs/adr/0004.
- */
-export function GeoAttribution() {
-  return (
-    <p className="pt-2 text-xs text-muted-foreground">
-      IP Geolocation by{" "}
-      <a
-        href="https://db-ip.com"
-        target="_blank"
-        rel="noreferrer"
-        className="underline underline-offset-2"
-      >
-        DB-IP
-      </a>
-    </p>
-  )
-}
-
 /** How far back to read. "0" sends no `from` at all, i.e. the whole history. */
 export const RANGES = [
   { value: "7", label: "Last 7 days" },

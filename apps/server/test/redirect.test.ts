@@ -130,7 +130,8 @@ describe("redirecting an active link", () => {
     expect(res.headers.get("location")).toBe("https://example.com/landing")
     expect(res.headers.get("cache-control")).toBe("no-store")
 
-    expect(await lastVisit()).toMatchObject({
+    const visit = await lastVisit()
+    expect(visit).toMatchObject({
       linkId: link.id,
       domainId: domain,
       slugRequested: "hello",
@@ -138,9 +139,9 @@ describe("redirecting an active link", () => {
       isBot: false,
       platform: "desktop",
       referer: "https://news.test/post",
-      country: null,
-      region: null,
     })
+    // The address is never read and never stored. See docs/adr/0001.
+    expect(Object.keys(visit)).not.toContain("ip")
   })
 
   test("an archived link falls through to an orphan visit", async () => {
@@ -281,44 +282,5 @@ describe("HEAD", () => {
     // An orphan HEAD is not tracked either.
     await get("/head-missing", { method: "HEAD" })
     expect(await visitCount()).toBe(before)
-  })
-})
-
-describe("geo", () => {
-  test("stores country and region from the lookup, and never the address", async () => {
-    const seen: (string | null)[] = []
-    const located = await createHarness({
-      geo: {
-        lookup: (ip) => {
-          seen.push(ip)
-          return { country: "IN", region: "Gujarat" }
-        },
-        stop: () => {},
-      },
-    })
-    const owner = await located.actor("author")
-    const host = "geo.test"
-    const scoped = await located.createDomain(host)
-    await located.createLink(owner.key, scoped, { slug: "here" })
-
-    const res = await located.request("/here", {
-      host,
-      headers: { "user-agent": DESKTOP, "x-forwarded-for": "203.0.113.9, 70.41.3.18" },
-    })
-    expect(res.status).toBe(302)
-
-    await flushVisits()
-    const [row] = await located.db.select().from(visits).limit(1)
-    expect(row).toMatchObject({ country: "IN", region: "Gujarat" })
-    expect(Object.keys(row)).not.toContain("ip")
-
-    // LINQ_TRUST_PROXY is on, so the first X-Forwarded-For entry is the client.
-    expect(seen).toEqual(["203.0.113.9"])
-  })
-
-  test("without a licence key every visit has an empty location", async () => {
-    await h.createLink(author.key, domain, { slug: "nowhere" })
-    await get("/nowhere", { headers: { "user-agent": DESKTOP, "x-forwarded-for": "203.0.113.9" } })
-    expect(await lastVisit()).toMatchObject({ country: null, region: null })
   })
 })

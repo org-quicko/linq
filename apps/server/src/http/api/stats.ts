@@ -23,7 +23,7 @@ const idParam = validate("param", z.object({ id: uuidSchema }))
  * `day` is the one that does not name a dimension of its own: it groups the
  * `total` rows by their date rather than by their value. Every other grouping
  * is its own dimension, stored with `''` where nothing was recorded — a real
- * referer or region could collide with a word like "unknown".
+ * referer or destination could collide with a word like "unknown".
  */
 function dimensionOf(groupBy: GroupBy) {
   return groupBy === "day" ? "total" : groupBy

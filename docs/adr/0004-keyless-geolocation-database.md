@@ -1,6 +1,6 @@
 # 0004 – Keyless geolocation database
 
-**Status**: accepted · 2026-09-15
+**Status**: superseded by [0010](./0010-no-geolocation.md) · 2026-09-15
 
 > Where the file lives and who owns it is settled in [0005](./0005-geo-database-is-an-external-cache.md).
 

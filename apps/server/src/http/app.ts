@@ -8,7 +8,6 @@ import { type Cache, guarded, noCache } from "../cache.ts"
 import type { Config } from "../config.ts"
 import type { Db } from "../db/client.ts"
 import { reqLog, withRequestLog } from "../log.ts"
-import { type Geo, noGeo } from "../visits/geo.ts"
 import { mountAdmin } from "./admin-static.ts"
 import { domainRoutes } from "./api/domains.ts"
 import { linkRoutes, tagRoutes } from "./api/links.ts"
@@ -20,13 +19,13 @@ import { visitRoutes } from "./api/visits.ts"
 import type { Env } from "./env.ts"
 import { redirectHandler } from "./redirect.ts"
 
-export type AppDeps = { db: Db; config: Config; geo?: Geo; cache?: Cache }
+export type AppDeps = { db: Db; config: Config; cache?: Cache }
 
 /**
  * Route order matters: everything linq answers itself is mounted before the
  * catch-all redirect handler, so a reserved path can never be shadowed.
  */
-export function createApp({ db, config, geo = noGeo, cache = noCache }: AppDeps) {
+export function createApp({ db, config, cache = noCache }: AppDeps) {
   const app = new Hono<Env>()
   // Wrapped here rather than at the Redis client, so no route can be broken by
   // a cache that is down, whichever implementation it was handed.
@@ -35,7 +34,6 @@ export function createApp({ db, config, geo = noGeo, cache = noCache }: AppDeps)
   app.use("*", async (c, next) => {
     c.set("db", db)
     c.set("config", config)
-    c.set("geo", geo)
     c.set("cache", safeCache)
     // The only global hook that sees both /api/* and redirect traffic, so the
     // request log cannot be ordered wrong.

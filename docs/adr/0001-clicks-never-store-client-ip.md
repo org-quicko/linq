@@ -2,6 +2,10 @@
 
 **Status**: accepted · 2026-09-15
 
+> [0010](./0010-no-geolocation.md) removed geolocation, and with it the only
+> reader of the client address. This decision still holds, and now holds by
+> construction rather than by discipline: linq does not read the IP at all.
+
 ## Context
 
 Every Click needs a coarse location (country, region), which is derived from the client IP at request time. Storing the IP as well would allow later re-geolocation, unique-visitor estimates and abuse investigation, but turns the clicks table into personal data that needs anonymisation rules, retention rules and access controls.

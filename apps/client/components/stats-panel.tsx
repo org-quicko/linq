@@ -12,15 +12,13 @@ import {
   XAxis,
   YAxis,
 } from "recharts"
-import { GeoAttribution, Picker, QueryState, RangePicker, useRange } from "@/components/common"
+import { Picker, QueryState, RangePicker, useRange } from "@/components/common"
 import { Card, CardAction, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { useGetStatsQuery } from "../lib/store/stats"
 
 /** Human-readable names for each grouping the stats endpoints accept. */
 const GROUP_LABELS: Record<GroupBy, string> = {
   day: "Day",
-  country: "Country",
-  region: "Region",
   platform: "Platform",
   referer: "Referrer",
   destination: "Destination",
@@ -207,8 +205,6 @@ export function StatsPanel({
             </ResponsiveContainer>
           </div>
         ) : null}
-
-        <GeoAttribution />
       </CardContent>
     </Card>
   )

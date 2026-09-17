@@ -13,14 +13,6 @@ export const conditionSchema = z.discriminatedUnion("type", [
     /** Absent means "the parameter is present with any value". */
     value: z.string().max(512).optional(),
   }),
-  z.object({
-    type: z.literal("country"),
-    value: z
-      .string()
-      .trim()
-      .regex(/^[A-Za-z]{2}$/, "must be an ISO-3166 alpha-2 code")
-      .transform((code) => code.toUpperCase()),
-  }),
 ])
 export type Condition = z.infer<typeof conditionSchema>
 export type ConditionType = Condition["type"]

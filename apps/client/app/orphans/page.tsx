@@ -61,7 +61,7 @@ function Orphans() {
         path="/v1/stats"
         title="Missed links"
         initialGroupBy="slug"
-        groups={["slug", "day", "country", "region", "platform", "referer"]}
+        groups={["slug", "day", "platform", "referer"]}
         extraParams={{ orphan: "true", domainId: domainId || undefined }}
       />
 
