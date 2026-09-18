@@ -83,6 +83,9 @@ export function createApp({ db, config, cache = noCache, caddy = noCaddy }: AppD
 
   app.get("/robots.txt", (c) => c.text("User-agent: *\nDisallow: /api\nDisallow: /home\n"))
 
+  // Bare domain hits go to the Client UI rather than a 404 or a slug lookup.
+  app.get("/", (c) => c.redirect("/home", 302))
+
   // The exported Client UI. Before the catch-all, or /home reads as a slug.
   mountAdmin(app)
 
