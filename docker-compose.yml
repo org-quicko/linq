@@ -15,7 +15,7 @@ services:
 
   caddy:
     image: caddy:2
-    command: caddy run --config /etc/caddy/caddy.json
+    command: caddy run --config /etc/caddy/caddy.json --resume
     volumes:
       - ./caddy/caddy.json:/etc/caddy/caddy.json:ro
       - caddy-data:/data
