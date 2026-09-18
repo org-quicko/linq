@@ -1,4 +1,5 @@
 import { join } from "node:path"
+import { hostSchema } from "@linq/shared"
 import { z } from "zod"
 
 const schema = z
@@ -24,7 +25,10 @@ const schema = z
      */
     LINQ_CACHE_MAX_ENTRIES: z.coerce.number().int().min(1).max(1_000_000).default(10_000),
     LINQ_PORT: z.coerce.number().int().min(1).max(65535).default(3000),
-    LINQ_DEFAULT_DOMAIN: z.string().trim().min(1).optional(),
+    // Same hostSchema an API-created domain goes through: a scheme snuck in
+    // here (e.g. LINQ_DEFAULT_DOMAIN=https://example.com) would otherwise be
+    // stored verbatim and doubled up by shortUrl()'s own "https://".
+    LINQ_DEFAULT_DOMAIN: hostSchema.optional(),
     LINQ_DATA_DIR: z.string().default("./data"),
     LINQ_SLUG_LENGTH: z.coerce.number().int().min(4).max(32).default(6),
     LINQ_LOG_LEVEL: z
