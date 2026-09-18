@@ -196,15 +196,21 @@ export const redirectHandler = factory.createHandlers(async (c) => {
   //    all: off passes the destination through exactly as written, presets
   //    included. On, the incoming query merges in first and the link's own
   //    preset params then overwrite whatever is there — the destination's query
-  //    and the forwarded one alike.
-  const destination = link.forwardQuery
+  //    and the forwarded one alike. This only ever affects where the browser is
+  //    sent, never what gets recorded: the visit's own `query` field already
+  //    carries whatever the caller sent, so baking it into `destination` too
+  //    would double-count it and fragment one real destination into one bucket
+  //    per distinct querystring. See plans/Plan_22.md.
+  const sendTo = link.forwardQuery
     ? applyPresets(mergeQuery(chosen, url.searchParams), link.presetParams)
     : chosen
 
-  // 8. Insert after the response is built, and never await it.
-  if (tracked) recordVisit(c.var.db, { ...visit, linkId: link.linkId, destination })
+  // 8. Insert after the response is built, and never await it. Recorded as
+  //    `chosen` — the Destination the link or rule actually names — not
+  //    `sendTo`, which is a different, effectively unique string per click.
+  if (tracked) recordVisit(c.var.db, { ...visit, linkId: link.linkId, destination: chosen })
 
-  return isPreviewCrawler(userAgent) ? ogPreview(c, host, slug, link) : sendRedirect(c, destination)
+  return isPreviewCrawler(userAgent) ? ogPreview(c, host, slug, link) : sendRedirect(c, sendTo)
 })
 
 /** 7. Always 302, never cached: the destination can change under a live slug. */

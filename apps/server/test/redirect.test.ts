@@ -211,6 +211,20 @@ describe("query forwarding", () => {
     expect(location.searchParams.get("keep")).toBe("yes")
   })
 
+  test("the recorded destination is the link's own, never the merged one", async () => {
+    await h.createLink(author.key, domain, {
+      slug: "recorded",
+      destination: "https://example.com/?a=1",
+      presetParams: { utm_source: "qr" },
+    })
+
+    await get("/recorded?ref=newsletter")
+    expect((await lastVisit()).destination).toBe("https://example.com/?a=1")
+
+    await get("/recorded?ref=email&utm_source=override")
+    expect((await lastVisit()).destination).toBe("https://example.com/?a=1")
+  })
+
   test("a repeated incoming key replaces the destination copy entirely", async () => {
     await h.createLink(author.key, domain, {
       slug: "repeat",
