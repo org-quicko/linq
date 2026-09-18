@@ -8,9 +8,10 @@ import { domains, links } from "../db/schema.ts"
 import { reqLog, span } from "../log.ts"
 import { matchRules } from "../rules/match.ts"
 import { listRules } from "../rules/store.ts"
-import { detectBot } from "../visits/bot.ts"
-import { detectPlatform } from "../visits/platform.ts"
+import { detectBot, isPreviewCrawler } from "../visits/bot.ts"
+import { detectBrowser, detectOs, detectPlatform } from "../visits/platform.ts"
 import { recordVisit } from "../visits/record.ts"
+import { shortUrl } from "./api/links.ts"
 import type { Env } from "./env.ts"
 
 /** The part of a domain row the redirect needs. Null means no active domain. */
@@ -22,6 +23,7 @@ export type ResolvedDomain = { id: string; fallbackUrl: string | null }
  */
 export type ResolvedTarget = {
   linkId: string
+  name: string | null
   destination: string
   forwardQuery: boolean
   presetParams: Record<string, string>
@@ -72,6 +74,7 @@ function findActiveTarget(db: Db, domainId: string, slug: string): Promise<Resol
       const ordered = await listRules(db, row.id)
       return {
         linkId: row.id,
+        name: row.name,
         destination: row.destination,
         forwardQuery: row.forwardQuery,
         presetParams: row.presetParams,
@@ -163,6 +166,8 @@ export const redirectHandler = factory.createHandlers(async (c) => {
     slugRequested: slug,
     isBot: detectBot(userAgent),
     platform: detectPlatform(userAgent),
+    os: detectOs(userAgent),
+    browser: detectBrowser(userAgent),
     userAgent,
     referer: c.req.header("referer") ?? null,
     query: queryMap(url.searchParams),
@@ -173,7 +178,7 @@ export const redirectHandler = factory.createHandlers(async (c) => {
     const destination = domain.fallbackUrl
     if (tracked) recordVisit(c.var.db, { ...visit, linkId: null, destination })
     if (!destination) return c.text("Not Found", 404)
-    return sendRedirect(c, destination)
+    return isPreviewCrawler(userAgent) ? ogPreview(c, host, slug, null) : sendRedirect(c, destination)
   }
 
   // 4-5. Build the match context, then let the first rule whose conditions all
@@ -199,11 +204,31 @@ export const redirectHandler = factory.createHandlers(async (c) => {
   // 8. Insert after the response is built, and never await it.
   if (tracked) recordVisit(c.var.db, { ...visit, linkId: link.linkId, destination })
 
-  return sendRedirect(c, destination)
+  return isPreviewCrawler(userAgent) ? ogPreview(c, host, slug, link) : sendRedirect(c, destination)
 })
 
 /** 7. Always 302, never cached: the destination can change under a live slug. */
 function sendRedirect(c: Context<Env>, destination: string) {
   c.header("cache-control", "no-store")
   return c.redirect(destination, 302)
+}
+
+/**
+ * What a link-preview crawler gets instead of the redirect: the short link's
+ * own title, never the destination's. `link` is null on the orphan path,
+ * where there's nothing to title it with but the domain itself.
+ */
+function ogPreview(c: Context<Env>, host: string, slug: string, link: { name: string | null } | null) {
+  const escape = (s: string) => s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/"/g, "&quot;")
+  const title = escape(link?.name ?? host)
+  const url = escape(shortUrl(host, slug))
+  c.header("cache-control", "no-store")
+  return c.html(
+    `<!doctype html><html><head><meta charset="utf-8">` +
+      `<title>${title}</title>` +
+      `<meta property="og:type" content="website">` +
+      `<meta property="og:title" content="${title}">` +
+      `<meta property="og:url" content="${url}">` +
+      `</head><body></body></html>`,
+  )
 }

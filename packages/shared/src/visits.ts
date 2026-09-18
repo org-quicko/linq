@@ -55,6 +55,8 @@ export type Visit = {
   occurredAt: string
   isBot: boolean
   platform: "android" | "ios" | "desktop"
+  os: string | null
+  browser: string | null
   userAgent: string | null
   referer: string | null
   destination: string | null

@@ -6,7 +6,8 @@ import { createHarness, type Harness } from "./helpers/app.ts"
 
 const HOST = "links.test"
 const ANDROID = "Mozilla/5.0 (Linux; Android 14; Pixel 8) AppleWebKit/537.36 Chrome/120 Mobile"
-const IPHONE = "Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X) AppleWebKit/605.1.15"
+const IPHONE =
+  "Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.0 Mobile Safari/605.1.15"
 const DESKTOP = "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 Chrome/120"
 const BOT = "Mozilla/5.0 (compatible; Googlebot/2.1; +http://www.google.com/bot.html)"
 
@@ -316,16 +317,16 @@ describe("preset params", () => {
 })
 
 describe("visitor detection", () => {
-  test("records the platform each user agent implies", async () => {
+  test("records the platform, os and browser each user agent implies", async () => {
     await h.createLink(author.key, domain, { slug: "ua" })
 
-    for (const [userAgent, platform] of [
-      [ANDROID, "android"],
-      [IPHONE, "ios"],
-      [DESKTOP, "desktop"],
+    for (const [userAgent, platform, os, browser] of [
+      [ANDROID, "android", "android", "chrome"],
+      [IPHONE, "ios", "ios", "safari"],
+      [DESKTOP, "desktop", "macos", "chrome"],
     ] as const) {
       await get("/ua", { headers: { "user-agent": userAgent } })
-      expect(await lastVisit()).toMatchObject({ platform, isBot: false })
+      expect(await lastVisit()).toMatchObject({ platform, os, browser, isBot: false })
     }
   })
 
@@ -337,6 +338,17 @@ describe("visitor detection", () => {
 
     await h.request("/crawled", { host: HOST })
     expect(await lastVisit()).toMatchObject({ isBot: true, userAgent: null })
+  })
+
+  test("a link-preview crawler gets the short link's own title, not the destination's", async () => {
+    const link = await h.createLink(author.key, domain, { slug: "shared", name: "Q3 report" })
+    const res = await get(`/${link.slug}`, {
+      headers: { "user-agent": "Slackbot-LinkExpanding 1.0 (+https://api.slack.com/robots)" },
+    })
+    expect(res.status).toBe(200)
+    const body = await res.text()
+    expect(body).toContain("Q3 report")
+    expect(body).not.toContain("example.com")
   })
 })
 

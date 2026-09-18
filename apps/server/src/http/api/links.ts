@@ -34,7 +34,7 @@ type LinkRow = {
 }
 
 /** A port only ever appears in a local setup, where no TLS terminator is in front. */
-function shortUrl(host: string, slug: string): string {
+export function shortUrl(host: string, slug: string): string {
   const scheme = /^(localhost|127\.0\.0\.1)(:\d+)?$/.test(host) ? "http" : "https"
   return `${scheme}://${host}/${slug}`
 }

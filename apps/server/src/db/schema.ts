@@ -114,6 +114,8 @@ export const visits = pgTable(
     occurredAt: timestamp("occurred_at", { withTimezone: true }).notNull().defaultNow(),
     isBot: boolean("is_bot").notNull(),
     platform: platformEnum("platform").notNull(),
+    os: text("os"),
+    browser: text("browser"),
     userAgent: text("user_agent"),
     referer: text("referer"),
     destination: text("destination"),

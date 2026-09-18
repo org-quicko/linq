@@ -15,6 +15,8 @@ function toVisit(row: typeof visits.$inferSelect): Visit {
     occurredAt: row.occurredAt.toISOString(),
     isBot: row.isBot,
     platform: row.platform,
+    os: row.os,
+    browser: row.browser,
     userAgent: row.userAgent,
     referer: row.referer,
     destination: row.destination,
