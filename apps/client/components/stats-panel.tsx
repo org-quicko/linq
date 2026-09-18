@@ -20,6 +20,8 @@ import { useGetStatsQuery } from "../lib/store/stats"
 const GROUP_LABELS: Record<GroupBy, string> = {
   day: "Day",
   platform: "Platform",
+  os: "OS",
+  browser: "Browser",
   referer: "Referrer",
   destination: "Destination",
   slug: "Requested slug",

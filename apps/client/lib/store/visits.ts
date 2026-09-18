@@ -1,4 +1,4 @@
-import type { Page, Visit } from "@linq/shared"
+import type { Browser, Os, Page, Platform, Visit } from "@linq/shared"
 import { qs } from "../api"
 import { apiSlice } from "./api"
 
@@ -7,6 +7,9 @@ export type VisitFilters = {
   domainId?: string
   orphan?: "true"
   bot?: "any" | "true" | "false"
+  platform?: Platform
+  os?: Os
+  browser?: Browser
   from?: string
   limit?: number
   offset?: number

@@ -32,6 +32,8 @@ beforeAll(async () => {
     {
       occurredAt: at("2026-03-01T10:00:00Z"),
       platform: "android",
+      os: "android",
+      browser: "chrome",
       referer: "https://news.test/",
       destination: "https://example.com/a",
     },
@@ -43,6 +45,8 @@ beforeAll(async () => {
     {
       occurredAt: at("2026-03-01T11:00:00Z"),
       platform: "android",
+      os: "android",
+      browser: "chrome",
       destination: "https://example.com/a",
     },
   )
@@ -53,6 +57,8 @@ beforeAll(async () => {
     {
       occurredAt: at("2026-03-02T09:00:00Z"),
       platform: "ios",
+      os: "ios",
+      browser: "safari",
       destination: "https://example.com/b",
     },
   )
@@ -112,6 +118,17 @@ describe("GET /api/v1/links/:id/stats", () => {
     expect(platforms[0].key).toBe("android")
   })
 
+  test("groups by os and browser too", async () => {
+    expect(byKey(await stats(`/api/v1/links/${linkId}/stats?groupBy=os`))).toEqual({
+      android: { human: 2, bot: 1 },
+      ios: { human: 1, bot: 0 },
+    })
+    expect(byKey(await stats(`/api/v1/links/${linkId}/stats?groupBy=browser`))).toEqual({
+      chrome: { human: 2, bot: 1 },
+      safari: { human: 1, bot: 0 },
+    })
+  })
+
   test("a dimension that was never recorded buckets under an empty key", async () => {
     const referers = byKey(await stats(`/api/v1/links/${linkId}/stats?groupBy=referer`))
     expect(referers["https://news.test/"]).toEqual({ human: 2, bot: 0 })
@@ -149,7 +166,7 @@ describe("GET /api/v1/links/:id/stats", () => {
     })
     expect(missing.status).toBe(404)
 
-    const bad = await h.request(`/api/v1/links/${linkId}/stats?groupBy=browser`, {
+    const bad = await h.request(`/api/v1/links/${linkId}/stats?groupBy=country`, {
       key: author.key,
     })
     expect(bad.status).toBe(400)
@@ -235,6 +252,24 @@ describe("GET /api/v1/visits", () => {
     ).json()
     expect(bots.total).toBe(1)
     expect(bots.data[0].isBot).toBe(true)
+  })
+
+  test("filters by platform, os and browser", async () => {
+    const android = await (
+      await h.request(`/api/v1/visits?linkId=${linkId}&platform=android`, { key: author.key })
+    ).json()
+    expect(android.total).toBe(3)
+
+    const ios = await (
+      await h.request(`/api/v1/visits?linkId=${linkId}&os=ios`, { key: author.key })
+    ).json()
+    expect(ios.total).toBe(1)
+
+    const safari = await (
+      await h.request(`/api/v1/visits?linkId=${linkId}&browser=safari`, { key: author.key })
+    ).json()
+    expect(safari.total).toBe(1)
+    expect(safari.data[0]).toMatchObject({ os: "ios", browser: "safari" })
   })
 
   /** The raw log keeps instant precision; only the reports are day-grained. */

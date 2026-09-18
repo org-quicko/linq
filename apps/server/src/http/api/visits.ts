@@ -1,4 +1,4 @@
-import { type Visit, visitListQuerySchema } from "@linq/shared"
+import { type Browser, type Os, type Platform, type Visit, visitListQuerySchema } from "@linq/shared"
 import { and, count, desc, eq, gte, isNull, lte, type SQL } from "drizzle-orm"
 import { Hono } from "hono"
 import { visits } from "../../db/schema.ts"
@@ -15,8 +15,11 @@ function toVisit(row: typeof visits.$inferSelect): Visit {
     occurredAt: row.occurredAt.toISOString(),
     isBot: row.isBot,
     platform: row.platform,
-    os: row.os,
-    browser: row.browser,
+    // `os`/`browser` are plain text columns (Plan 20), not a pg enum like
+    // `platform` — the closed vocabulary is only enforced on write, by
+    // `detectOs`/`detectBrowser`.
+    os: row.os as Os | null,
+    browser: row.browser as Browser | null,
     userAgent: row.userAgent,
     referer: row.referer,
     destination: row.destination,
@@ -36,6 +39,9 @@ function visitFilters(q: {
   linkId?: string
   domainId?: string
   orphan?: "true" | "false"
+  platform?: Platform
+  os?: Os
+  browser?: Browser
 }): SQL[] {
   const filters: SQL[] = []
   if (q.from) filters.push(gte(visits.occurredAt, new Date(q.from)))
@@ -44,6 +50,9 @@ function visitFilters(q: {
   if (q.linkId) filters.push(eq(visits.linkId, q.linkId))
   if (q.domainId) filters.push(eq(visits.domainId, q.domainId))
   if (q.orphan === "true") filters.push(isNull(visits.linkId))
+  if (q.platform) filters.push(eq(visits.platform, q.platform))
+  if (q.os) filters.push(eq(visits.os, q.os))
+  if (q.browser) filters.push(eq(visits.browser, q.browser))
   return filters
 }
 

@@ -1,9 +1,20 @@
 import { z } from "zod"
-import { paginationSchema, uuidSchema } from "./primitives.ts"
+import {
+  type Browser,
+  browserSchema,
+  type Os,
+  osSchema,
+  paginationSchema,
+  type Platform,
+  platformSchema,
+  uuidSchema,
+} from "./primitives.ts"
 
 export const GROUP_BY = [
   "day",
   "platform",
+  "os",
+  "browser",
   "referer",
   "destination",
   /** The slug as requested. The only grouping that says anything about orphans. */
@@ -29,6 +40,9 @@ export const visitListQuerySchema = paginationSchema.extend({
   to: z.iso.datetime().optional(),
   /** "any" keeps bots and humans together. */
   bot: z.enum(["true", "false", "any"]).default("any"),
+  platform: platformSchema.optional(),
+  os: osSchema.optional(),
+  browser: browserSchema.optional(),
 })
 
 /**
@@ -54,9 +68,9 @@ export type Visit = {
   slugRequested: string
   occurredAt: string
   isBot: boolean
-  platform: "android" | "ios" | "desktop"
-  os: string | null
-  browser: string | null
+  platform: Platform
+  os: Os | null
+  browser: Browser | null
   userAgent: string | null
   referer: string | null
   destination: string | null

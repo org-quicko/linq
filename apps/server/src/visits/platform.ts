@@ -1,4 +1,4 @@
-import type { Platform } from "@linq/shared"
+import type { Browser, Os, Platform } from "@linq/shared"
 
 /** Three checks, in order; anything unrecognised counts as a desktop. */
 export function detectPlatform(userAgent: string | null | undefined): Platform {
@@ -9,7 +9,7 @@ export function detectPlatform(userAgent: string | null | undefined): Platform {
 }
 
 /** Six checks, in order; anything unrecognised is null rather than a guess. */
-export function detectOs(userAgent: string | null | undefined): string | null {
+export function detectOs(userAgent: string | null | undefined): Os | null {
   if (!userAgent) return null
   if (/Android/i.test(userAgent)) return "android"
   if (/iPhone|iPad|iPod/i.test(userAgent)) return "ios"
@@ -21,7 +21,7 @@ export function detectOs(userAgent: string | null | undefined): string | null {
 }
 
 /** Edge/Opera/Samsung Internet all contain "Chrome" and "Safari" tokens too, so they're peeled off first. */
-export function detectBrowser(userAgent: string | null | undefined): string | null {
+export function detectBrowser(userAgent: string | null | undefined): Browser | null {
   if (!userAgent) return null
   if (/Edg\//i.test(userAgent)) return "edge"
   if (/OPR\/|Opera/i.test(userAgent)) return "opera"

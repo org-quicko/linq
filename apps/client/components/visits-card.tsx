@@ -1,5 +1,6 @@
 "use client"
 
+import { BROWSER_VALUES, type Browser, OS_VALUES, type Os, PLATFORMS, type Platform } from "@linq/shared"
 import type { ReactNode } from "react"
 import { useEffect, useState } from "react"
 import type { Range } from "@/components/common"
@@ -22,6 +23,8 @@ import { useListVisitsQuery } from "../lib/store/visits"
 export type VisitScope = { linkId?: string; domainId?: string; orphan?: "true" }
 
 const PAGE = 25
+/** Radix refuses an item whose value is "", so "no filter" needs a real value. */
+const ANY = "__any__"
 
 /**
  * The raw visit log, paginated, for whatever scope it is given.
@@ -40,6 +43,9 @@ export function VisitsCard({
   extraFilters?: ReactNode
 }) {
   const [bot, setBot] = useState<"any" | "true" | "false">("any")
+  const [platform, setPlatform] = useState<Platform | "">("")
+  const [os, setOs] = useState<Os | "">("")
+  const [browser, setBrowser] = useState<Browser | "">("")
   const { range, setRange, fromInstant } = useRange()
   const [offset, setOffset] = useState(0)
 
@@ -52,6 +58,9 @@ export function VisitsCard({
   const visits = useListVisitsQuery({
     ...scope,
     bot,
+    platform: platform || undefined,
+    os: os || undefined,
+    browser: browser || undefined,
     from: fromInstant,
     limit: PAGE,
     offset,
@@ -62,12 +71,33 @@ export function VisitsCard({
   // On a single link every row requested the same slug, so the column would say
   // the same thing all the way down.
   const showSlug = !scope.linkId
-  const head = ["When", ...(showSlug ? ["Slug"] : []), "Device", "Referrer", "Sent to", ""]
+  const head = [
+    "When",
+    ...(showSlug ? ["Slug"] : []),
+    "Platform",
+    "OS",
+    "Browser",
+    "Referrer",
+    "Sent to",
+    "",
+  ]
 
   // Changing a filter puts the reader back on the first page; the list under
   // them is a different list now.
   const onBot = (value: string) => {
     setBot(value as typeof bot)
+    setOffset(0)
+  }
+  const onPlatform = (value: string) => {
+    setPlatform(value === ANY ? "" : (value as Platform))
+    setOffset(0)
+  }
+  const onOs = (value: string) => {
+    setOs(value === ANY ? "" : (value as Os))
+    setOffset(0)
+  }
+  const onBrowser = (value: string) => {
+    setBrowser(value === ANY ? "" : (value as Browser))
     setOffset(0)
   }
   const onRange = (value: Range) => {
@@ -89,6 +119,30 @@ export function VisitsCard({
               { value: "any", label: "Everyone" },
               { value: "false", label: "Humans only" },
               { value: "true", label: "Bots only" },
+            ]}
+          />
+          <Picker
+            className="w-36"
+            value={platform || ANY}
+            onChange={onPlatform}
+            options={[
+              { value: ANY, label: "Any platform" },
+              ...PLATFORMS.map((p) => ({ value: p, label: p })),
+            ]}
+          />
+          <Picker
+            className="w-36"
+            value={os || ANY}
+            onChange={onOs}
+            options={[{ value: ANY, label: "Any OS" }, ...OS_VALUES.map((o) => ({ value: o, label: o }))]}
+          />
+          <Picker
+            className="w-36"
+            value={browser || ANY}
+            onChange={onBrowser}
+            options={[
+              { value: ANY, label: "Any browser" },
+              ...BROWSER_VALUES.map((b) => ({ value: b, label: b })),
             ]}
           />
           <RangePicker value={range} onChange={onRange} />
@@ -117,9 +171,9 @@ export function VisitsCard({
                     {visit.slugRequested === "" ? "/" : visit.slugRequested}
                   </TableCell>
                 ) : null}
-                <TableCell>
-                  {[visit.os, visit.browser].filter(Boolean).join(" · ") || visit.platform}
-                </TableCell>
+                <TableCell>{visit.platform}</TableCell>
+                <TableCell>{visit.os ?? "—"}</TableCell>
+                <TableCell>{visit.browser ?? "—"}</TableCell>
                 <TableCell className="max-w-[12rem] truncate text-muted-foreground">
                   {visit.referer ?? "—"}
                 </TableCell>

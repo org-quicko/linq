@@ -137,6 +137,8 @@ export const visits = pgTable(
 export const visitDimensionEnum = pgEnum("visit_dimension", [
   "total",
   "platform",
+  "os",
+  "browser",
   "referer",
   "destination",
   "slug",
