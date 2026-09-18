@@ -40,6 +40,5 @@ COPY apps/server/src apps/server/src
 COPY apps/server/drizzle apps/server/drizzle
 COPY --from=build /app/apps/client/out apps/client/out
 
-VOLUME /data
 EXPOSE 3000
 CMD ["bun", "apps/server/src/main.ts"]
