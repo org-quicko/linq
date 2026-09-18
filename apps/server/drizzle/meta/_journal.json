@@ -92,6 +92,13 @@
       "when": 1789730100275,
       "tag": "0012_visit_dimensions_os_browser",
       "breakpoints": true
+    },
+    {
+      "idx": 13,
+      "version": "7",
+      "when": 1789733650468,
+      "tag": "0013_visit_bot_label",
+      "breakpoints": true
     }
   ]
 }

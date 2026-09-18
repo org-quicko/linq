@@ -10,6 +10,7 @@ export type VisitFilters = {
   platform?: Platform
   os?: Os
   browser?: Browser
+  botLabel?: string
   from?: string
   limit?: number
   offset?: number

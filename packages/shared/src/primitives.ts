@@ -4,21 +4,13 @@ export const PLATFORMS = ["android", "ios", "desktop"] as const
 export type Platform = (typeof PLATFORMS)[number]
 export const platformSchema = z.enum(PLATFORMS)
 
-export const OS_VALUES = ["android", "ios", "macos", "windows", "chromeos", "linux"] as const
-export type Os = (typeof OS_VALUES)[number]
-export const osSchema = z.enum(OS_VALUES)
-
-export const BROWSER_VALUES = [
-  "edge",
-  "opera",
-  "samsung-internet",
-  "firefox",
-  "chrome",
-  "safari",
-  "ie",
-] as const
-export type Browser = (typeof BROWSER_VALUES)[number]
-export const browserSchema = z.enum(BROWSER_VALUES)
+/**
+ * Open-ended, unlike `Platform` — ua-parser-js's real vocabulary (dozens of
+ * OS/browser names) can't be pinned to a fixed list. Named for signature
+ * clarity, not as a closed set.
+ */
+export type Os = string
+export type Browser = string
 
 export const uuidSchema = z.uuid()
 

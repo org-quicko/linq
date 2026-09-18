@@ -47,6 +47,7 @@ beforeAll(async () => {
       platform: "android",
       os: "android",
       browser: "chrome",
+      botLabel: "google",
       destination: "https://example.com/a",
     },
   )
@@ -126,6 +127,13 @@ describe("GET /api/v1/links/:id/stats", () => {
     expect(byKey(await stats(`/api/v1/links/${linkId}/stats?groupBy=browser`))).toEqual({
       chrome: { human: 2, bot: 1 },
       safari: { human: 1, bot: 0 },
+    })
+  })
+
+  test("groups by bot label too, humans bucketing under an empty key", async () => {
+    expect(byKey(await stats(`/api/v1/links/${linkId}/stats?groupBy=botLabel`))).toEqual({
+      "": { human: 3, bot: 0 },
+      google: { human: 0, bot: 1 },
     })
   })
 
@@ -270,6 +278,12 @@ describe("GET /api/v1/visits", () => {
     ).json()
     expect(safari.total).toBe(1)
     expect(safari.data[0]).toMatchObject({ os: "ios", browser: "safari" })
+
+    const google = await (
+      await h.request(`/api/v1/visits?linkId=${linkId}&botLabel=google`, { key: author.key })
+    ).json()
+    expect(google.total).toBe(1)
+    expect(google.data[0]).toMatchObject({ isBot: true, botLabel: "google" })
   })
 
   /** The raw log keeps instant precision; only the reports are day-grained. */

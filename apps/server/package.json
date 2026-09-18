@@ -18,6 +18,7 @@
     "lru-cache": "^11.5.2",
     "pino": "^10.3.1",
     "pino-roll": "^4.0.0",
+    "ua-parser-js": "^2.0.10",
     "zod": "^4.1.13"
   },
   "devDependencies": {

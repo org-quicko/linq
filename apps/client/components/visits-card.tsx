@@ -1,7 +1,7 @@
 "use client"
 
-import { BROWSER_VALUES, type Browser, OS_VALUES, type Os, PLATFORMS, type Platform } from "@linq/shared"
-import type { ReactNode } from "react"
+import { PLATFORMS, type Platform } from "@linq/shared"
+import type { ChangeEvent, ReactNode } from "react"
 import { useEffect, useState } from "react"
 import type { Range } from "@/components/common"
 import {
@@ -16,6 +16,7 @@ import {
 } from "@/components/common"
 import { Badge } from "@/components/ui/badge"
 import { Card, CardAction, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
+import { Input } from "@/components/ui/input"
 import { TableCell, TableRow } from "@/components/ui/table"
 import { useListVisitsQuery } from "../lib/store/visits"
 
@@ -44,8 +45,11 @@ export function VisitsCard({
 }) {
   const [bot, setBot] = useState<"any" | "true" | "false">("any")
   const [platform, setPlatform] = useState<Platform | "">("")
-  const [os, setOs] = useState<Os | "">("")
-  const [browser, setBrowser] = useState<Browser | "">("")
+  // Open vocabulary (ua-parser-js/isbot, not a closed enum like platform), so
+  // these are free text rather than a dropdown that couldn't list every value.
+  const [os, setOs] = useState("")
+  const [browser, setBrowser] = useState("")
+  const [botLabel, setBotLabel] = useState("")
   const { range, setRange, fromInstant } = useRange()
   const [offset, setOffset] = useState(0)
 
@@ -61,6 +65,7 @@ export function VisitsCard({
     platform: platform || undefined,
     os: os || undefined,
     browser: browser || undefined,
+    botLabel: botLabel || undefined,
     from: fromInstant,
     limit: PAGE,
     offset,
@@ -92,12 +97,9 @@ export function VisitsCard({
     setPlatform(value === ANY ? "" : (value as Platform))
     setOffset(0)
   }
-  const onOs = (value: string) => {
-    setOs(value === ANY ? "" : (value as Os))
-    setOffset(0)
-  }
-  const onBrowser = (value: string) => {
-    setBrowser(value === ANY ? "" : (value as Browser))
+  /** Same reset-the-page behaviour as `onBot`/`onPlatform`, for a free-text filter. */
+  const onText = (setter: (value: string) => void) => (e: ChangeEvent<HTMLInputElement>) => {
+    setter(e.target.value)
     setOffset(0)
   }
   const onRange = (value: Range) => {
@@ -130,20 +132,18 @@ export function VisitsCard({
               ...PLATFORMS.map((p) => ({ value: p, label: p })),
             ]}
           />
-          <Picker
-            className="w-36"
-            value={os || ANY}
-            onChange={onOs}
-            options={[{ value: ANY, label: "Any OS" }, ...OS_VALUES.map((o) => ({ value: o, label: o }))]}
+          <Input className="w-28" placeholder="OS" value={os} onChange={onText(setOs)} />
+          <Input
+            className="w-28"
+            placeholder="Browser"
+            value={browser}
+            onChange={onText(setBrowser)}
           />
-          <Picker
-            className="w-36"
-            value={browser || ANY}
-            onChange={onBrowser}
-            options={[
-              { value: ANY, label: "Any browser" },
-              ...BROWSER_VALUES.map((b) => ({ value: b, label: b })),
-            ]}
+          <Input
+            className="w-28"
+            placeholder="Bot type"
+            value={botLabel}
+            onChange={onText(setBotLabel)}
           />
           <RangePicker value={range} onChange={onRange} />
         </CardAction>
@@ -180,7 +180,9 @@ export function VisitsCard({
                 <TableCell className="max-w-[16rem] truncate text-muted-foreground">
                   <span title={visit.destination ?? ""}>{visit.destination ?? "—"}</span>
                 </TableCell>
-                <TableCell>{visit.isBot ? <Badge variant="outline">Bot</Badge> : null}</TableCell>
+                <TableCell>
+                  {visit.isBot ? <Badge variant="outline">{visit.botLabel ?? "Bot"}</Badge> : null}
+                </TableCell>
               </TableRow>
             ))}
           </DataTable>

@@ -335,8 +335,8 @@ describe("visitor detection", () => {
     await h.createLink(author.key, domain, { slug: "ua" })
 
     for (const [userAgent, platform, os, browser] of [
-      [ANDROID, "android", "android", "chrome"],
-      [IPHONE, "ios", "ios", "safari"],
+      [ANDROID, "android", "android", "mobile chrome"],
+      [IPHONE, "ios", "ios", "mobile safari"],
       [DESKTOP, "desktop", "macos", "chrome"],
     ] as const) {
       await get("/ua", { headers: { "user-agent": userAgent } })
@@ -352,6 +352,16 @@ describe("visitor detection", () => {
 
     await h.request("/crawled", { host: HOST })
     expect(await lastVisit()).toMatchObject({ isBot: true, userAgent: null })
+  })
+
+  test("records a recognisable bot label, human visits get none", async () => {
+    await h.createLink(author.key, domain, { slug: "labelled" })
+
+    await get("/labelled", { headers: { "user-agent": BOT } })
+    expect(await lastVisit()).toMatchObject({ isBot: true, botLabel: "google" })
+
+    await get("/labelled")
+    expect(await lastVisit()).toMatchObject({ isBot: false, botLabel: null })
   })
 
   test("a link-preview crawler gets the short link's own title, not the destination's", async () => {

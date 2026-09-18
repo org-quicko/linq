@@ -8,7 +8,7 @@ import { domains, links } from "../db/schema.ts"
 import { reqLog, span } from "../log.ts"
 import { matchRules } from "../rules/match.ts"
 import { listRules } from "../rules/store.ts"
-import { detectBot, isPreviewCrawler } from "../visits/bot.ts"
+import { detectBot, detectBotLabel, isPreviewCrawler } from "../visits/bot.ts"
 import { detectBrowser, detectOs, detectPlatform } from "../visits/platform.ts"
 import { recordVisit } from "../visits/record.ts"
 import { shortUrl } from "./api/links.ts"
@@ -168,6 +168,7 @@ export const redirectHandler = factory.createHandlers(async (c) => {
     platform: detectPlatform(userAgent),
     os: detectOs(userAgent),
     browser: detectBrowser(userAgent),
+    botLabel: detectBotLabel(userAgent),
     userAgent,
     referer: c.req.header("referer") ?? null,
     query: queryMap(url.searchParams),
@@ -178,7 +179,9 @@ export const redirectHandler = factory.createHandlers(async (c) => {
     const destination = domain.fallbackUrl
     if (tracked) recordVisit(c.var.db, { ...visit, linkId: null, destination })
     if (!destination) return c.text("Not Found", 404)
-    return isPreviewCrawler(userAgent) ? ogPreview(c, host, slug, null) : sendRedirect(c, destination)
+    return isPreviewCrawler(userAgent)
+      ? ogPreview(c, host, slug, null)
+      : sendRedirect(c, destination)
   }
 
   // 4-5. Build the match context, then let the first rule whose conditions all
@@ -224,10 +227,16 @@ function sendRedirect(c: Context<Env>, destination: string) {
  * own title, never the destination's. `link` is null on the orphan path,
  * where there's nothing to title it with but the domain itself.
  */
-function ogPreview(c: Context<Env>, host: string, slug: string, link: { name: string | null } | null) {
-  const escape = (s: string) => s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/"/g, "&quot;")
-  const title = escape(link?.name ?? host)
-  const url = escape(shortUrl(host, slug))
+function ogPreview(
+  c: Context<Env>,
+  host: string,
+  slug: string,
+  link: { name: string | null } | null,
+) {
+  const escapeHtml = (s: string) =>
+    s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/"/g, "&quot;")
+  const title = escapeHtml(link?.name ?? host)
+  const url = escapeHtml(shortUrl(host, slug))
   c.header("cache-control", "no-store")
   return c.html(
     `<!doctype html><html><head><meta charset="utf-8">` +
