@@ -13,17 +13,9 @@ services:
       timeout: 5s
       retries: 10
 
-  redis:
-    image: redis:8
-    healthcheck:
-      test: ["CMD", "redis-cli", "ping"]
-      interval: 5s
-      timeout: 5s
-      retries: 10
-
   caddy:
     image: caddy:2
-    command: caddy run --config /etc/caddy/caddy.json --adapter json
+    command: caddy run --config /etc/caddy/caddy.json
     volumes:
       - ./caddy/caddy.json:/etc/caddy/caddy.json:ro
       - caddy-data:/data
@@ -44,13 +36,10 @@ services:
     depends_on:
       postgres:
         condition: service_healthy
-      redis:
-        condition: service_healthy
       caddy:
         condition: service_healthy
     environment:
       DATABASE_URL: postgres://linq:linq@postgres:5432/linq
-      LINQ_REDIS_URL: redis://redis:6379
       LINQ_DEFAULT_DOMAIN: localhost:3000
       LINQ_CADDY_ADMIN_URL: http://caddy:2019
       LINQ_CADDY_UPSTREAM: linq:3000
