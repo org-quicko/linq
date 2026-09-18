@@ -16,8 +16,8 @@
     "typecheck": "tsc -b --force",
     "lint": "biome check .",
     "format": "biome check --write .",
-    "db:generate": "bun --filter @linq/server db:generate",
-    "key:create": "bun --filter @linq/server key:create"
+    "db:generate": "bun --env-file=.env --filter @linq/server db:generate",
+    "key:create": "bun --env-file=.env --filter @linq/server key:create"
   },
   "devDependencies": {
     "@biomejs/biome": "^2.3.14",

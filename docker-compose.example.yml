@@ -1,5 +1,11 @@
 # Postgres is never inside the linq image. Copy this file, set a real password
 # and a real LINQ_DEFAULT_DOMAIN, then `docker compose up`.
+#
+# The `postgres` service below is a convenience: it runs Postgres in this same
+# compose stack. If you already have a Postgres instance (managed, another
+# host, whatever), delete or comment out the `postgres` service and its
+# `depends_on` entry on `linq`, and point `DATABASE_URL` on `linq` at that
+# instance instead.
 services:
   postgres:
     image: postgres:17
@@ -59,6 +65,9 @@ services:
       # caddy:                          # with the caddy service above
       #   condition: service_healthy
     environment:
+      # Points at the `postgres` service above. Using your own Postgres
+      # instead? Drop the `postgres` service and this service's `depends_on`
+      # entry for it, and put that instance's connection string here instead.
       DATABASE_URL: postgres://linq:linq@postgres:5432/linq
       # LINQ_REDIS_URL: redis://redis:6379   # with the redis service above
       LINQ_DEFAULT_DOMAIN: localhost:3000
