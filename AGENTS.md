@@ -39,3 +39,5 @@ covers what isn't obvious from the code.
 - `README.md` — local setup, Docker, Redis/Caddy, deploying the Client UI.
 - `CONTEXT.md` — domain vocabulary.
 - `docs/adr/` — decisions that are hard to reverse, and why.
+- `.agents/skills/` — step-by-step procedures for this repo (dev environment,
+  DB migrations, ADRs, plans), for any agent.
