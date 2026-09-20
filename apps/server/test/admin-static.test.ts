@@ -36,18 +36,20 @@ describe.skipIf(!built)("the exported Client UI at /home", () => {
     for (const page of [
       "analytics",
       "archives",
-      // Redirect stubs (plans/Plan_27.md Parts C1–C2): still export a real
+      "settings/domains",
+      "settings/keys",
+      "links",
+      "links/new",
+      "links/detail",
+      // Redirect stubs (plans/Plan_27.md Parts C1–C3): still export a real
       // page, so they still serve 200 even though they only forward on.
       "overview",
       "visits",
       "orphans",
       "links/trash",
       "domains/trash",
-      "links",
-      "links/new",
-      "links/detail",
       "domains",
-      "settings/keys",
+      "settings",
     ]) {
       const res = await h.request(`/home/${page}/`)
       expect(res.status).toBe(200)

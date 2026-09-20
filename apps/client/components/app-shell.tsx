@@ -43,18 +43,16 @@ const NAV: NavItem[] = [
 ]
 
 /**
- * Pinned to the foot of the sidebar, below the spacer.
- *
- * → /settings/ in Part C3, once Domains moves in alongside Keys — at which
- * point this becomes visible to every role, the way Domains is today. Gated
- * on can.manageKeys until then only because that is the one page it points
- * at right now; loosen it in the same commit that adds Domains here.
+ * Pinned to the foot of the sidebar, below the spacer. Visible to every role
+ * now that Domains lives inside Settings (Part C3) — the settings sub-nav
+ * (`SettingsNav`) is what filters Keys down to admins, the same way the
+ * standalone Domains page did before the move.
  */
 const SETTINGS: NavItem = {
-  href: "/settings/keys/",
+  href: "/settings/",
   label: "Settings",
   icon: Settings,
-  visible: can.manageKeys,
+  visible: () => true,
 }
 
 /** Every href the sidebar can light up. */

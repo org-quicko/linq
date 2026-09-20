@@ -1,13 +1,13 @@
 "use client"
 
 import { type Actor, type ApiKey, type ApiKeyCreated, can, ROLES, type Role } from "@linq/shared"
+import { ArrowLeftRight, KeyRound, Trash2 } from "lucide-react"
 import { useState } from "react"
 import { AppShell } from "@/components/app-shell"
 import { ConfirmButton, CopyButton, Field, Picker, When } from "@/components/common"
-import { Collection, PageHeader } from "@/components/patterns"
+import { Collection, PageHeader, RowCard, RowCardTile, SettingsNav } from "@/components/patterns"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
-import { Card, CardContent } from "@/components/ui/card"
 import {
   Dialog,
   DialogContent,
@@ -18,7 +18,6 @@ import {
   DialogTrigger,
 } from "@/components/ui/dialog"
 import { Input } from "@/components/ui/input"
-import { TableCell, TableRow } from "@/components/ui/table"
 import { useRun } from "../../../lib/hooks"
 import {
   useListKeysQuery,
@@ -32,7 +31,6 @@ import {
 const UNASSIGNED = "__unassigned__"
 
 const ROLE_OPTIONS = ROLES.map((role) => ({ value: role, label: role }))
-const HEAD = ["Name", "Role", "Prefix", "Created", "Expires", "", ""]
 
 /**
  * Keys are the principals, so this page is the whole of access control: minting
@@ -40,7 +38,15 @@ const HEAD = ["Name", "Role", "Prefix", "Created", "Expires", "", ""]
  * is nothing else to disable. See docs/adr/0011.
  */
 export default function KeysPage() {
-  return <AppShell requires={can.manageKeys}>{(actor) => <Keys actor={actor} />}</AppShell>
+  return (
+    <AppShell requires={can.manageKeys}>
+      {(actor) => (
+        <SettingsNav actor={actor}>
+          <Keys actor={actor} />
+        </SettingsNav>
+      )}
+    </AppShell>
+  )
 }
 
 function Keys({ actor }: { actor: Actor }) {
@@ -51,25 +57,14 @@ function Keys({ actor }: { actor: Actor }) {
     <div className="flex flex-col gap-4">
       <PageHeader title="Keys" actions={<MintKeyDialog />} />
 
-      <Card>
-        <CardContent>
-          <Collection
-            query={keys}
-            rows={rows}
-            head={HEAD}
-            emptyMessage="No keys. Nothing can reach the API."
-          >
-            {(key) => (
-              <KeyRow
-                key={key.id}
-                apiKey={key as ApiKey}
-                actor={actor}
-                allKeys={rows as ApiKey[]}
-              />
-            )}
-          </Collection>
-        </CardContent>
-      </Card>
+      <Collection
+        query={keys}
+        rows={rows}
+        variant="list"
+        emptyMessage="No keys. Nothing can reach the API."
+      >
+        {(key) => <KeyRow key={key.id} apiKey={key as ApiKey} actor={actor} allKeys={rows as ApiKey[]} />}
+      </Collection>
     </div>
   )
 }
@@ -90,51 +85,37 @@ function KeyRow({ apiKey, actor, allKeys }: { apiKey: ApiKey; actor: Actor; allK
     })
 
   return (
-    <TableRow>
-      <TableCell className="flex items-center gap-2">
-        <Input
-          className="w-44"
-          value={name}
-          disabled={saving}
-          onChange={(event) => setName(event.target.value)}
-        />
-        {isMine ? <Badge variant="secondary">This key</Badge> : null}
-      </TableCell>
-      <TableCell>
-        {/* An admin demoting the key it is calling with could not undo it. */}
-        <Picker
-          className="w-32"
-          value={apiKey.role}
-          disabled={!can.changeRoleOf(actor, apiKey.id) || saving}
-          onChange={(role) => save({ role: role as Role })}
-          options={ROLE_OPTIONS}
-        />
-      </TableCell>
-      <TableCell className="font-mono text-xs">{apiKey.prefix}</TableCell>
-      <TableCell className="text-muted-foreground">
-        <When iso={apiKey.createdAt} />
-      </TableCell>
-      <TableCell className="text-muted-foreground">
-        {apiKey.expiresAt ? <When iso={apiKey.expiresAt} /> : "never"}
-      </TableCell>
-      <TableCell>
-        {changed ? (
-          <Button size="sm" disabled={saving} onClick={() => save({ name: name.trim() })}>
-            Save
-          </Button>
-        ) : null}
-      </TableCell>
-      <TableCell>
-        <div className="flex items-center gap-2">
+    <RowCard
+      tile={
+        <RowCardTile>
+          <KeyRound className="size-4" />
+        </RowCardTile>
+      }
+      actions={
+        <>
+          {/* Nobody changes their own role — the one-way door out of admin — so a
+              disabled control there would just be a Picker that never does anything. */}
+          {isMine ? (
+            <Badge variant="outline">{apiKey.role}</Badge>
+          ) : (
+            <Picker
+              className="h-8 w-28"
+              value={apiKey.role}
+              disabled={saving}
+              onChange={(role) => save({ role: role as Role })}
+              options={ROLE_OPTIONS}
+            />
+          )}
           <ReassignLinksDialog apiKey={apiKey} allKeys={allKeys} />
           {/* Revoking the key in your own hand would lock you out with only the
               CLI left as a way back, so it is not offered rather than refused. */}
           {isMine ? null : (
             <ConfirmButton
-              variant="destructive"
-              size="sm"
+              className="size-10"
+              ariaLabel="Revoke"
               title={`Revoke ${apiKey.name}?`}
               description="This key stops working immediately, and any link it owns becomes unowned. Revoking is a real delete, not an archive."
+              confirmLabel="Revoke"
               onConfirm={() =>
                 run(() => revokeKey(apiKey.id).unwrap(), {
                   success: "Key revoked.",
@@ -142,12 +123,31 @@ function KeyRow({ apiKey, actor, allKeys }: { apiKey: ApiKey; actor: Actor; allK
                 })
               }
             >
-              Revoke
+              <Trash2 />
             </ConfirmButton>
           )}
-        </div>
-      </TableCell>
-    </TableRow>
+        </>
+      }
+    >
+      <span className="flex items-center gap-2">
+        <Input
+          className="h-7 w-44"
+          value={name}
+          disabled={saving}
+          onChange={(event) => setName(event.target.value)}
+        />
+        {changed ? (
+          <Button size="xs" disabled={saving} onClick={() => save({ name: name.trim() })}>
+            Save
+          </Button>
+        ) : null}
+        {isMine ? <Badge variant="secondary">This key</Badge> : null}
+      </span>
+      <span className="truncate font-mono text-xs text-muted-foreground">
+        {apiKey.prefix} · Created <When iso={apiKey.createdAt} relative /> · Expires{" "}
+        {apiKey.expiresAt ? <When iso={apiKey.expiresAt} relative /> : "never"}
+      </span>
+    </RowCard>
   )
 }
 
@@ -185,8 +185,14 @@ function ReassignLinksDialog({ apiKey, allKeys }: { apiKey: ApiKey; allKeys: Api
   return (
     <Dialog open={open} onOpenChange={setOpen}>
       <DialogTrigger asChild>
-        <Button type="button" variant="outline" size="sm">
-          Reassign links
+        <Button
+          type="button"
+          variant="ghost"
+          size="icon"
+          className="size-10"
+          aria-label="Reassign links"
+        >
+          <ArrowLeftRight />
         </Button>
       </DialogTrigger>
       <DialogContent>
