@@ -3,14 +3,14 @@
  * linq, everything here knows about domains, links and roles. One barrel so
  * a call site writes `from "@/components/patterns"` once, not a `.../row-card`
  * per import.
- *
- * Grows with the restyle in plans/Plan_27.md: `RowCard`, `IconButton`,
- * `EmptyState`, `StatCard` and `TabShell` land alongside the pages that
- * first need them (Part B's shell, Part C's routes) rather than speculatively
- * ahead of any call site.
  */
 export { Collection } from "./collection"
 export { DomainPicker } from "./domain-picker"
+export { EmptyState } from "./empty-state"
+export { IconButton } from "./icon-button"
 export { PageHeader } from "./page-header"
+export { RowCard, RowCardTile } from "./row-card"
 export { ShortLink, shortLinkText } from "./short-link"
+export { StatCard } from "./stat-card"
+export { TabShell } from "./tab-shell"
 export { ThemeToggle } from "./theme-toggle"

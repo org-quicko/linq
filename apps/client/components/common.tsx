@@ -2,7 +2,9 @@
 
 import { CheckIcon, CopyIcon } from "lucide-react"
 import { type ComponentProps, type ReactNode, useState } from "react"
+import { EmptyState } from "@/components/patterns/empty-state"
 import { Button } from "@/components/ui/button"
+import { Card, CardContent } from "@/components/ui/card"
 import {
   Dialog,
   DialogContent,
@@ -87,13 +89,21 @@ export function TableSkeleton({ head, rows = 5 }: { head: ReactNode[]; rows?: nu
   )
 }
 
-/** A stat-card-shaped placeholder, for the overview pages' tiles. */
+/**
+ * `StatCard`'s (@/components/patterns) loading twin — same `Card`/
+ * `CardContent` wrapper as the real tile, so the skeleton and the thing it
+ * stands in for are the same size. It used to be a bare `div`, which the
+ * Plan 27 duplication audit flagged: a skeleton with a different box model
+ * than what it replaces jitters the layout the instant real data arrives.
+ */
 export function CardSkeleton() {
   return (
-    <div className="flex flex-col gap-2 rounded-lg border p-4">
-      <Skeleton className="h-4 w-24" />
-      <Skeleton className="h-7 w-16" />
-    </div>
+    <Card>
+      <CardContent className="flex flex-col gap-2">
+        <Skeleton className="h-4 w-24" />
+        <Skeleton className="h-7 w-16" />
+      </CardContent>
+    </Card>
   )
 }
 
@@ -131,9 +141,7 @@ export function QueryState({
           {error.message ?? "Something went wrong."}
         </p>
       ) : null}
-      {!isLoading && !error && empty ? (
-        <p className="py-6 text-center text-sm text-muted-foreground">{emptyMessage}</p>
-      ) : null}
+      {!isLoading && !error && empty ? <EmptyState message={emptyMessage} /> : null}
     </>
   )
 }

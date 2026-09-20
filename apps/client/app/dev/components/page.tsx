@@ -1,11 +1,17 @@
 "use client"
 
 import type { Link } from "@linq/shared"
+import { Archive, Globe, RotateCcw, Trash2 } from "lucide-react"
 import { Picker, When } from "@/components/common"
 import {
   Collection,
+  EmptyState,
+  IconButton,
   PageHeader,
+  RowCard,
+  RowCardTile,
   ShortLink,
+  StatCard,
   shortLinkText,
   ThemeToggle,
 } from "@/components/patterns"
@@ -31,9 +37,12 @@ import { TableCell, TableRow } from "@/components/ui/table"
  * this 200s would fail the bundled build once it is gone.
  *
  * Grows as `components/patterns` does; today it covers `PageHeader`,
- * `Collection`, `ShortLink`, `DomainPicker`'s shape, `ThemeToggle`, and the
- * relative-time mode `When` gained alongside them. `RowCard`, `IconButton`,
- * `EmptyState`, `StatCard` and `TabShell` land in later Plan 27 commits.
+ * `Collection`, `ShortLink`, `DomainPicker`'s shape, `RowCard`,
+ * `IconButton`, `EmptyState`, `ThemeToggle`, and the relative-time mode
+ * `When` gained alongside them. `TabShell` is exercised live in
+ * `/analytics/` and `/archives/` instead of here — it needs its own
+ * `useSearchParams` Suspense boundary, which this page does not otherwise
+ * need. `StatCard` lands with the Analytics Overview tab that uses it.
  */
 export default function ComponentGalleryPage() {
   return (
@@ -184,6 +193,55 @@ export default function ComponentGalleryPage() {
       <Section title="ThemeToggle">
         <div className="rounded-md border p-4">
           <ThemeToggle />
+        </div>
+      </Section>
+
+      <Section title="StatCard">
+        <div className="grid gap-4 sm:grid-cols-3">
+          <StatCard label="Active links" value={128} isLoading={false} />
+          <StatCard label="Archived links" value={12} isLoading={false} />
+          <StatCard label="Domains" value={undefined} isLoading={true} />
+        </div>
+      </Section>
+
+      <Section title="RowCard + IconButton" description="The Archives page's link row.">
+        <div className="flex flex-col gap-2">
+          <RowCard
+            tile={
+              <RowCardTile>
+                <Globe className="size-4" />
+              </RowCardTile>
+            }
+            actions={
+              <>
+                <IconButton icon={RotateCcw} label="Restore link" />
+                <IconButton icon={Trash2} label="Delete permanently" />
+              </>
+            }
+          >
+            <ShortLink link={FIXTURE_LINKS[1]} href="#" />
+            <span className="truncate text-xs text-muted-foreground">
+              {FIXTURE_LINKS[1].destination} · Archived{" "}
+              <When iso={FIXTURE_LINKS[1].updatedAt} relative />
+            </span>
+          </RowCard>
+          <RowCard
+            tile={
+              <RowCardTile>
+                <Archive className="size-4" />
+              </RowCardTile>
+            }
+            actions={<IconButton icon={Trash2} label="Purge for good" variant="destructive" />}
+          >
+            <span className="truncate font-medium">go.example.com</span>
+            <span className="truncate text-xs text-muted-foreground">No fallback URL</span>
+          </RowCard>
+        </div>
+      </Section>
+
+      <Section title="EmptyState">
+        <div className="rounded-md border">
+          <EmptyState message="Nothing archived." />
         </div>
       </Section>
     </div>
