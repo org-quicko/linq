@@ -3,7 +3,6 @@
 import { can } from "@linq/shared"
 import { useRouter } from "next/navigation"
 import { type SyntheticEvent, useState } from "react"
-import { toast } from "sonner"
 import { AppShell } from "@/components/app-shell"
 import { Field, Picker, QueryState } from "@/components/common"
 import {
@@ -17,7 +16,8 @@ import { Card, CardContent } from "@/components/ui/card"
 import { Checkbox } from "@/components/ui/checkbox"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
-import { errorMessage, fromDatetimeLocal, qs } from "../../../lib/api"
+import { fromDatetimeLocal, qs } from "../../../lib/api"
+import { useRun } from "../../../lib/hooks"
 import { useListDomainsQuery } from "../../../lib/store/domains"
 import { useCreateLinkMutation } from "../../../lib/store/links"
 
@@ -48,30 +48,30 @@ function NewLinkForm() {
   const [forwardQuery, setForwardQuery] = useState(true)
   const [listed, setListed] = useState(false)
   const [presetParams, setPresetParams] = useState<PresetParamRow[]>([])
-  const [saving, setSaving] = useState(false)
+  const { run, saving } = useRun()
 
   const chosenDomain = domainId || active[0]?.id || ""
 
-  async function onSubmit(event: SyntheticEvent) {
+  function onSubmit(event: SyntheticEvent) {
     event.preventDefault()
-    setSaving(true)
-    try {
-      const created = await createLink({
-        domainId: chosenDomain,
-        slug: slug.trim() || undefined,
-        destination: destination.trim(),
-        name: name.trim() || undefined,
-        tags,
-        forwardQuery,
-        presetParams: rowsToPresetParams(presetParams),
-        expiresAt: fromDatetimeLocal(expiresAt),
-        listed,
-      }).unwrap()
-      router.push(`/links/detail/${qs({ id: created.id })}`)
-    } catch (err) {
-      toast.error(errorMessage(err, "Could not create the link."))
-      setSaving(false)
-    }
+    return run(
+      () =>
+        createLink({
+          domainId: chosenDomain,
+          slug: slug.trim() || undefined,
+          destination: destination.trim(),
+          name: name.trim() || undefined,
+          tags,
+          forwardQuery,
+          presetParams: rowsToPresetParams(presetParams),
+          expiresAt: fromDatetimeLocal(expiresAt),
+          listed,
+        }).unwrap(),
+      {
+        fallback: "Could not create the link.",
+        onSuccess: (created) => router.push(`/links/detail/${qs({ id: created.id })}`),
+      },
+    )
   }
 
   return (
@@ -127,7 +127,10 @@ function NewLinkForm() {
                 <TagPicker value={tags} onChange={setTags} creatable placeholder="No tags" />
               </Field>
 
-              <Field label="Expires" hint="Leave blank to never expire. Past this, the link 404s like an unknown slug.">
+              <Field
+                label="Expires"
+                hint="Leave blank to never expire. Past this, the link 404s like an unknown slug."
+              >
                 <Input
                   type="datetime-local"
                   value={expiresAt}
@@ -160,8 +163,8 @@ function NewLinkForm() {
                   checked={listed}
                   onCheckedChange={(checked) => setListed(checked === true)}
                 />
-                List in /llms.txt — publishes this link's name and destination, readable without
-                a key
+                List in /llms.txt — publishes this link's name and destination, readable without a
+                key
               </Label>
 
               <div className="flex gap-2">

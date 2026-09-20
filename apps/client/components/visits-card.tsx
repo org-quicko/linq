@@ -3,7 +3,6 @@
 import { PLATFORMS, type Platform } from "@linq/shared"
 import type { ChangeEvent, ReactNode } from "react"
 import { useEffect, useState } from "react"
-import type { Range } from "@/components/common"
 import {
   DataTable,
   Pager,
@@ -11,13 +10,13 @@ import {
   QueryState,
   RangePicker,
   TableSkeleton,
-  useRange,
   When,
 } from "@/components/common"
 import { Badge } from "@/components/ui/badge"
 import { Card, CardAction, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
 import { TableCell, TableRow } from "@/components/ui/table"
+import { type Range, useRange } from "@/lib/hooks"
 import { useListVisitsQuery } from "../lib/store/visits"
 
 /** What narrows the log. Every field is optional; together they are the scope. */

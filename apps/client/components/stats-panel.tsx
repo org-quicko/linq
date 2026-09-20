@@ -12,8 +12,9 @@ import {
   XAxis,
   YAxis,
 } from "recharts"
-import { Picker, QueryState, RangePicker, useRange } from "@/components/common"
+import { Picker, QueryState, RangePicker } from "@/components/common"
 import { Card, CardAction, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
+import { useRange } from "@/lib/hooks"
 import { useGetStatsQuery } from "../lib/store/stats"
 
 /** Human-readable names for each grouping the stats endpoints accept. */

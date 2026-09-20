@@ -2,7 +2,6 @@
 
 import { type Actor, can, type Domain } from "@linq/shared"
 import { useState } from "react"
-import { toast } from "sonner"
 import { AppShell } from "@/components/app-shell"
 import { ConfirmButton, DataTable, Field, QueryState, TableSkeleton } from "@/components/common"
 import { Badge } from "@/components/ui/badge"
@@ -10,7 +9,7 @@ import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
 import { TableCell, TableRow } from "@/components/ui/table"
-import { errorMessage } from "../../lib/api"
+import { useRun } from "../../lib/hooks"
 import {
   useArchiveDomainMutation,
   useCreateDomainMutation,
@@ -39,15 +38,7 @@ function DomainsList({ actor }: { actor: Actor }) {
   const [archiveDomain] = useArchiveDomainMutation()
   const isAdmin = can.manageDomains(actor)
   const rows = domains.data?.data ?? []
-
-  /** Runs a write and surfaces the server's message on failure. */
-  async function run(action: () => Promise<unknown>) {
-    try {
-      await action()
-    } catch (err) {
-      toast.error(errorMessage(err, "That did not work."))
-    }
-  }
+  const { run } = useRun()
 
   return (
     <div className="flex flex-col gap-4">

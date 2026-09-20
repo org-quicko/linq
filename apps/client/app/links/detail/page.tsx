@@ -5,7 +5,6 @@ import { skipToken } from "@reduxjs/toolkit/query/react"
 import NextLink from "next/link"
 import { useRouter, useSearchParams } from "next/navigation"
 import { Suspense, useState } from "react"
-import { toast } from "sonner"
 import { AppShell } from "@/components/app-shell"
 import { ConfirmButton, CopyButton, Field, Picker, QueryState, When } from "@/components/common"
 import {
@@ -24,7 +23,8 @@ import { Checkbox } from "@/components/ui/checkbox"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { VisitsCard } from "@/components/visits-card"
-import { errorMessage, fromDatetimeLocal, toDatetimeLocal } from "../../../lib/api"
+import { fromDatetimeLocal, toDatetimeLocal } from "../../../lib/api"
+import { useRun } from "../../../lib/hooks"
 import { useListKeysQuery } from "../../../lib/store/keys"
 import {
   useArchiveLinkMutation,
@@ -133,50 +133,42 @@ function SettingsCard({
   const [ownerId, setOwnerId] = useState(link.ownerId ?? "")
   const [expiresAt, setExpiresAt] = useState(() => toDatetimeLocal(link.expiresAt))
   const [listed, setListed] = useState(link.listed)
-  const [saving, setSaving] = useState(false)
+  const { run, saving } = useRun()
 
-  async function save() {
-    setSaving(true)
-    try {
-      await updateLink({
-        id: link.id,
-        body: {
-          destination: destination.trim(),
-          name: name.trim() || null,
-          tags,
-          forwardQuery,
-          presetParams: rowsToPresetParams(presetParams),
-          expiresAt: fromDatetimeLocal(expiresAt),
-          listed,
-          ...(ownerId !== link.ownerId ? { ownerId } : {}),
-        },
-      }).unwrap()
-      toast.success("Saved.")
-    } catch (err) {
-      toast.error(errorMessage(err, "Could not save."))
-    } finally {
-      setSaving(false)
-    }
+  function save() {
+    return run(
+      () =>
+        updateLink({
+          id: link.id,
+          body: {
+            destination: destination.trim(),
+            name: name.trim() || null,
+            tags,
+            forwardQuery,
+            presetParams: rowsToPresetParams(presetParams),
+            expiresAt: fromDatetimeLocal(expiresAt),
+            listed,
+            ...(ownerId !== link.ownerId ? { ownerId } : {}),
+          },
+        }).unwrap(),
+      { success: "Saved.", fallback: "Could not save." },
+    )
   }
 
-  async function toggleArchived() {
-    try {
-      if (link.status === "active") await archiveLink(link.id).unwrap()
-      else await updateLink({ id: link.id, body: { status: "active" } }).unwrap()
-    } catch (err) {
-      toast.error(errorMessage(err, "That did not work."))
-    }
+  function toggleArchived() {
+    return run(() =>
+      link.status === "active"
+        ? archiveLink(link.id).unwrap()
+        : updateLink({ id: link.id, body: { status: "active" } }).unwrap(),
+    )
   }
 
   /** There is no row left to reload afterwards, so this leaves the page. */
-  async function purge() {
-    try {
-      await purgeLink(link.id).unwrap()
-      toast.success(`Purged /${link.slug}. The slug is free again.`)
-      router.push("/links/")
-    } catch (err) {
-      toast.error(errorMessage(err, "That did not work."))
-    }
+  function purge() {
+    return run(() => purgeLink(link.id).unwrap(), {
+      success: `Purged /${link.slug}. The slug is free again.`,
+      onSuccess: () => router.push("/links/"),
+    })
   }
 
   return (
@@ -272,7 +264,10 @@ function SettingsCard({
             <Input value={link.domainHost} disabled readOnly />
           </Field>
 
-          <Field label="Expires" hint="Leave blank to never expire. Past this, the link 404s like an unknown slug.">
+          <Field
+            label="Expires"
+            hint="Leave blank to never expire. Past this, the link 404s like an unknown slug."
+          >
             <Input
               type="datetime-local"
               value={expiresAt}

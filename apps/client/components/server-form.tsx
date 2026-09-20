@@ -5,6 +5,7 @@ import { type SyntheticEvent, useState } from "react"
 import { Field } from "@/components/common"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
+import { useRun } from "../lib/hooks"
 import { normalizeUrl, probeServer, type Server } from "../lib/servers"
 
 /**
@@ -31,9 +32,9 @@ export function ServerForm({
   const [apiKey, setApiKey] = useState(server?.apiKey ?? "")
   const [revealed, setRevealed] = useState(false)
   const [error, setError] = useState<string | null>(null)
-  const [checking, setChecking] = useState(false)
+  const { run, saving: checking } = useRun()
 
-  async function onSubmit(event: SyntheticEvent) {
+  function onSubmit(event: SyntheticEvent) {
     event.preventDefault()
     const trimmedName = name.trim()
     const trimmedKey = apiKey.trim()
@@ -44,19 +45,24 @@ export function ServerForm({
       setError("A name, a server URL and an API key are all needed.")
       return
     }
-    setChecking(true)
     setError(null)
 
-    const result = await probeServer(apiUrl, trimmedKey)
-    if (!result.ok) {
-      setError(result.message)
-      setChecking(false)
-      return
-    }
-
-    // Nothing is written until the server has answered for itself.
-    onSaved({ name: trimmedName, apiUrl, apiKey: trimmedKey })
-    setChecking(false)
+    // probeServer returns a result rather than throwing, so the thunk below
+    // turns its failure into one — errorMessage reads `.message` straight
+    // off it, and onError keeps the failure inline instead of a toast: this
+    // is a field the user is still looking at, not a fire-and-forget write.
+    return run(
+      async () => {
+        const result = await probeServer(apiUrl, trimmedKey)
+        if (!result.ok) throw new Error(result.message)
+        return result
+      },
+      {
+        onError: setError,
+        // Nothing is written until the server has answered for itself.
+        onSuccess: () => onSaved({ name: trimmedName, apiUrl, apiKey: trimmedKey }),
+      },
+    )
   }
 
   return (

@@ -1,7 +1,7 @@
 "use client"
 
 import { CheckIcon, CopyIcon } from "lucide-react"
-import { type ComponentProps, type ReactNode, useMemo, useState } from "react"
+import { type ComponentProps, type ReactNode, useState } from "react"
 import { Button } from "@/components/ui/button"
 import {
   Dialog,
@@ -30,6 +30,7 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table"
+import { RANGES, type Range } from "@/lib/hooks"
 
 /**
  * The pieces every page shares that shadcn has no primitive for, plus two thin
@@ -326,38 +327,11 @@ export function ConfirmButton({
   )
 }
 
-/** How far back to read. "0" sends no `from` at all, i.e. the whole history. */
-export const RANGES = [
-  { value: "7", label: "Last 7 days" },
-  { value: "30", label: "Last 30 days" },
-  { value: "90", label: "Last 90 days" },
-  { value: "0", label: "All time" },
-] as const
-export type Range = (typeof RANGES)[number]["value"]
-
 /**
- * A range picker's state, plus the two spellings of its start the API takes: a
- * whole UTC day for the reports, and that day's first instant for the raw log.
- *
- * Both are memoised on `range` alone and neither carries a clock reading, so a
- * re-render never produces a new value. RTK Query caches by serialised args,
- * and a fresh `Date.now()` every render is an endless refetch loop that never
- * lets `isFetching` settle back to false.
- *
- * "Last 7 days" counts today as one of them, which is what a day-grained
- * report means by it.
+ * The UI half of `useRange` (@/lib/hooks) — that hook owns the state and the
+ * two spellings of its start the API takes; this just wraps `Picker` over
+ * `RANGES` the way ten other pickers would otherwise repeat by hand.
  */
-export function useRange(initial: Range = "7") {
-  const [range, setRange] = useState<Range>(initial)
-  const from = useMemo(() => {
-    if (range === "0") return undefined
-    const day = new Date()
-    day.setUTCDate(day.getUTCDate() - (Number(range) - 1))
-    return day.toISOString().slice(0, 10)
-  }, [range])
-  return { range, setRange, from, fromInstant: from && `${from}T00:00:00.000Z` }
-}
-
 export function RangePicker({
   value,
   onChange,

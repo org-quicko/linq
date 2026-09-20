@@ -4,7 +4,6 @@ import { type Actor, can, type Link } from "@linq/shared"
 import { ArrowDownIcon, ArrowUpIcon } from "lucide-react"
 import NextLink from "next/link"
 import { useState } from "react"
-import { toast } from "sonner"
 import { AppShell } from "@/components/app-shell"
 import {
   CopyButton,
@@ -21,14 +20,14 @@ import { Button } from "@/components/ui/button"
 import { Card, CardContent } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
 import { TableCell, TableRow } from "@/components/ui/table"
-import { errorMessage, qs } from "../../lib/api"
+import { qs } from "../../lib/api"
+import { useDebounced, useRun } from "../../lib/hooks"
 import { useListDomainsQuery } from "../../lib/store/domains"
 import {
   useArchiveLinkMutation,
   useListLinksQuery,
   useUpdateLinkMutation,
 } from "../../lib/store/links"
-import { useDebounced } from "../../lib/use-api"
 
 type Filters = {
   domainId: string
@@ -69,6 +68,7 @@ function LinksList({ actor }: { actor: Actor }) {
   })
   const [archiveLink] = useArchiveLinkMutation()
   const [updateLink] = useUpdateLinkMutation()
+  const { run } = useRun()
 
   /** Applies a filter change and returns to the first page of results. */
   function update(next: Partial<Filters>) {
@@ -76,13 +76,12 @@ function LinksList({ actor }: { actor: Actor }) {
     setOffset(0)
   }
 
-  async function toggleStatus(link: Link) {
-    try {
-      if (link.status === "active") await archiveLink(link.id).unwrap()
-      else await updateLink({ id: link.id, body: { status: "active" } }).unwrap()
-    } catch (err) {
-      toast.error(errorMessage(err, "That did not work."))
-    }
+  function toggleStatus(link: Link) {
+    return run(() =>
+      link.status === "active"
+        ? archiveLink(link.id).unwrap()
+        : updateLink({ id: link.id, body: { status: "active" } }).unwrap(),
+    )
   }
 
   const rows = links.data?.data ?? []
@@ -219,7 +218,9 @@ function LinksList({ actor }: { actor: Actor }) {
                   </TableCell>
                   <TableCell>
                     <div className="flex gap-1">
-                      {link.status === "archived" ? <Badge variant="outline">Archived</Badge> : null}
+                      {link.status === "archived" ? (
+                        <Badge variant="outline">Archived</Badge>
+                      ) : null}
                       {link.expiresAt && new Date(link.expiresAt) <= new Date() ? (
                         <Badge variant="outline">Expired</Badge>
                       ) : null}

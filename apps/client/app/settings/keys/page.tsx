@@ -2,7 +2,6 @@
 
 import { type Actor, type ApiKey, type ApiKeyCreated, can, ROLES, type Role } from "@linq/shared"
 import { useState } from "react"
-import { toast } from "sonner"
 import { AppShell } from "@/components/app-shell"
 import {
   ConfirmButton,
@@ -28,7 +27,7 @@ import {
 } from "@/components/ui/dialog"
 import { Input } from "@/components/ui/input"
 import { TableCell, TableRow } from "@/components/ui/table"
-import { errorMessage } from "../../../lib/api"
+import { useRun } from "../../../lib/hooks"
 import {
   useListKeysQuery,
   useMintKeyMutation,
@@ -77,7 +76,12 @@ function Keys({ actor }: { actor: Actor }) {
           {rows.length > 0 ? (
             <DataTable head={HEAD}>
               {rows.map((key) => (
-                <KeyRow key={key.id} apiKey={key as ApiKey} actor={actor} allKeys={rows as ApiKey[]} />
+                <KeyRow
+                  key={key.id}
+                  apiKey={key as ApiKey}
+                  actor={actor}
+                  allKeys={rows as ApiKey[]}
+                />
               ))}
             </DataTable>
           ) : null}
@@ -87,33 +91,20 @@ function Keys({ actor }: { actor: Actor }) {
   )
 }
 
-function KeyRow({
-  apiKey,
-  actor,
-  allKeys,
-}: {
-  apiKey: ApiKey
-  actor: Actor
-  allKeys: ApiKey[]
-}) {
+function KeyRow({ apiKey, actor, allKeys }: { apiKey: ApiKey; actor: Actor; allKeys: ApiKey[] }) {
   const [updateKey] = useUpdateKeyMutation()
   const [revokeKey] = useRevokeKeyMutation()
   const [name, setName] = useState(apiKey.name)
-  const [saving, setSaving] = useState(false)
+  const { run, saving } = useRun()
 
   const isMine = apiKey.id === actor.keyId
   const changed = name.trim() !== apiKey.name && name.trim().length > 0
 
-  const save = async (body: Record<string, unknown>) => {
-    setSaving(true)
-    try {
-      await updateKey({ id: apiKey.id, body }).unwrap()
-      toast.success("Key updated.")
-    } catch (err) {
-      toast.error(errorMessage(err, "Could not update that key."))
-    }
-    setSaving(false)
-  }
+  const save = (body: Record<string, unknown>) =>
+    run(() => updateKey({ id: apiKey.id, body }).unwrap(), {
+      success: "Key updated.",
+      fallback: "Could not update that key.",
+    })
 
   return (
     <TableRow>
@@ -161,14 +152,12 @@ function KeyRow({
               size="sm"
               title={`Revoke ${apiKey.name}?`}
               description="This key stops working immediately, and any link it owns becomes unowned. Revoking is a real delete, not an archive."
-              onConfirm={async () => {
-                try {
-                  await revokeKey(apiKey.id).unwrap()
-                  toast.success("Key revoked.")
-                } catch (err) {
-                  toast.error(errorMessage(err, "Could not revoke that key."))
-                }
-              }}
+              onConfirm={() =>
+                run(() => revokeKey(apiKey.id).unwrap(), {
+                  success: "Key revoked.",
+                  fallback: "Could not revoke that key.",
+                })
+              }
             >
               Revoke
             </ConfirmButton>
@@ -189,7 +178,7 @@ function ReassignLinksDialog({ apiKey, allKeys }: { apiKey: ApiKey; allKeys: Api
   const [reassign] = useReassignKeyLinksMutation()
   const [open, setOpen] = useState(false)
   const [to, setTo] = useState(UNASSIGNED)
-  const [saving, setSaving] = useState(false)
+  const { run, saving } = useRun()
 
   const options = [
     { value: UNASSIGNED, label: "Leave unassigned" },
@@ -200,21 +189,15 @@ function ReassignLinksDialog({ apiKey, allKeys }: { apiKey: ApiKey; allKeys: Api
       .map((key) => ({ value: key.id, label: key.name })),
   ]
 
-  const run = async () => {
-    setSaving(true)
-    try {
-      const result = await reassign({
-        id: apiKey.id,
-        to: to === UNASSIGNED ? null : to,
-      }).unwrap()
-      toast.success(`Reassigned ${result.moved} link${result.moved === 1 ? "" : "s"}.`)
-      setOpen(false)
-      setTo(UNASSIGNED)
-    } catch (err) {
-      toast.error(errorMessage(err, "Could not reassign those links."))
-    }
-    setSaving(false)
-  }
+  const runReassign = () =>
+    run(() => reassign({ id: apiKey.id, to: to === UNASSIGNED ? null : to }).unwrap(), {
+      success: (result) => `Reassigned ${result.moved} link${result.moved === 1 ? "" : "s"}.`,
+      fallback: "Could not reassign those links.",
+      onSuccess: () => {
+        setOpen(false)
+        setTo(UNASSIGNED)
+      },
+    })
 
   return (
     <Dialog open={open} onOpenChange={setOpen}>
@@ -237,7 +220,7 @@ function ReassignLinksDialog({ apiKey, allKeys }: { apiKey: ApiKey; allKeys: Api
           <Button type="button" variant="outline" onClick={() => setOpen(false)}>
             Cancel
           </Button>
-          <Button type="button" disabled={saving} onClick={run}>
+          <Button type="button" disabled={saving} onClick={runReassign}>
             Reassign
           </Button>
         </DialogFooter>
@@ -252,7 +235,7 @@ function MintKeyDialog() {
   const [name, setName] = useState("")
   const [role, setRole] = useState<Role>("viewer")
   const [minted, setMinted] = useState<ApiKeyCreated | null>(null)
-  const [saving, setSaving] = useState(false)
+  const { run, saving } = useRun()
 
   const close = () => {
     setOpen(false)
@@ -261,15 +244,11 @@ function MintKeyDialog() {
     setMinted(null)
   }
 
-  const mint = async () => {
-    setSaving(true)
-    try {
-      setMinted(await mintKey({ name: name.trim(), role }).unwrap())
-    } catch (err) {
-      toast.error(errorMessage(err, "Could not mint that key."))
-    }
-    setSaving(false)
-  }
+  const mint = () =>
+    run(() => mintKey({ name: name.trim(), role }).unwrap(), {
+      fallback: "Could not mint that key.",
+      onSuccess: setMinted,
+    })
 
   return (
     <Dialog open={open} onOpenChange={(next) => (next ? setOpen(true) : close())}>

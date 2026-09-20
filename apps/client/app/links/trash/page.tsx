@@ -2,7 +2,6 @@
 
 import { can, type Link } from "@linq/shared"
 import NextLink from "next/link"
-import { toast } from "sonner"
 import { AppShell } from "@/components/app-shell"
 import {
   ConfirmButton,
@@ -13,7 +12,8 @@ import {
 } from "@/components/common"
 import { Card, CardContent } from "@/components/ui/card"
 import { TableCell, TableRow } from "@/components/ui/table"
-import { errorMessage, qs } from "../../../lib/api"
+import { qs } from "../../../lib/api"
+import { useRun } from "../../../lib/hooks"
 import { useListLinksQuery, usePurgeLinkMutation } from "../../../lib/store/links"
 
 const HEAD = ["Short URL", "Destination", "Owner", ""]
@@ -31,13 +31,10 @@ function LinksTrash() {
   const links = useListLinksQuery({ status: "archived", limit: 200 })
   const rows = links.data?.data ?? []
   const [purgeLink] = usePurgeLinkMutation()
+  const { run } = useRun()
 
-  async function purge(link: Link) {
-    try {
-      await purgeLink(link.id).unwrap()
-    } catch (err) {
-      toast.error(errorMessage(err, "That did not work."))
-    }
+  function purge(link: Link) {
+    return run(() => purgeLink(link.id).unwrap())
   }
 
   return (

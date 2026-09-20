@@ -3,13 +3,12 @@
 import type { Condition, ConditionType, Platform, Rule } from "@linq/shared"
 import { ArrowDownIcon, ArrowUpIcon } from "lucide-react"
 import { useState } from "react"
-import { toast } from "sonner"
 import { Picker } from "@/components/common"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Card, CardAction, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
-import { errorMessage } from "../lib/api"
+import { useRun } from "../lib/hooks"
 import { useUpdateLinkRulesMutation } from "../lib/store/links"
 
 /** A rule being edited. Position is implied by array order, as it is on the wire. */
@@ -54,9 +53,9 @@ export function RulesEditor({
   const [drafts, setDrafts] = useState<Draft[]>(() =>
     rules.map((rule) => ({ destination: rule.destination, conditions: rule.conditions })),
   )
-  const [saving, setSaving] = useState(false)
   const [dirty, setDirty] = useState(false)
   const [updateRules] = useUpdateLinkRulesMutation()
+  const { run, saving } = useRun()
 
   /** Applies a change to one rule and marks the list unsaved. */
   function edit(index: number, next: Partial<Draft>) {
@@ -76,17 +75,12 @@ export function RulesEditor({
     setDirty(true)
   }
 
-  async function save() {
-    setSaving(true)
-    try {
-      await updateRules({ linkId, rules: drafts }).unwrap()
-      setDirty(false)
-      toast.success("Rules saved.")
-    } catch (err) {
-      toast.error(errorMessage(err, "Could not save the rules."))
-    } finally {
-      setSaving(false)
-    }
+  function save() {
+    return run(() => updateRules({ linkId, rules: drafts }).unwrap(), {
+      success: "Rules saved.",
+      fallback: "Could not save the rules.",
+      onSuccess: () => setDirty(false),
+    })
   }
 
   return (

@@ -1,12 +1,11 @@
 "use client"
 
 import { can, type Domain } from "@linq/shared"
-import { toast } from "sonner"
 import { AppShell } from "@/components/app-shell"
 import { ConfirmButton, DataTable, QueryState, TableSkeleton } from "@/components/common"
 import { Card, CardContent } from "@/components/ui/card"
 import { TableCell, TableRow } from "@/components/ui/table"
-import { errorMessage } from "../../../lib/api"
+import { useRun } from "../../../lib/hooks"
 import { useListDomainsQuery, usePurgeDomainMutation } from "../../../lib/store/domains"
 
 const HEAD = ["Host", "Fallback URL", ""]
@@ -24,13 +23,10 @@ function DomainsTrash() {
   const domains = useListDomainsQuery({ limit: 200 })
   const rows = (domains.data?.data ?? []).filter((domain) => domain.status === "archived")
   const [purgeDomain] = usePurgeDomainMutation()
+  const { run } = useRun()
 
-  async function purge(domain: Domain) {
-    try {
-      await purgeDomain(domain.id).unwrap()
-    } catch (err) {
-      toast.error(errorMessage(err, "That did not work."))
-    }
+  function purge(domain: Domain) {
+    return run(() => purgeDomain(domain.id).unwrap())
   }
 
   return (
