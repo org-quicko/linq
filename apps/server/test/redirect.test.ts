@@ -376,6 +376,68 @@ describe("visitor detection", () => {
   })
 })
 
+describe("link expiry", () => {
+  test("a past expiresAt resolves like an unknown slug: fallback, orphan visit", async () => {
+    await h.createLink(author.key, domain, {
+      slug: "lapsed",
+      expiresAt: new Date(Date.now() - 1000).toISOString(),
+    })
+
+    const res = await get("/lapsed")
+    expect(res.status).toBe(302)
+    expect(res.headers.get("location")).toBe("https://example.com/fallback")
+    expect(await lastVisit()).toMatchObject({
+      linkId: null,
+      slugRequested: "lapsed",
+      destination: "https://example.com/fallback",
+    })
+  })
+
+  test("expired with no fallback still 404s and still records the orphan", async () => {
+    const bare = await h.createDomain("expiry-bare.test")
+    await h.createLink(author.key, bare, {
+      slug: "lapsed",
+      expiresAt: new Date(Date.now() - 1000).toISOString(),
+    })
+
+    const res = await get("/lapsed", { host: "expiry-bare.test" })
+    expect(res.status).toBe(404)
+    await flushVisits()
+    const [row] = await h.db
+      .select()
+      .from(visits)
+      .where(eq(visits.domainId, bare))
+      .orderBy(desc(visits.id))
+      .limit(1)
+    expect(row).toMatchObject({ linkId: null, slugRequested: "lapsed" })
+  })
+
+  test("a future expiresAt redirects normally with linkId set", async () => {
+    const link = await h.createLink(author.key, domain, {
+      slug: "not-yet",
+      expiresAt: new Date(Date.now() + 60_000).toISOString(),
+    })
+    const res = await get("/not-yet")
+    expect(res.status).toBe(302)
+    expect(await lastVisit()).toMatchObject({ linkId: link.id })
+  })
+
+  test("a preview crawler on an expired link gets the orphan title, the host", async () => {
+    await h.createLink(author.key, domain, {
+      slug: "expired-preview",
+      name: "Should not appear",
+      expiresAt: new Date(Date.now() - 1000).toISOString(),
+    })
+    const res = await get("/expired-preview", {
+      headers: { "user-agent": "Slackbot-LinkExpanding 1.0 (+https://api.slack.com/robots)" },
+    })
+    expect(res.status).toBe(200)
+    const body = await res.text()
+    expect(body).toContain(HOST)
+    expect(body).not.toContain("Should not appear")
+  })
+})
+
 describe("HEAD", () => {
   test("is answered like GET but never tracked", async () => {
     const link = await h.createLink(author.key, domain, { slug: "head" })

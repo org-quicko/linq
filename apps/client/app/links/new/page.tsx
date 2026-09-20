@@ -17,7 +17,7 @@ import { Card, CardContent } from "@/components/ui/card"
 import { Checkbox } from "@/components/ui/checkbox"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
-import { errorMessage, qs } from "../../../lib/api"
+import { errorMessage, fromDatetimeLocal, qs } from "../../../lib/api"
 import { useListDomainsQuery } from "../../../lib/store/domains"
 import { useCreateLinkMutation } from "../../../lib/store/links"
 
@@ -44,7 +44,9 @@ function NewLinkForm() {
   const [destination, setDestination] = useState("")
   const [name, setName] = useState("")
   const [tags, setTags] = useState<string[]>([])
+  const [expiresAt, setExpiresAt] = useState("")
   const [forwardQuery, setForwardQuery] = useState(true)
+  const [listed, setListed] = useState(false)
   const [presetParams, setPresetParams] = useState<PresetParamRow[]>([])
   const [saving, setSaving] = useState(false)
 
@@ -62,6 +64,8 @@ function NewLinkForm() {
         tags,
         forwardQuery,
         presetParams: rowsToPresetParams(presetParams),
+        expiresAt: fromDatetimeLocal(expiresAt),
+        listed,
       }).unwrap()
       router.push(`/links/detail/${qs({ id: created.id })}`)
     } catch (err) {
@@ -123,6 +127,14 @@ function NewLinkForm() {
                 <TagPicker value={tags} onChange={setTags} creatable placeholder="No tags" />
               </Field>
 
+              <Field label="Expires" hint="Leave blank to never expire. Past this, the link 404s like an unknown slug.">
+                <Input
+                  type="datetime-local"
+                  value={expiresAt}
+                  onChange={(event) => setExpiresAt(event.target.value)}
+                />
+              </Field>
+
               <Field
                 label="Preset params"
                 hint="Set on the destination at redirect time, overriding its own query and any forwarded one."
@@ -141,6 +153,15 @@ function NewLinkForm() {
                   onCheckedChange={(checked) => setForwardQuery(checked === true)}
                 />
                 Forward incoming query parameters to the destination
+              </Label>
+
+              <Label className="font-normal">
+                <Checkbox
+                  checked={listed}
+                  onCheckedChange={(checked) => setListed(checked === true)}
+                />
+                List in /llms.txt — publishes this link's name and destination, readable without
+                a key
               </Label>
 
               <div className="flex gap-2">

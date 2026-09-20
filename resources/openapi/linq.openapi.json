@@ -491,6 +491,7 @@
               "type": "string",
               "enum": [
                 "createdAt",
+                "updatedAt",
                 "visits"
               ],
               "default": "createdAt"
@@ -506,6 +507,20 @@
                 "desc"
               ],
               "default": "desc"
+            }
+          },
+          {
+            "name": "expiry",
+            "in": "query",
+            "description": "Filters on expiresAt against the current time. `live` includes links that never expire.",
+            "schema": {
+              "type": "string",
+              "enum": [
+                "any",
+                "live",
+                "expired"
+              ],
+              "default": "any"
             }
           }
         ],
@@ -673,6 +688,16 @@
           },
           "404": {
             "$ref": "#/components/responses/NotFound"
+          },
+          "409": {
+            "description": "The target of `ownerId` is a viewer key, which may not own a link.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
           }
         }
       },
@@ -1299,7 +1324,7 @@
         ],
         "operationId": "getRobotsTxt",
         "summary": "Robots policy",
-        "description": "Disallows `/api` and `/home`; short links themselves are crawlable.",
+        "description": "Disallows `/api` and `/home`. See `/llms.txt` for the catalogue of links a domain has chosen to publish.",
         "security": [],
         "responses": {
           "200": {
@@ -1311,6 +1336,61 @@
                 }
               }
             }
+          }
+        }
+      },
+      "head": {
+        "tags": [
+          "Redirect"
+        ],
+        "operationId": "headRobotsTxt",
+        "summary": "Robots policy, without a body",
+        "security": [],
+        "responses": {
+          "200": {
+            "description": "As `GET`, with no body."
+          }
+        }
+      }
+    },
+    "/llms.txt": {
+      "get": {
+        "tags": [
+          "Redirect"
+        ],
+        "operationId": "getLlmsTxt",
+        "summary": "Published link catalogue",
+        "description": "Lists links from the requested host that were explicitly opted in with `listed: true` — archived, expired and unlisted links never appear. No key required: this route sits outside `/api/v1` by design. See `docs/adr/0013`.\n",
+        "security": [],
+        "responses": {
+          "200": {
+            "description": "The catalogue, possibly empty.",
+            "content": {
+              "text/markdown": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "The host does not match an active domain."
+          }
+        }
+      },
+      "head": {
+        "tags": [
+          "Redirect"
+        ],
+        "operationId": "headLlmsTxt",
+        "summary": "Published link catalogue, without a body",
+        "security": [],
+        "responses": {
+          "200": {
+            "description": "As `GET`, with no body."
+          },
+          "404": {
+            "description": "As `GET`."
           }
         }
       }
@@ -1667,6 +1747,8 @@
           "ownerName",
           "humanVisits",
           "botVisits",
+          "expiresAt",
+          "listed",
           "createdAt",
           "updatedAt"
         ],
@@ -1743,6 +1825,18 @@
             "type": "integer",
             "minimum": 0
           },
+          "expiresAt": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date-time",
+            "description": "Past this, the link resolves like an unknown slug. Null never expires."
+          },
+          "listed": {
+            "type": "boolean",
+            "description": "Opt-in: appears in the domain's public /llms.txt catalogue. See docs/adr/0013."
+          },
           "createdAt": {
             "type": "string",
             "format": "date-time"
@@ -1767,7 +1861,7 @@
           "slug": {
             "type": "string",
             "pattern": "^[A-Za-z0-9_-]{1,64}$",
-            "description": "Omit for a generated slug. Reserved words (`api`, `home`, `health`, `robots.txt`, `favicon.ico`) are rejected."
+            "description": "Omit for a generated slug. Reserved words (`api`, `home`, `health`, `robots.txt`, `favicon.ico`, `llms.txt`) are rejected."
           },
           "destination": {
             "$ref": "#/components/schemas/Url"
@@ -1798,6 +1892,19 @@
               "maxLength": 512
             },
             "description": "Set on the destination at redirect time, overriding both the destination's own query and anything forwarded. Applied only when forwardQuery is true."
+          },
+          "expiresAt": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date-time",
+            "description": "Absent or null means the link never expires."
+          },
+          "listed": {
+            "type": "boolean",
+            "default": false,
+            "description": "Opt-in: appears in the domain's public /llms.txt catalogue. See docs/adr/0013."
           }
         }
       },
@@ -1843,7 +1950,19 @@
           "ownerId": {
             "type": "string",
             "format": "uuid",
-            "description": "Transferring ownership. Your own link, or any link as an admin."
+            "description": "Transferring ownership. Your own link, or any link as an admin. 409 if the target key is a viewer — a viewer may not own a link."
+          },
+          "expiresAt": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date-time",
+            "description": "Absent leaves it unchanged; null clears it."
+          },
+          "listed": {
+            "type": "boolean",
+            "description": "Opt-in: appears in the domain's public /llms.txt catalogue. See docs/adr/0013."
           }
         }
       },
@@ -2143,10 +2262,11 @@
       },
       "ApiKeySummary": {
         "type": "object",
-        "description": "What every role below admin sees about another key.\n",
+        "description": "What every role below admin sees about another key. `role` lets the\nClient UI filter transfer targets with the same rule the server\nenforces, rather than offering one it will refuse.\n",
         "required": [
           "id",
-          "name"
+          "name",
+          "role"
         ],
         "properties": {
           "id": {
@@ -2155,6 +2275,9 @@
           },
           "name": {
             "type": "string"
+          },
+          "role": {
+            "$ref": "#/components/schemas/Role"
           }
         }
       },

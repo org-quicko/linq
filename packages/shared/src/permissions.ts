@@ -18,12 +18,22 @@ export type Owned = { ownerId: string | null }
  * gate, and it is applied to every request regardless of what the UI showed.
  */
 export const can = {
+  /**
+   * Who may hold a link. A viewer may not: `editLink` refuses a viewer even
+   * over its own link, so a viewer-owned link would be one nobody but a
+   * manager could touch.
+   */
+  ownLink: (target: { role: Role }): boolean => roleAtLeast(target.role, "author"),
+
   /** Anyone who may own a link may create one. */
-  createLink: (actor: Actor): boolean => roleAtLeast(actor.role, "author"),
+  createLink: (actor: Actor): boolean => can.ownLink(actor),
 
   /**
    * Managers and admins act on anything; an author acts on what its own key
-   * created. A viewer that happens to own a link, through a transfer, still
+   * created. A viewer can no longer *acquire* a link by transfer (see
+   * `ownLink`), so the only way one ends up owning a link is a key that owned
+   * links and was later demoted — a state this repo tolerates rather than
+   * blocks, the same way an unowned link is tolerated. Either way it still
    * cannot change it, and an unowned link matches no actor — `keyId` is never
    * null, so a null owner fails closed here rather than by a special case.
    */

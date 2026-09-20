@@ -69,12 +69,12 @@ const mine = { ownerId: ME }
 const theirs = { ownerId: OTHER }
 
 describe("can", () => {
-  test("createLink needs author or better", () => {
-    expect(ROLES.filter((role) => can.createLink(actor(role)))).toEqual([
-      "author",
-      "manager",
-      "admin",
-    ])
+  test("ownLink needs author or better", () => {
+    expect(ROLES.filter((role) => can.ownLink({ role }))).toEqual(["author", "manager", "admin"])
+  })
+
+  test("createLink is exactly ownLink", () => {
+    for (const role of ROLES) expect(can.createLink(actor(role))).toBe(can.ownLink({ role }))
   })
 
   test("editLink: own from author upwards, anyone else's from manager upwards", () => {

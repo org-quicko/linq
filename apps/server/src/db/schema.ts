@@ -75,6 +75,12 @@ export const links = pgTable(
      * unowned link is editable by a manager or admin. See docs/adr/0011.
      */
     ownerId: uuid("owner_id").references(() => apiKeys.id, { onDelete: "set null" }),
+    /** Past this, the link resolves like an unknown slug. Null never expires. */
+    expiresAt: timestamp("expires_at", { withTimezone: true }),
+    /** Opt-in: listed in this domain's public /llms.txt catalogue. Off by
+     *  default, because listing publishes a link's slug, name and
+     *  destination to anyone. */
+    listed: boolean("listed").notNull().default(false),
     createdAt,
     updatedAt,
   },
@@ -83,6 +89,7 @@ export const links = pgTable(
     index("links_owner_id_idx").on(t.ownerId),
     index("links_status_idx").on(t.status),
     index("links_tags_idx").using("gin", t.tags),
+    index("links_listed_idx").on(t.domainId).where(sql`${t.listed}`),
   ],
 )
 

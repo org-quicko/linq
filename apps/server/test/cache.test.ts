@@ -276,6 +276,36 @@ describe("the memory backend", () => {
   })
 })
 
+/**
+ * The test that justifies the whole expiry-in-cache design: nothing ever
+ * mutates the row after the link is created, so the *only* way a second hit
+ * can fall back after the row's `expires_at` passes is if the timestamp rode
+ * inside the cached value and was compared at read time. See plans/Plan_25.md.
+ */
+describe("expiry inside the cache", () => {
+  test("a warm entry still expires on schedule, though the row is never touched", async () => {
+    const link = await h.createLink(author.key, domain, {
+      slug: "ticking",
+      expiresAt: new Date(Date.now() + 50).toISOString(),
+    })
+    expect((await get("/ticking")).headers.get("location")).toBe(link.destination)
+
+    await Bun.sleep(60)
+    const res = await get("/ticking")
+    expect(res.headers.get("location")).toBe("https://example.com/fallback")
+  })
+
+  test("clearing expiresAt to null resolves immediately, proving the del reached the key", async () => {
+    const link = await h.createLink(author.key, domain, {
+      slug: "reprieved",
+      expiresAt: new Date(Date.now() + 50).toISOString(),
+    })
+    await get("/reprieved")
+    await h.patch(`/api/v1/links/${link.id}`, author.key, { expiresAt: null })
+    expect((await get("/reprieved")).headers.get("location")).toBe(link.destination)
+  })
+})
+
 describe("degradation", () => {
   /** A cache is never allowed to fail a request. See docs/adr/0009. */
   const broken: Cache = {

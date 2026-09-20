@@ -89,6 +89,8 @@ Table links {
   preset_params jsonb           [not null, default: `'{}'::jsonb`, note: 'Record<string,string>: set on the destination when forward_query is true, overriding its own query and the forwarded one. At most 20.']
   status        resource_status [not null, default: 'active']
   owner_id      uuid            [note: 'The key that created it. Null once that key is revoked.']
+  expires_at    timestamptz     [note: 'Past this, the link resolves like an unknown slug. Null never expires.']
+  listed        boolean         [not null, default: false, note: 'Opt-in: listed in the domain public /llms.txt catalogue.']
   created_at    timestamptz     [not null, default: `now()`]
   updated_at    timestamptz     [not null, default: `now()`]
 
@@ -97,6 +99,7 @@ Table links {
     owner_id          [name: 'links_owner_id_idx']
     status            [name: 'links_status_idx']
     tags              [type: gin, name: 'links_tags_idx']
+    domain_id         [name: 'links_listed_idx', note: 'Partial: where listed. Serves the unauthenticated /llms.txt route.']
   }
 
   Note: '''

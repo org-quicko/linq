@@ -30,8 +30,12 @@ export type ApiKey = {
   updatedAt: string
 }
 
-/** What every role below admin may see about another key. */
-export type ApiKeySummary = { id: string; name: string }
+/**
+ * What every role below admin may see about another key. `role` is included
+ * so the UI can filter transfer targets with the same `can.ownLink` predicate
+ * the server enforces, rather than offering one it will refuse.
+ */
+export type ApiKeySummary = { id: string; name: string; role: Role }
 
 /** The plaintext secret is returned exactly once, at creation. */
 export type ApiKeyCreated = ApiKey & { secret: string }

@@ -5,7 +5,8 @@ import { apiSlice } from "./api"
 type LinkFilters = {
   domainId?: string
   status?: "active" | "archived" | "all"
-  sort?: "createdAt" | "visits"
+  sort?: "createdAt" | "updatedAt" | "visits"
+  order?: "asc" | "desc"
   search?: string
   tags?: string
   limit?: number

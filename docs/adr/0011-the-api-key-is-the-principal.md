@@ -42,3 +42,7 @@ The guard is **"no keys", not "never booted"** — the old one asked whether any
 - **A plaintext admin key reaches stdout on first boot**, and on any boot after every key is gone. It is deliberately not written through the logger: a secret in a rotating file on a mounted volume outlives the terminal line by a long way. An operator who pipes stdout to a file has undone that, and nothing stops them.
 - **Revoking every key is recoverable by restarting**, which is convenient and is also a way back in for anyone who can restart the process. On a self-hosted instance that is the same person; it is worth naming rather than discovering.
 - Migration `0009` discards every existing key and every link's ownership rather than guessing which of a user's several keys should inherit them. Acceptable only because nothing had shipped, and stated in the migration rather than left for a reader to discover.
+
+## Amendment: a viewer may still hold links via demotion (2026-09-20, plans/Plan_25.md)
+
+A viewer can no longer *become* a link's owner — a transfer to a viewer key is refused (409). But `owner_id` still tolerates a key whose role was reduced to viewer after it owned links: demoting an owner is unconditional, exactly like revoking it, for the same reason. The link's `editLink` permission strips that key's edit rights the moment the demotion lands, so the state is safe, and it is the same shape as an unowned link — a row whose owner cannot currently act on it — which this ADR already accepts.

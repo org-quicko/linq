@@ -28,6 +28,13 @@ export type ResolvedTarget = {
   forwardQuery: boolean
   presetParams: Record<string, string>
   rules: { destination: string; conditions: Condition[] }[]
+  /**
+   * Epoch milliseconds, not a Date and not an ISO string: this object is
+   * JSON-round-tripped by the Redis backend and stored by reference by the memory
+   * one, and a number is the only shape that survives both identically. Null means
+   * the link never expires.
+   */
+  expiresAt: number | null
 }
 
 /**
@@ -35,7 +42,7 @@ export type ResolvedTarget = {
  * then with its port stripped, so one `links.example.com` row also answers
  * requests on a non-standard port while `localhost:3000` still matches verbatim.
  */
-function findActiveDomain(db: Db, hostHeader: string): Promise<ResolvedDomain | null> {
+export function findActiveDomain(db: Db, hostHeader: string): Promise<ResolvedDomain | null> {
   return span(
     "domain.findActive",
     async () => {
@@ -79,6 +86,7 @@ function findActiveTarget(db: Db, domainId: string, slug: string): Promise<Resol
         forwardQuery: row.forwardQuery,
         presetParams: row.presetParams,
         rules: ordered.map((r) => ({ destination: r.destination, conditions: r.conditions })),
+        expiresAt: row.expiresAt?.getTime() ?? null,
       }
     },
     { in: { domainId, slug }, out: (target) => ({ linkId: target?.linkId ?? null }) },
@@ -90,7 +98,7 @@ function findActiveTarget(db: Db, domainId: string, slug: string): Promise<Resol
  * the answer back — a `null` answer included, so an unknown host or slug costs
  * one query per TTL rather than one per request.
  */
-async function through<T>(
+export async function through<T>(
   c: Context<Env>,
   key: string,
   load: () => Promise<T | null>,
@@ -131,6 +139,16 @@ export function queryMap(params: URLSearchParams): Record<string, string[]> | nu
   return Object.keys(out).length ? out : null
 }
 
+/**
+ * A link past its expiry is a stranger. Checked here rather than in
+ * `findActiveTarget`'s WHERE clause because the cached entry outlives the moment it
+ * lapses and no mutation ever arrives to invalidate it: `status` is safe in SQL only
+ * because every status change also dels `targetKey`. See plans/Plan_25.md.
+ */
+function expired(target: ResolvedTarget): boolean {
+  return typeof target.expiresAt === "number" && target.expiresAt <= Date.now()
+}
+
 const factory = createFactory<Env>()
 
 /**
@@ -155,11 +173,17 @@ export const redirectHandler = factory.createHandlers(async (c) => {
   // HEAD is answered exactly like GET but never tracked.
   const tracked = c.req.method === "GET"
   const userAgent = c.req.header("user-agent") ?? null
-  const link = slug
+  const cached = slug
     ? await through(c, targetKey(domain.id, slug), () =>
         findActiveTarget(c.var.db, domain.id, slug),
       )
     : null
+
+  // 2b. An expired link is an unknown slug: same orphan path, same null
+  //     link_id, same fallback. See `expired` for why this is not a WHERE.
+  const isExpired = cached !== null && expired(cached)
+  if (isExpired) reqLog().debug({ linkId: cached.linkId, slug }, "link expired")
+  const link = isExpired ? null : cached
 
   const visit = {
     domainId: domain.id,

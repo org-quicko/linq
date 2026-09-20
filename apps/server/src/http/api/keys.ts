@@ -35,9 +35,11 @@ export function toApiKey(row: typeof apiKeys.$inferSelect): ApiKey {
 /**
  * Keys are the principals, so this is also the user administration surface.
  *
- * Every role may list keys, but only an admin sees more than `{ id, name }`:
- * the Client UI needs the names to render a link's owner and to offer a
- * transfer target, and a prefix or a role is more than that job requires.
+ * Every role may list keys, but only an admin sees more than
+ * `{ id, name, role }`: the Client UI needs the names to render a link's
+ * owner, and it needs the role to filter transfer targets with `can.ownLink`
+ * so it never offers one the server will refuse. `prefix`, `expiresAt` and
+ * the timestamps stay admin-only — nothing else in the UI needs them.
  */
 export const keyRoutes = new Hono<Env>()
   .get("/", validate("query", paginationSchema), async (c) => {
@@ -53,7 +55,7 @@ export const keyRoutes = new Hono<Env>()
     const [total] = await c.var.db.select({ value: count() }).from(apiKeys)
 
     const data: (ApiKey | ApiKeySummary)[] = rows.map((row) =>
-      isAdmin ? toApiKey(row) : { id: row.id, name: row.name },
+      isAdmin ? toApiKey(row) : { id: row.id, name: row.name, role: row.role },
     )
     return c.json({ data, total: total?.value ?? 0, limit, offset })
   })

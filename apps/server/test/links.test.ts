@@ -1,4 +1,6 @@
 import { beforeAll, describe, expect, test } from "bun:test"
+import { inArray } from "drizzle-orm"
+import { links } from "../src/db/schema.ts"
 import { createHarness, type Harness } from "./helpers/app.ts"
 
 let h: Harness
@@ -274,6 +276,81 @@ describe("ownership transfer", () => {
     })
     expect(res.status).toBe(404)
   })
+
+  test("transferring to a viewer key is refused: the target, not the caller, is the problem", async () => {
+    const link = await h.createLink(author.key, domain)
+    const viewer = await h.createKey({ role: "viewer", name: "Viewer" })
+
+    const res = await h.patch(`/api/v1/links/${link.id}`, author.key, { ownerId: viewer.keyId })
+    expect(res.status).toBe(409)
+    expect((await res.json()).error.code).toBe("conflict")
+
+    const unchanged = await (
+      await h.request(`/api/v1/links/${link.id}`, { key: author.key })
+    ).json()
+    expect(unchanged.ownerId).toBe(author.keyId)
+  })
+
+  test("transferring to an author key works", async () => {
+    const link = await h.createLink(author.key, domain)
+    const recipient = await h.createKey({ role: "author", name: "Recipient" })
+
+    const res = await h.patch(`/api/v1/links/${link.id}`, author.key, { ownerId: recipient.keyId })
+    expect(res.status).toBe(200)
+    expect(await res.json()).toMatchObject({ ownerId: recipient.keyId, ownerName: "Recipient" })
+  })
+
+  test("an admin transferring someone else's link to a viewer also gets 409, not 403", async () => {
+    const link = await h.createLink(author.key, domain)
+    const viewer = await h.createKey({ role: "viewer", name: "Viewer" })
+
+    const res = await h.patch(`/api/v1/links/${link.id}`, admin.key, { ownerId: viewer.keyId })
+    expect(res.status).toBe(409)
+  })
+})
+
+describe("link expiry", () => {
+  test("POST echoes expiresAt as ISO, and PATCH round-trips it", async () => {
+    const iso = new Date(Date.now() + 3600_000).toISOString()
+    const link = await h.createLink(author.key, domain, { expiresAt: iso })
+    expect(link.expiresAt).toBe(iso)
+
+    const later = new Date(Date.now() + 7200_000).toISOString()
+    const updated = await h.patch(`/api/v1/links/${link.id}`, author.key, { expiresAt: later })
+    expect((await updated.json()).expiresAt).toBe(later)
+
+    const cleared = await h.patch(`/api/v1/links/${link.id}`, author.key, { expiresAt: null })
+    expect((await cleared.json()).expiresAt).toBeNull()
+  })
+
+  test("defaults to never expiring", async () => {
+    const link = await h.createLink(author.key, domain)
+    expect(link.expiresAt).toBeNull()
+  })
+
+  test("?expiry partitions the list; the default list includes an expired link", async () => {
+    const scoped = await h.createDomain("expiry-filter.test")
+    const live = await h.createLink(author.key, scoped, {
+      slug: "still-live",
+      expiresAt: new Date(Date.now() + 3600_000).toISOString(),
+    })
+    const dead = await h.createLink(author.key, scoped, {
+      slug: "long-dead",
+      expiresAt: new Date(Date.now() - 1000).toISOString(),
+    })
+    const forever = await h.createLink(author.key, scoped, { slug: "forever" })
+
+    const list = async (query = "") =>
+      (
+        await (
+          await h.request(`/api/v1/links?domainId=${scoped}${query}`, { key: author.key })
+        ).json()
+      ).data.map((l: { id: string }) => l.id) as string[]
+
+    expect((await list()).sort()).toEqual([live.id, dead.id, forever.id].sort())
+    expect(await list("&expiry=expired")).toEqual([dead.id])
+    expect((await list("&expiry=live")).sort()).toEqual([live.id, forever.id].sort())
+  })
 })
 
 describe("archiving a link", () => {
@@ -361,6 +438,68 @@ describe("GET /api/v1/links", () => {
     const body = await res.json()
     expect(body.data.map((l: { id: string }) => l.id)).toEqual([hot.id, cold.id])
     expect(body.data[0]).toMatchObject({ humanVisits: 2, botVisits: 1 })
+  })
+
+  test("sorts by updatedAt, leading with the link PATCHed last", async () => {
+    const scoped = await h.createDomain("updated.test")
+    const first = await h.createLink(author.key, scoped, { slug: "first" })
+    const second = await h.createLink(author.key, scoped, { slug: "second" })
+    await h.patch(`/api/v1/links/${first.id}`, author.key, { name: "touched last" })
+
+    const res = await h.request(`/api/v1/links?domainId=${scoped}&sort=updatedAt&order=desc`, {
+      key: author.key,
+    })
+    const body = await res.json()
+    expect(body.data.map((l: { id: string }) => l.id)).toEqual([first.id, second.id])
+  })
+
+  test("order=asc is the exact reverse of order=desc", async () => {
+    const scoped = await h.createDomain("order.test")
+    for (let i = 0; i < 3; i++) await h.createLink(author.key, scoped, { slug: `o${i}` })
+
+    const desc = await (
+      await h.request(`/api/v1/links?domainId=${scoped}&sort=createdAt&order=desc`, {
+        key: author.key,
+      })
+    ).json()
+    const asc = await (
+      await h.request(`/api/v1/links?domainId=${scoped}&sort=createdAt&order=asc`, {
+        key: author.key,
+      })
+    ).json()
+    expect(asc.data.map((l: { id: string }) => l.id)).toEqual(
+      [...desc.data.map((l: { id: string }) => l.id)].reverse(),
+    )
+  })
+
+  test("rejects an unknown sort value", async () => {
+    const res = await h.request("/api/v1/links?sort=bogus", { key: author.key })
+    expect(res.status).toBe(400)
+  })
+
+  test("tiebreaks equal sort keys by id, so paging is deterministic", async () => {
+    const scoped = await h.createDomain("tiebreak.test")
+    const now = new Date()
+    const rows = await Promise.all(
+      ["a", "b", "c"].map((slug) => h.createLink(author.key, scoped, { slug })),
+    )
+    await h.db
+      .update(links)
+      .set({ createdAt: now })
+      .where(inArray(links.id, rows.map((r) => r.id)))
+
+    const pages = await Promise.all(
+      [0, 1, 2].map((offset) =>
+        h
+          .request(`/api/v1/links?domainId=${scoped}&limit=1&offset=${offset}`, {
+            key: author.key,
+          })
+          .then((r) => r.json()),
+      ),
+    )
+    const seen = pages.map((p) => p.data[0].id)
+    expect(new Set(seen).size).toBe(3)
+    expect(seen.sort()).toEqual(rows.map((r) => r.id).sort())
   })
 })
 

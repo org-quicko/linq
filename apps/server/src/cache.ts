@@ -42,6 +42,18 @@ export const domainKey = (host: string): string => `linq:domain:${host.trim().to
 export const targetKey = (domainId: string, slug: string): string =>
   `linq:target:${domainId}:${slug}`
 
+/** The whole rendered /llms.txt for one domain. A string round-trips through
+ *  both backends unchanged, so unlike a row array it needs no date handling. */
+export const llmsKey = (domainId: string): string => `linq:llms:${domainId}`
+
+/** Everything a link mutation makes stale: its redirect entry and its
+ *  domain's published catalogue. One call, so a new mutation cannot forget
+ *  half of it. */
+export const linkKeys = (domainId: string, slug: string): string[] => [
+  targetKey(domainId, slug),
+  llmsKey(domainId),
+]
+
 /**
  * Makes a cache unable to fail its caller.
  *

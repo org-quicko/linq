@@ -1,12 +1,28 @@
 import {
   ApiError,
+  can,
   type Link,
   linkCreateSchema,
   linkListQuerySchema,
   linkPatchSchema,
   uuidSchema,
 } from "@linq/shared"
-import { and, arrayOverlaps, asc, count, desc, eq, ilike, or, type SQL, sql } from "drizzle-orm"
+import {
+  and,
+  arrayOverlaps,
+  asc,
+  count,
+  desc,
+  eq,
+  gt,
+  ilike,
+  isNotNull,
+  isNull,
+  lte,
+  or,
+  type SQL,
+  sql,
+} from "drizzle-orm"
 import { Hono } from "hono"
 import { z } from "zod"
 import {
@@ -15,7 +31,7 @@ import {
   assertCanTransfer,
   assertRole,
 } from "../../auth/permissions.ts"
-import { targetKey } from "../../cache.ts"
+import { linkKeys } from "../../cache.ts"
 import type { Db } from "../../db/client.ts"
 import { apiKeys, domains, links, visitCounts } from "../../db/schema.ts"
 import { span } from "../../log.ts"
@@ -58,6 +74,8 @@ function toLink(row: LinkRow): Link {
     ownerName: row.ownerName,
     humanVisits: row.humanVisits,
     botVisits: row.botVisits,
+    expiresAt: link.expiresAt?.toISOString() ?? null,
+    listed: link.listed,
     createdAt: link.createdAt.toISOString(),
     updatedAt: link.updatedAt.toISOString(),
   }
@@ -170,12 +188,29 @@ export const linkRoutes = new Hono<Env>()
         or(ilike(links.slug, term), ilike(links.name, term), ilike(links.destination, term)) as SQL,
       )
     }
+    // The app clock, so the list agrees with the redirect on what "expired"
+    // means. References only `links` columns: the `total` count below joins
+    // nothing, so a filter touching a joined table would break it.
+    if (q.expiry !== "any") {
+      const now = new Date()
+      filters.push(
+        q.expiry === "expired"
+          ? (and(isNotNull(links.expiresAt), lte(links.expiresAt, now)) as SQL)
+          : (or(isNull(links.expiresAt), gt(links.expiresAt, now)) as SQL),
+      )
+    }
     const where = filters.length ? and(...filters) : undefined
 
-    const column = q.sort === "visits" ? total : links.createdAt
+    // Every sortable column in one place; `visits` is the joined expression
+    // rather than a column, which is why this is a map and not a field name.
+    const sortable = { createdAt: links.createdAt, updatedAt: links.updatedAt, visits: total } as const
+    const direction = q.order === "asc" ? asc : desc
     const rows = await query
       .where(where)
-      .orderBy(q.order === "asc" ? asc(column) : desc(column))
+      // `links.id` is a UUIDv7, so the tiebreak is chronological rather than
+      // arbitrary — and without it equal sort keys make paging
+      // non-deterministic: a row can appear on two pages or on none.
+      .orderBy(direction(sortable[q.sort]), direction(links.id))
       .limit(q.limit)
       .offset(q.offset)
 
@@ -206,12 +241,14 @@ export const linkRoutes = new Hono<Env>()
         forwardQuery: body.forwardQuery,
         presetParams: body.presetParams,
         ownerId: c.var.principal.keyId,
+        expiresAt: body.expiresAt ? new Date(body.expiresAt) : null,
+        listed: body.listed,
       },
       { slug: body.slug, slugLength: c.var.config.LINQ_SLUG_LENGTH },
     )
 
     // Clears the negative entry left behind while this slug was 404ing.
-    await c.var.cache.del(targetKey(row.domainId, row.slug))
+    await c.var.cache.del(...linkKeys(row.domainId, row.slug))
     return c.json(await fetchLink(c.var.db, row.id), 201)
   })
 
@@ -226,18 +263,36 @@ export const linkRoutes = new Hono<Env>()
     if (patch.ownerId !== undefined) {
       assertCanTransfer(c.var.principal, existing.ownerId)
       const [owner] = await c.var.db
-        .select({ id: apiKeys.id })
+        .select({ id: apiKeys.id, role: apiKeys.role })
         .from(apiKeys)
         .where(eq(apiKeys.id, patch.ownerId))
         .limit(1)
       if (!owner) throw ApiError.notFound("key")
+      // Not 403: the caller is allowed, the *target* is not eligible.
+      if (!can.ownLink(owner)) throw ApiError.conflict("a viewer key cannot own a link")
     }
 
     await c.var.db
       .update(links)
-      .set({ ...patch, updatedAt: new Date() })
+      .set({
+        // Spelled out rather than a blanket `...patch` spread: `expiresAt`
+        // arrives as an ISO string and the column takes a Date, so the spread
+        // would not typecheck. See keys.ts's PATCH for the same pattern.
+        ...(patch.destination !== undefined ? { destination: patch.destination } : {}),
+        ...(patch.name !== undefined ? { name: patch.name } : {}),
+        ...(patch.tags !== undefined ? { tags: patch.tags } : {}),
+        ...(patch.forwardQuery !== undefined ? { forwardQuery: patch.forwardQuery } : {}),
+        ...(patch.presetParams !== undefined ? { presetParams: patch.presetParams } : {}),
+        ...(patch.status !== undefined ? { status: patch.status } : {}),
+        ...(patch.ownerId !== undefined ? { ownerId: patch.ownerId } : {}),
+        ...(patch.expiresAt !== undefined
+          ? { expiresAt: patch.expiresAt ? new Date(patch.expiresAt) : null }
+          : {}),
+        ...(patch.listed !== undefined ? { listed: patch.listed } : {}),
+        updatedAt: new Date(),
+      })
       .where(eq(links.id, id))
-    await c.var.cache.del(targetKey(existing.domainId, existing.slug))
+    await c.var.cache.del(...linkKeys(existing.domainId, existing.slug))
     return c.json(await fetchLink(c.var.db, id))
   })
 
@@ -251,7 +306,7 @@ export const linkRoutes = new Hono<Env>()
       .update(links)
       .set({ status: "archived", updatedAt: new Date() })
       .where(eq(links.id, id))
-    await c.var.cache.del(targetKey(existing.domainId, existing.slug))
+    await c.var.cache.del(...linkKeys(existing.domainId, existing.slug))
     return c.json(await fetchLink(c.var.db, id))
   })
 
@@ -275,7 +330,7 @@ export const linkRoutes = new Hono<Env>()
     await span("link.purge", async () => c.var.db.delete(links).where(eq(links.id, id)), {
       in: { linkId: id, slug: existing.slug },
     })
-    await c.var.cache.del(targetKey(existing.domainId, existing.slug))
+    await c.var.cache.del(...linkKeys(existing.domainId, existing.slug))
     return c.body(null, 204)
   })
 

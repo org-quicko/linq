@@ -11,7 +11,7 @@ export const keysApi = apiSlice.injectEndpoints({
       query: () => ({ path: "/v1/me" }),
     }),
 
-    /** Below admin the server returns only `{ id, name }`, which is all the owner column needs. */
+    /** Below admin the server returns only `{ id, name, role }` — the owner column and the transfer-target filter. */
     listKeys: build.query<Page<ApiKey | ApiKeySummary>, { limit?: number }>({
       query: (params) => ({ path: `/v1/keys${qs(params)}` }),
       providesTags: (result) =>

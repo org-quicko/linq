@@ -18,6 +18,7 @@ import { ruleRoutes } from "./api/rules.ts"
 import { domainStatsRoutes, globalStatsRoutes, linkStatsRoutes } from "./api/stats.ts"
 import { visitRoutes } from "./api/visits.ts"
 import type { Env } from "./env.ts"
+import { llmsHandler } from "./llms.ts"
 import { redirectHandler } from "./redirect.ts"
 
 export type AppDeps = { db: Db; config: Config; cache?: Cache; caddy?: Caddy }
@@ -81,7 +82,12 @@ export function createApp({ db, config, cache = noCache, caddy = noCaddy }: AppD
   v1.route("/keys", keyRoutes)
   app.route("/api/v1", v1)
 
-  app.get("/robots.txt", (c) => c.text("User-agent: *\nDisallow: /api\nDisallow: /home\n"))
+  // `.on([...])`, not `.get()`: GET-only left HEAD falling through to the
+  // catch-all's 404. Both text routes take the same fix.
+  app.on(["GET", "HEAD"], "/robots.txt", (c) =>
+    c.text("User-agent: *\nDisallow: /api\nDisallow: /home\n"),
+  )
+  app.on(["GET", "HEAD"], "/llms.txt", ...llmsHandler)
 
   // Bare domain hits go to the Client UI rather than a 404 or a slug lookup.
   app.get("/", (c) => c.redirect("/home", 302))

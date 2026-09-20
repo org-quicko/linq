@@ -1,6 +1,7 @@
 "use client"
 
 import { type Actor, can, type Link } from "@linq/shared"
+import { ArrowDownIcon, ArrowUpIcon } from "lucide-react"
 import NextLink from "next/link"
 import { useState } from "react"
 import { toast } from "sonner"
@@ -12,6 +13,7 @@ import {
   Picker,
   QueryState,
   TableSkeleton,
+  When,
 } from "@/components/common"
 import { TagPicker } from "@/components/tag-picker"
 import { Badge } from "@/components/ui/badge"
@@ -31,15 +33,16 @@ import { useDebounced } from "../../lib/use-api"
 type Filters = {
   domainId: string
   status: "active" | "archived" | "all"
-  sort: "createdAt" | "visits"
+  sort: "createdAt" | "updatedAt" | "visits"
+  order: "asc" | "desc"
 }
 
-const EMPTY: Filters = { domainId: "", status: "active", sort: "createdAt" }
+const EMPTY: Filters = { domainId: "", status: "active", sort: "createdAt", order: "desc" }
 
 /** Radix refuses an item whose value is "", so "no filter" needs a real value. */
 const ANY_DOMAIN = "__any__"
 
-const HEAD = ["Short URL", "Destination", "Tags", "Visits", "Owner", "", ""]
+const HEAD = ["Short URL", "Destination", "Tags", "Visits", "Owner", "Updated", "", ""]
 
 /** The main list: every link, filtered the same way the API filters them. */
 export default function LinksPage() {
@@ -134,14 +137,27 @@ function LinksList({ actor }: { actor: Actor }) {
               { value: "all", label: "All" },
             ]}
           />
-          <Picker
-            value={filters.sort}
-            onChange={(value) => update({ sort: value as Filters["sort"] })}
-            options={[
-              { value: "createdAt", label: "Newest first" },
-              { value: "visits", label: "Most visits" },
-            ]}
-          />
+          <div className="flex gap-2">
+            <Picker
+              className="flex-1"
+              value={filters.sort}
+              onChange={(value) => update({ sort: value as Filters["sort"] })}
+              options={[
+                { value: "createdAt", label: "Created" },
+                { value: "updatedAt", label: "Updated" },
+                { value: "visits", label: "Visits" },
+              ]}
+            />
+            <Button
+              type="button"
+              variant="outline"
+              size="icon"
+              aria-label={filters.order === "desc" ? "Sorted descending" : "Sorted ascending"}
+              onClick={() => update({ order: filters.order === "desc" ? "asc" : "desc" })}
+            >
+              {filters.order === "desc" ? <ArrowDownIcon /> : <ArrowUpIcon />}
+            </Button>
+          </div>
         </CardContent>
       </Card>
 
@@ -199,7 +215,15 @@ function LinksList({ actor }: { actor: Actor }) {
                     {link.ownerName ?? "—"}
                   </TableCell>
                   <TableCell>
-                    {link.status === "archived" ? <Badge variant="outline">Archived</Badge> : null}
+                    <When iso={link.updatedAt} />
+                  </TableCell>
+                  <TableCell>
+                    <div className="flex gap-1">
+                      {link.status === "archived" ? <Badge variant="outline">Archived</Badge> : null}
+                      {link.expiresAt && new Date(link.expiresAt) <= new Date() ? (
+                        <Badge variant="outline">Expired</Badge>
+                      ) : null}
+                    </div>
                   </TableCell>
                   <TableCell>
                     {/* Per row, not per page: an author owns some of these and not

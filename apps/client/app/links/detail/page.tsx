@@ -24,7 +24,7 @@ import { Checkbox } from "@/components/ui/checkbox"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { VisitsCard } from "@/components/visits-card"
-import { errorMessage } from "../../../lib/api"
+import { errorMessage, fromDatetimeLocal, toDatetimeLocal } from "../../../lib/api"
 import { useListKeysQuery } from "../../../lib/store/keys"
 import {
   useArchiveLinkMutation,
@@ -70,6 +70,9 @@ function LinkDetail({ actor }: { actor: Actor }) {
             {current.domainHost}/{current.slug}
             <CopyButton value={current.shortUrl} />
             {current.status === "archived" ? <Badge variant="outline">Archived</Badge> : null}
+            {current.expiresAt && new Date(current.expiresAt) <= new Date() ? (
+              <Badge variant="outline">Expired</Badge>
+            ) : null}
           </h1>
           <p className="text-sm text-muted-foreground">
             Created <When iso={current.createdAt} /> by {current.ownerName ?? "a revoked key"}
@@ -128,6 +131,8 @@ function SettingsCard({
     presetParamsToRows(link.presetParams),
   )
   const [ownerId, setOwnerId] = useState(link.ownerId ?? "")
+  const [expiresAt, setExpiresAt] = useState(() => toDatetimeLocal(link.expiresAt))
+  const [listed, setListed] = useState(link.listed)
   const [saving, setSaving] = useState(false)
 
   async function save() {
@@ -141,6 +146,8 @@ function SettingsCard({
           tags,
           forwardQuery,
           presetParams: rowsToPresetParams(presetParams),
+          expiresAt: fromDatetimeLocal(expiresAt),
+          listed,
           ...(ownerId !== link.ownerId ? { ownerId } : {}),
         },
       }).unwrap()
@@ -248,10 +255,12 @@ function SettingsCard({
               value={ownerId}
               disabled={!canEdit || !canTransfer}
               onChange={setOwnerId}
-              options={(keys.data?.data ?? []).map((key) => ({
-                value: key.id,
-                label: key.name,
-              }))}
+              options={(keys.data?.data ?? [])
+                // The server refuses a viewer as an owner, so never offer
+                // one — except the current owner, which may already be a
+                // viewer via a demotion and must still render as the truth.
+                .filter((key) => can.ownLink(key) || key.id === link.ownerId)
+                .map((key) => ({ value: key.id, label: key.name }))}
             />
           </Field>
 
@@ -261,6 +270,15 @@ function SettingsCard({
 
           <Field label="Domain" hint="Immutable.">
             <Input value={link.domainHost} disabled readOnly />
+          </Field>
+
+          <Field label="Expires" hint="Leave blank to never expire. Past this, the link 404s like an unknown slug.">
+            <Input
+              type="datetime-local"
+              value={expiresAt}
+              onChange={(event) => setExpiresAt(event.target.value)}
+              disabled={!canEdit}
+            />
           </Field>
         </div>
 
@@ -285,6 +303,15 @@ function SettingsCard({
             onCheckedChange={(checked) => setForwardQuery(checked === true)}
           />
           Forward incoming query parameters to the destination
+        </Label>
+
+        <Label className="mt-2 font-normal">
+          <Checkbox
+            checked={listed}
+            disabled={!canEdit}
+            onCheckedChange={(checked) => setListed(checked === true)}
+          />
+          List in /llms.txt — publishes this link's name and destination, readable without a key
         </Label>
       </CardContent>
     </Card>

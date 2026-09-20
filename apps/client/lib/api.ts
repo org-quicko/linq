@@ -75,6 +75,19 @@ export function errorMessage(err: unknown, fallback: string): string {
   return fallback
 }
 
+/** An ISO timestamp as the local value a `datetime-local` input expects. Null renders empty. */
+export function toDatetimeLocal(iso: string | null): string {
+  if (!iso) return ""
+  const d = new Date(iso)
+  const pad = (n: number) => String(n).padStart(2, "0")
+  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`
+}
+
+/** The reverse of `toDatetimeLocal`. Empty means "never expires". */
+export function fromDatetimeLocal(value: string): string | null {
+  return value ? new Date(value).toISOString() : null
+}
+
 /** Builds a query string, dropping empty values so the URL stays readable. */
 export function qs(params: Record<string, string | number | boolean | undefined | null>): string {
   const search = new URLSearchParams()

@@ -22,7 +22,11 @@ describe("GET /api/v1/keys", () => {
     expect(asAdmin.data[0]).toHaveProperty("prefix")
 
     const asViewer = await (await h.request("/api/v1/keys", { key: viewer.key })).json()
-    expect(asViewer.data[0]).toEqual({ id: expect.any(String), name: expect.any(String) })
+    expect(asViewer.data[0]).toEqual({
+      id: expect.any(String),
+      name: expect.any(String),
+      role: expect.any(String),
+    })
     expect(asViewer.total).toBe(asAdmin.total)
   })
 

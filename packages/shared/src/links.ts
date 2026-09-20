@@ -20,6 +20,10 @@ export const linkCreateSchema = z.object({
   tags: z.array(tagSchema).max(20).default([]),
   forwardQuery: z.boolean().default(true),
   presetParams: presetParamsSchema.default({}),
+  /** ISO-8601. Absent or null means the link never expires. */
+  expiresAt: z.iso.datetime().nullable().optional(),
+  /** Opt-in: appears in the domain's public /llms.txt catalogue. */
+  listed: z.boolean().default(false),
 })
 export type LinkCreate = z.input<typeof linkCreateSchema>
 
@@ -36,6 +40,8 @@ export const linkPatchSchema = z
     presetParams: presetParamsSchema,
     status: resourceStatusSchema,
     ownerId: uuidSchema,
+    expiresAt: z.iso.datetime().nullable(),
+    listed: z.boolean(),
   })
   .partial()
 export type LinkPatch = z.infer<typeof linkPatchSchema>
@@ -57,8 +63,9 @@ export const linkListQuerySchema = paginationSchema.extend({
   domainId: uuidSchema.optional(),
   ownerId: uuidSchema.optional(),
   status: z.enum(["active", "archived", "all"]).default("active"),
-  sort: z.enum(["createdAt", "visits"]).default("createdAt"),
+  sort: z.enum(["createdAt", "updatedAt", "visits"]).default("createdAt"),
   order: z.enum(["asc", "desc"]).default("desc"),
+  expiry: z.enum(["any", "live", "expired"]).default("any"),
 })
 
 export type Link = {
@@ -77,6 +84,8 @@ export type Link = {
   ownerName: string | null
   humanVisits: number
   botVisits: number
+  expiresAt: string | null
+  listed: boolean
   createdAt: string
   updatedAt: string
 }
