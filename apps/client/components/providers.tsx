@@ -3,6 +3,7 @@
 import { ThemeProvider } from "next-themes"
 import type { ReactNode } from "react"
 import { Provider } from "react-redux"
+import { TooltipProvider } from "@/components/ui/tooltip"
 import { store } from "@/lib/store"
 
 export function Providers({ children }: { children: ReactNode }) {
@@ -14,7 +15,9 @@ export function Providers({ children }: { children: ReactNode }) {
        * whole sidebar as each element's colors interpolate one at a time.
        */}
       <ThemeProvider attribute="class" defaultTheme="system" enableSystem disableTransitionOnChange>
-        {children}
+        {/* delayDuration 0 is the shadcn default; every icon button's label
+            should appear immediately on hover, not after a pause. */}
+        <TooltipProvider>{children}</TooltipProvider>
       </ThemeProvider>
     </Provider>
   )
