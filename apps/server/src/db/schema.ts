@@ -44,8 +44,17 @@ export const apiKeys = pgTable("api_keys", {
 export const domains = pgTable("domains", {
   id: uuid("id").primaryKey(),
   host: text("host").notNull().unique(),
-  /** Where orphan visits go. Null means 404. */
+  /** Where an unmatched-but-well-formed slug goes. Null means 404. This is
+   *  the regular 404 case and by far the common one — see the other two
+   *  redirect columns below for the other two cases the redirect handler
+   *  distinguishes. */
   fallbackUrl: text("fallback_url"),
+  /** Where a visitor lands on `GET /` (an empty slug). Null falls back to
+   *  `fallbackUrl`, then 404. */
+  basePathRedirect: text("base_path_redirect"),
+  /** Where a visitor lands when the slug is malformed (fails `SLUG_PATTERN`)
+   *  rather than simply unknown. Null falls back to `fallbackUrl`, then 404. */
+  invalidShortUrlRedirect: text("invalid_short_url_redirect"),
   status: resourceStatusEnum("status").notNull().default("active"),
   createdAt,
   updatedAt,

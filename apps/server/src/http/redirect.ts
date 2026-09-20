@@ -1,4 +1,4 @@
-import { type Condition, RESERVED_SLUGS } from "@linq/shared"
+import { type Condition, RESERVED_SLUGS, SLUG_PATTERN } from "@linq/shared"
 import { and, eq, inArray } from "drizzle-orm"
 import type { Context } from "hono"
 import { createFactory } from "hono/factory"
@@ -15,7 +15,12 @@ import { shortUrl } from "./api/links.ts"
 import type { Env } from "./env.ts"
 
 /** The part of a domain row the redirect needs. Null means no active domain. */
-export type ResolvedDomain = { id: string; fallbackUrl: string | null }
+export type ResolvedDomain = {
+  id: string
+  fallbackUrl: string | null
+  basePathRedirect: string | null
+  invalidShortUrlRedirect: string | null
+}
 
 /**
  * Everything one slug on one domain resolves to, rules included, so a cache hit
@@ -51,12 +56,25 @@ export function findActiveDomain(db: Db, hostHeader: string): Promise<ResolvedDo
       const candidates = bare === host ? [host] : [host, bare]
 
       const rows = await db
-        .select({ id: domains.id, host: domains.host, fallbackUrl: domains.fallbackUrl })
+        .select({
+          id: domains.id,
+          host: domains.host,
+          fallbackUrl: domains.fallbackUrl,
+          basePathRedirect: domains.basePathRedirect,
+          invalidShortUrlRedirect: domains.invalidShortUrlRedirect,
+        })
         .from(domains)
         .where(and(inArray(domains.host, candidates), eq(domains.status, "active")))
 
       const row = rows.find((r) => r.host === host) ?? rows[0] ?? null
-      return row ? { id: row.id, fallbackUrl: row.fallbackUrl } : null
+      return row
+        ? {
+            id: row.id,
+            fallbackUrl: row.fallbackUrl,
+            basePathRedirect: row.basePathRedirect,
+            invalidShortUrlRedirect: row.invalidShortUrlRedirect,
+          }
+        : null
     },
     { in: { host: hostHeader }, out: (domain) => ({ domainId: domain?.id ?? null }) },
   )
@@ -199,8 +217,18 @@ export const redirectHandler = factory.createHandlers(async (c) => {
   }
 
   // 3. Root path, unknown slug or archived link: an orphan visit on a live domain.
+  //    Three redirect fields, three cases, in this order — root path wins over
+  //    malformed (an empty slug also fails SLUG_PATTERN, so it must be checked
+  //    first), and each falls back to `fallbackUrl` when unset. `?? null`
+  //    guards a cache entry written before these fields existed (see
+  //    ResolvedDomain), not the DB row, which is always complete.
   if (!link) {
-    const destination = domain.fallbackUrl
+    const destination =
+      slug === ""
+        ? (domain.basePathRedirect ?? null) ?? domain.fallbackUrl
+        : SLUG_PATTERN.test(slug)
+          ? domain.fallbackUrl
+          : (domain.invalidShortUrlRedirect ?? null) ?? domain.fallbackUrl
     if (tracked) recordVisit(c.var.db, { ...visit, linkId: null, destination })
     if (!destination) return c.text("Not Found", 404)
     return isPreviewCrawler(userAgent)

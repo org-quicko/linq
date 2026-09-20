@@ -1,0 +1,289 @@
+"use client"
+
+import { type Actor, can, type Link } from "@linq/shared"
+import { CalendarIcon, TagIcon } from "lucide-react"
+import { type ReactNode, useState } from "react"
+import { Field, Picker } from "@/components/common"
+import {
+  type PresetParamRow,
+  PresetParamsEditor,
+  presetParamsToRows,
+  rowsToPresetParams,
+} from "@/components/preset-params-editor"
+import { TagPicker } from "@/components/tag-picker"
+import { Button } from "@/components/ui/button"
+import { Checkbox } from "@/components/ui/checkbox"
+import {
+  Dialog,
+  DialogContent,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog"
+import { Input } from "@/components/ui/input"
+import { Label } from "@/components/ui/label"
+import { Switch } from "@/components/ui/switch"
+import { fromDatetimeLocal, toDatetimeLocal } from "../lib/api"
+import { useRun } from "../lib/hooks"
+import { useListDomainsQuery } from "../lib/store/domains"
+import { useListKeysQuery } from "../lib/store/keys"
+import { useCreateLinkMutation, useUpdateLinkMutation } from "../lib/store/links"
+
+/**
+ * The one form behind Create, Edit and Duplicate — extracted from
+ * `app/links/new/page.tsx` and the settings half of `app/links/detail/page.tsx`
+ * (plans/Plan_27.md Part C4). `mode` decides the verb and what gets sent;
+ * `link` seeds the fields either way — as the record being edited (`mode`
+ * `"edit"`, slug and domain locked) or as the starting point for a duplicate
+ * (`mode` `"create"`, slug blank so the server generates a fresh one).
+ *
+ * Rules stay off this dialog and on `/links/detail/` where they've always
+ * lived: a rule needs a real link id to attach to, which a link being
+ * created here does not have yet.
+ */
+export function LinkFormDialog({
+  open,
+  onOpenChange,
+  actor,
+  mode,
+  link,
+}: {
+  open: boolean
+  onOpenChange: (open: boolean) => void
+  actor: Actor
+  mode: "create" | "edit"
+  link?: Link
+}) {
+  const domains = useListDomainsQuery({ limit: 200 })
+  const keys = useListKeysQuery({ limit: 200 })
+  const [createLink] = useCreateLinkMutation()
+  const [updateLink] = useUpdateLinkMutation()
+  const { run, saving } = useRun()
+
+  const activeDomains = (domains.data?.data ?? []).filter((domain) => domain.status === "active")
+  const canTransfer = mode === "edit" && !!link && can.transferLink(actor, link)
+
+  const [domainId, setDomainId] = useState(link?.domainId ?? "")
+  const [slug, setSlug] = useState(mode === "edit" ? (link?.slug ?? "") : "")
+  const [destination, setDestination] = useState(link?.destination ?? "")
+  const [name, setName] = useState(link?.name ?? "")
+  const [tags, setTags] = useState<string[]>(link?.tags ?? [])
+  const [ownerId, setOwnerId] = useState(link?.ownerId ?? "")
+  const [forwardQuery, setForwardQuery] = useState(link?.forwardQuery ?? true)
+  const [listed, setListed] = useState(link?.listed ?? false)
+  const [presetParams, setPresetParams] = useState<PresetParamRow[]>(() =>
+    link ? presetParamsToRows(link.presetParams) : [],
+  )
+  const [paramsOpen, setParamsOpen] = useState(!!link && Object.keys(link.presetParams).length > 0)
+  const [expiresAt, setExpiresAt] = useState(() => toDatetimeLocal(link?.expiresAt ?? null))
+  const [expiryOpen, setExpiryOpen] = useState(!!link?.expiresAt)
+
+  const chosenDomain = mode === "create" ? domainId || activeDomains[0]?.id || "" : link?.domainId
+
+  function submit() {
+    const shared = {
+      destination: destination.trim(),
+      tags,
+      forwardQuery,
+      presetParams: rowsToPresetParams(presetParams),
+      expiresAt: expiryOpen ? fromDatetimeLocal(expiresAt) : null,
+      listed,
+    }
+
+    if (mode === "create") {
+      return run(
+        () =>
+          createLink({
+            ...shared,
+            domainId: chosenDomain as string,
+            slug: slug.trim() || undefined,
+            name: name.trim() || undefined,
+          }).unwrap(),
+        {
+          success: "Link created.",
+          fallback: "Could not create the link.",
+          onSuccess: () => onOpenChange(false),
+        },
+      )
+    }
+
+    // mode "edit" always carries a link
+    const current = link as Link
+    return run(
+      () =>
+        updateLink({
+          id: current.id,
+          body: {
+            ...shared,
+            name: name.trim() || null,
+            ...(ownerId !== current.ownerId ? { ownerId } : {}),
+          },
+        }).unwrap(),
+      { success: "Saved.", fallback: "Could not save.", onSuccess: () => onOpenChange(false) },
+    )
+  }
+
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent className="sm:max-w-lg">
+        <DialogHeader>
+          <DialogTitle>{mode === "create" ? "Create link" : "Edit link"}</DialogTitle>
+        </DialogHeader>
+
+        <div className="flex max-h-[70vh] flex-col gap-4 overflow-y-auto pr-1">
+          <Field label="Destination" hint="An absolute http(s) URL.">
+            <Input
+              value={destination}
+              onChange={(event) => setDestination(event.target.value)}
+              placeholder="https://example.com/landing"
+            />
+          </Field>
+
+          <div className="grid grid-cols-2 gap-3">
+            <Field label="Domain">
+              {mode === "create" ? (
+                <Picker
+                  value={chosenDomain ?? ""}
+                  onChange={setDomainId}
+                  options={activeDomains.map((domain) => ({
+                    value: domain.id,
+                    label: domain.host,
+                  }))}
+                />
+              ) : (
+                <Input value={link?.domainHost} disabled readOnly />
+              )}
+            </Field>
+
+            <Field
+              label="Slug"
+              hint={
+                mode === "edit"
+                  ? "Immutable, and never reused once taken."
+                  : "Leave blank for a generated one."
+              }
+            >
+              <Input
+                value={slug}
+                onChange={(event) => setSlug(event.target.value)}
+                placeholder="spring-sale"
+                spellCheck={false}
+                disabled={mode === "edit"}
+                readOnly={mode === "edit"}
+              />
+            </Field>
+          </div>
+
+          <Field label="Name" hint="Optional, for your own reference.">
+            <Input value={name} onChange={(event) => setName(event.target.value)} />
+          </Field>
+
+          <Field label="Tags" hint="Pick one in use, or add a new one.">
+            <TagPicker value={tags} onChange={setTags} creatable placeholder="No tags" />
+          </Field>
+
+          {mode === "edit" ? (
+            <Field
+              label="Owner"
+              hint={
+                canTransfer
+                  ? "Handing this to another key gives up your own access unless your role covers it."
+                  : "Only an admin, or the owning key, may hand a link over."
+              }
+            >
+              <Picker
+                value={ownerId}
+                disabled={!canTransfer}
+                onChange={setOwnerId}
+                options={(keys.data?.data ?? [])
+                  // The server refuses a viewer as an owner; the current owner
+                  // still renders even if a demotion since made it one.
+                  .filter((key) => can.ownLink(key) || key.id === link?.ownerId)
+                  .map((key) => ({ value: key.id, label: key.name }))}
+              />
+            </Field>
+          ) : null}
+
+          <Label className="font-normal">
+            <Checkbox
+              checked={forwardQuery}
+              onCheckedChange={(checked) => setForwardQuery(checked === true)}
+            />
+            Forward incoming query parameters to the destination
+          </Label>
+
+          <Label className="font-normal">
+            <Checkbox checked={listed} onCheckedChange={(checked) => setListed(checked === true)} />
+            List in /llms.txt — publishes this link's name and destination, readable without a key
+          </Label>
+
+          <ToggleSection
+            icon={<TagIcon className="size-3.5" />}
+            label="Query Parameters"
+            open={paramsOpen}
+            onOpenChange={setParamsOpen}
+          >
+            <PresetParamsEditor
+              rows={presetParams}
+              onChange={setPresetParams}
+              readOnly={false}
+              forwardQuery={forwardQuery}
+            />
+          </ToggleSection>
+
+          <ToggleSection
+            icon={<CalendarIcon className="size-3.5" />}
+            label="Expiry date"
+            open={expiryOpen}
+            onOpenChange={setExpiryOpen}
+          >
+            <Input
+              type="datetime-local"
+              value={expiresAt}
+              onChange={(event) => setExpiresAt(event.target.value)}
+            />
+          </ToggleSection>
+        </div>
+
+        <DialogFooter>
+          <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>
+            Cancel
+          </Button>
+          <Button type="button" disabled={saving || !destination.trim()} onClick={submit}>
+            {mode === "create" ? "Create link" : "Save changes"}
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  )
+}
+
+/** A labelled switch that reveals its content only once turned on — the
+ *  mockup's pattern for Query Parameters and Expiry date, both of which are
+ *  the exception rather than the rule for most links. */
+function ToggleSection({
+  icon,
+  label,
+  open,
+  onOpenChange,
+  children,
+}: {
+  icon: ReactNode
+  label: string
+  open: boolean
+  onOpenChange: (open: boolean) => void
+  children: ReactNode
+}) {
+  return (
+    <div className="rounded-lg border">
+      <Label className="flex items-center justify-between gap-2 p-3 font-normal">
+        <span className="flex items-center gap-2 text-muted-foreground">
+          {icon}
+          {label}
+        </span>
+        <Switch checked={open} onCheckedChange={onOpenChange} />
+      </Label>
+      {open ? <div className="border-t p-3">{children}</div> : null}
+    </div>
+  )
+}

@@ -6,27 +6,16 @@ import NextLink from "next/link"
 import { useRouter, useSearchParams } from "next/navigation"
 import { Suspense, useState } from "react"
 import { AppShell } from "@/components/app-shell"
-import { ConfirmButton, Field, Picker, QueryState, When } from "@/components/common"
+import { ConfirmButton, Field, QueryState, When } from "@/components/common"
+import { LinkFormDialog } from "@/components/link-form-dialog"
 import { PageHeader, ShortLink } from "@/components/patterns"
-import {
-  type PresetParamRow,
-  PresetParamsEditor,
-  presetParamsToRows,
-  rowsToPresetParams,
-} from "@/components/preset-params-editor"
 import { RulesEditor } from "@/components/rules-editor"
 import { StatsPanel } from "@/components/stats-panel"
-import { TagPicker } from "@/components/tag-picker"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Card, CardAction, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
-import { Checkbox } from "@/components/ui/checkbox"
-import { Input } from "@/components/ui/input"
-import { Label } from "@/components/ui/label"
 import { VisitsCard } from "@/components/visits-card"
-import { fromDatetimeLocal, toDatetimeLocal } from "../../../lib/api"
 import { useRun } from "../../../lib/hooks"
-import { useListKeysQuery } from "../../../lib/store/keys"
 import {
   useArchiveLinkMutation,
   useGetLinkQuery,
@@ -91,12 +80,7 @@ function LinkDetail({ actor }: { actor: Actor }) {
 
       <StatsPanel path={`/v1/links/${id}/stats`} title="Visits" />
 
-      <SettingsCard
-        link={current}
-        canEdit={canEdit}
-        canTransfer={can.transferLink(actor, current)}
-        canPurge={can.purge(actor)}
-      />
+      <SummaryCard actor={actor} link={current} canEdit={canEdit} canPurge={can.purge(actor)} />
 
       {rules.data ? (
         <RulesEditor linkId={id} rules={rules.data} readOnly={!canEdit} />
@@ -109,62 +93,36 @@ function LinkDetail({ actor }: { actor: Actor }) {
   )
 }
 
-/** The editable fields of a link. Slug and domain are shown but never editable. */
-function SettingsCard({
+/**
+ * A read-only summary of the link's settings, with an Edit button that opens
+ * the same `LinkFormDialog` the list uses (plans/Plan_27.md Part C4) — one
+ * editing surface everywhere, instead of this page's own always-editable
+ * inline form. Archive/Restore/Purge stay here: they are this page's own
+ * lifecycle actions, not fields on the form.
+ */
+function SummaryCard({
+  actor,
   link,
   canEdit,
-  canTransfer,
   canPurge,
 }: {
+  actor: Actor
   link: Link
   canEdit: boolean
-  /** Decided from the calling key, never from the draft owner in the dropdown. */
-  canTransfer: boolean
   canPurge: boolean
 }) {
   const router = useRouter()
-  const keys = useListKeysQuery({ limit: 200 })
-  const [updateLink] = useUpdateLinkMutation()
   const [archiveLink] = useArchiveLinkMutation()
+  const [updateLink] = useUpdateLinkMutation()
   const [purgeLink] = usePurgeLinkMutation()
-  const [destination, setDestination] = useState(link.destination)
-  const [name, setName] = useState(link.name ?? "")
-  const [tags, setTags] = useState<string[]>(link.tags)
-  const [forwardQuery, setForwardQuery] = useState(link.forwardQuery)
-  const [presetParams, setPresetParams] = useState<PresetParamRow[]>(() =>
-    presetParamsToRows(link.presetParams),
-  )
-  const [ownerId, setOwnerId] = useState(link.ownerId ?? "")
-  const [expiresAt, setExpiresAt] = useState(() => toDatetimeLocal(link.expiresAt))
-  const [listed, setListed] = useState(link.listed)
-  const { run, saving } = useRun()
-
-  function save() {
-    return run(
-      () =>
-        updateLink({
-          id: link.id,
-          body: {
-            destination: destination.trim(),
-            name: name.trim() || null,
-            tags,
-            forwardQuery,
-            presetParams: rowsToPresetParams(presetParams),
-            expiresAt: fromDatetimeLocal(expiresAt),
-            listed,
-            ...(ownerId !== link.ownerId ? { ownerId } : {}),
-          },
-        }).unwrap(),
-      { success: "Saved.", fallback: "Could not save." },
-    )
-  }
+  const [editOpen, setEditOpen] = useState(false)
+  const { run } = useRun()
 
   function toggleArchived() {
-    return run(() =>
-      link.status === "active"
-        ? archiveLink(link.id).unwrap()
-        : updateLink({ id: link.id, body: { status: "active" } }).unwrap(),
-    )
+    return run(async () => {
+      if (link.status === "active") await archiveLink(link.id).unwrap()
+      else await updateLink({ id: link.id, body: { status: "active" } }).unwrap()
+    })
   }
 
   /** There is no row left to reload afterwards, so this leaves the page. */
@@ -176,143 +134,86 @@ function SettingsCard({
   }
 
   return (
-    <Card>
-      <CardHeader className="border-b">
-        <CardTitle>Settings</CardTitle>
-        {canEdit ? (
-          <CardAction className="flex gap-2">
-            {link.status === "active" ? (
-              <ConfirmButton
-                title={`Archive ${link.domainHost}/${link.slug}?`}
-                description="The short URL stops resolving immediately. Nothing is deleted, and the slug stays taken, so you can restore it later."
-                confirmLabel="Archive"
-                onConfirm={toggleArchived}
-              >
-                Archive
-              </ConfirmButton>
-            ) : (
-              <>
-                <Button type="button" variant="outline" onClick={toggleArchived}>
-                  Restore
-                </Button>
-                {/* Archived only: purge is the step after archiving, never an
-                    alternative to it, and the server enforces that too. */}
-                {canPurge ? (
-                  <ConfirmButton
-                    title={`Purge ${link.domainHost}/${link.slug}?`}
-                    description={`This destroys the link and its rules for good, and frees the slug for anyone to claim on ${link.domainHost}. Its visits are kept as orphans. It cannot be undone.`}
-                    confirmLabel="Purge for good"
-                    confirmText={link.slug}
-                    onConfirm={purge}
-                  >
-                    Purge
-                  </ConfirmButton>
-                ) : null}
-              </>
-            )}
-            <Button type="button" onClick={save} disabled={saving}>
-              {saving ? "Saving…" : "Save"}
-            </Button>
-          </CardAction>
-        ) : null}
-      </CardHeader>
+    <>
+      <Card>
+        <CardHeader className="border-b">
+          <CardTitle>Settings</CardTitle>
+          {canEdit ? (
+            <CardAction className="flex gap-2">
+              {link.status === "active" ? (
+                <ConfirmButton
+                  title={`Archive ${link.domainHost}/${link.slug}?`}
+                  description="The short URL stops resolving immediately. Nothing is deleted, and the slug stays taken, so you can restore it later."
+                  confirmLabel="Archive"
+                  onConfirm={toggleArchived}
+                >
+                  Archive
+                </ConfirmButton>
+              ) : (
+                <>
+                  <Button type="button" variant="outline" onClick={toggleArchived}>
+                    Restore
+                  </Button>
+                  {/* Archived only: purge is the step after archiving, never an
+                      alternative to it, and the server enforces that too. */}
+                  {canPurge ? (
+                    <ConfirmButton
+                      title={`Purge ${link.domainHost}/${link.slug}?`}
+                      description={`This destroys the link and its rules for good, and frees the slug for anyone to claim on ${link.domainHost}. Its visits are kept as orphans. It cannot be undone.`}
+                      confirmLabel="Purge for good"
+                      confirmText={link.slug}
+                      onConfirm={purge}
+                    >
+                      Purge
+                    </ConfirmButton>
+                  ) : null}
+                </>
+              )}
+              <Button type="button" onClick={() => setEditOpen(true)}>
+                Edit
+              </Button>
+            </CardAction>
+          ) : null}
+        </CardHeader>
 
-      <CardContent>
-        <div className="grid gap-4 sm:grid-cols-2">
-          <Field label="Destination" hint="Where visitors go when no rule matches.">
-            <Input
-              value={destination}
-              onChange={(event) => setDestination(event.target.value)}
-              disabled={!canEdit}
-            />
+        <CardContent className="grid gap-4 sm:grid-cols-2">
+          <Field label="Destination">
+            <p className="truncate text-sm">{link.destination}</p>
           </Field>
-
           <Field label="Name">
-            <Input
-              value={name}
-              onChange={(event) => setName(event.target.value)}
-              disabled={!canEdit}
-            />
+            <p className="truncate text-sm text-muted-foreground">{link.name || "—"}</p>
           </Field>
-
-          <Field label="Tags" hint="Pick one in use, or add a new one.">
-            <TagPicker value={tags} onChange={setTags} creatable disabled={!canEdit} />
+          <Field label="Tags">
+            <p className="text-sm text-muted-foreground">
+              {link.tags.length > 0 ? link.tags.join(", ") : "—"}
+            </p>
           </Field>
-
-          <Field
-            label="Owner"
-            hint={
-              canTransfer
-                ? "Handing this to another key gives up your own access unless your role covers it."
-                : "Only an admin, or the owning key, may hand a link over."
-            }
-          >
-            <Picker
-              value={ownerId}
-              disabled={!canEdit || !canTransfer}
-              onChange={setOwnerId}
-              options={(keys.data?.data ?? [])
-                // The server refuses a viewer as an owner, so never offer
-                // one — except the current owner, which may already be a
-                // viewer via a demotion and must still render as the truth.
-                .filter((key) => can.ownLink(key) || key.id === link.ownerId)
-                .map((key) => ({ value: key.id, label: key.name }))}
-            />
+          <Field label="Owner">
+            <p className="text-sm text-muted-foreground">{link.ownerName ?? "unassigned"}</p>
           </Field>
-
           <Field label="Slug" hint="Immutable, and never reused once taken.">
-            <Input value={link.slug} disabled readOnly />
+            <p className="text-sm text-muted-foreground">{link.slug}</p>
           </Field>
-
           <Field label="Domain" hint="Immutable.">
-            <Input value={link.domainHost} disabled readOnly />
+            <p className="text-sm text-muted-foreground">{link.domainHost}</p>
           </Field>
-
-          <Field
-            label="Expires"
-            hint="Leave blank to never expire. Past this, the link 404s like an unknown slug."
-          >
-            <Input
-              type="datetime-local"
-              value={expiresAt}
-              onChange={(event) => setExpiresAt(event.target.value)}
-              disabled={!canEdit}
-            />
+          <Field label="Expires">
+            <p className="text-sm text-muted-foreground">
+              {link.expiresAt ? <When iso={link.expiresAt} /> : "never"}
+            </p>
           </Field>
-        </div>
-
-        <div className="mt-4">
-          <Field
-            label="Preset params"
-            hint="Set on the destination at redirect time, overriding its own query and any forwarded one."
-          >
-            <PresetParamsEditor
-              rows={presetParams}
-              onChange={setPresetParams}
-              readOnly={!canEdit}
-              forwardQuery={forwardQuery}
-            />
+          <Field label="Forward query params">
+            <p className="text-sm text-muted-foreground">{link.forwardQuery ? "Yes" : "No"}</p>
           </Field>
-        </div>
+          <Field label="Listed in /llms.txt">
+            <p className="text-sm text-muted-foreground">{link.listed ? "Yes" : "No"}</p>
+          </Field>
+        </CardContent>
+      </Card>
 
-        <Label className="mt-4 font-normal">
-          <Checkbox
-            checked={forwardQuery}
-            disabled={!canEdit}
-            onCheckedChange={(checked) => setForwardQuery(checked === true)}
-          />
-          Forward incoming query parameters to the destination
-        </Label>
-
-        <Label className="mt-2 font-normal">
-          <Checkbox
-            checked={listed}
-            disabled={!canEdit}
-            onCheckedChange={(checked) => setListed(checked === true)}
-          />
-          List in /llms.txt — publishes this link's name and destination, readable without a key
-        </Label>
-      </CardContent>
-    </Card>
+      {editOpen ? (
+        <LinkFormDialog open onOpenChange={setEditOpen} actor={actor} mode="edit" link={link} />
+      ) : null}
+    </>
   )
 }

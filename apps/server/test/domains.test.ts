@@ -196,6 +196,38 @@ describe("PATCH /api/v1/domains/:id", () => {
     })
     expect(res.status).toBe(404)
   })
+
+  test("round-trips basePathRedirect and invalidShortUrlRedirect through POST/PATCH/GET", async () => {
+    const created = await h.post("/api/v1/domains", admin.key, {
+      host: "redirects.test",
+      fallbackUrl: "https://example.com/fallback",
+      basePathRedirect: "https://example.com/home",
+      invalidShortUrlRedirect: "https://example.com/bad-slug",
+    })
+    const domain = await created.json()
+    expect(domain).toMatchObject({
+      fallbackUrl: "https://example.com/fallback",
+      basePathRedirect: "https://example.com/home",
+      invalidShortUrlRedirect: "https://example.com/bad-slug",
+    })
+
+    const patched = await h.patch(`/api/v1/domains/${domain.id}`, admin.key, {
+      basePathRedirect: "https://example.com/home2",
+      invalidShortUrlRedirect: null,
+    })
+    expect(await patched.json()).toMatchObject({
+      basePathRedirect: "https://example.com/home2",
+      invalidShortUrlRedirect: null,
+      // Untouched by this patch.
+      fallbackUrl: "https://example.com/fallback",
+    })
+
+    const fetched = await h.request(`/api/v1/domains/${domain.id}`, { key: admin.key })
+    expect(await fetched.json()).toMatchObject({
+      basePathRedirect: "https://example.com/home2",
+      invalidShortUrlRedirect: null,
+    })
+  })
 })
 
 describe("caddy sync", () => {

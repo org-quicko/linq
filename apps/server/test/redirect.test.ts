@@ -1,6 +1,6 @@
 import { beforeAll, describe, expect, test } from "bun:test"
 import { desc, eq, isNull } from "drizzle-orm"
-import { visits } from "../src/db/schema.ts"
+import { domains, visits } from "../src/db/schema.ts"
 import { flushVisits } from "../src/visits/record.ts"
 import { createHarness, type Harness } from "./helpers/app.ts"
 
@@ -197,6 +197,80 @@ describe("orphan visits", () => {
     await flushVisits()
     const orphans = await h.db.select().from(visits).where(isNull(visits.linkId))
     expect(orphans.length).toBeGreaterThan(0)
+  })
+})
+
+/**
+ * `basePathRedirect` and `invalidShortUrlRedirect` (plans/Plan_27.md Part D) —
+ * the two fields added alongside the long-standing `fallbackUrl`, each
+ * covering one of the three branches `redirect.ts`'s `if (!link)` case now
+ * distinguishes. `createDomain` only sets `fallbackUrl`, so the other two are
+ * written straight to the row, same as `domains.test.ts` does for state the
+ * API itself has no route to reach.
+ */
+describe("the three redirect fields", () => {
+  test("the root path prefers basePathRedirect over fallbackUrl", async () => {
+    const host = "base-path-redirect.test"
+    const id = await h.createDomain(host, "https://example.com/fallback")
+    await h.db
+      .update(domains)
+      .set({ basePathRedirect: "https://example.com/home" })
+      .where(eq(domains.id, id))
+
+    const res = await get("/", { host })
+    expect(res.status).toBe(302)
+    expect(res.headers.get("location")).toBe("https://example.com/home")
+  })
+
+  test("a malformed slug prefers invalidShortUrlRedirect over fallbackUrl", async () => {
+    const host = "invalid-slug-redirect.test"
+    const id = await h.createDomain(host, "https://example.com/fallback")
+    await h.db
+      .update(domains)
+      .set({ invalidShortUrlRedirect: "https://example.com/bad-slug" })
+      .where(eq(domains.id, id))
+
+    // Multiple segments and a too-long segment are both rejected by
+    // SLUG_PATTERN, so both count as malformed rather than merely unknown.
+    expect((await get("/a/b", { host })).headers.get("location")).toBe(
+      "https://example.com/bad-slug",
+    )
+    expect((await get(`/${"x".repeat(70)}`, { host })).headers.get("location")).toBe(
+      "https://example.com/bad-slug",
+    )
+  })
+
+  test("a well-formed but unknown slug still uses fallbackUrl, never invalidShortUrlRedirect", async () => {
+    const host = "well-formed-unknown.test"
+    const id = await h.createDomain(host, "https://example.com/fallback")
+    await h.db
+      .update(domains)
+      .set({ invalidShortUrlRedirect: "https://example.com/bad-slug" })
+      .where(eq(domains.id, id))
+
+    const res = await get("/never-existed", { host })
+    expect(res.headers.get("location")).toBe("https://example.com/fallback")
+  })
+
+  test("each new field falls back to fallbackUrl when unset", async () => {
+    const host = "redirect-fields-unset.test"
+    await h.createDomain(host, "https://example.com/fallback")
+
+    expect((await get("/", { host })).headers.get("location")).toBe(
+      "https://example.com/fallback",
+    )
+    expect((await get("/a/b", { host })).headers.get("location")).toBe(
+      "https://example.com/fallback",
+    )
+  })
+
+  test("with all three unset, root and malformed 404 exactly like an unknown slug", async () => {
+    const host = "redirect-fields-all-null.test"
+    await h.createDomain(host)
+
+    expect((await get("/", { host })).status).toBe(404)
+    expect((await get("/a/b", { host })).status).toBe(404)
+    expect((await get("/never-existed", { host })).status).toBe(404)
   })
 })
 

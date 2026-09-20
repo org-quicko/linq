@@ -27,6 +27,8 @@ function toDomain({ domain, linkCount }: DomainRow): Domain {
     id: domain.id,
     host: domain.host,
     fallbackUrl: domain.fallbackUrl,
+    basePathRedirect: domain.basePathRedirect,
+    invalidShortUrlRedirect: domain.invalidShortUrlRedirect,
     status: domain.status,
     linkCount,
     createdAt: domain.createdAt.toISOString(),
@@ -113,7 +115,13 @@ export const domainRoutes = new Hono<Env>()
 
     const [row] = await c.var.db
       .insert(domains)
-      .values({ id: Bun.randomUUIDv7(), host: body.host, fallbackUrl: body.fallbackUrl ?? null })
+      .values({
+        id: Bun.randomUUIDv7(),
+        host: body.host,
+        fallbackUrl: body.fallbackUrl ?? null,
+        basePathRedirect: body.basePathRedirect ?? null,
+        invalidShortUrlRedirect: body.invalidShortUrlRedirect ?? null,
+      })
       .onConflictDoNothing({ target: domains.host })
       .returning()
     if (!row) throw ApiError.conflict(`domain ${body.host} already exists`)
@@ -154,10 +162,10 @@ export const domainRoutes = new Hono<Env>()
         .set({ ...patch, updatedAt: new Date() })
         .where(eq(domains.id, id))
     }
-    // Both patchable fields — the fallback URL and the status — are what the
-    // redirect reads out of the cached entry.
+    // Every patchable field except the status itself — the three redirect
+    // URLs — is what the redirect handler reads out of the cached entry.
     await c.var.cache.del(domainKey(before.host))
-    // A fallback-URL-only patch changes nothing about routing.
+    // A redirect-only patch changes nothing Caddy needs to know about.
     if (patch.status !== undefined) {
       if (patch.status === "archived") await c.var.caddy.remove(id)
       else await c.var.caddy.upsert(id, before.host)
