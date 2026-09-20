@@ -29,3 +29,13 @@ What this trades away:
 - Purging a Domain destroys its Clicks with it, because a Click cannot exist without a Domain. This is the one operation in link that loses analytics history.
 
 Purge is irreversible and leaves no audit trail beyond the request log line, which records the acting user, the route and the status. The typed confirmation in the Admin UI is a speed bump in the browser, never a permission.
+
+## Amendment · 2026-09-20 — Archive raised to match Purge (`plans/Plan_26.md`)
+
+The Decision above and the Amendment before this one both said a Domain may be **archived** while any of its Links are archived — only an **active** Link blocked archiving; a stricter bar applied only to purging. That asymmetry is removed: **archiving a Domain now refuses while any Link row points at it, archived included — the same bar purging already used.**
+
+The reason: an archived Link still owns its slug on that Domain, and an archived Domain cannot serve it. A Domain archived under the old rule while it still held archived Links was a dead end the old rule allowed to be created silently — a slug reserved forever on a host that can never resolve it again. There is no operation that undoes that shape once it exists, since slugs are never released except by purge (above), and a Domain cannot be purged while archived.
+
+The cost, accepted knowingly: retiring a host that ever carried Links now means purging every one of them first, and there is no bulk purge — for a Domain with hundreds of Links, that is hundreds of admin purges through today's API. A domain-scoped bulk Link purge is the obvious follow-up if this bites, and is deliberately not built here.
+
+`Domain.linkCount` in the API changes meaning with it: it now counts every Link, archived included, rather than active ones only. Same field, same type, a different number — any consumer reading it as "live links on this host" is silently wrong after this change.

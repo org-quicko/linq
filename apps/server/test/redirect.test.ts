@@ -50,6 +50,9 @@ describe("domain resolution", () => {
     const closed = await h.createDomain("closed.test")
     const link = await h.createLink(author.key, closed, { slug: "live" })
     await h.request(`/api/v1/links/${link.id}`, { key: author.key, method: "DELETE" })
+    // The domain cannot be archived while the link still points at it, even
+    // archived — purge it first. See plans/Plan_26.md §A1.
+    await h.request(`/api/v1/links/${link.id}/purge`, { key: admin.key, method: "DELETE" })
     await h.request(`/api/v1/domains/${closed}`, { key: admin.key, method: "DELETE" })
 
     const before = await visitCount()

@@ -42,7 +42,16 @@ The guard is **"no keys", not "never booted"** — the old one asked whether any
 - **A plaintext admin key reaches stdout on first boot**, and on any boot after every key is gone. It is deliberately not written through the logger: a secret in a rotating file on a mounted volume outlives the terminal line by a long way. An operator who pipes stdout to a file has undone that, and nothing stops them.
 - **Revoking every key is recoverable by restarting**, which is convenient and is also a way back in for anyone who can restart the process. On a self-hosted instance that is the same person; it is worth naming rather than discovering.
 - Migration `0009` discards every existing key and every link's ownership rather than guessing which of a user's several keys should inherit them. Acceptable only because nothing had shipped, and stated in the migration rather than left for a reader to discover.
+- **A key's role may not be lowered below the ownership threshold while it still owns links** (`plans/Plan_26.md` Part B, amending the note below). Reassigning them (`POST /keys/:id/links/reassign`) or revoking the key outright is the way through; revocation itself stays unconditional, exactly as this ADR requires.
 
 ## Amendment: a viewer may still hold links via demotion (2026-09-20, plans/Plan_25.md)
 
 A viewer can no longer *become* a link's owner — a transfer to a viewer key is refused (409). But `owner_id` still tolerates a key whose role was reduced to viewer after it owned links: demoting an owner is unconditional, exactly like revoking it, for the same reason. The link's `editLink` permission strips that key's edit rights the moment the demotion lands, so the state is safe, and it is the same shape as an unowned link — a row whose owner cannot currently act on it — which this ADR already accepts.
+
+## Amendment: demotion below the ownership threshold is refused while links are owned (2026-09-20, plans/Plan_26.md)
+
+**Supersedes the "demoting an owner is unconditional" line above.** That claim is no longer true: `PATCH /keys/:id` now refuses to lower a key's role below `can.ownLink`'s threshold while it still owns links, the same conflict shape as a transfer to an ineligible key. The reasoning above was sound on its own terms but incomplete — it answered "is the resulting state safe", not "should the transition itself be free" — and the objection to blocking it (holding an access reduction hostage to data cleanup, the same thing this ADR refuses to do for revocation) is answered rather than overruled: a bulk reassign endpoint gives the operator a one-call remedy *before* the refusal ever ships, so the demotion is never blocked without an immediate way through.
+
+**Revocation is untouched and stays the unconditional escape hatch.** `DELETE /keys/:id` still succeeds regardless of how many links a key owns, leaving them unowned via `ON DELETE SET NULL`, exactly as the Decision above requires. Demotion is housekeeping; revocation is incident response, and it remains one call.
+
+A key demoted before this amendment shipped may still own links — that pre-existing state is tolerated, not migrated, the same forward-only stance every amendment here has taken.

@@ -202,6 +202,16 @@ first.
    noting that a viewer may still hold links via demotion. No new ADR:
    this is a clarification of that one, not a new decision.
 
+   **Superseded by `plans/Plan_26.md` Part B (2026-09-20).** The objection
+   above still holds as written — every *naive* way of enforcing "no
+   viewer-owned link, ever" on demote is worse than not enforcing it. What
+   changes is that the objection gets answered instead of accepted: Plan 26
+   adds a bulk reassign endpoint (`POST /keys/:id/links/reassign`) that
+   gives the operator a one-call remedy before the refusal ever ships, so
+   demotion is never blocked *without* an immediate way through. Revocation
+   stays exactly as unconditional as this section and `docs/adr/0011`
+   require — the reasoning here is still why that had to be true.
+
 6. **Tests**:
    - `apps/server/test/permissions.test.ts`: `can.ownLink` is false for
      `viewer` and true for `author`/`manager`/`admin`; and

@@ -132,14 +132,15 @@ describe("DELETE /api/v1/domains/:id/purge", () => {
     const link = await h.createLink(author.key, host, { slug: "squatter" })
 
     await archive(h, `links/${link.id}`, author.key)
-    await archive(h, `domains/${host}`, admin.key)
 
-    // Archiving the domain was allowed — it only needs no *active* links — but
-    // purging it is not, because the link row still points at it.
-    const res = await purge(h, `domains/${host}`, admin.key)
-    expect(res.status).toBe(409)
+    // The domain itself cannot even be archived while the link — archived or
+    // not — still points at it: the archive bar now matches the purge bar.
+    // See plans/Plan_26.md §A1.
+    expect((await archive(h, `domains/${host}`, admin.key)).status).toBe(409)
 
     expect((await purge(h, `links/${link.id}`, admin.key)).status).toBe(204)
+
+    expect((await archive(h, `domains/${host}`, admin.key)).status).toBe(200)
     expect((await purge(h, `domains/${host}`, admin.key)).status).toBe(204)
     expect((await h.request(`/api/v1/domains/${host}`, { key: admin.key })).status).toBe(404)
   })

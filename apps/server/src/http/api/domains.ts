@@ -6,7 +6,7 @@ import {
   paginationSchema,
   uuidSchema,
 } from "@linq/shared"
-import { and, asc, count, eq, sql } from "drizzle-orm"
+import { asc, count, eq, sql } from "drizzle-orm"
 import { Hono } from "hono"
 import { z } from "zod"
 import { assertCanPurge, assertRole } from "../../auth/permissions.ts"
@@ -21,7 +21,7 @@ const idParam = validate("param", z.object({ id: uuidSchema }))
 
 type DomainRow = { domain: typeof domains.$inferSelect; linkCount: number }
 
-/** Maps a domain row and its active-link count to the JSON shape the API returns. */
+/** Maps a domain row and its link count to the JSON shape the API returns. */
 function toDomain({ domain, linkCount }: DomainRow): Domain {
   return {
     id: domain.id,
@@ -35,14 +35,13 @@ function toDomain({ domain, linkCount }: DomainRow): Domain {
 }
 
 /**
- * Active links per domain. Archived ones are excluded because this count is what
- * decides whether the domain may be archived.
+ * Links per domain, archived included: the number that must reach zero before
+ * the domain may be archived or purged. See `assertNoLinks`.
  */
 function domainQuery(db: Db) {
   const counts = db
     .select({ domainId: links.domainId, n: sql<number>`count(*)`.as("n") })
     .from(links)
-    .where(eq(links.status, "active"))
     .groupBy(links.domainId)
     .as("link_counts")
 
@@ -69,43 +68,35 @@ function fetchDomain(db: Db, id: string): Promise<Domain> {
 }
 
 /**
- * A purge takes the domain's visits with it (`visits.domain_id` is NOT NULL, so
- * they have nowhere to go), so it is refused while **any** link row still points
- * at the domain — archived ones included, unlike the archive check above.
+ * A domain may be retired only when nothing points at it — archived links
+ * included. Archiving stops the host serving and purging takes its visits
+ * with it, and an archived link still owns its slug on that host
+ * (docs/adr/0002), so either operation would strand a row that has nowhere
+ * to go. Purging the links is the only way through, by design.
  */
-function assertNoLinksAtAll(db: Db, domainId: string): Promise<void> {
+function assertNoLinks(db: Db, domainId: string): Promise<void> {
   return span(
-    "domain.assertNoLinksAtAll",
+    "domain.assertNoLinks",
     async () => {
-      const [remaining] = await db
-        .select({ id: links.id })
+      const [{ n }] = await db
+        .select({ n: count() })
         .from(links)
         .where(eq(links.domainId, domainId))
-        .limit(1)
-      if (remaining) {
-        throw ApiError.conflict("domain still has links; purge them first")
+      if (n > 0) {
+        throw ApiError.conflict(`domain still has ${n} link${n === 1 ? "" : "s"}; purge them first`)
       }
     },
     { in: { domainId } },
   )
 }
 
-/** An archived domain stops serving, so it may never strand an active link. */
-function assertNoActiveLinks(db: Db, domainId: string): Promise<void> {
-  return span(
-    "domain.assertNoActiveLinks",
-    async () => {
-      const [stranded] = await db
-        .select({ id: links.id })
-        .from(links)
-        .where(and(eq(links.domainId, domainId), eq(links.status, "active")))
-        .limit(1)
-      if (stranded) {
-        throw ApiError.conflict("domain still has active links; archive them first")
-      }
-    },
-    { in: { domainId } },
-  )
+/**
+ * True for Postgres SQLSTATE 23503 (foreign_key_violation), read off `code`
+ * rather than an `instanceof` check so it works the same whether the error
+ * came from Bun's `SQL.PostgresError` (production) or PGlite's driver (tests).
+ */
+function isForeignKeyViolation(err: unknown): boolean {
+  return typeof err === "object" && err !== null && (err as { code?: unknown }).code === "23503"
 }
 
 export const domainRoutes = new Hono<Env>()
@@ -141,12 +132,28 @@ export const domainRoutes = new Hono<Env>()
     const patch = c.req.valid("json")
 
     const before = await fetchDomain(c.var.db, id)
-    if (patch.status === "archived") await assertNoActiveLinks(c.var.db, id)
 
-    await c.var.db
-      .update(domains)
-      .set({ ...patch, updatedAt: new Date() })
-      .where(eq(domains.id, id))
+    if (patch.status === "archived") {
+      // The check and the update are one transaction under a row lock, not
+      // because the transaction itself would close the race under READ
+      // COMMITTED (it would not), but because FOR UPDATE conflicts with
+      // POST /links's FOR SHARE on the same domain row. That is what
+      // serialises the two requests; do not simplify this to a plain
+      // transaction. See plans/Plan_26.md §A2.
+      await c.var.db.transaction(async (tx) => {
+        await tx.select().from(domains).where(eq(domains.id, id)).for("update")
+        await assertNoLinks(tx, id)
+        await tx
+          .update(domains)
+          .set({ ...patch, updatedAt: new Date() })
+          .where(eq(domains.id, id))
+      })
+    } else {
+      await c.var.db
+        .update(domains)
+        .set({ ...patch, updatedAt: new Date() })
+        .where(eq(domains.id, id))
+    }
     // Both patchable fields — the fallback URL and the status — are what the
     // redirect reads out of the cached entry.
     await c.var.cache.del(domainKey(before.host))
@@ -164,12 +171,16 @@ export const domainRoutes = new Hono<Env>()
     const { id } = c.req.valid("param")
 
     const before = await fetchDomain(c.var.db, id)
-    await assertNoActiveLinks(c.var.db, id)
 
-    await c.var.db
-      .update(domains)
-      .set({ status: "archived", updatedAt: new Date() })
-      .where(eq(domains.id, id))
+    // See the identical lock in PATCH /:id above — same race, same fix.
+    await c.var.db.transaction(async (tx) => {
+      await tx.select().from(domains).where(eq(domains.id, id)).for("update")
+      await assertNoLinks(tx, id)
+      await tx
+        .update(domains)
+        .set({ status: "archived", updatedAt: new Date() })
+        .where(eq(domains.id, id))
+    })
     await c.var.cache.del(domainKey(before.host))
     await c.var.caddy.remove(id)
     return c.json(await fetchDomain(c.var.db, id))
@@ -187,10 +198,27 @@ export const domainRoutes = new Hono<Env>()
     if (domain.status !== "archived") {
       throw ApiError.conflict("archive the domain before purging it")
     }
-    await assertNoLinksAtAll(c.var.db, id)
 
-    await span("domain.purge", async () => c.var.db.delete(domains).where(eq(domains.id, id)), {
-      in: { domainId: id, host: domain.host },
+    await c.var.db.transaction(async (tx) => {
+      await tx.select().from(domains).where(eq(domains.id, id)).for("update")
+      await assertNoLinks(tx, id)
+      try {
+        await span("domain.purge", async () => tx.delete(domains).where(eq(domains.id, id)), {
+          in: { domainId: id, host: domain.host },
+        })
+      } catch (err) {
+        // The pre-check above is for the message; `links.domain_id` is ON
+        // DELETE RESTRICT, so Postgres is what actually guarantees this. A
+        // link created between the two would otherwise surface as an
+        // unhandled FK violation, which app.ts reports as a 500 — a worse
+        // answer than the 409 the same request would have got a moment
+        // earlier. Mapped here, not in app.onError, so a genuine referential
+        // bug elsewhere in the app is never hidden behind this message.
+        if (isForeignKeyViolation(err)) {
+          throw ApiError.conflict("domain still has links; purge them first")
+        }
+        throw err
+      }
     })
     await c.var.cache.del(domainKey(domain.host))
     // Defensive, not load-bearing: purging requires the domain already

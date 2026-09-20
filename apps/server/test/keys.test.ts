@@ -101,6 +101,113 @@ describe("PATCH /api/v1/keys/:id", () => {
     expect(res.status).toBe(200)
     expect((await res.json()).name).toBe("root")
   })
+
+  test("demoting a link-owning key to viewer is refused with 409, and the role is unchanged", async () => {
+    const domain = await h.createDomain("keys-demote.test")
+    const owner = await h.createKey({ role: "author", name: "Owner" })
+    await h.createLink(owner.key, domain)
+
+    const res = await patch(`/api/v1/keys/${owner.keyId}`, admin.key, { role: "viewer" })
+    expect(res.status).toBe(409)
+    expect((await res.json()).error.message).toContain("1 link")
+
+    const unchanged = await (
+      await h.request(`/api/v1/keys/${owner.keyId}`, { key: admin.key })
+    ).json()
+    expect(unchanged.role).toBe("author")
+  })
+
+  test("demoting to manager or author still works: the rule is the ownership threshold, not the word viewer", async () => {
+    const domain = await h.createDomain("keys-demote-manager.test")
+    const owner = await h.createKey({ role: "author", name: "Owner2" })
+    await h.createLink(owner.key, domain)
+
+    expect((await patch(`/api/v1/keys/${owner.keyId}`, admin.key, { role: "manager" })).status).toBe(
+      200,
+    )
+  })
+
+  test("a key that owns nothing demotes to viewer freely", async () => {
+    const target = await h.createKey({ role: "author", name: "Empty" })
+    const res = await patch(`/api/v1/keys/${target.keyId}`, admin.key, { role: "viewer" })
+    expect(res.status).toBe(200)
+  })
+})
+
+describe("POST /api/v1/keys/:id/links/reassign", () => {
+  test("reassigns to another key, and the demotion then succeeds", async () => {
+    const domain = await h.createDomain("keys-reassign.test")
+    const owner = await h.createKey({ role: "author", name: "Owner3" })
+    const link = await h.createLink(owner.key, domain)
+    const recipient = await h.createKey({ role: "author", name: "Recipient" })
+
+    const res = await post(`/api/v1/keys/${owner.keyId}/links/reassign`, admin.key, {
+      to: recipient.keyId,
+    })
+    expect(res.status).toBe(200)
+    expect(await res.json()).toEqual({ moved: 1 })
+
+    const moved = await (await h.request(`/api/v1/links/${link.id}`, { key: admin.key })).json()
+    expect(moved.ownerId).toBe(recipient.keyId)
+    expect(moved.ownerName).toBe("Recipient")
+
+    expect((await patch(`/api/v1/keys/${owner.keyId}`, admin.key, { role: "viewer" })).status).toBe(
+      200,
+    )
+  })
+
+  test("reassigns to null, and the demotion then succeeds", async () => {
+    const domain = await h.createDomain("keys-reassign-null.test")
+    const owner = await h.createKey({ role: "author", name: "Owner4" })
+    const link = await h.createLink(owner.key, domain)
+
+    const res = await post(`/api/v1/keys/${owner.keyId}/links/reassign`, admin.key, { to: null })
+    expect(res.status).toBe(200)
+    expect(await res.json()).toEqual({ moved: 1 })
+
+    const unowned = await (await h.request(`/api/v1/links/${link.id}`, { key: admin.key })).json()
+    expect(unowned.ownerId).toBeNull()
+
+    expect((await patch(`/api/v1/keys/${owner.keyId}`, admin.key, { role: "viewer" })).status).toBe(
+      200,
+    )
+  })
+
+  test("reassigning to a viewer key is refused, same shape as the per-link transfer", async () => {
+    const domain = await h.createDomain("keys-reassign-viewer.test")
+    const owner = await h.createKey({ role: "author", name: "Owner5" })
+    await h.createLink(owner.key, domain)
+    const viewer = await h.createKey({ role: "viewer", name: "Viewer" })
+
+    const res = await post(`/api/v1/keys/${owner.keyId}/links/reassign`, admin.key, {
+      to: viewer.keyId,
+    })
+    expect(res.status).toBe(409)
+    expect((await res.json()).error.code).toBe("conflict")
+  })
+
+  test("reassigning to an unknown key is a 404", async () => {
+    const owner = await h.createKey({ role: "author", name: "Owner6" })
+    const res = await post(`/api/v1/keys/${owner.keyId}/links/reassign`, admin.key, {
+      to: "00000000-0000-7000-8000-000000000000",
+    })
+    expect(res.status).toBe(404)
+  })
+
+  test("a non-admin author reassigns its own key's links but not another's", async () => {
+    const domain = await h.createDomain("keys-reassign-self.test")
+    const author = await h.createKey({ role: "author", name: "Self" })
+    await h.createLink(author.key, domain)
+
+    const own = await post(`/api/v1/keys/${author.keyId}/links/reassign`, author.key, { to: null })
+    expect(own.status).toBe(200)
+
+    const other = await h.createKey({ role: "author", name: "Other" })
+    const forbidden = await post(`/api/v1/keys/${other.keyId}/links/reassign`, author.key, {
+      to: null,
+    })
+    expect(forbidden.status).toBe(403)
+  })
 })
 
 describe("DELETE /api/v1/keys/:id", () => {
@@ -114,6 +221,23 @@ describe("DELETE /api/v1/keys/:id", () => {
     })
     expect(res.status).toBe(204)
     expect((await h.request("/api/v1/me", { key: target.key })).status).toBe(401)
+  })
+
+  test("revoking a link-owning key still succeeds and leaves its links unowned", async () => {
+    // The 0011 guard rail B1 must not disturb: revocation stays unconditional
+    // even though demotion no longer is.
+    const domain = await h.createDomain("keys-revoke-links.test")
+    const owner = await h.createKey({ role: "author", name: "Revoked" })
+    const link = await h.createLink(owner.key, domain)
+
+    const res = await h.request(`/api/v1/keys/${owner.keyId}`, {
+      key: admin.key,
+      method: "DELETE",
+    })
+    expect(res.status).toBe(204)
+
+    const after = await (await h.request(`/api/v1/links/${link.id}`, { key: admin.key })).json()
+    expect(after.ownerId).toBeNull()
   })
 
   test("nobody revokes the key they are calling with", async () => {

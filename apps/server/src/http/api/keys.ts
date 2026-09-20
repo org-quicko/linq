@@ -3,7 +3,9 @@ import {
   type ApiKey,
   type ApiKeyCreated,
   type ApiKeySummary,
+  can,
   keyCreateSchema,
+  keyLinksReassignSchema,
   keyPatchSchema,
   paginationSchema,
   uuidSchema,
@@ -12,8 +14,8 @@ import { asc, count, eq } from "drizzle-orm"
 import { Hono } from "hono"
 import { z } from "zod"
 import { createApiKey } from "../../auth/mint.ts"
-import { assertRole } from "../../auth/permissions.ts"
-import { apiKeys } from "../../db/schema.ts"
+import { assertCanTransfer, assertRole } from "../../auth/permissions.ts"
+import { apiKeys, links } from "../../db/schema.ts"
 import type { Env } from "../env.ts"
 import { validate } from "../validate.ts"
 
@@ -97,6 +99,23 @@ export const keyRoutes = new Hono<Env>()
       throw ApiError.forbidden("you cannot change the role of the key you are using")
     }
 
+    // A viewer may not own links (can.ownLink), so demoting a key that owns
+    // some would strand them: editable by a manager or admin, and by nobody
+    // else, including the key still named as the owner. Reassigning is one
+    // call — see POST /keys/:id/links/reassign — and revoking the key
+    // outright is still unconditional (docs/adr/0011).
+    if (patch.role !== undefined && !can.ownLink({ role: patch.role })) {
+      const [{ n }] = await c.var.db
+        .select({ n: count() })
+        .from(links)
+        .where(eq(links.ownerId, id))
+      if (n > 0) {
+        throw ApiError.conflict(
+          `key owns ${n} link${n === 1 ? "" : "s"}; reassign them before demoting it to viewer`,
+        )
+      }
+    }
+
     const [row] = await c.var.db
       .update(apiKeys)
       .set({
@@ -113,6 +132,45 @@ export const keyRoutes = new Hono<Env>()
       .returning()
     if (!row) throw ApiError.notFound("key")
     return c.json(toApiKey(row))
+  })
+
+  /**
+   * Moves every link a key owns to another key, or to nobody, in one call.
+   * The remedy for B1's demotion refusal — mint, transfer, revoke (0011) had
+   * a one-call transfer for a single link but not for a whole key's worth.
+   */
+  .post("/:id/links/reassign", idParam, validate("json", keyLinksReassignSchema), async (c) => {
+    const { id } = c.req.valid("param")
+    const { to } = c.req.valid("json")
+    // The source key id stands in for the owner id `assertCanTransfer`
+    // expects: an admin reassigns any key's links, anyone else only its own.
+    assertCanTransfer(c.var.principal, id)
+
+    if (to !== null) {
+      const [target] = await c.var.db
+        .select({ id: apiKeys.id, role: apiKeys.role })
+        .from(apiKeys)
+        .where(eq(apiKeys.id, to))
+        .limit(1)
+      if (!target) throw ApiError.notFound("key")
+      // Not 403: the caller is allowed, the *target* is not eligible — same
+      // shape as the per-link transfer in PATCH /links/:id.
+      if (!can.ownLink(target)) throw ApiError.conflict("a viewer key cannot own a link")
+    }
+
+    // A reassignment is a modification, so it bumps `updatedAt` exactly like
+    // the per-link PATCH does — the "Updated" sort is meant to reorder here.
+    //
+    // No cache invalidation: ownership is not part of `ResolvedTarget`
+    // (http/redirect.ts) or the rendered /llms.txt, so nothing cached reads
+    // `owner_id`.
+    const moved = await c.var.db
+      .update(links)
+      .set({ ownerId: to, updatedAt: new Date() })
+      .where(eq(links.ownerId, id))
+      .returning({ id: links.id })
+
+    return c.json({ moved: moved.length })
   })
 
   /**

@@ -30,12 +30,14 @@ export const can = {
 
   /**
    * Managers and admins act on anything; an author acts on what its own key
-   * created. A viewer can no longer *acquire* a link by transfer (see
-   * `ownLink`), so the only way one ends up owning a link is a key that owned
-   * links and was later demoted — a state this repo tolerates rather than
-   * blocks, the same way an unowned link is tolerated. Either way it still
-   * cannot change it, and an unowned link matches no actor — `keyId` is never
-   * null, so a null owner fails closed here rather than by a special case.
+   * created. A viewer can no longer *acquire* a link by transfer (`ownLink`)
+   * or by demotion (the server refuses `PATCH /keys/:id` below the ownership
+   * threshold while it still owns links — see `docs/adr/0011`'s amendments),
+   * so the only way one still ends up owning a link is a key demoted before
+   * either rule shipped — a state this repo tolerates rather than migrates,
+   * the same way an unowned link is tolerated. Either way it still cannot
+   * change it, and an unowned link matches no actor — `keyId` is never null,
+   * so a null owner fails closed here rather than by a special case.
    */
   editLink: (actor: Actor, link: Owned): boolean =>
     roleAtLeast(actor.role, "manager") ||

@@ -223,29 +223,37 @@ export const linkRoutes = new Hono<Env>()
     assertRole(c.var.principal, "author")
     const body = c.req.valid("json")
 
-    const [domain] = await c.var.db
-      .select()
-      .from(domains)
-      .where(eq(domains.id, body.domainId))
-      .limit(1)
-    if (!domain) throw ApiError.notFound("domain")
-    if (domain.status === "archived") throw ApiError.conflict("domain is archived")
+    // FOR SHARE conflicts with the archiver's FOR UPDATE (domains.ts's
+    // archive transactions) but not with itself, so concurrent creates on
+    // one domain still run in parallel and only an in-flight archive blocks
+    // them. Without this lock, a plain transaction would not close the race
+    // under READ COMMITTED. See plans/Plan_26.md §A2.
+    const row = await c.var.db.transaction(async (tx) => {
+      const [domain] = await tx
+        .select()
+        .from(domains)
+        .where(eq(domains.id, body.domainId))
+        .for("share")
+        .limit(1)
+      if (!domain) throw ApiError.notFound("domain")
+      if (domain.status === "archived") throw ApiError.conflict("domain is archived")
 
-    const row = await insertLink(
-      c.var.db,
-      {
-        domainId: body.domainId,
-        destination: body.destination,
-        name: body.name ?? null,
-        tags: body.tags,
-        forwardQuery: body.forwardQuery,
-        presetParams: body.presetParams,
-        ownerId: c.var.principal.keyId,
-        expiresAt: body.expiresAt ? new Date(body.expiresAt) : null,
-        listed: body.listed,
-      },
-      { slug: body.slug, slugLength: c.var.config.LINQ_SLUG_LENGTH },
-    )
+      return insertLink(
+        tx,
+        {
+          domainId: body.domainId,
+          destination: body.destination,
+          name: body.name ?? null,
+          tags: body.tags,
+          forwardQuery: body.forwardQuery,
+          presetParams: body.presetParams,
+          ownerId: c.var.principal.keyId,
+          expiresAt: body.expiresAt ? new Date(body.expiresAt) : null,
+          listed: body.listed,
+        },
+        { slug: body.slug, slugLength: c.var.config.LINQ_SLUG_LENGTH },
+      )
+    })
 
     // Clears the negative entry left behind while this slug was 404ing.
     await c.var.cache.del(...linkKeys(row.domainId, row.slug))

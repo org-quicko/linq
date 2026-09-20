@@ -1,4 +1,5 @@
 import { z } from "zod"
+import { uuidSchema } from "./primitives.ts"
 import { type Role, roleSchema } from "./roles.ts"
 
 export const keyCreateSchema = z.object({
@@ -15,6 +16,11 @@ export const keyPatchSchema = z
     expiresAt: z.iso.datetime().nullable(),
   })
   .partial()
+
+/** `POST /keys/:id/links/reassign`. Null means unassign, mirroring a link's own `ownerId: null`. */
+export const keyLinksReassignSchema = z.object({
+  to: uuidSchema.nullable(),
+})
 
 /**
  * The principal. There are no user rows: a key holds its own name and role, and

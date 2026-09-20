@@ -47,6 +47,16 @@ export const keysApi = apiSlice.injectEndpoints({
         { type: "Link", id: "LIST" },
       ],
     }),
+
+    /** Moves every link `id` owns to `to`, or unassigns them when `to` is null. */
+    reassignKeyLinks: build.mutation<{ moved: number }, { id: string; to: string | null }>({
+      query: ({ id, to }) => ({
+        path: `/v1/keys/${id}/links/reassign`,
+        method: "POST",
+        body: { to },
+      }),
+      invalidatesTags: [{ type: "Link", id: "LIST" }],
+    }),
   }),
 })
 
@@ -56,4 +66,5 @@ export const {
   useMintKeyMutation,
   useUpdateKeyMutation,
   useRevokeKeyMutation,
+  useReassignKeyLinksMutation,
 } = keysApi

@@ -1,5 +1,7 @@
 import { beforeAll, describe, expect, test } from "bun:test"
+import { eq } from "drizzle-orm"
 import type { Caddy } from "../src/caddy.ts"
+import { domains } from "../src/db/schema.ts"
 import { createHarness, type Harness } from "./helpers/app.ts"
 
 let h: Harness
@@ -60,7 +62,7 @@ describe("GET /api/v1/domains", () => {
     expect(body.data[0]).toHaveProperty("linkCount")
   })
 
-  test("counts only active links", async () => {
+  test("counts every link, archived included", async () => {
     const domain = await h.createDomain("counted.test")
     const author = await h.actor("author")
     const kept = await h.createLink(author.key, domain, { slug: "kept" })
@@ -69,9 +71,11 @@ describe("GET /api/v1/domains", () => {
     const before = await (await h.request(`/api/v1/domains/${domain}`, { key: admin.key })).json()
     expect(before.linkCount).toBe(2)
 
+    // The count is now "what must reach zero to archive or purge the
+    // domain", so archiving a link no longer drops it out.
     await h.request(`/api/v1/links/${kept.id}`, { key: author.key, method: "DELETE" })
     const after = await (await h.request(`/api/v1/domains/${domain}`, { key: admin.key })).json()
-    expect(after.linkCount).toBe(1)
+    expect(after.linkCount).toBe(2)
   })
 })
 
@@ -79,7 +83,7 @@ describe("archiving a domain", () => {
   test("is refused with 409 while an active link exists", async () => {
     const domain = await h.createDomain("busy.test")
     const author = await h.actor("author")
-    const link = await h.createLink(author.key, domain, { slug: "busy" })
+    await h.createLink(author.key, domain, { slug: "busy" })
 
     const viaDelete = await h.request(`/api/v1/domains/${domain}`, {
       key: admin.key,
@@ -89,9 +93,34 @@ describe("archiving a domain", () => {
 
     const viaPatch = await h.patch(`/api/v1/domains/${domain}`, admin.key, { status: "archived" })
     expect(viaPatch.status).toBe(409)
+  })
 
-    // Archiving the last active link clears the way.
+  test("is refused with 409 while only an archived link exists", async () => {
+    const domain = await h.createDomain("archived-link.test")
+    const author = await h.actor("author")
+    const link = await h.createLink(author.key, domain, { slug: "stale" })
+    // Archiving the link does not clear the way any more: the archive bar
+    // now matches the purge bar.
     await h.request(`/api/v1/links/${link.id}`, { key: author.key, method: "DELETE" })
+
+    const res = await h.request(`/api/v1/domains/${domain}`, { key: admin.key, method: "DELETE" })
+    expect(res.status).toBe(409)
+    expect((await res.json()).error.message).toContain("1 link")
+  })
+
+  test("archives cleanly once its only link is purged", async () => {
+    const domain = await h.createDomain("purge-first.test")
+    const author = await h.actor("author")
+    const link = await h.createLink(author.key, domain, { slug: "gone" })
+    await h.request(`/api/v1/links/${link.id}`, { key: author.key, method: "DELETE" })
+
+    const stillBlocked = await h.request(`/api/v1/domains/${domain}`, {
+      key: admin.key,
+      method: "DELETE",
+    })
+    expect(stillBlocked.status).toBe(409)
+
+    await h.request(`/api/v1/links/${link.id}/purge`, { key: admin.key, method: "DELETE" })
     const retry = await h.request(`/api/v1/domains/${domain}`, { key: admin.key, method: "DELETE" })
     expect(retry.status).toBe(200)
     expect(await retry.json()).toMatchObject({ status: "archived" })
@@ -117,6 +146,28 @@ describe("archiving a domain", () => {
     const res = await h.post("/api/v1/links", author.key, {
       domainId: domain,
       destination: "https://example.com",
+    })
+    expect(res.status).toBe(409)
+  })
+})
+
+describe("purging a domain", () => {
+  test("is refused with 409, not 500, while an archived link exists", async () => {
+    const domain = await h.createDomain("purge-archived-link.test")
+    const author = await h.actor("author")
+    const link = await h.createLink(author.key, domain, { slug: "leftover" })
+    await h.request(`/api/v1/links/${link.id}`, { key: author.key, method: "DELETE" })
+
+    // The API can no longer put a domain in this state — A1 raised the
+    // archive bar to match the purge bar, so archiving is itself refused
+    // while this link exists. Written directly to reproduce exactly what
+    // A2's race would otherwise leave behind, and to prove the purge
+    // handler's own guard (A3) holds regardless of how the domain got here.
+    await h.db.update(domains).set({ status: "archived" }).where(eq(domains.id, domain))
+
+    const res = await h.request(`/api/v1/domains/${domain}/purge`, {
+      key: admin.key,
+      method: "DELETE",
     })
     expect(res.status).toBe(409)
   })

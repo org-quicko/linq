@@ -18,14 +18,15 @@ import {
   useUpdateDomainMutation,
 } from "../../lib/store/domains"
 
-const HEAD = ["Host", "Fallback URL", "Active links", "", ""]
+const HEAD = ["Host", "Fallback URL", "Links", "", ""]
 
 /**
  * Domains and their fallback URLs.
  *
  * Everyone may read this page; only an admin sees the write controls. Archiving
- * is refused by the server while the domain still has active links, and that
- * refusal is surfaced here rather than pre-empted, so the rule lives in one place.
+ * is refused by the server while any link still points at the domain, archived
+ * included, and that refusal is surfaced here rather than pre-empted, so the
+ * rule lives in one place.
  */
 export default function DomainsPage() {
   return <AppShell>{(actor) => <DomainsList actor={actor} />}</AppShell>
@@ -141,7 +142,7 @@ function DomainRow({
           domain.status === "active" ? (
             <ConfirmButton
               title={`Archive ${domain.host}?`}
-              description="Every short URL on this host stops resolving, including its fallback. The server refuses this while the domain still has active links."
+              description="Every short URL on this host stops resolving, including its fallback. The server refuses this while any link, archived included, still points at this host. Purge them first."
               confirmLabel="Archive"
               onConfirm={onToggleStatus}
             >

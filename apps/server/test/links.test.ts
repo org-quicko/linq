@@ -309,6 +309,27 @@ describe("ownership transfer", () => {
   })
 })
 
+describe("bulk reassign (POST /api/v1/keys/:id/links/reassign)", () => {
+  test("bumps updatedAt on every link it moves", async () => {
+    // Guards the deliberate bump in plans/Plan_26.md §B2 against a future
+    // "optimisation" that drops it, which would make the Updated sort lie.
+    const owner = await h.createKey({ role: "author", name: "BulkOwner" })
+    const link = await h.createLink(owner.key, domain)
+    const before = link.updatedAt
+
+    await Bun.sleep(5)
+    const recipient = await h.createKey({ role: "author", name: "BulkRecipient" })
+    const res = await h.post(`/api/v1/keys/${owner.keyId}/links/reassign`, admin.key, {
+      to: recipient.keyId,
+    })
+    expect(res.status).toBe(200)
+    expect(await res.json()).toEqual({ moved: 1 })
+
+    const after = await (await h.request(`/api/v1/links/${link.id}`, { key: admin.key })).json()
+    expect(new Date(after.updatedAt).getTime()).toBeGreaterThan(new Date(before).getTime())
+  })
+})
+
 describe("link expiry", () => {
   test("POST echoes expiresAt as ISO, and PATCH round-trips it", async () => {
     const iso = new Date(Date.now() + 3600_000).toISOString()

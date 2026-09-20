@@ -32,9 +32,13 @@ import { errorMessage } from "../../../lib/api"
 import {
   useListKeysQuery,
   useMintKeyMutation,
+  useReassignKeyLinksMutation,
   useRevokeKeyMutation,
   useUpdateKeyMutation,
 } from "../../../lib/store/keys"
+
+/** Radix refuses an item whose value is the empty string; this sentinel means "unassigned". */
+const UNASSIGNED = "__unassigned__"
 
 const ROLE_OPTIONS = ROLES.map((role) => ({ value: role, label: role }))
 const HEAD = ["Name", "Role", "Prefix", "Created", "Expires", "", ""]
@@ -73,7 +77,7 @@ function Keys({ actor }: { actor: Actor }) {
           {rows.length > 0 ? (
             <DataTable head={HEAD}>
               {rows.map((key) => (
-                <KeyRow key={key.id} apiKey={key as ApiKey} actor={actor} />
+                <KeyRow key={key.id} apiKey={key as ApiKey} actor={actor} allKeys={rows as ApiKey[]} />
               ))}
             </DataTable>
           ) : null}
@@ -83,7 +87,15 @@ function Keys({ actor }: { actor: Actor }) {
   )
 }
 
-function KeyRow({ apiKey, actor }: { apiKey: ApiKey; actor: Actor }) {
+function KeyRow({
+  apiKey,
+  actor,
+  allKeys,
+}: {
+  apiKey: ApiKey
+  actor: Actor
+  allKeys: ApiKey[]
+}) {
   const [updateKey] = useUpdateKeyMutation()
   const [revokeKey] = useRevokeKeyMutation()
   const [name, setName] = useState(apiKey.name)
@@ -139,28 +151,98 @@ function KeyRow({ apiKey, actor }: { apiKey: ApiKey; actor: Actor }) {
         ) : null}
       </TableCell>
       <TableCell>
-        {/* Revoking the key in your own hand would lock you out with only the
-            CLI left as a way back, so it is not offered rather than refused. */}
-        {isMine ? null : (
-          <ConfirmButton
-            variant="destructive"
-            size="sm"
-            title={`Revoke ${apiKey.name}?`}
-            description="This key stops working immediately, and any link it owns becomes unowned. Revoking is a real delete, not an archive."
-            onConfirm={async () => {
-              try {
-                await revokeKey(apiKey.id).unwrap()
-                toast.success("Key revoked.")
-              } catch (err) {
-                toast.error(errorMessage(err, "Could not revoke that key."))
-              }
-            }}
-          >
-            Revoke
-          </ConfirmButton>
-        )}
+        <div className="flex items-center gap-2">
+          <ReassignLinksDialog apiKey={apiKey} allKeys={allKeys} />
+          {/* Revoking the key in your own hand would lock you out with only the
+              CLI left as a way back, so it is not offered rather than refused. */}
+          {isMine ? null : (
+            <ConfirmButton
+              variant="destructive"
+              size="sm"
+              title={`Revoke ${apiKey.name}?`}
+              description="This key stops working immediately, and any link it owns becomes unowned. Revoking is a real delete, not an archive."
+              onConfirm={async () => {
+                try {
+                  await revokeKey(apiKey.id).unwrap()
+                  toast.success("Key revoked.")
+                } catch (err) {
+                  toast.error(errorMessage(err, "Could not revoke that key."))
+                }
+              }}
+            >
+              Revoke
+            </ConfirmButton>
+          )}
+        </div>
       </TableCell>
     </TableRow>
+  )
+}
+
+/**
+ * The remedy for a demotion the server just refused (409, naming a link
+ * count): move every link this key owns to another key, or leave them
+ * unassigned, in one call. Offered on every row, not only after a refused
+ * demotion, since reassigning ahead of time is the same operation.
+ */
+function ReassignLinksDialog({ apiKey, allKeys }: { apiKey: ApiKey; allKeys: ApiKey[] }) {
+  const [reassign] = useReassignKeyLinksMutation()
+  const [open, setOpen] = useState(false)
+  const [to, setTo] = useState(UNASSIGNED)
+  const [saving, setSaving] = useState(false)
+
+  const options = [
+    { value: UNASSIGNED, label: "Leave unassigned" },
+    ...allKeys
+      // The server refuses a viewer as a target, same rule as a single
+      // link's transfer, so never offer one here either.
+      .filter((key) => key.id !== apiKey.id && can.ownLink(key))
+      .map((key) => ({ value: key.id, label: key.name })),
+  ]
+
+  const run = async () => {
+    setSaving(true)
+    try {
+      const result = await reassign({
+        id: apiKey.id,
+        to: to === UNASSIGNED ? null : to,
+      }).unwrap()
+      toast.success(`Reassigned ${result.moved} link${result.moved === 1 ? "" : "s"}.`)
+      setOpen(false)
+      setTo(UNASSIGNED)
+    } catch (err) {
+      toast.error(errorMessage(err, "Could not reassign those links."))
+    }
+    setSaving(false)
+  }
+
+  return (
+    <Dialog open={open} onOpenChange={setOpen}>
+      <DialogTrigger asChild>
+        <Button type="button" variant="outline" size="sm">
+          Reassign links
+        </Button>
+      </DialogTrigger>
+      <DialogContent>
+        <DialogHeader>
+          <DialogTitle>Reassign {apiKey.name}'s links</DialogTitle>
+          <DialogDescription>
+            Moves every link this key owns to another key, or leaves them unassigned. Revoking the
+            key does this automatically; use this to do it ahead of time, such as before demoting
+            the key to viewer.
+          </DialogDescription>
+        </DialogHeader>
+        <Picker value={to} onChange={setTo} options={options} />
+        <DialogFooter>
+          <Button type="button" variant="outline" onClick={() => setOpen(false)}>
+            Cancel
+          </Button>
+          <Button type="button" disabled={saving} onClick={run}>
+            Reassign
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
   )
 }
 
