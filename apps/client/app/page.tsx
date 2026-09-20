@@ -58,7 +58,7 @@ function Servers() {
     migrateLegacyKey()
     const active = activeServer()
     if (active && !managing) {
-      router.replace("/overview/")
+      router.replace("/analytics/")
       return
     }
     setServers(listServers())
@@ -77,7 +77,7 @@ function Servers() {
   function connect(id: string) {
     setActiveServer(id)
     // A hard load, so no page keeps data fetched from the previous server.
-    window.location.href = appUrl("/overview/")
+    window.location.href = appUrl("/analytics/")
   }
 
   const showForm = adding || servers.length === 0
@@ -102,7 +102,7 @@ function Servers() {
                 variant="outline"
                 size="sm"
                 onClick={() => {
-                  window.location.href = appUrl("/overview/")
+                  window.location.href = appUrl("/analytics/")
                 }}
               >
                 <ArrowLeft size={14} />
@@ -188,7 +188,7 @@ function Servers() {
                   onSaved={(values) => {
                     addServer(values)
                     // addServer connects to what it added.
-                    window.location.href = appUrl("/overview/")
+                    window.location.href = appUrl("/analytics/")
                   }}
                   onCancel={servers.length > 0 ? () => setAdding(false) : undefined}
                 />

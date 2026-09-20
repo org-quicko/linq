@@ -39,7 +39,7 @@ export function ServerSwitcher() {
   function switchTo(id: string) {
     if (id === current?.id) return
     setActiveServer(id)
-    window.location.href = appUrl("/overview/")
+    window.location.href = appUrl("/analytics/")
   }
 
   return (

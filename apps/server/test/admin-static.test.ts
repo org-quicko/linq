@@ -34,12 +34,16 @@ describe.skipIf(!built)("the exported Client UI at /home", () => {
 
   test("serves every exported page", async () => {
     for (const page of [
+      "analytics",
+      // Redirect stubs (plans/Plan_27.md Part C1): still export a real page,
+      // so they still serve 200 even though they only forward to /analytics/.
       "overview",
+      "visits",
+      "orphans",
       "links",
       "links/new",
       "links/detail",
       "links/trash",
-      "orphans",
       "domains",
       "domains/trash",
       "settings/keys",

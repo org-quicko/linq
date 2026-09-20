@@ -24,11 +24,10 @@ import { type Me, useGetMeQuery } from "../lib/store/keys"
  * ever matching. `lib/api.ts` is the one place that spells it out, because it
  * navigates with `window.location`, which Next does not touch.
  *
- * TEMPORARY hrefs, per plans/Plan_27.md Part E: `/analytics/`, `/archives/`
- * and a real `/settings/` index do not exist yet (Parts C1–C3). Each entry
- * below points at the nearest existing page until its real route lands, so
- * the app stays navigable across the intermediate commits. Update these
- * three lines — nothing else about the shell — when each Part lands.
+ * TEMPORARY hrefs remain on Archives and Settings, per plans/Plan_27.md
+ * Part E: `/archives/` and a real `/settings/` index do not exist yet
+ * (Parts C2–C3). Each points at the nearest existing page until its real
+ * route lands, so the app stays navigable across the intermediate commits.
  */
 type NavItem = {
   href: string
@@ -39,8 +38,7 @@ type NavItem = {
 
 const NAV: NavItem[] = [
   { href: "/links/", label: "Short links", icon: Link2, visible: () => true },
-  // → /analytics/ in Part C1 (merges Overview, Visits, Orphans).
-  { href: "/overview/", label: "Analytics", icon: BarChart3, visible: () => true },
+  { href: "/analytics/", label: "Analytics", icon: BarChart3, visible: () => true },
   // → /archives/ in Part C2 (merges this and the domains trash page).
   { href: "/links/trash/", label: "Archives", icon: Archive, visible: can.purge },
 ]
