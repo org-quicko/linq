@@ -11,6 +11,7 @@ import {
   Pencil,
 } from "lucide-react"
 import NextLink from "next/link"
+import { useRouter } from "next/navigation"
 import { useState } from "react"
 import { AppShell } from "@/components/app-shell"
 import { Pager, Picker } from "@/components/common"
@@ -42,7 +43,6 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
 import { Input } from "@/components/ui/input"
-import { qs } from "../../lib/api"
 import { useDebounced, useRun } from "../../lib/hooks"
 import { useArchiveLinkMutation, useListLinksQuery } from "../../lib/store/links"
 
@@ -200,6 +200,7 @@ function LinkRow({
   onEdit: () => void
   onDuplicate: () => void
 }) {
+  const router = useRouter()
   const [archiveLink] = useArchiveLinkMutation()
   const { run } = useRun()
   const [confirmArchive, setConfirmArchive] = useState(false)
@@ -216,6 +217,7 @@ function LinkRow({
           </RowCardTile>
         }
         className={link.status === "archived" ? "opacity-60" : undefined}
+        onClick={() => router.push(`/links/${link.id}/summary/`)}
         actions={
           editable || duplicatable ? (
             <DropdownMenu>
@@ -257,13 +259,13 @@ function LinkRow({
         <div className="flex items-center gap-2 min-w-0">
           {link.name ? (
             <NextLink
-              href={`/links/detail/${qs({ id: link.id })}`}
+              href={`/links/${link.id}/summary/`}
               className="truncate font-medium underline-offset-2 hover:underline"
             >
               {link.name}
             </NextLink>
           ) : null}
-          <ShortLink link={link} href={`/links/detail/${qs({ id: link.id })}`} />
+          <ShortLink link={link} href={`/links/${link.id}/summary/`} />
           {link.status === "archived" ? <Badge variant="outline">Archived</Badge> : null}
           {link.expiresAt && new Date(link.expiresAt) <= new Date() ? (
             <Badge variant="outline">Expired</Badge>

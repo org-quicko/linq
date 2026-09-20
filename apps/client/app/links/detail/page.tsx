@@ -1,219 +1,32 @@
 "use client"
 
-import { type Actor, can, type Link } from "@linq/shared"
-import { skipToken } from "@reduxjs/toolkit/query/react"
-import NextLink from "next/link"
 import { useRouter, useSearchParams } from "next/navigation"
-import { Suspense, useState } from "react"
-import { AppShell } from "@/components/app-shell"
-import { ConfirmButton, Field, QueryState, When } from "@/components/common"
-import { LinkFormDialog } from "@/components/link-form-dialog"
-import { PageHeader, ShortLink } from "@/components/patterns"
-import { RulesEditor } from "@/components/rules-editor"
-import { StatsPanel } from "@/components/stats-panel"
-import { Badge } from "@/components/ui/badge"
-import { Button } from "@/components/ui/button"
-import { Card, CardAction, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
-import { VisitsCard } from "@/components/visits-card"
-import { useRun } from "../../../lib/hooks"
-import {
-  useArchiveLinkMutation,
-  useGetLinkQuery,
-  useGetLinkRulesQuery,
-  usePurgeLinkMutation,
-  useUpdateLinkMutation,
-} from "../../../lib/store/links"
+import { Suspense, useEffect } from "react"
 
 /**
- * Everything about one link: its settings, its rules, its visit history.
- *
- * The id arrives in the query string rather than the path because the Client UI
- * is a static export, which cannot pre-render a page per link id.
+ * Backward compatibility: redirects legacy /links/detail/?id=... to /links/{id}/summary.
+ * See plans/Plan_30.md.
  */
 export default function LinkDetailPage() {
   return (
-    // useSearchParams needs a Suspense boundary under the App Router.
-    <Suspense fallback={<p className="p-8 text-sm text-muted-foreground">Loading…</p>}>
-      <AppShell>{(actor) => <LinkDetail actor={actor} />}</AppShell>
+    <Suspense fallback={<p className="p-8 text-sm text-muted-foreground">Redirecting…</p>}>
+      <LinkDetailRedirect />
     </Suspense>
   )
 }
 
-function LinkDetail({ actor }: { actor: Actor }) {
-  const id = useSearchParams().get("id")
-  const link = useGetLinkQuery(id ?? skipToken)
-  const rules = useGetLinkRulesQuery(id ?? skipToken)
-
-  if (!id) return <p className="text-sm text-destructive">No link id in the URL.</p>
-  if (link.isLoading || !link.data) {
-    return <QueryState isLoading={link.isLoading} error={link.error} />
-  }
-
-  const current = link.data
-  const canEdit = can.editLink(actor, current)
-
-  return (
-    <div className="flex flex-col gap-4">
-      <PageHeader
-        title={
-          <>
-            <ShortLink link={current} />
-            {current.status === "archived" ? <Badge variant="outline">Archived</Badge> : null}
-            {current.expiresAt && new Date(current.expiresAt) <= new Date() ? (
-              <Badge variant="outline">Expired</Badge>
-            ) : null}
-          </>
-        }
-        description={
-          <>
-            Created <When iso={current.createdAt} /> by {current.ownerName ?? "a revoked key"}
-          </>
-        }
-        actions={
-          <NextLink href="/links/">
-            <Button type="button" variant="outline">
-              Back to links
-            </Button>
-          </NextLink>
-        }
-      />
-
-      <StatsPanel path={`/v1/links/${id}/stats`} title="Visits" />
-
-      <SummaryCard actor={actor} link={current} canEdit={canEdit} canPurge={can.purge(actor)} />
-
-      {rules.data ? (
-        <RulesEditor linkId={id} rules={rules.data} readOnly={!canEdit} />
-      ) : (
-        <QueryState isLoading={rules.isLoading} error={rules.error} />
-      )}
-
-      <VisitsCard scope={{ linkId: id }} />
-    </div>
-  )
-}
-
-/**
- * A read-only summary of the link's settings, with an Edit button that opens
- * the same `LinkFormDialog` the list uses (plans/Plan_27.md Part C4) — one
- * editing surface everywhere, instead of this page's own always-editable
- * inline form. Archive/Restore/Purge stay here: they are this page's own
- * lifecycle actions, not fields on the form.
- */
-function SummaryCard({
-  actor,
-  link,
-  canEdit,
-  canPurge,
-}: {
-  actor: Actor
-  link: Link
-  canEdit: boolean
-  canPurge: boolean
-}) {
+function LinkDetailRedirect() {
   const router = useRouter()
-  const [archiveLink] = useArchiveLinkMutation()
-  const [updateLink] = useUpdateLinkMutation()
-  const [purgeLink] = usePurgeLinkMutation()
-  const [editOpen, setEditOpen] = useState(false)
-  const { run } = useRun()
+  const searchParams = useSearchParams()
+  const id = searchParams.get("id")
 
-  function toggleArchived() {
-    return run(async () => {
-      if (link.status === "active") await archiveLink(link.id).unwrap()
-      else await updateLink({ id: link.id, body: { status: "active" } }).unwrap()
-    })
-  }
+  useEffect(() => {
+    if (id) {
+      router.replace(`/links/${encodeURIComponent(id)}/summary/`)
+    } else {
+      router.replace("/links/")
+    }
+  }, [id, router])
 
-  /** There is no row left to reload afterwards, so this leaves the page. */
-  function purge() {
-    return run(() => purgeLink(link.id).unwrap(), {
-      success: `Purged /${link.slug}. The slug is free again.`,
-      onSuccess: () => router.push("/links/"),
-    })
-  }
-
-  return (
-    <>
-      <Card>
-        <CardHeader className="border-b">
-          <CardTitle>Settings</CardTitle>
-          {canEdit ? (
-            <CardAction className="flex gap-2">
-              {link.status === "active" ? (
-                <ConfirmButton
-                  title={`Archive ${link.domainHost}/${link.slug}?`}
-                  description="The short URL stops resolving immediately. Nothing is deleted, and the slug stays taken, so you can restore it later."
-                  confirmLabel="Archive"
-                  onConfirm={toggleArchived}
-                >
-                  Archive
-                </ConfirmButton>
-              ) : (
-                <>
-                  <Button type="button" variant="outline" onClick={toggleArchived}>
-                    Restore
-                  </Button>
-                  {/* Archived only: purge is the step after archiving, never an
-                      alternative to it, and the server enforces that too. */}
-                  {canPurge ? (
-                    <ConfirmButton
-                      title={`Purge ${link.domainHost}/${link.slug}?`}
-                      description={`This destroys the link and its rules for good, and frees the slug for anyone to claim on ${link.domainHost}. Its visits are kept as orphans. It cannot be undone.`}
-                      confirmLabel="Purge for good"
-                      confirmText={link.slug}
-                      onConfirm={purge}
-                    >
-                      Purge
-                    </ConfirmButton>
-                  ) : null}
-                </>
-              )}
-              <Button type="button" onClick={() => setEditOpen(true)}>
-                Edit
-              </Button>
-            </CardAction>
-          ) : null}
-        </CardHeader>
-
-        <CardContent className="grid gap-4 sm:grid-cols-2">
-          <Field label="Destination">
-            <p className="truncate text-sm">{link.destination}</p>
-          </Field>
-          <Field label="Name">
-            <p className="truncate text-sm text-muted-foreground">{link.name || "—"}</p>
-          </Field>
-          <Field label="Tags">
-            <p className="text-sm text-muted-foreground">
-              {link.tags.length > 0 ? link.tags.join(", ") : "—"}
-            </p>
-          </Field>
-          <Field label="Owner">
-            <p className="text-sm text-muted-foreground">{link.ownerName ?? "unassigned"}</p>
-          </Field>
-          <Field label="Slug" hint="Immutable, and never reused once taken.">
-            <p className="text-sm text-muted-foreground">{link.slug}</p>
-          </Field>
-          <Field label="Domain" hint="Immutable.">
-            <p className="text-sm text-muted-foreground">{link.domainHost}</p>
-          </Field>
-          <Field label="Expires">
-            <p className="text-sm text-muted-foreground">
-              {link.expiresAt ? <When iso={link.expiresAt} /> : "never"}
-            </p>
-          </Field>
-          <Field label="Forward query params">
-            <p className="text-sm text-muted-foreground">{link.forwardQuery ? "Yes" : "No"}</p>
-          </Field>
-          <Field label="Listed in /llms.txt">
-            <p className="text-sm text-muted-foreground">{link.listed ? "Yes" : "No"}</p>
-          </Field>
-        </CardContent>
-      </Card>
-
-      {editOpen ? (
-        <LinkFormDialog open onOpenChange={setEditOpen} actor={actor} mode="edit" link={link} />
-      ) : null}
-    </>
-  )
+  return <p className="p-8 text-sm text-muted-foreground">Redirecting to summary…</p>
 }

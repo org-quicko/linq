@@ -59,6 +59,17 @@ export function mountAdmin(app: Hono<Env>, root: string = adminRoot): void {
       }
     }
 
+    // Dynamic client routes (plans/Plan_30.md): /links/:id/summary serves the summary export
+    if (/^\/links\/[^/]+\/summary\/?$/.test(relative)) {
+      const summaryTemplate = Bun.file(join(base, "links/_summary/summary/index.html"))
+      if (await summaryTemplate.exists()) {
+        c.header("cache-control", cacheControl("links/_summary/summary/index.html"))
+        return c.body(await summaryTemplate.bytes(), 200, {
+          "content-type": "text/html; charset=utf-8",
+        })
+      }
+    }
+
     const notFound = Bun.file(join(base, "404.html"))
     if (await notFound.exists()) {
       return c.body(await notFound.bytes(), 404, { "content-type": "text/html; charset=utf-8" })

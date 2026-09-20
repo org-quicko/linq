@@ -56,6 +56,16 @@ describe.skipIf(!built)("the exported Client UI at /home", () => {
     }
   })
 
+  test("serves dynamic /links/:id/summary routes via the summary template", async () => {
+    const res = await h.request("/home/links/0192384-abcd/summary/")
+    expect(res.status).toBe(200)
+    expect(res.headers.get("content-type")).toContain("text/html")
+    expect(await res.text()).toContain("<html")
+
+    const resNoTrailing = await h.request("/home/links/0192384-abcd/summary")
+    expect(resNoTrailing.status).toBe(200)
+  })
+
   test("marks hashed assets immutable and HTML not", async () => {
     const chunks = join(adminRoot, "_next", "static", "chunks")
     const asset = readdirSync(chunks).find((name) => name.endsWith(".js"))

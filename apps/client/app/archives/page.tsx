@@ -2,6 +2,7 @@
 
 import { can, type Domain, type Link } from "@linq/shared"
 import { Globe, Link2, RotateCcw, Trash2 } from "lucide-react"
+import { useRouter } from "next/navigation"
 import { Suspense } from "react"
 import { AppShell } from "@/components/app-shell"
 import { ConfirmButton, When } from "@/components/common"
@@ -15,7 +16,6 @@ import {
   shortLinkText,
   TabShell,
 } from "@/components/patterns"
-import { qs } from "../../lib/api"
 import { useRun } from "../../lib/hooks"
 import { useListDomainsQuery, usePurgeDomainMutation } from "../../lib/store/domains"
 import {
@@ -65,6 +65,7 @@ function Archives() {
 }
 
 function ArchivedLinksTab() {
+  const router = useRouter()
   const links = useListLinksQuery({ status: "archived", limit: 200 })
   const rows = links.data?.data ?? []
   const [updateLink] = useUpdateLinkMutation()
@@ -125,6 +126,7 @@ function ArchivedLinksTab() {
                 <Link2 className="size-4" />
               </RowCardTile>
             }
+            onClick={() => router.push(`/links/${link.id}/summary/`)}
             actions={
               <>
                 <IconButton icon={RotateCcw} label="Restore link" onClick={() => restore(link)} />
@@ -142,7 +144,7 @@ function ArchivedLinksTab() {
               </>
             }
           >
-            <ShortLink link={link} href={`/links/detail/${qs({ id: link.id })}`} />
+            <ShortLink link={link} href={`/links/${link.id}/summary/`} />
             <span className="truncate text-xs text-muted-foreground">
               {link.destination} · Archived <When iso={link.updatedAt} relative />
             </span>
