@@ -1,15 +1,9 @@
 "use client"
 
 import { can, type Link } from "@linq/shared"
-import NextLink from "next/link"
 import { AppShell } from "@/components/app-shell"
-import {
-  ConfirmButton,
-  CopyButton,
-  DataTable,
-  QueryState,
-  TableSkeleton,
-} from "@/components/common"
+import { ConfirmButton } from "@/components/common"
+import { Collection, PageHeader, ShortLink, shortLinkText } from "@/components/patterns"
 import { Card, CardContent } from "@/components/ui/card"
 import { TableCell, TableRow } from "@/components/ui/table"
 import { qs } from "../../../lib/api"
@@ -39,61 +33,40 @@ function LinksTrash() {
 
   return (
     <div className="flex flex-col gap-4">
-      <div>
-        <h1 className="font-heading text-xl font-semibold">Links trash</h1>
-        <p className="text-sm text-muted-foreground">
-          Archived links. Purging is permanent and releases the slug for reuse.
-        </p>
-      </div>
+      <PageHeader
+        title="Links trash"
+        description="Archived links. Purging is permanent and releases the slug for reuse."
+      />
 
       <Card>
         <CardContent>
-          <QueryState
-            isLoading={links.isLoading}
-            isFetching={links.isFetching}
-            error={links.error}
-            empty={rows.length === 0}
-            emptyMessage="Nothing archived."
-            skeleton={<TableSkeleton head={HEAD} />}
-          />
-
-          {rows.length > 0 ? (
-            <DataTable head={HEAD}>
-              {rows.map((link) => (
-                <TableRow key={link.id}>
-                  <TableCell className="max-w-xs">
-                    <div className="flex items-center gap-1">
-                      <NextLink
-                        href={`/links/detail/${qs({ id: link.id })}`}
-                        className="min-w-0 truncate font-medium underline-offset-2 hover:underline"
-                      >
-                        {link.domainHost}/{link.slug}
-                      </NextLink>
-                      <CopyButton value={link.shortUrl} />
-                    </div>
-                  </TableCell>
-                  <TableCell className="max-w-xs truncate text-muted-foreground">
-                    <span title={link.destination}>{link.destination}</span>
-                  </TableCell>
-                  <TableCell className="max-w-[10rem] truncate text-muted-foreground">
-                    {link.ownerName ?? "—"}
-                  </TableCell>
-                  <TableCell>
-                    <ConfirmButton
-                      title={`Purge ${link.domainHost}/${link.slug}?`}
-                      description="This destroys the link and every visit ever recorded on it. It cannot be undone, and the slug becomes free for reuse on this domain."
-                      confirmLabel="Purge for good"
-                      confirmText={link.slug}
-                      size="sm"
-                      onConfirm={() => purge(link)}
-                    >
-                      Purge
-                    </ConfirmButton>
-                  </TableCell>
-                </TableRow>
-              ))}
-            </DataTable>
-          ) : null}
+          <Collection query={links} rows={rows} head={HEAD} emptyMessage="Nothing archived.">
+            {(link) => (
+              <TableRow key={link.id}>
+                <TableCell className="max-w-xs">
+                  <ShortLink link={link} href={`/links/detail/${qs({ id: link.id })}`} />
+                </TableCell>
+                <TableCell className="max-w-xs truncate text-muted-foreground">
+                  <span title={link.destination}>{link.destination}</span>
+                </TableCell>
+                <TableCell className="max-w-[10rem] truncate text-muted-foreground">
+                  {link.ownerName ?? "—"}
+                </TableCell>
+                <TableCell>
+                  <ConfirmButton
+                    title={`Purge ${shortLinkText(link)}?`}
+                    description="This destroys the link and every visit ever recorded on it. It cannot be undone, and the slug becomes free for reuse on this domain."
+                    confirmLabel="Purge for good"
+                    confirmText={link.slug}
+                    size="sm"
+                    onConfirm={() => purge(link)}
+                  >
+                    Purge
+                  </ConfirmButton>
+                </TableCell>
+              </TableRow>
+            )}
+          </Collection>
         </CardContent>
       </Card>
     </div>

@@ -5,15 +5,8 @@ import { ArrowDownIcon, ArrowUpIcon } from "lucide-react"
 import NextLink from "next/link"
 import { useState } from "react"
 import { AppShell } from "@/components/app-shell"
-import {
-  CopyButton,
-  DataTable,
-  Pager,
-  Picker,
-  QueryState,
-  TableSkeleton,
-  When,
-} from "@/components/common"
+import { Pager, Picker, When } from "@/components/common"
+import { Collection, DomainPicker, PageHeader, ShortLink } from "@/components/patterns"
 import { TagPicker } from "@/components/tag-picker"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
@@ -22,7 +15,6 @@ import { Input } from "@/components/ui/input"
 import { TableCell, TableRow } from "@/components/ui/table"
 import { qs } from "../../lib/api"
 import { useDebounced, useRun } from "../../lib/hooks"
-import { useListDomainsQuery } from "../../lib/store/domains"
 import {
   useArchiveLinkMutation,
   useListLinksQuery,
@@ -37,9 +29,6 @@ type Filters = {
 }
 
 const EMPTY: Filters = { domainId: "", status: "active", sort: "createdAt", order: "desc" }
-
-/** Radix refuses an item whose value is "", so "no filter" needs a real value. */
-const ANY_DOMAIN = "__any__"
 
 const HEAD = ["Short URL", "Destination", "Tags", "Visits", "Owner", "Updated", "", ""]
 
@@ -58,7 +47,6 @@ function LinksList({ actor }: { actor: Actor }) {
   // The box stays responsive while the request waits for the typing to stop.
   const settledSearch = useDebounced(search)
 
-  const domains = useListDomainsQuery({ limit: 200 })
   const links = useListLinksQuery({
     ...filters,
     search: settledSearch,
@@ -89,14 +77,16 @@ function LinksList({ actor }: { actor: Actor }) {
 
   return (
     <div className="flex flex-col gap-4">
-      <div className="flex flex-wrap items-center gap-2">
-        <h1 className="font-heading text-xl font-semibold">Links</h1>
-        {can.createLink(actor) ? (
-          <NextLink href="/links/new/" className="ml-auto">
-            <Button type="button">New link</Button>
-          </NextLink>
-        ) : null}
-      </div>
+      <PageHeader
+        title="Links"
+        actions={
+          can.createLink(actor) ? (
+            <NextLink href="/links/new/">
+              <Button type="button">New link</Button>
+            </NextLink>
+          ) : null
+        }
+      />
 
       <Card>
         <CardContent className="grid gap-3 sm:grid-cols-2 lg:grid-cols-5">
@@ -116,17 +106,7 @@ function LinksList({ actor }: { actor: Actor }) {
               setOffset(0)
             }}
           />
-          <Picker
-            value={filters.domainId || ANY_DOMAIN}
-            onChange={(value) => update({ domainId: value === ANY_DOMAIN ? "" : value })}
-            options={[
-              { value: ANY_DOMAIN, label: "All domains" },
-              ...(domains.data?.data ?? []).map((domain) => ({
-                value: domain.id,
-                label: domain.host,
-              })),
-            ]}
-          />
+          <DomainPicker value={filters.domainId} onChange={(domainId) => update({ domainId })} />
           <Picker
             value={filters.status}
             onChange={(value) => update({ status: value as Filters["status"] })}
@@ -162,88 +142,70 @@ function LinksList({ actor }: { actor: Actor }) {
 
       <Card>
         <CardContent>
-          <QueryState
-            isLoading={links.isLoading}
-            isFetching={links.isFetching}
-            error={links.error}
-            empty={rows.length === 0}
+          <Collection
+            query={links}
+            rows={rows}
+            head={HEAD}
             emptyMessage="No links match these filters."
-            skeleton={<TableSkeleton head={HEAD} />}
-          />
-
-          {rows.length > 0 ? (
-            <DataTable head={HEAD}>
-              {rows.map((link) => (
-                <TableRow
-                  key={link.id}
-                  className={link.status === "archived" ? "opacity-60" : undefined}
-                >
-                  <TableCell className="max-w-xs">
-                    {/* min-w-0 so the link may shrink: without it the flex item
-                        keeps its full text width and truncate never engages. */}
-                    <div className="flex items-center gap-1">
-                      <NextLink
-                        href={`/links/detail/${qs({ id: link.id })}`}
-                        className="min-w-0 truncate font-medium underline-offset-2 hover:underline"
-                      >
-                        {link.domainHost}/{link.slug}
-                      </NextLink>
-                      <CopyButton value={link.shortUrl} />
-                    </div>
-                    {link.name ? (
-                      <div className="truncate text-xs text-muted-foreground">{link.name}</div>
+          >
+            {(link) => (
+              <TableRow
+                key={link.id}
+                className={link.status === "archived" ? "opacity-60" : undefined}
+              >
+                <TableCell className="max-w-xs">
+                  <ShortLink link={link} href={`/links/detail/${qs({ id: link.id })}`} />
+                  {link.name ? (
+                    <div className="truncate text-xs text-muted-foreground">{link.name}</div>
+                  ) : null}
+                </TableCell>
+                <TableCell className="max-w-xs truncate text-muted-foreground">
+                  <span title={link.destination}>{link.destination}</span>
+                </TableCell>
+                <TableCell>
+                  <div className="flex flex-wrap gap-1">
+                    {link.tags.map((tag) => (
+                      <Badge key={tag} variant="secondary">
+                        {tag}
+                      </Badge>
+                    ))}
+                  </div>
+                </TableCell>
+                <TableCell className="tabular-nums">
+                  {link.humanVisits}
+                  <span className="text-muted-foreground"> + {link.botVisits} bot</span>
+                </TableCell>
+                <TableCell className="max-w-[10rem] truncate text-muted-foreground">
+                  {link.ownerName ?? "—"}
+                </TableCell>
+                <TableCell>
+                  <When iso={link.updatedAt} relative />
+                </TableCell>
+                <TableCell>
+                  <div className="flex gap-1">
+                    {link.status === "archived" ? <Badge variant="outline">Archived</Badge> : null}
+                    {link.expiresAt && new Date(link.expiresAt) <= new Date() ? (
+                      <Badge variant="outline">Expired</Badge>
                     ) : null}
-                  </TableCell>
-                  <TableCell className="max-w-xs truncate text-muted-foreground">
-                    <span title={link.destination}>{link.destination}</span>
-                  </TableCell>
-                  <TableCell>
-                    <div className="flex flex-wrap gap-1">
-                      {link.tags.map((tag) => (
-                        <Badge key={tag} variant="secondary">
-                          {tag}
-                        </Badge>
-                      ))}
-                    </div>
-                  </TableCell>
-                  <TableCell className="tabular-nums">
-                    {link.humanVisits}
-                    <span className="text-muted-foreground"> + {link.botVisits} bot</span>
-                  </TableCell>
-                  <TableCell className="max-w-[10rem] truncate text-muted-foreground">
-                    {link.ownerName ?? "—"}
-                  </TableCell>
-                  <TableCell>
-                    <When iso={link.updatedAt} />
-                  </TableCell>
-                  <TableCell>
-                    <div className="flex gap-1">
-                      {link.status === "archived" ? (
-                        <Badge variant="outline">Archived</Badge>
-                      ) : null}
-                      {link.expiresAt && new Date(link.expiresAt) <= new Date() ? (
-                        <Badge variant="outline">Expired</Badge>
-                      ) : null}
-                    </div>
-                  </TableCell>
-                  <TableCell>
-                    {/* Per row, not per page: an author owns some of these and not
-                        others, and the server refuses the rest with a 403. */}
-                    {can.editLink(actor, link) ? (
-                      <Button
-                        type="button"
-                        size="sm"
-                        variant={link.status === "active" ? "destructive" : "outline"}
-                        onClick={() => toggleStatus(link)}
-                      >
-                        {link.status === "active" ? "Archive" : "Restore"}
-                      </Button>
-                    ) : null}
-                  </TableCell>
-                </TableRow>
-              ))}
-            </DataTable>
-          ) : null}
+                  </div>
+                </TableCell>
+                <TableCell>
+                  {/* Per row, not per page: an author owns some of these and not
+                      others, and the server refuses the rest with a 403. */}
+                  {can.editLink(actor, link) ? (
+                    <Button
+                      type="button"
+                      size="sm"
+                      variant={link.status === "active" ? "destructive" : "outline"}
+                      onClick={() => toggleStatus(link)}
+                    >
+                      {link.status === "active" ? "Archive" : "Restore"}
+                    </Button>
+                  ) : null}
+                </TableCell>
+              </TableRow>
+            )}
+          </Collection>
 
           <Pager total={total} limit={limit} offset={offset} onChange={setOffset} />
         </CardContent>

@@ -3,16 +3,8 @@
 import { type Actor, type ApiKey, type ApiKeyCreated, can, ROLES, type Role } from "@linq/shared"
 import { useState } from "react"
 import { AppShell } from "@/components/app-shell"
-import {
-  ConfirmButton,
-  CopyButton,
-  DataTable,
-  Field,
-  Picker,
-  QueryState,
-  TableSkeleton,
-  When,
-} from "@/components/common"
+import { ConfirmButton, CopyButton, Field, Picker, When } from "@/components/common"
+import { Collection, PageHeader } from "@/components/patterns"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent } from "@/components/ui/card"
@@ -57,34 +49,25 @@ function Keys({ actor }: { actor: Actor }) {
 
   return (
     <div className="flex flex-col gap-4">
-      <div className="flex items-center justify-between">
-        <h1 className="font-medium text-lg">Keys</h1>
-        <MintKeyDialog />
-      </div>
+      <PageHeader title="Keys" actions={<MintKeyDialog />} />
 
       <Card>
         <CardContent>
-          <QueryState
-            isLoading={keys.isLoading}
-            isFetching={keys.isFetching}
-            error={keys.error}
-            empty={rows.length === 0}
+          <Collection
+            query={keys}
+            rows={rows}
+            head={HEAD}
             emptyMessage="No keys. Nothing can reach the API."
-            skeleton={<TableSkeleton head={HEAD} />}
-          />
-
-          {rows.length > 0 ? (
-            <DataTable head={HEAD}>
-              {rows.map((key) => (
-                <KeyRow
-                  key={key.id}
-                  apiKey={key as ApiKey}
-                  actor={actor}
-                  allKeys={rows as ApiKey[]}
-                />
-              ))}
-            </DataTable>
-          ) : null}
+          >
+            {(key) => (
+              <KeyRow
+                key={key.id}
+                apiKey={key as ApiKey}
+                actor={actor}
+                allKeys={rows as ApiKey[]}
+              />
+            )}
+          </Collection>
         </CardContent>
       </Card>
     </div>

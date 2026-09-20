@@ -3,7 +3,8 @@
 import { type Actor, can, type Domain } from "@linq/shared"
 import { useState } from "react"
 import { AppShell } from "@/components/app-shell"
-import { ConfirmButton, DataTable, Field, QueryState, TableSkeleton } from "@/components/common"
+import { ConfirmButton, Field } from "@/components/common"
+import { Collection, PageHeader } from "@/components/patterns"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
@@ -42,7 +43,7 @@ function DomainsList({ actor }: { actor: Actor }) {
 
   return (
     <div className="flex flex-col gap-4">
-      <h1 className="font-heading text-xl font-semibold">Domains</h1>
+      <PageHeader title="Domains" />
 
       {isAdmin ? (
         <NewDomainCard onCreate={(body) => run(() => createDomain(body).unwrap())} />
@@ -50,36 +51,25 @@ function DomainsList({ actor }: { actor: Actor }) {
 
       <Card>
         <CardContent>
-          <QueryState
-            isLoading={domains.isLoading}
-            isFetching={domains.isFetching}
-            error={domains.error}
-            empty={rows.length === 0}
-            emptyMessage="No domains yet."
-            skeleton={<TableSkeleton head={HEAD} />}
-          />
-
-          {rows.length > 0 ? (
-            <DataTable head={HEAD}>
-              {rows.map((domain) => (
-                <DomainRow
-                  key={domain.id}
-                  domain={domain}
-                  isAdmin={isAdmin}
-                  onSaveFallback={(fallbackUrl) =>
-                    run(() => updateDomain({ id: domain.id, body: { fallbackUrl } }).unwrap())
-                  }
-                  onToggleStatus={() =>
-                    run(() =>
-                      domain.status === "active"
-                        ? archiveDomain(domain.id).unwrap()
-                        : updateDomain({ id: domain.id, body: { status: "active" } }).unwrap(),
-                    )
-                  }
-                />
-              ))}
-            </DataTable>
-          ) : null}
+          <Collection query={domains} rows={rows} head={HEAD} emptyMessage="No domains yet.">
+            {(domain) => (
+              <DomainRow
+                key={domain.id}
+                domain={domain}
+                isAdmin={isAdmin}
+                onSaveFallback={(fallbackUrl) =>
+                  run(() => updateDomain({ id: domain.id, body: { fallbackUrl } }).unwrap())
+                }
+                onToggleStatus={() =>
+                  run(() =>
+                    domain.status === "active"
+                      ? archiveDomain(domain.id).unwrap()
+                      : updateDomain({ id: domain.id, body: { status: "active" } }).unwrap(),
+                  )
+                }
+              />
+            )}
+          </Collection>
         </CardContent>
       </Card>
     </div>

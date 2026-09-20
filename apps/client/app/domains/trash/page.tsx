@@ -2,7 +2,8 @@
 
 import { can, type Domain } from "@linq/shared"
 import { AppShell } from "@/components/app-shell"
-import { ConfirmButton, DataTable, QueryState, TableSkeleton } from "@/components/common"
+import { ConfirmButton } from "@/components/common"
+import { Collection, PageHeader } from "@/components/patterns"
 import { Card, CardContent } from "@/components/ui/card"
 import { TableCell, TableRow } from "@/components/ui/table"
 import { useRun } from "../../../lib/hooks"
@@ -31,49 +32,35 @@ function DomainsTrash() {
 
   return (
     <div className="flex flex-col gap-4">
-      <div>
-        <h1 className="font-heading text-xl font-semibold">Domains trash</h1>
-        <p className="text-sm text-muted-foreground">
-          Archived domains. Purging is permanent; it refuses while any link, archived included,
-          still points at the host.
-        </p>
-      </div>
+      <PageHeader
+        title="Domains trash"
+        description="Archived domains. Purging is permanent; it refuses while any link, archived included, still points at the host."
+      />
 
       <Card>
         <CardContent>
-          <QueryState
-            isLoading={domains.isLoading}
-            isFetching={domains.isFetching}
-            error={domains.error}
-            empty={rows.length === 0}
-            emptyMessage="Nothing archived."
-            skeleton={<TableSkeleton head={HEAD} />}
-          />
-
-          {rows.length > 0 ? (
-            <DataTable head={HEAD}>
-              {rows.map((domain) => (
-                <TableRow key={domain.id}>
-                  <TableCell className="max-w-xs truncate font-medium">{domain.host}</TableCell>
-                  <TableCell className="max-w-xs truncate text-muted-foreground">
-                    {domain.fallbackUrl ?? "404 when blank"}
-                  </TableCell>
-                  <TableCell>
-                    <ConfirmButton
-                      title={`Purge ${domain.host}?`}
-                      description="This destroys the domain and every visit ever recorded on it. It cannot be undone. The server refuses this while any link still points at the host, archived ones included."
-                      confirmLabel="Purge for good"
-                      confirmText={domain.host}
-                      size="sm"
-                      onConfirm={() => purge(domain)}
-                    >
-                      Purge
-                    </ConfirmButton>
-                  </TableCell>
-                </TableRow>
-              ))}
-            </DataTable>
-          ) : null}
+          <Collection query={domains} rows={rows} head={HEAD} emptyMessage="Nothing archived.">
+            {(domain) => (
+              <TableRow key={domain.id}>
+                <TableCell className="max-w-xs truncate font-medium">{domain.host}</TableCell>
+                <TableCell className="max-w-xs truncate text-muted-foreground">
+                  {domain.fallbackUrl ?? "404 when blank"}
+                </TableCell>
+                <TableCell>
+                  <ConfirmButton
+                    title={`Purge ${domain.host}?`}
+                    description="This destroys the domain and every visit ever recorded on it. It cannot be undone. The server refuses this while any link still points at the host, archived ones included."
+                    confirmLabel="Purge for good"
+                    confirmText={domain.host}
+                    size="sm"
+                    onConfirm={() => purge(domain)}
+                  >
+                    Purge
+                  </ConfirmButton>
+                </TableCell>
+              </TableRow>
+            )}
+          </Collection>
         </CardContent>
       </Card>
     </div>

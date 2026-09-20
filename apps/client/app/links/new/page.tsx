@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation"
 import { type SyntheticEvent, useState } from "react"
 import { AppShell } from "@/components/app-shell"
 import { Field, Picker, QueryState } from "@/components/common"
+import { PageHeader } from "@/components/patterns"
 import {
   type PresetParamRow,
   PresetParamsEditor,
@@ -76,7 +77,7 @@ function NewLinkForm() {
 
   return (
     <div className="flex max-w-2xl flex-col gap-4">
-      <h1 className="font-heading text-xl font-semibold">New link</h1>
+      <PageHeader title="New link" />
 
       <Card>
         <CardContent>

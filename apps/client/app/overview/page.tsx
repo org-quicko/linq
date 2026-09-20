@@ -2,6 +2,7 @@
 
 import { AppShell } from "@/components/app-shell"
 import { CardSkeleton } from "@/components/common"
+import { PageHeader } from "@/components/patterns"
 import { StatsPanel } from "@/components/stats-panel"
 import { Card, CardContent } from "@/components/ui/card"
 import { useListDomainsQuery } from "../../lib/store/domains"
@@ -25,10 +26,7 @@ function Overview() {
 
   return (
     <div className="flex flex-col gap-4">
-      <div>
-        <h1 className="font-heading text-xl font-semibold">Overview</h1>
-        <p className="text-sm text-muted-foreground">Everything on this server, at a glance.</p>
-      </div>
+      <PageHeader title="Overview" description="Everything on this server, at a glance." />
 
       <div className="grid gap-4 sm:grid-cols-3">
         <Stat label="Active links" value={links.data?.total} isLoading={links.isLoading} />

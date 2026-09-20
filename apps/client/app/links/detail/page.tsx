@@ -6,7 +6,8 @@ import NextLink from "next/link"
 import { useRouter, useSearchParams } from "next/navigation"
 import { Suspense, useState } from "react"
 import { AppShell } from "@/components/app-shell"
-import { ConfirmButton, CopyButton, Field, Picker, QueryState, When } from "@/components/common"
+import { ConfirmButton, Field, Picker, QueryState, When } from "@/components/common"
+import { PageHeader, ShortLink } from "@/components/patterns"
 import {
   type PresetParamRow,
   PresetParamsEditor,
@@ -64,26 +65,29 @@ function LinkDetail({ actor }: { actor: Actor }) {
 
   return (
     <div className="flex flex-col gap-4">
-      <div className="flex flex-wrap items-center gap-2">
-        <div>
-          <h1 className="flex items-center gap-2 font-heading text-xl font-semibold">
-            {current.domainHost}/{current.slug}
-            <CopyButton value={current.shortUrl} />
+      <PageHeader
+        title={
+          <>
+            <ShortLink link={current} />
             {current.status === "archived" ? <Badge variant="outline">Archived</Badge> : null}
             {current.expiresAt && new Date(current.expiresAt) <= new Date() ? (
               <Badge variant="outline">Expired</Badge>
             ) : null}
-          </h1>
-          <p className="text-sm text-muted-foreground">
+          </>
+        }
+        description={
+          <>
             Created <When iso={current.createdAt} /> by {current.ownerName ?? "a revoked key"}
-          </p>
-        </div>
-        <NextLink href="/links/" className="ml-auto">
-          <Button type="button" variant="outline">
-            Back to links
-          </Button>
-        </NextLink>
-      </div>
+          </>
+        }
+        actions={
+          <NextLink href="/links/">
+            <Button type="button" variant="outline">
+              Back to links
+            </Button>
+          </NextLink>
+        }
+      />
 
       <StatsPanel path={`/v1/links/${id}/stats`} title="Visits" />
 

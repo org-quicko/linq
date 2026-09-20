@@ -2,14 +2,10 @@
 
 import { useState } from "react"
 import { AppShell } from "@/components/app-shell"
-import { Picker } from "@/components/common"
+import { DomainPicker, PageHeader } from "@/components/patterns"
 import { StatsPanel } from "@/components/stats-panel"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { VisitsCard } from "@/components/visits-card"
-import { useListDomainsQuery } from "../../lib/store/domains"
-
-/** Radix refuses an item whose value is "", so "no filter" needs a real value. */
-const ANY_DOMAIN = "__any__"
 
 /**
  * Visits that resolved to no link: an unknown slug, an archived link, or a bare
@@ -25,35 +21,21 @@ export default function OrphansPage() {
 }
 
 function Orphans() {
-  const domains = useListDomainsQuery({ limit: 200 })
   const [domainId, setDomainId] = useState("")
 
   return (
     <div className="flex flex-col gap-4">
-      <div>
-        <h1 className="font-heading text-xl font-semibold">Orphan visits</h1>
-        <p className="text-sm text-muted-foreground">
-          Requests that hit a live domain but matched no active link.
-        </p>
-      </div>
+      <PageHeader
+        title="Orphan visits"
+        description="Requests that hit a live domain but matched no active link."
+      />
 
       <Card>
         <CardHeader className="border-b">
           <CardTitle>Domain</CardTitle>
         </CardHeader>
         <CardContent>
-          <Picker
-            className="max-w-sm"
-            value={domainId || ANY_DOMAIN}
-            onChange={(value) => setDomainId(value === ANY_DOMAIN ? "" : value)}
-            options={[
-              { value: ANY_DOMAIN, label: "All domains" },
-              ...(domains.data?.data ?? []).map((domain) => ({
-                value: domain.id,
-                label: domain.host,
-              })),
-            ]}
-          />
+          <DomainPicker className="max-w-sm" value={domainId} onChange={setDomainId} />
         </CardContent>
       </Card>
 
