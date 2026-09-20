@@ -48,7 +48,6 @@ export function VisitsCard({
   // these are free text rather than a dropdown that couldn't list every value.
   const [os, setOs] = useState("")
   const [browser, setBrowser] = useState("")
-  const [botLabel, setBotLabel] = useState("")
   const { range, setRange, fromInstant } = useRange()
   const [offset, setOffset] = useState(0)
 
@@ -64,7 +63,6 @@ export function VisitsCard({
     platform: platform || undefined,
     os: os || undefined,
     browser: browser || undefined,
-    botLabel: botLabel || undefined,
     from: fromInstant,
     limit: PAGE,
     offset,
@@ -138,12 +136,6 @@ export function VisitsCard({
             value={browser}
             onChange={onText(setBrowser)}
           />
-          <Input
-            className="w-28"
-            placeholder="Bot type"
-            value={botLabel}
-            onChange={onText(setBotLabel)}
-          />
           <RangePicker value={range} onChange={onRange} />
         </CardAction>
       </CardHeader>
@@ -179,9 +171,7 @@ export function VisitsCard({
                 <TableCell className="max-w-[16rem] truncate text-muted-foreground">
                   <span title={visit.destination ?? ""}>{visit.destination ?? "—"}</span>
                 </TableCell>
-                <TableCell>
-                  {visit.isBot ? <Badge variant="outline">{visit.botLabel ?? "Bot"}</Badge> : null}
-                </TableCell>
+                <TableCell>{visit.isBot ? <Badge variant="outline">Bot</Badge> : null}</TableCell>
               </TableRow>
             ))}
           </DataTable>

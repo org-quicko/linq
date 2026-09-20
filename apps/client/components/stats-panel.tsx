@@ -23,7 +23,6 @@ const GROUP_LABELS: Record<GroupBy, string> = {
   platform: "Platform",
   os: "OS",
   browser: "Browser",
-  botLabel: "Bot type",
   referer: "Referrer",
   destination: "Destination",
   slug: "Requested slug",

@@ -429,16 +429,6 @@ describe("visitor detection", () => {
     expect(await lastVisit()).toMatchObject({ isBot: true, userAgent: null })
   })
 
-  test("records a recognisable bot label, human visits get none", async () => {
-    await h.createLink(author.key, domain, { slug: "labelled" })
-
-    await get("/labelled", { headers: { "user-agent": BOT } })
-    expect(await lastVisit()).toMatchObject({ isBot: true, botLabel: "google" })
-
-    await get("/labelled")
-    expect(await lastVisit()).toMatchObject({ isBot: false, botLabel: null })
-  })
-
   test("a link-preview crawler gets the short link's own title, not the destination's", async () => {
     const link = await h.createLink(author.key, domain, { slug: "shared", name: "Q3 report" })
     const res = await get(`/${link.slug}`, {

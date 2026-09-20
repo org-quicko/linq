@@ -120,6 +120,13 @@
       "when": 1789919285627,
       "tag": "0016_fearless_wolverine",
       "breakpoints": true
+    },
+    {
+      "idx": 17,
+      "version": "7",
+      "when": 1789919300000,
+      "tag": "0017_drop_bot_label",
+      "breakpoints": true
     }
   ]
 }

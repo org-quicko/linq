@@ -33,7 +33,6 @@ import {
   useCreateLinkMutation,
   useGetLinkRulesQuery,
   useUpdateLinkMutation,
-  useUpdateLinkRulesMutation,
 } from "../lib/store/links"
 
 /**
@@ -91,7 +90,9 @@ export function LinkFormDialog({
 
   useEffect(() => {
     if (existingRules && existingRules.length > 0 && !rulesDirty) {
-      setRulesDrafts(existingRules.map((r) => ({ destination: r.destination, conditions: r.conditions })))
+      setRulesDrafts(
+        existingRules.map((r) => ({ destination: r.destination, conditions: r.conditions })),
+      )
       setRulesOpen(true)
     }
   }, [existingRules, rulesDirty])

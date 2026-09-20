@@ -233,7 +233,10 @@ describe("the rules API", () => {
       method: "PATCH",
       body: JSON.stringify({
         rules: [
-          { destination: "https://example.com/ios", conditions: [{ type: "platform", value: "ios" }] },
+          {
+            destination: "https://example.com/ios",
+            conditions: [{ type: "platform", value: "ios" }],
+          },
         ],
       }),
     })

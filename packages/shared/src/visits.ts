@@ -13,7 +13,6 @@ export const GROUP_BY = [
   "platform",
   "os",
   "browser",
-  "botLabel",
   "referer",
   "destination",
   /** The slug as requested. The only grouping that says anything about orphans. */
@@ -29,7 +28,7 @@ const scope = {
   orphan: z.enum(["true", "false"]).default("false"),
 }
 
-/** Open vocabulary (`os`/`browser`/`botLabel` aren't a closed enum like `platform`), lowercased at the boundary so a filter matches regardless of how it's typed — the stored value is always lowercase. */
+/** Open vocabulary (`os`/`browser` aren't a closed enum like `platform`), lowercased at the boundary so a filter matches regardless of how it's typed — the stored value is always lowercase. */
 const openFilter = z.string().min(1).toLowerCase().optional()
 
 /**
@@ -45,7 +44,6 @@ export const visitListQuerySchema = paginationSchema.extend({
   platform: platformSchema.optional(),
   os: openFilter,
   browser: openFilter,
-  botLabel: openFilter,
 })
 
 /**
@@ -74,7 +72,6 @@ export type Visit = {
   platform: Platform
   os: Os | null
   browser: Browser | null
-  botLabel: string | null
   userAgent: string | null
   referer: string | null
   destination: string | null

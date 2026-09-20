@@ -1,20 +1,8 @@
-import { findBotMatch, isbot } from "isbot"
+import { isbot } from "isbot"
 
 /** A request with no User-Agent at all is not a browser, so it counts as a bot. */
 export function detectBot(userAgent: string | null | undefined): boolean {
   return !userAgent || isbot(userAgent)
-}
-
-/**
- * What isbot's own pattern match actually was — often already recognisable
- * (`"googlebot"`, `"facebookexternalhit"`, `"slackbot"`), sometimes a
- * generic term (`"crawl"`, `"spider"`) for an obscure or unlisted bot.
- * Lowercased so the same bot family never fragments into two buckets by
- * casing alone. Null for a human, and for a bot flagged only by having no
- * User-Agent at all — nothing to match against in that case.
- */
-export function detectBotLabel(userAgent: string | null | undefined): string | null {
-  return findBotMatch(userAgent)?.toLowerCase() ?? null
 }
 
 /**

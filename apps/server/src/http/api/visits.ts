@@ -17,7 +17,6 @@ function toVisit(row: typeof visits.$inferSelect): Visit {
     platform: row.platform,
     os: row.os,
     browser: row.browser,
-    botLabel: row.botLabel,
     userAgent: row.userAgent,
     referer: row.referer,
     destination: row.destination,
@@ -40,7 +39,6 @@ function visitFilters(q: {
   platform?: Platform
   os?: string
   browser?: string
-  botLabel?: string
 }): SQL[] {
   const filters: SQL[] = []
   if (q.from) filters.push(gte(visits.occurredAt, new Date(q.from)))
@@ -52,7 +50,6 @@ function visitFilters(q: {
   if (q.platform) filters.push(eq(visits.platform, q.platform))
   if (q.os) filters.push(eq(visits.os, q.os))
   if (q.browser) filters.push(eq(visits.browser, q.browser))
-  if (q.botLabel) filters.push(eq(visits.botLabel, q.botLabel))
   return filters
 }
 

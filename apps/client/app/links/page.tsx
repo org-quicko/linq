@@ -10,6 +10,7 @@ import {
   MoreVertical,
   Pencil,
 } from "lucide-react"
+import NextLink from "next/link"
 import { useState } from "react"
 import { AppShell } from "@/components/app-shell"
 import { Pager, Picker } from "@/components/common"
@@ -41,7 +42,6 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
 import { Input } from "@/components/ui/input"
-import NextLink from "next/link"
 import { qs } from "../../lib/api"
 import { useDebounced, useRun } from "../../lib/hooks"
 import { useArchiveLinkMutation, useListLinksQuery } from "../../lib/store/links"

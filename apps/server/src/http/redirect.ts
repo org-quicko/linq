@@ -8,7 +8,7 @@ import { domains, links } from "../db/schema.ts"
 import { reqLog, span } from "../log.ts"
 import { matchRules } from "../rules/match.ts"
 import { listRules } from "../rules/store.ts"
-import { detectBot, detectBotLabel, isPreviewCrawler } from "../visits/bot.ts"
+import { detectBot, isPreviewCrawler } from "../visits/bot.ts"
 import { detectBrowser, detectOs, detectPlatform } from "../visits/platform.ts"
 import { recordVisit } from "../visits/record.ts"
 import { shortUrl } from "./api/links.ts"
@@ -210,7 +210,6 @@ export const redirectHandler = factory.createHandlers(async (c) => {
     platform: detectPlatform(userAgent),
     os: detectOs(userAgent),
     browser: detectBrowser(userAgent),
-    botLabel: detectBotLabel(userAgent),
     userAgent,
     referer: c.req.header("referer") ?? null,
     query: queryMap(url.searchParams),
