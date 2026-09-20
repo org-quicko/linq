@@ -1,0 +1,72 @@
+# Bundled Postgres plus Caddy for automatic HTTPS on custom domains. Once
+# LINQ_CADDY_ADMIN_URL is set, every domain create, archive, reactivate and
+# purge is pushed to Caddy as its own route — nothing in Caddy is edited by
+# hand. See docs/adr/0012 and caddy/caddy.json, the empty skeleton Caddy boots
+# from. No Redis here — the redirect cache stays in-process.
+#
+# :2019, Caddy's admin API, is deliberately not published to the host — only
+# linq, over the compose network, ever needs to reach it. A custom domain
+# still needs its DNS pointed at this host before Caddy's automatic HTTPS can
+# issue it a certificate.
+#
+# Copy this file, set a real password and LINQ_DEFAULT_DOMAIN, then:
+#   docker compose -f docker-compose.with-caddy.yml up
+services:
+  postgres:
+    image: postgres:17
+    environment:
+      POSTGRES_USER: linq
+      POSTGRES_PASSWORD: linq
+      POSTGRES_DB: linq
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U linq"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  caddy:
+    image: caddy:2
+    command: caddy run --config /etc/caddy/caddy.json --resume
+    volumes:
+      - ../caddy/caddy.json:/etc/caddy/caddy.json:ro
+      - caddy-data:/data      # issued certificates — must persist
+      - caddy-config:/config
+    ports:
+      - "80:80"
+      - "443:443"
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://localhost:2019/config/"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  linq:
+    build: ..
+    depends_on:
+      postgres:
+        condition: service_healthy
+      caddy:
+        condition: service_healthy
+    environment:
+      DATABASE_URL: postgres://linq:linq@postgres:5432/linq
+      LINQ_DEFAULT_DOMAIN: localhost:3000
+      LINQ_CADDY_ADMIN_URL: http://caddy:2019
+      LINQ_CADDY_UPSTREAM: linq:3000
+      # An admin key is minted and printed on first boot; read it from
+      # `docker compose logs linq`. For another without restarting:
+      #   docker compose exec linq bun run key:create --name ops --role admin
+      # Logs go to stdout and to /data/logs/linq.log. Client IPs are never
+      # recorded in either; see docs/adr/0003.
+      LINQ_LOG_LEVEL: info
+    ports:
+      - "3000:3000"
+    volumes:
+      - linq-data:/data
+
+volumes:
+  postgres-data:
+  linq-data:
+  caddy-data:
+  caddy-config:
