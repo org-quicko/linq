@@ -173,11 +173,51 @@ export function CopyButton({ value, label }: { value: string; label?: string }) 
   )
 }
 
-/** A short, local rendering of an ISO timestamp. */
-export function When({ iso }: { iso: string }) {
+/**
+ * "3d ago" / "in 2h" — compact, matching the design's style. Falls back to a
+ * plain date once something is roughly a month old, where a relative count
+ * stops being useful and a reader wants the actual date instead.
+ */
+function relativeTime(iso: string): string {
+  const ms = Date.now() - Date.parse(iso)
+  const abs = Math.abs(ms)
+  const future = ms < 0
+
+  const MINUTE = 60_000
+  const HOUR = 60 * MINUTE
+  const DAY = 24 * HOUR
+  const WEEK = 7 * DAY
+  const MONTH = 30 * DAY
+
+  if (abs < MINUTE) return "just now"
+  const span =
+    abs < HOUR
+      ? `${Math.floor(abs / MINUTE)}m`
+      : abs < DAY
+        ? `${Math.floor(abs / HOUR)}h`
+        : abs < WEEK
+          ? `${Math.floor(abs / DAY)}d`
+          : abs < MONTH
+            ? `${Math.floor(abs / WEEK)}w`
+            : null
+  if (span === null) return new Date(iso).toLocaleDateString()
+  return future ? `in ${span}` : `${span} ago`
+}
+
+/**
+ * A short, local rendering of an ISO timestamp. `relative` switches it to
+ * "3d ago" style; either way the element is the same `<time dateTime>`, with
+ * the exact value in `title` when relative, so it stays reachable on hover
+ * and to assistive tech regardless of which style is showing.
+ */
+export function When({ iso, relative }: { iso: string; relative?: boolean }) {
   return (
-    <time dateTime={iso} className="whitespace-nowrap text-muted-foreground">
-      {new Date(iso).toLocaleString()}
+    <time
+      dateTime={iso}
+      className="whitespace-nowrap text-muted-foreground"
+      title={relative ? new Date(iso).toLocaleString() : undefined}
+    >
+      {relative ? relativeTime(iso) : new Date(iso).toLocaleString()}
     </time>
   )
 }
