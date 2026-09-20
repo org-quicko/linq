@@ -8,7 +8,13 @@ describe("renderLlms", () => {
   test("collapses whitespace and a newline, and escapes brackets", () => {
     const md = renderLlms(
       "links.test",
-      [{ name: "Q3  report\n[final]", url: "https://links.test/q3", destination: "https://x.test/" }],
+      [
+        {
+          name: "Q3  report\n[final]",
+          url: "https://links.test/q3",
+          destination: "https://x.test/",
+        },
+      ],
       false,
     )
     expect(md).toContain("[Q3 report \\[final\\]](https://links.test/q3): https://x.test/")

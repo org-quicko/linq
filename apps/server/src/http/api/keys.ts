@@ -105,10 +105,7 @@ export const keyRoutes = new Hono<Env>()
     // call — see POST /keys/:id/links/reassign — and revoking the key
     // outright is still unconditional (docs/adr/0011).
     if (patch.role !== undefined && !can.ownLink({ role: patch.role })) {
-      const [{ n }] = await c.var.db
-        .select({ n: count() })
-        .from(links)
-        .where(eq(links.ownerId, id))
+      const [{ n }] = await c.var.db.select({ n: count() }).from(links).where(eq(links.ownerId, id))
       if (n > 0) {
         throw ApiError.conflict(
           `key owns ${n} link${n === 1 ? "" : "s"}; reassign them before demoting it to viewer`,

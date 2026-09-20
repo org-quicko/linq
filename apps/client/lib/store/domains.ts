@@ -15,7 +15,15 @@ export const domainsApi = apiSlice.injectEndpoints({
           : [{ type: "Domain" as const, id: "LIST" }],
     }),
 
-    createDomain: build.mutation<Domain, { host: string; fallbackUrl: string | null }>({
+    createDomain: build.mutation<
+      Domain,
+      {
+        host: string
+        fallbackUrl?: string | null
+        basePathRedirect?: string | null
+        invalidShortUrlRedirect?: string | null
+      }
+    >({
       query: (body) => ({ path: "/v1/domains", method: "POST", body }),
       invalidatesTags: [{ type: "Domain", id: "LIST" }],
     }),

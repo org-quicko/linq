@@ -225,10 +225,10 @@ export const redirectHandler = factory.createHandlers(async (c) => {
   if (!link) {
     const destination =
       slug === ""
-        ? (domain.basePathRedirect ?? null) ?? domain.fallbackUrl
+        ? (domain.basePathRedirect ?? domain.fallbackUrl)
         : SLUG_PATTERN.test(slug)
           ? domain.fallbackUrl
-          : (domain.invalidShortUrlRedirect ?? null) ?? domain.fallbackUrl
+          : (domain.invalidShortUrlRedirect ?? domain.fallbackUrl)
     if (tracked) recordVisit(c.var.db, { ...visit, linkId: null, destination })
     if (!destination) return c.text("Not Found", 404)
     return isPreviewCrawler(userAgent)

@@ -53,7 +53,7 @@ async function seedDefaultDomain(db: Db, config: Config): Promise<void> {
     const [existing] = await db.select({ id: domains.id }).from(domains).limit(1)
     if (existing) return
 
-    const host = config.LINQ_DEFAULT_DOMAIN
+    const host = config.LINQ_DEFAULT_DOMAIN.replace(/^https?:\/\//i, "").toLowerCase()
     await db.insert(domains).values({ id: Bun.randomUUIDv7(), host })
     log.info({ host }, "bootstrap: seeded default domain")
   })

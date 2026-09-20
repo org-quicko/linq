@@ -256,9 +256,7 @@ describe("the three redirect fields", () => {
     const host = "redirect-fields-unset.test"
     await h.createDomain(host, "https://example.com/fallback")
 
-    expect((await get("/", { host })).headers.get("location")).toBe(
-      "https://example.com/fallback",
-    )
+    expect((await get("/", { host })).headers.get("location")).toBe("https://example.com/fallback")
     expect((await get("/a/b", { host })).headers.get("location")).toBe(
       "https://example.com/fallback",
     )

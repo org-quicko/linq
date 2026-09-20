@@ -24,11 +24,7 @@ export type LlmsEntry = { name: string; url: string; destination: string }
  * can produce `(`, `)` or whitespace.
  */
 function escapeText(s: string): string {
-  return s
-    .replace(/\s+/g, " ")
-    .trim()
-    .replace(/\[/g, "\\[")
-    .replace(/\]/g, "\\]")
+  return s.replace(/\s+/g, " ").trim().replace(/\[/g, "\\[").replace(/\]/g, "\\]")
 }
 
 /**

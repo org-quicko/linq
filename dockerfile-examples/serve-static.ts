@@ -25,7 +25,9 @@ Bun.serve({
       return new Response("Not Found", { status: 404 })
     }
 
-    const candidates = path.endsWith("/") ? [join(target, "index.html")] : [target, join(target, "index.html")]
+    const candidates = path.endsWith("/")
+      ? [join(target, "index.html")]
+      : [target, join(target, "index.html")]
 
     for (const candidate of candidates) {
       const file = Bun.file(candidate)
@@ -38,7 +40,10 @@ Bun.serve({
 
     const notFound = Bun.file(join(root, "404.html"))
     if (await notFound.exists()) {
-      return new Response(notFound, { status: 404, headers: { "content-type": "text/html; charset=utf-8" } })
+      return new Response(notFound, {
+        status: 404,
+        headers: { "content-type": "text/html; charset=utf-8" },
+      })
     }
     return new Response("Not Found", { status: 404 })
   },

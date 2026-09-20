@@ -122,9 +122,9 @@ describe("PATCH /api/v1/keys/:id", () => {
     const owner = await h.createKey({ role: "author", name: "Owner2" })
     await h.createLink(owner.key, domain)
 
-    expect((await patch(`/api/v1/keys/${owner.keyId}`, admin.key, { role: "manager" })).status).toBe(
-      200,
-    )
+    expect(
+      (await patch(`/api/v1/keys/${owner.keyId}`, admin.key, { role: "manager" })).status,
+    ).toBe(200)
   })
 
   test("a key that owns nothing demotes to viewer freely", async () => {

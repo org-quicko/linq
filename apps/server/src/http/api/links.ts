@@ -203,7 +203,11 @@ export const linkRoutes = new Hono<Env>()
 
     // Every sortable column in one place; `visits` is the joined expression
     // rather than a column, which is why this is a map and not a field name.
-    const sortable = { createdAt: links.createdAt, updatedAt: links.updatedAt, visits: total } as const
+    const sortable = {
+      createdAt: links.createdAt,
+      updatedAt: links.updatedAt,
+      visits: total,
+    } as const
     const direction = q.order === "asc" ? asc : desc
     const rows = await query
       .where(where)

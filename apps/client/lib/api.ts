@@ -46,7 +46,8 @@ export async function api<T>(path: string, init: RequestInit = {}): Promise<T> {
 
   if (res.status === 401) {
     disconnect()
-    if (window.location.pathname !== LANDING_PATH) window.location.href = LANDING_PATH
+    const unauthorizedLanding = appUrl("/?reason=unauthorized")
+    if (window.location.pathname !== LANDING_PATH) window.location.href = unauthorizedLanding
     throw new ApiError(401, "unauthorized", "That API key is no longer valid.")
   }
 

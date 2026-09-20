@@ -63,7 +63,9 @@ function Keys({ actor }: { actor: Actor }) {
         variant="list"
         emptyMessage="No keys. Nothing can reach the API."
       >
-        {(key) => <KeyRow key={key.id} apiKey={key as ApiKey} actor={actor} allKeys={rows as ApiKey[]} />}
+        {(key) => (
+          <KeyRow key={key.id} apiKey={key as ApiKey} actor={actor} allKeys={rows as ApiKey[]} />
+        )}
       </Collection>
     </div>
   )

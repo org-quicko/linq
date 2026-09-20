@@ -507,7 +507,12 @@ describe("GET /api/v1/links", () => {
     await h.db
       .update(links)
       .set({ createdAt: now })
-      .where(inArray(links.id, rows.map((r) => r.id)))
+      .where(
+        inArray(
+          links.id,
+          rows.map((r) => r.id),
+        ),
+      )
 
     const pages = await Promise.all(
       [0, 1, 2].map((offset) =>
