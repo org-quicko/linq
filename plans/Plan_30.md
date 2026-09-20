@@ -87,6 +87,15 @@ In `apps/client/app/archives/page.tsx`:
 In `apps/client/app/links/detail/page.tsx`:
 Convert the page into a redirect forwarder: if a query parameter `?id={id}` is provided, redirect to `/links/{id}/summary/`; otherwise redirect to `/links/`. This ensures existing bookmarks or external references continue to work seamlessly.
 
+### 5. Analytics Graphs as Line Chart (not Bar Chart)
+
+Currently, `apps/client/components/stats-panel.tsx` renders all analytics using Recharts `<BarChart>`.
+For the primary analytics graph (`groupBy === "day"`, representing visits over time across days):
+- Replace `<BarChart>` and `<Bar>` with `<LineChart>` and `<Line>` from `recharts`.
+- Use smooth interpolation (`type="monotone"`), crisp strokes (`strokeWidth={2}`), distinct theme colors (`var(--chart-1)` for Human, `var(--chart-2)` for Bot), and circular data markers (`dot={{ r: 3 }}`) with larger active hover points (`activeDot={{ r: 5 }}`).
+- For ranked categorical groupings (`groupBy !== "day"`, such as OS, Browser, Platform, Referrer, Destination, Slug), retain the horizontal bar chart representation because discrete unordered entities have long labels and are ranked items rather than a continuous time series.
+- In `apps/client/components/app-shell.tsx`, update the navigation icon for `/analytics/` from `BarChart3` to `LineChart` from `lucide-react` for visual consistency.
+
 ---
 
 ## Files Affected
@@ -97,8 +106,10 @@ Convert the page into a redirect forwarder: if a query parameter `?id={id}` is p
 4. **`apps/client/app/links/[id]/summary/summary-client.tsx`**: Client component rendering the summary view (header, stats, settings card, rules, visits).
 5. **`apps/client/app/links/detail/page.tsx`**: Forwarder redirecting to `/links/${id}/summary/`.
 6. **`apps/client/app/archives/page.tsx`**: Update link detail hrefs to summary path.
-7. **`apps/server/src/http/admin-static.ts`**: Add fallback rule for dynamic `/links/*/summary/` routes.
-8. **`apps/server/test/admin-static.test.ts`**: Add unit test for `/home/links/:id/summary/` static delivery.
+7. **`apps/client/components/stats-panel.tsx`**: Switch time-series analytics graph from `BarChart` to `LineChart`.
+8. **`apps/client/components/app-shell.tsx`**: Update analytics navigation icon to `LineChart`.
+9. **`apps/server/src/http/admin-static.ts`**: Add fallback rule for dynamic `/links/*/summary/` routes.
+10. **`apps/server/test/admin-static.test.ts`**: Add unit test for `/home/links/:id/summary/` static delivery.
 
 ---
 
@@ -107,7 +118,7 @@ Convert the page into a redirect forwarder: if a query parameter `?id={id}` is p
 1. **Automated Tests**:
    - `bun test apps/server/test/admin-static.test.ts`
    - `bun test`
-2. **Client Build**:
+2. **Client Build & Lint**:
    - `bun --filter @linq/client build`
    - `bun run typecheck`
    - `bun run lint`
@@ -115,4 +126,5 @@ Convert the page into a redirect forwarder: if a query parameter `?id={id}` is p
    - Navigate to `/links/`, click anywhere on a link list row -> verifies navigation to `/links/{id}/summary/`.
    - Verify the URL bar displays `/links/{id}/summary/` with no query parameters.
    - Refresh the page on `/links/{id}/summary/` -> verifies it reloads and renders the link summary properly without 404.
+   - On `/analytics/` and `/links/{id}/summary/`, verify the Visits graph is rendered as a line chart with Human and Bot series lines.
 

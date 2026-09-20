@@ -2,7 +2,7 @@
 
 import { type Actor, can, type Role } from "@linq/shared"
 import { cn } from "cn"
-import { Archive, BarChart3, Link2, Settings } from "lucide-react"
+import { Archive, LineChart, Link2, Settings } from "lucide-react"
 import Link from "next/link"
 import { usePathname, useRouter } from "next/navigation"
 import { type ReactNode, useEffect } from "react"
@@ -38,7 +38,7 @@ type NavItem = {
 
 const NAV: NavItem[] = [
   { href: "/links/", label: "Short links", icon: Link2, visible: () => true },
-  { href: "/analytics/", label: "Analytics", icon: BarChart3, visible: () => true },
+  { href: "/analytics/", label: "Analytics", icon: LineChart, visible: () => true },
   { href: "/archives/", label: "Archives", icon: Archive, visible: can.purge },
 ]
 

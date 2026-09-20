@@ -7,6 +7,8 @@ import {
   BarChart,
   CartesianGrid,
   Legend,
+  Line,
+  LineChart,
   ResponsiveContainer,
   Tooltip,
   XAxis,
@@ -58,10 +60,10 @@ function fillDays(buckets: StatsBucket[], from: string | undefined): StatsBucket
  * link, a domain and the whole instance. `groups` narrows the picker where a
  * grouping would be meaningless, such as destination on the orphan slice.
  *
- * Day is charted upright, on a normal horizontal axis, since dates are short
- * and uniform. Every other grouping is charted sideways, one full-width row
- * per entity, because a referrer or slug is too long to sit legibly under a
- * vertical bar.
+ * Day is charted as a line chart along the time axis, since dates are short,
+ * uniform and consecutive. Every other grouping is charted sideways as a bar chart,
+ * one full-width row per entity, because a referrer or slug is too long to sit
+ * legibly under a vertical axis.
  */
 export function StatsPanel({
   path,
@@ -140,71 +142,86 @@ export function StatsPanel({
         {buckets.length > 0 ? (
           <div className="w-full" style={{ height }}>
             <ResponsiveContainer width="100%" height="100%">
-              <BarChart
-                data={buckets}
-                layout={horizontal ? "vertical" : "horizontal"}
-                margin={{ top: 8, right: 8, bottom: 8, left: 0 }}
-              >
-                {/* Theme tokens, so the chart follows light and dark with the rest. */}
-                <CartesianGrid
-                  strokeDasharray="3 3"
-                  stroke="var(--border)"
-                  horizontal={!horizontal}
-                  vertical={horizontal}
-                />
-                {horizontal ? (
-                  <>
-                    <XAxis
-                      type="number"
-                      allowDecimals={false}
-                      tick={{ fontSize: 11, fill: "var(--muted-foreground)" }}
-                    />
-                    <YAxis
-                      type="category"
-                      dataKey="key"
-                      width={160}
-                      tick={{ fontSize: 11, fill: "var(--muted-foreground)" }}
-                      tickFormatter={(value: string) =>
-                        value.length > 22 ? `${value.slice(0, 21)}…` : value
-                      }
-                    />
-                  </>
-                ) : (
-                  <>
-                    <XAxis
-                      dataKey="key"
-                      tick={{ fontSize: 11, fill: "var(--muted-foreground)" }}
-                      minTickGap={24}
-                      tickFormatter={(value: string) => value.slice(5)}
-                    />
-                    <YAxis
-                      allowDecimals={false}
-                      tick={{ fontSize: 11, fill: "var(--muted-foreground)" }}
-                      width={36}
-                    />
-                  </>
-                )}
-                <Tooltip
-                  contentStyle={{
-                    background: "var(--popover)",
-                    borderColor: "var(--border)",
-                    color: "var(--popover-foreground)",
-                  }}
-                />
-                <Legend />
-                <Bar
-                  dataKey="human"
-                  name="Human"
-                  fill="var(--chart-1)"
-                  radius={horizontal ? [0, 2, 2, 0] : [2, 2, 0, 0]}
-                />
-                <Bar
-                  dataKey="bot"
-                  name="Bot"
-                  fill="var(--chart-2)"
-                  radius={horizontal ? [0, 2, 2, 0] : [2, 2, 0, 0]}
-                />
-              </BarChart>
+              {horizontal ? (
+                <BarChart
+                  data={buckets}
+                  layout="vertical"
+                  margin={{ top: 8, right: 8, bottom: 8, left: 0 }}
+                >
+                  {/* Theme tokens, so the chart follows light and dark with the rest. */}
+                  <CartesianGrid
+                    strokeDasharray="3 3"
+                    stroke="var(--border)"
+                    horizontal={false}
+                    vertical={true}
+                  />
+                  <XAxis
+                    type="number"
+                    allowDecimals={false}
+                    tick={{ fontSize: 11, fill: "var(--muted-foreground)" }}
+                  />
+                  <YAxis
+                    type="category"
+                    dataKey="key"
+                    width={160}
+                    tick={{ fontSize: 11, fill: "var(--muted-foreground)" }}
+                    tickFormatter={(value: string) =>
+                      value.length > 22 ? `${value.slice(0, 21)}…` : value
+                    }
+                  />
+                  <Tooltip
+                    contentStyle={{
+                      background: "var(--popover)",
+                      borderColor: "var(--border)",
+                      color: "var(--popover-foreground)",
+                    }}
+                  />
+                  <Legend />
+                  <Bar dataKey="human" name="Human" fill="var(--chart-1)" radius={[0, 2, 2, 0]} />
+                  <Bar dataKey="bot" name="Bot" fill="var(--chart-2)" radius={[0, 2, 2, 0]} />
+                </BarChart>
+              ) : (
+                <LineChart data={buckets} margin={{ top: 8, right: 8, bottom: 8, left: 0 }}>
+                  <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" />
+                  <XAxis
+                    dataKey="key"
+                    tick={{ fontSize: 11, fill: "var(--muted-foreground)" }}
+                    minTickGap={24}
+                    tickFormatter={(value: string) => value.slice(5)}
+                  />
+                  <YAxis
+                    allowDecimals={false}
+                    tick={{ fontSize: 11, fill: "var(--muted-foreground)" }}
+                    width={36}
+                  />
+                  <Tooltip
+                    contentStyle={{
+                      background: "var(--popover)",
+                      borderColor: "var(--border)",
+                      color: "var(--popover-foreground)",
+                    }}
+                  />
+                  <Legend />
+                  <Line
+                    type="monotone"
+                    dataKey="human"
+                    name="Human"
+                    stroke="var(--chart-1)"
+                    strokeWidth={2}
+                    dot={{ r: 3, fill: "var(--chart-1)" }}
+                    activeDot={{ r: 5 }}
+                  />
+                  <Line
+                    type="monotone"
+                    dataKey="bot"
+                    name="Bot"
+                    stroke="var(--chart-2)"
+                    strokeWidth={2}
+                    dot={{ r: 3, fill: "var(--chart-2)" }}
+                    activeDot={{ r: 5 }}
+                  />
+                </LineChart>
+              )}
             </ResponsiveContainer>
           </div>
         ) : null}
