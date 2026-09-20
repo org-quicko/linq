@@ -45,6 +45,7 @@ export const linksApi = apiSlice.injectEndpoints({
       query: ({ id, body }) => ({ path: `/v1/links/${id}`, method: "PATCH", body }),
       invalidatesTags: (_result, _error, { id }) => [
         { type: "Link", id },
+        { type: "Link", id: `${id}-rules` },
         { type: "Link", id: "LIST" },
       ],
     }),

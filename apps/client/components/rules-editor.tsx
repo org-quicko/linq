@@ -12,23 +12,159 @@ import { useRun } from "../lib/hooks"
 import { useUpdateLinkRulesMutation } from "../lib/store/links"
 
 /** A rule being edited. Position is implied by array order, as it is on the wire. */
-type Draft = { destination: string; conditions: Condition[] }
+export type RuleDraft = { destination: string; conditions: Condition[] }
 
-const CONDITION_OPTIONS: { value: ConditionType; label: string }[] = [
+export const CONDITION_OPTIONS: { value: ConditionType; label: string }[] = [
   { value: "platform", label: "Platform is" },
   { value: "query_param", label: "Query parameter" },
 ]
 
-const PLATFORM_OPTIONS = [
+export const PLATFORM_OPTIONS = [
   { value: "android", label: "Android" },
   { value: "ios", label: "iOS" },
   { value: "desktop", label: "Desktop" },
 ]
 
 /** A blank condition of the chosen type, so switching type never leaves stale fields. */
-function blankCondition(type: ConditionType): Condition {
+export function blankCondition(type: ConditionType): Condition {
   if (type === "platform") return { type: "platform", value: "android" }
   return { type: "query_param", key: "" }
+}
+
+/**
+ * Reusable list of rule drafts. Used both by the standalone RulesEditor on the
+ * link detail page, and embedded directly inside LinkFormDialog.
+ */
+export function RulesList({
+  rules,
+  onChange,
+  readOnly = false,
+}: {
+  rules: RuleDraft[]
+  onChange: (next: RuleDraft[]) => void
+  readOnly?: boolean
+}) {
+  /** Applies a change to one rule. */
+  function edit(index: number, next: Partial<RuleDraft>) {
+    onChange(rules.map((rule, i) => (i === index ? { ...rule, ...next } : rule)))
+  }
+
+  /** Moves a rule up or down; order here is the only thing that breaks a tie. */
+  function move(index: number, by: -1 | 1) {
+    const target = index + by
+    if (target < 0 || target >= rules.length) return
+    const next = [...rules]
+    ;[next[index], next[target]] = [next[target], next[index]]
+    onChange(next)
+  }
+
+  return (
+    <div className="flex flex-col gap-3">
+      {rules.length === 0 ? (
+        <p className="py-2 text-center text-sm text-muted-foreground">
+          No rules. Every visitor goes to the default destination.
+        </p>
+      ) : null}
+
+      {rules.map((rule, index) => (
+        // biome-ignore lint/suspicious/noArrayIndexKey: position is the identity here
+        <div key={index} className="rounded-md border p-3">
+          <div className="flex items-center gap-2">
+            <Badge variant="secondary">#{index + 1}</Badge>
+            <Input
+              value={rule.destination}
+              onChange={(event) => edit(index, { destination: event.target.value })}
+              placeholder="https://play.google.com/store/apps/…"
+              disabled={readOnly}
+            />
+            {readOnly ? null : (
+              <>
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="icon"
+                  aria-label="Move up"
+                  onClick={() => move(index, -1)}
+                  disabled={index === 0}
+                >
+                  <ArrowUpIcon />
+                </Button>
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="icon"
+                  aria-label="Move down"
+                  onClick={() => move(index, 1)}
+                  disabled={index === rules.length - 1}
+                >
+                  <ArrowDownIcon />
+                </Button>
+                <Button
+                  type="button"
+                  variant="destructive"
+                  onClick={() => onChange(rules.filter((_, i) => i !== index))}
+                >
+                  Remove
+                </Button>
+              </>
+            )}
+          </div>
+
+          <div className="mt-3 flex flex-col gap-2 pl-2">
+            {rule.conditions.map((condition, conditionIndex) => (
+              <ConditionRow
+                // biome-ignore lint/suspicious/noArrayIndexKey: conditions are positional too
+                key={conditionIndex}
+                condition={condition}
+                readOnly={readOnly}
+                onChange={(next) =>
+                  edit(index, {
+                    conditions: rule.conditions.map((c, i) => (i === conditionIndex ? next : c)),
+                  })
+                }
+                onRemove={
+                  rule.conditions.length > 1
+                    ? () =>
+                        edit(index, {
+                          conditions: rule.conditions.filter((_, i) => i !== conditionIndex),
+                        })
+                    : undefined
+                }
+              />
+            ))}
+
+            {readOnly ? null : (
+              <Button
+                type="button"
+                variant="ghost"
+                className="self-start"
+                onClick={() =>
+                  edit(index, {
+                    conditions: [...rule.conditions, blankCondition("query_param")],
+                  })
+                }
+              >
+                + Add condition (all must hold)
+              </Button>
+            )}
+          </div>
+        </div>
+      ))}
+
+      {readOnly ? null : (
+        <Button
+          type="button"
+          variant="outline"
+          className="self-start"
+          onClick={() =>
+            onChange([...rules, { destination: "", conditions: [blankCondition("platform")] }])
+          }
+        >
+          Add rule
+        </Button>
+      )}
+    </div>
+  )
 }
 
 /**
@@ -50,30 +186,12 @@ export function RulesEditor({
   rules: Rule[]
   readOnly: boolean
 }) {
-  const [drafts, setDrafts] = useState<Draft[]>(() =>
+  const [drafts, setDrafts] = useState<RuleDraft[]>(() =>
     rules.map((rule) => ({ destination: rule.destination, conditions: rule.conditions })),
   )
   const [dirty, setDirty] = useState(false)
   const [updateRules] = useUpdateLinkRulesMutation()
   const { run, saving } = useRun()
-
-  /** Applies a change to one rule and marks the list unsaved. */
-  function edit(index: number, next: Partial<Draft>) {
-    setDrafts((current) => current.map((rule, i) => (i === index ? { ...rule, ...next } : rule)))
-    setDirty(true)
-  }
-
-  /** Moves a rule up or down; order here is the only thing that breaks a tie. */
-  function move(index: number, by: -1 | 1) {
-    const target = index + by
-    if (target < 0 || target >= drafts.length) return
-    setDrafts((current) => {
-      const next = [...current]
-      ;[next[index], next[target]] = [next[target], next[index]]
-      return next
-    })
-    setDirty(true)
-  }
 
   function save() {
     return run(() => updateRules({ linkId, rules: drafts }).unwrap(), {
@@ -89,19 +207,6 @@ export function RulesEditor({
         <CardTitle>Rules</CardTitle>
         {readOnly ? null : (
           <CardAction className="flex gap-2">
-            <Button
-              type="button"
-              variant="outline"
-              onClick={() => {
-                setDrafts([
-                  ...drafts,
-                  { destination: "", conditions: [blankCondition("platform")] },
-                ])
-                setDirty(true)
-              }}
-            >
-              Add rule
-            </Button>
             <Button type="button" onClick={save} disabled={saving || !dirty}>
               {saving ? "Saving…" : "Save rules"}
             </Button>
@@ -115,103 +220,14 @@ export function RulesEditor({
           the link&apos;s own destination.
         </p>
 
-        {drafts.length === 0 ? (
-          <p className="py-4 text-center text-sm text-muted-foreground">
-            No rules. Every visitor goes to the default destination.
-          </p>
-        ) : null}
-
-        <div className="flex flex-col gap-3">
-          {drafts.map((rule, index) => (
-            // biome-ignore lint/suspicious/noArrayIndexKey: position is the identity here
-            <div key={index} className="rounded-md border p-3">
-              <div className="flex items-center gap-2">
-                <Badge variant="secondary">#{index + 1}</Badge>
-                <Input
-                  value={rule.destination}
-                  onChange={(event) => edit(index, { destination: event.target.value })}
-                  placeholder="https://play.google.com/store/apps/…"
-                  disabled={readOnly}
-                />
-                {readOnly ? null : (
-                  <>
-                    <Button
-                      type="button"
-                      variant="ghost"
-                      size="icon"
-                      aria-label="Move up"
-                      onClick={() => move(index, -1)}
-                      disabled={index === 0}
-                    >
-                      <ArrowUpIcon />
-                    </Button>
-                    <Button
-                      type="button"
-                      variant="ghost"
-                      size="icon"
-                      aria-label="Move down"
-                      onClick={() => move(index, 1)}
-                      disabled={index === drafts.length - 1}
-                    >
-                      <ArrowDownIcon />
-                    </Button>
-                    <Button
-                      type="button"
-                      variant="destructive"
-                      onClick={() => {
-                        setDrafts(drafts.filter((_, i) => i !== index))
-                        setDirty(true)
-                      }}
-                    >
-                      Remove
-                    </Button>
-                  </>
-                )}
-              </div>
-
-              <div className="mt-3 flex flex-col gap-2 pl-2">
-                {rule.conditions.map((condition, conditionIndex) => (
-                  <ConditionRow
-                    // biome-ignore lint/suspicious/noArrayIndexKey: conditions are positional too
-                    key={conditionIndex}
-                    condition={condition}
-                    readOnly={readOnly}
-                    onChange={(next) =>
-                      edit(index, {
-                        conditions: rule.conditions.map((c, i) =>
-                          i === conditionIndex ? next : c,
-                        ),
-                      })
-                    }
-                    onRemove={
-                      rule.conditions.length > 1
-                        ? () =>
-                            edit(index, {
-                              conditions: rule.conditions.filter((_, i) => i !== conditionIndex),
-                            })
-                        : undefined
-                    }
-                  />
-                ))}
-
-                {readOnly ? null : (
-                  <Button
-                    type="button"
-                    variant="ghost"
-                    className="self-start"
-                    onClick={() =>
-                      edit(index, {
-                        conditions: [...rule.conditions, blankCondition("query_param")],
-                      })
-                    }
-                  >
-                    + Add condition (all must hold)
-                  </Button>
-                )}
-              </div>
-            </div>
-          ))}
-        </div>
+        <RulesList
+          rules={drafts}
+          readOnly={readOnly}
+          onChange={(next) => {
+            setDrafts(next)
+            setDirty(true)
+          }}
+        />
       </CardContent>
     </Card>
   )

@@ -41,6 +41,8 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
 import { Input } from "@/components/ui/input"
+import NextLink from "next/link"
+import { qs } from "../../lib/api"
 import { useDebounced, useRun } from "../../lib/hooks"
 import { useArchiveLinkMutation, useListLinksQuery } from "../../lib/store/links"
 
@@ -253,8 +255,15 @@ function LinkRow({
         }
       >
         <div className="flex items-center gap-2 min-w-0">
-          {link.name ? <span className="truncate font-medium">{link.name}</span> : null}
-          <ShortLink link={link} />
+          {link.name ? (
+            <NextLink
+              href={`/links/detail/${qs({ id: link.id })}`}
+              className="truncate font-medium underline-offset-2 hover:underline"
+            >
+              {link.name}
+            </NextLink>
+          ) : null}
+          <ShortLink link={link} href={`/links/detail/${qs({ id: link.id })}`} />
           {link.status === "archived" ? <Badge variant="outline">Archived</Badge> : null}
           {link.expiresAt && new Date(link.expiresAt) <= new Date() ? (
             <Badge variant="outline">Expired</Badge>

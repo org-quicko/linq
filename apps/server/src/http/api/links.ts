@@ -33,7 +33,7 @@ import {
 } from "../../auth/permissions.ts"
 import { linkKeys } from "../../cache.ts"
 import type { Db } from "../../db/client.ts"
-import { apiKeys, domains, links, visitCounts } from "../../db/schema.ts"
+import { apiKeys, domains, links, rules, visitCounts } from "../../db/schema.ts"
 import { span } from "../../log.ts"
 import { randomSlug } from "../../slug.ts"
 import type { Env } from "../env.ts"
@@ -242,7 +242,7 @@ export const linkRoutes = new Hono<Env>()
       if (!domain) throw ApiError.notFound("domain")
       if (domain.status === "archived") throw ApiError.conflict("domain is archived")
 
-      return insertLink(
+      const linkRow = await insertLink(
         tx,
         {
           domainId: body.domainId,
@@ -257,6 +257,20 @@ export const linkRoutes = new Hono<Env>()
         },
         { slug: body.slug, slugLength: c.var.config.LINQ_SLUG_LENGTH },
       )
+
+      if (body.rules && body.rules.length > 0) {
+        await tx.insert(rules).values(
+          body.rules.map((rule, position) => ({
+            id: Bun.randomUUIDv7(),
+            linkId: linkRow.id,
+            position,
+            destination: rule.destination,
+            conditions: rule.conditions,
+          })),
+        )
+      }
+
+      return linkRow
     })
 
     // Clears the negative entry left behind while this slug was 404ing.
@@ -284,26 +298,43 @@ export const linkRoutes = new Hono<Env>()
       if (!can.ownLink(owner)) throw ApiError.conflict("a viewer key cannot own a link")
     }
 
-    await c.var.db
-      .update(links)
-      .set({
-        // Spelled out rather than a blanket `...patch` spread: `expiresAt`
-        // arrives as an ISO string and the column takes a Date, so the spread
-        // would not typecheck. See keys.ts's PATCH for the same pattern.
-        ...(patch.destination !== undefined ? { destination: patch.destination } : {}),
-        ...(patch.name !== undefined ? { name: patch.name } : {}),
-        ...(patch.tags !== undefined ? { tags: patch.tags } : {}),
-        ...(patch.forwardQuery !== undefined ? { forwardQuery: patch.forwardQuery } : {}),
-        ...(patch.presetParams !== undefined ? { presetParams: patch.presetParams } : {}),
-        ...(patch.status !== undefined ? { status: patch.status } : {}),
-        ...(patch.ownerId !== undefined ? { ownerId: patch.ownerId } : {}),
-        ...(patch.expiresAt !== undefined
-          ? { expiresAt: patch.expiresAt ? new Date(patch.expiresAt) : null }
-          : {}),
-        ...(patch.listed !== undefined ? { listed: patch.listed } : {}),
-        updatedAt: new Date(),
-      })
-      .where(eq(links.id, id))
+    await c.var.db.transaction(async (tx) => {
+      await tx
+        .update(links)
+        .set({
+          // Spelled out rather than a blanket `...patch` spread: `expiresAt`
+          // arrives as an ISO string and the column takes a Date, so the spread
+          // would not typecheck. See keys.ts's PATCH for the same pattern.
+          ...(patch.destination !== undefined ? { destination: patch.destination } : {}),
+          ...(patch.name !== undefined ? { name: patch.name } : {}),
+          ...(patch.tags !== undefined ? { tags: patch.tags } : {}),
+          ...(patch.forwardQuery !== undefined ? { forwardQuery: patch.forwardQuery } : {}),
+          ...(patch.presetParams !== undefined ? { presetParams: patch.presetParams } : {}),
+          ...(patch.status !== undefined ? { status: patch.status } : {}),
+          ...(patch.ownerId !== undefined ? { ownerId: patch.ownerId } : {}),
+          ...(patch.expiresAt !== undefined
+            ? { expiresAt: patch.expiresAt ? new Date(patch.expiresAt) : null }
+            : {}),
+          ...(patch.listed !== undefined ? { listed: patch.listed } : {}),
+          updatedAt: new Date(),
+        })
+        .where(eq(links.id, id))
+
+      if (patch.rules !== undefined) {
+        await tx.delete(rules).where(eq(rules.linkId, id))
+        if (patch.rules.length > 0) {
+          await tx.insert(rules).values(
+            patch.rules.map((rule, position) => ({
+              id: Bun.randomUUIDv7(),
+              linkId: id,
+              position,
+              destination: rule.destination,
+              conditions: rule.conditions,
+            })),
+          )
+        }
+      }
+    })
     await c.var.cache.del(...linkKeys(existing.domainId, existing.slug))
     return c.json(await fetchLink(c.var.db, id))
   })

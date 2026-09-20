@@ -1,6 +1,7 @@
 import { z } from "zod"
 import { paginationSchema, slugSchema, tagSchema, urlSchema, uuidSchema } from "./primitives.ts"
 import { resourceStatusSchema } from "./roles.ts"
+import { rulesPutSchema } from "./rules.ts"
 
 /**
  * Set on the destination at redirect time, overriding both the destination's
@@ -24,6 +25,8 @@ export const linkCreateSchema = z.object({
   expiresAt: z.iso.datetime().nullable().optional(),
   /** Opt-in: appears in the domain's public /llms.txt catalogue. */
   listed: z.boolean().default(false),
+  /** Ordered alternate destinations. */
+  rules: rulesPutSchema.default([]),
 })
 export type LinkCreate = z.input<typeof linkCreateSchema>
 
@@ -42,6 +45,7 @@ export const linkPatchSchema = z
     ownerId: uuidSchema,
     expiresAt: z.iso.datetime().nullable(),
     listed: z.boolean(),
+    rules: rulesPutSchema,
   })
   .partial()
 export type LinkPatch = z.infer<typeof linkPatchSchema>

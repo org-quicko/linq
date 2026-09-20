@@ -1,8 +1,9 @@
 "use client"
 
 import { type Actor, can, type Link } from "@linq/shared"
-import { CalendarIcon, TagIcon } from "lucide-react"
-import { type ReactNode, useState } from "react"
+import { skipToken } from "@reduxjs/toolkit/query/react"
+import { CalendarIcon, Route, TagIcon } from "lucide-react"
+import { type ReactNode, useEffect, useState } from "react"
 import { Field, Picker } from "@/components/common"
 import {
   type PresetParamRow,
@@ -10,6 +11,7 @@ import {
   presetParamsToRows,
   rowsToPresetParams,
 } from "@/components/preset-params-editor"
+import { blankCondition, type RuleDraft, RulesList } from "@/components/rules-editor"
 import { TagPicker } from "@/components/tag-picker"
 import { Button } from "@/components/ui/button"
 import { Checkbox } from "@/components/ui/checkbox"
@@ -27,7 +29,12 @@ import { fromDatetimeLocal, toDatetimeLocal } from "../lib/api"
 import { useRun } from "../lib/hooks"
 import { useListDomainsQuery } from "../lib/store/domains"
 import { useListKeysQuery } from "../lib/store/keys"
-import { useCreateLinkMutation, useUpdateLinkMutation } from "../lib/store/links"
+import {
+  useCreateLinkMutation,
+  useGetLinkRulesQuery,
+  useUpdateLinkMutation,
+  useUpdateLinkRulesMutation,
+} from "../lib/store/links"
 
 /**
  * The one form behind Create, Edit and Duplicate — extracted from
@@ -37,9 +44,8 @@ import { useCreateLinkMutation, useUpdateLinkMutation } from "../lib/store/links
  * `"edit"`, slug and domain locked) or as the starting point for a duplicate
  * (`mode` `"create"`, slug blank so the server generates a fresh one).
  *
- * Rules stay off this dialog and on `/links/detail/` where they've always
- * lived: a rule needs a real link id to attach to, which a link being
- * created here does not have yet.
+ * Rules are configured in the collapsible "Routing rules" section (plans/Plan_28.md):
+ * passed directly on create or patch.
  */
 export function LinkFormDialog({
   open,
@@ -78,9 +84,27 @@ export function LinkFormDialog({
   const [expiresAt, setExpiresAt] = useState(() => toDatetimeLocal(link?.expiresAt ?? null))
   const [expiryOpen, setExpiryOpen] = useState(!!link?.expiresAt)
 
+  const { data: existingRules } = useGetLinkRulesQuery(link?.id ?? skipToken)
+  const [rulesDrafts, setRulesDrafts] = useState<RuleDraft[]>([])
+  const [rulesDirty, setRulesDirty] = useState(false)
+  const [rulesOpen, setRulesOpen] = useState(false)
+
+  useEffect(() => {
+    if (existingRules && existingRules.length > 0 && !rulesDirty) {
+      setRulesDrafts(existingRules.map((r) => ({ destination: r.destination, conditions: r.conditions })))
+      setRulesOpen(true)
+    }
+  }, [existingRules, rulesDirty])
+
   const chosenDomain = mode === "create" ? domainId || activeDomains[0]?.id || "" : link?.domainId
 
   function submit() {
+    const validRules = rulesOpen
+      ? rulesDrafts
+          .map((r) => ({ ...r, destination: r.destination.trim() }))
+          .filter((r) => r.destination.length > 0)
+      : []
+
     const shared = {
       destination: destination.trim(),
       tags,
@@ -98,6 +122,7 @@ export function LinkFormDialog({
             domainId: chosenDomain as string,
             slug: slug.trim() || undefined,
             name: name.trim() || undefined,
+            rules: validRules,
           }).unwrap(),
         {
           success: "Link created.",
@@ -117,6 +142,7 @@ export function LinkFormDialog({
             ...shared,
             name: name.trim() || null,
             ...(ownerId !== current.ownerId ? { ownerId } : {}),
+            ...(rulesDirty ? { rules: validRules } : {}),
           },
         }).unwrap(),
       { success: "Saved.", fallback: "Could not save.", onSuccess: () => onOpenChange(false) },
@@ -241,6 +267,27 @@ export function LinkFormDialog({
               type="datetime-local"
               value={expiresAt}
               onChange={(event) => setExpiresAt(event.target.value)}
+            />
+          </ToggleSection>
+
+          <ToggleSection
+            icon={<Route className="size-3.5" />}
+            label="Routing rules"
+            open={rulesOpen}
+            onOpenChange={(next) => {
+              setRulesOpen(next)
+              if (next && rulesDrafts.length === 0) {
+                setRulesDrafts([{ destination: "", conditions: [blankCondition("platform")] }])
+                setRulesDirty(true)
+              }
+            }}
+          >
+            <RulesList
+              rules={rulesDrafts}
+              onChange={(next) => {
+                setRulesDrafts(next)
+                setRulesDirty(true)
+              }}
             />
           </ToggleSection>
         </div>

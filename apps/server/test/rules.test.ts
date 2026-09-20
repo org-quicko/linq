@@ -202,6 +202,52 @@ describe("the rules API", () => {
     const res = await h.request(`/api/v1/links/${link.id}/rules`, { key: author.key })
     expect(await res.json()).toHaveLength(1)
   })
+
+  test("creating a link with rules sets them atomically", async () => {
+    const res = await h.request("/api/v1/links", {
+      key: author.key,
+      method: "POST",
+      body: JSON.stringify({
+        domainId: domain,
+        destination: "https://example.com/default",
+        rules: [androidRule],
+      }),
+    })
+    expect(res.status).toBe(201)
+    const link = await res.json()
+
+    const rulesRes = await h.request(`/api/v1/links/${link.id}/rules`, { key: author.key })
+    expect(rulesRes.status).toBe(200)
+    const rules = await rulesRes.json()
+    expect(rules).toHaveLength(1)
+    expect(rules[0]).toMatchObject({
+      position: 0,
+      destination: "https://example.com/app",
+    })
+  })
+
+  test("patching a link with rules updates them atomically", async () => {
+    const link = await h.createLink(author.key, domain)
+    const patchRes = await h.request(`/api/v1/links/${link.id}`, {
+      key: author.key,
+      method: "PATCH",
+      body: JSON.stringify({
+        rules: [
+          { destination: "https://example.com/ios", conditions: [{ type: "platform", value: "ios" }] },
+        ],
+      }),
+    })
+    expect(patchRes.status).toBe(200)
+
+    const rulesRes = await h.request(`/api/v1/links/${link.id}/rules`, { key: author.key })
+    expect(rulesRes.status).toBe(200)
+    const rules = await rulesRes.json()
+    expect(rules).toHaveLength(1)
+    expect(rules[0]).toMatchObject({
+      position: 0,
+      destination: "https://example.com/ios",
+    })
+  })
 })
 
 describe("rules in the redirect", () => {
