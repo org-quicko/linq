@@ -300,6 +300,13 @@ export function Picker({
  * stays disabled until the operator types that exact word, which for a purge is
  * the slug or the host. It is a speed bump in the browser, never a permission —
  * the server checks the role and the archived status regardless.
+ *
+ * `ariaLabel` is for an icon-only trigger (Archives' row actions), where
+ * `children` carries no visible text of its own to name the button by. No
+ * hover tooltip alongside it, unlike `IconButton` (@/components/patterns) —
+ * the confirm dialog that opens on click already names the action, and
+ * nesting a `Tooltip` trigger inside this `Dialog` trigger is fragile
+ * Radix composition for that marginal benefit.
  */
 export function ConfirmButton({
   title,
@@ -310,6 +317,8 @@ export function ConfirmButton({
   disabled,
   variant = "destructive",
   size,
+  className,
+  ariaLabel,
   children,
 }: {
   title: string
@@ -320,6 +329,8 @@ export function ConfirmButton({
   disabled?: boolean
   variant?: ComponentProps<typeof Button>["variant"]
   size?: ComponentProps<typeof Button>["size"]
+  className?: string
+  ariaLabel?: string
   children: ReactNode
 }) {
   const [open, setOpen] = useState(false)
@@ -335,7 +346,14 @@ export function ConfirmButton({
   return (
     <Dialog open={open} onOpenChange={setOpenState}>
       <DialogTrigger asChild>
-        <Button type="button" variant={variant} size={size} disabled={disabled}>
+        <Button
+          type="button"
+          variant={variant}
+          size={size}
+          disabled={disabled}
+          aria-label={ariaLabel}
+          className={className}
+        >
           {children}
         </Button>
       </DialogTrigger>

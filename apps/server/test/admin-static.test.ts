@@ -35,17 +35,18 @@ describe.skipIf(!built)("the exported Client UI at /home", () => {
   test("serves every exported page", async () => {
     for (const page of [
       "analytics",
-      // Redirect stubs (plans/Plan_27.md Part C1): still export a real page,
-      // so they still serve 200 even though they only forward to /analytics/.
+      "archives",
+      // Redirect stubs (plans/Plan_27.md Parts C1–C2): still export a real
+      // page, so they still serve 200 even though they only forward on.
       "overview",
       "visits",
       "orphans",
+      "links/trash",
+      "domains/trash",
       "links",
       "links/new",
       "links/detail",
-      "links/trash",
       "domains",
-      "domains/trash",
       "settings/keys",
     ]) {
       const res = await h.request(`/home/${page}/`)
