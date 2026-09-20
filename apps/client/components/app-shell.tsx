@@ -2,79 +2,71 @@
 
 import { type Actor, can, type Role } from "@linq/shared"
 import { cn } from "cn"
+import { Archive, BarChart3, Link2, Settings } from "lucide-react"
 import Link from "next/link"
 import { usePathname, useRouter } from "next/navigation"
 import { type ReactNode, useEffect } from "react"
 import { QueryState } from "@/components/common"
+import { PageHeader, ThemeToggle } from "@/components/patterns"
 import { ServerSwitcher } from "@/components/server-switcher"
 import { Button } from "@/components/ui/button"
 import { activeServer, disconnect } from "../lib/servers"
 import { type Me, useGetMeQuery } from "../lib/store/keys"
 
 /**
- * Nav entries, each with the predicate that decides whether it is offered.
+ * The sidebar's entries. Flat — no grouping — per the design: Settings is
+ * still pinned below the spacer, but Short links / Analytics / Archives sit
+ * as three plain rows above it rather than nested under group headings.
  *
- * Hrefs are basePath-free: `next/link` and `router` prepend `/home` themselves,
- * and `usePathname` strips it back off, so writing it here would both double it
- * in the URL and stop the active-link comparison below from ever matching.
- * `lib/api.ts` is the one place that spells it out, because it navigates with
- * `window.location`, which Next does not touch.
+ * Hrefs are basePath-free: `next/link` and `router` prepend `/home`
+ * themselves, and `usePathname` strips it back off, so writing it here would
+ * both double it in the URL and stop the active-link comparison below from
+ * ever matching. `lib/api.ts` is the one place that spells it out, because it
+ * navigates with `window.location`, which Next does not touch.
+ *
+ * TEMPORARY hrefs, per plans/Plan_27.md Part E: `/analytics/`, `/archives/`
+ * and a real `/settings/` index do not exist yet (Parts C1–C3). Each entry
+ * below points at the nearest existing page until its real route lands, so
+ * the app stays navigable across the intermediate commits. Update these
+ * three lines — nothing else about the shell — when each Part lands.
  */
 type NavItem = {
   href: string
   label: string
+  icon: typeof Link2
   visible: (actor: Actor) => boolean
 }
 
-type NavGroup = { label: string; children: NavItem[] }
-
-/** What you look at. */
-const NAV: (NavItem | NavGroup)[] = [
-  { href: "/overview/", label: "Overview", visible: () => true },
-  { href: "/visits/", label: "Visits", visible: () => true },
-  {
-    label: "Links",
-    children: [
-      { href: "/links/", label: "Short links", visible: () => true },
-      { href: "/orphans/", label: "Orphans", visible: () => true },
-      // Trash holds only archived links, and only a purge admin can act on them.
-      { href: "/links/trash/", label: "Trash", visible: can.purge },
-    ],
-  },
-  {
-    label: "Domains",
-    children: [
-      { href: "/domains/", label: "Domains", visible: () => true },
-      // Trash holds only archived domains, and only a purge admin can act on them.
-      { href: "/domains/trash/", label: "Trash", visible: can.purge },
-    ],
-  },
+const NAV: NavItem[] = [
+  { href: "/links/", label: "Short links", icon: Link2, visible: () => true },
+  // → /analytics/ in Part C1 (merges Overview, Visits, Orphans).
+  { href: "/overview/", label: "Analytics", icon: BarChart3, visible: () => true },
+  // → /archives/ in Part C2 (merges this and the domains trash page).
+  { href: "/links/trash/", label: "Archives", icon: Archive, visible: can.purge },
 ]
 
 /**
- * What you configure on the connected server. Pinned to the foot of the sidebar,
- * below the divider.
+ * Pinned to the foot of the sidebar, below the spacer.
  *
- * Servers themselves are not here: the list of them is browser-local, not part
- * of any server's configuration, and it lives on the landing page the switcher
- * below goes to.
+ * → /settings/ in Part C3, once Domains moves in alongside Keys — at which
+ * point this becomes visible to every role, the way Domains is today. Gated
+ * on can.manageKeys until then only because that is the one page it points
+ * at right now; loosen it in the same commit that adds Domains here.
  */
-const SETTINGS: NavGroup = {
+const SETTINGS: NavItem = {
+  href: "/settings/keys/",
   label: "Settings",
-  children: [{ href: "/settings/keys/", label: "Keys", visible: can.manageKeys }],
+  icon: Settings,
+  visible: can.manageKeys,
 }
 
-const isGroup = (item: NavItem | NavGroup): item is NavGroup => "children" in item
-
-/** Every href in the sidebar, flattened out of the nav's groups. */
-const ALL_HREFS = [...NAV, SETTINGS]
-  .flatMap((item) => (isGroup(item) ? item.children : [item]))
-  .map((item) => item.href)
+/** Every href the sidebar can light up. */
+const ALL_HREFS = [...NAV, SETTINGS].map((item) => item.href)
 
 /**
  * The href lit as active for a given path.
  *
- * Nesting means `/links/` is a prefix of `/links/trash/` as well as its own
+ * Nesting means `/links/` is a prefix of `/links/detail/` as well as its own
  * subpages, so a plain "starts with" per link would light up more than one
  * entry at once. The longest matching href is the most specific one, and
  * therefore the right one.
@@ -135,39 +127,52 @@ export function AppShell({
 }
 
 /**
- * The sidebar and the page beside it. Rendered with or without an actor, since
- * an unreachable server still has to be navigable away from.
+ * The sidebar and the floating content panel beside it. Rendered with or
+ * without an actor, since an unreachable server still has to be navigable
+ * away from.
+ *
+ * The backdrop (--muted) and the panel (--card, --shadow-panel,
+ * --radius-xl) are what makes the content read as an island rather than a
+ * page — see plans/Plan_27.md Part B.
  */
 function Chrome({ actor, me, children }: { actor?: Actor; me?: Me; children: ReactNode }) {
   const active = activeHref(usePathname())
   const router = useRouter()
 
   return (
-    <div className="flex min-h-screen">
-      <aside className="flex w-56 shrink-0 flex-col border-r bg-card">
-        <div className="px-4 py-4">
-          <Link href="/overview/" className="font-heading text-base font-semibold">
-            linq
-          </Link>
-        </div>
+    <div className="flex min-h-screen bg-muted">
+      <aside className="flex w-60 shrink-0 flex-col gap-2 p-4">
+        <Link
+          href="/links/"
+          className="flex items-center gap-[7px] px-[9px] pb-3 pt-2 font-heading text-[15px] font-semibold tracking-[-0.02em]"
+        >
+          <span className="flex size-[22px] shrink-0 items-center justify-center rounded-md bg-primary">
+            <Link2 className="size-[13px] text-primary-foreground" />
+          </span>
+          Linq
+        </Link>
 
-        <nav className="flex flex-1 flex-col gap-0.5 px-2">
+        <ServerSwitcher />
+
+        <nav className="mt-2.5 flex flex-col gap-0.5">
           {NAV.map((item) =>
-            isGroup(item) ? (
-              <NavGroup key={item.label} group={item} actor={actor} active={active} />
-            ) : !actor || item.visible(actor) ? (
+            !actor || item.visible(actor) ? (
               <NavLink key={item.href} item={item} active={active === item.href} />
             ) : null,
           )}
         </nav>
 
-        <div className="flex flex-col gap-2 border-t p-2">
-          <NavGroup group={SETTINGS} actor={actor} active={active} />
+        <div className="flex-grow" />
 
-          {me ? (
+        {!actor || SETTINGS.visible(actor) ? (
+          <NavLink item={SETTINGS} active={active === SETTINGS.href} />
+        ) : null}
+
+        {me ? (
+          <div className="mt-1 flex flex-col gap-2 border-t pt-2">
             <div className="flex items-center gap-2 px-2.5 py-1">
               <span
-                className="flex size-6 shrink-0 items-center justify-center rounded-full bg-muted text-xs font-medium"
+                className="flex size-6 shrink-0 items-center justify-center rounded-full bg-muted-foreground/15 text-xs font-medium"
                 aria-hidden
               >
                 {me.name.slice(0, 1).toUpperCase()}
@@ -188,52 +193,36 @@ function Chrome({ actor, me, children }: { actor?: Actor; me?: Me; children: Rea
                 Leave
               </Button>
             </div>
-          ) : null}
-
-          <ServerSwitcher />
-        </div>
+            <div className="flex items-center justify-between px-2.5">
+              <span className="text-xs text-muted-foreground">Theme</span>
+              <ThemeToggle />
+            </div>
+          </div>
+        ) : null}
       </aside>
 
-      <main className="min-w-0 flex-1 px-6 py-6">{children}</main>
+      <main className="flex min-h-screen flex-1 flex-col p-4 pl-0">
+        <div className="min-h-0 flex-1 overflow-y-auto rounded-xl bg-card shadow-panel">
+          <div className="mx-auto max-w-[1080px] px-6 py-6">{children}</div>
+        </div>
+      </main>
     </div>
   )
 }
 
-/**
- * A heading and the entries under it. The heading is not a link: it names the
- * group, and every destination is one of its children.
- *
- * Children are filtered before the heading renders, so a group whose entries a
- * role may not see disappears rather than leaving a label with nothing beneath it.
- */
-function NavGroup({ group, actor, active }: { group: NavGroup; actor?: Actor; active?: string }) {
-  const visible = group.children.filter((child) => !actor || child.visible(actor))
-  if (visible.length === 0) return null
-
-  return (
-    <div className="mt-2">
-      <span className="px-2.5 text-xs font-medium text-muted-foreground">{group.label}</span>
-      <div className="mt-0.5 flex flex-col gap-0.5">
-        {visible.map((child) => (
-          <NavLink key={child.href} item={child} active={active === child.href} nested />
-        ))}
-      </div>
-    </div>
-  )
-}
-
-function NavLink({ item, active, nested }: { item: NavItem; active: boolean; nested?: boolean }) {
+function NavLink({ item, active }: { item: NavItem; active: boolean }) {
+  const Icon = item.icon
   return (
     <Link
       href={item.href}
       className={cn(
-        "rounded-md px-2.5 py-1.5 text-sm font-medium transition-colors",
-        nested && "pl-5",
+        "flex h-[34px] items-center gap-2.5 rounded-lg px-2.5 text-[13.5px] font-medium transition-colors",
         active
-          ? "bg-primary text-primary-foreground"
-          : "text-muted-foreground hover:bg-muted hover:text-foreground",
+          ? "bg-sidebar-border font-semibold"
+          : "text-muted-foreground hover:bg-sidebar-border hover:text-foreground",
       )}
     >
+      <Icon className={cn("size-4 shrink-0", !active && "text-muted-foreground")} />
       {item.label}
     </Link>
   )
@@ -242,17 +231,19 @@ function NavLink({ item, active, nested }: { item: NavItem; active: boolean; nes
 /** What a page shows instead of its contents when the role is not enough. */
 function NotPermitted({ role }: { role: Role }) {
   return (
-    <div className="rounded-lg border p-6">
-      <h1 className="font-heading text-base font-medium">Not available to you</h1>
-      <p className="mt-1 text-sm text-muted-foreground">
-        This page needs a more privileged role than <strong>{role}</strong>. Ask an admin if you
-        need it.
-      </p>
-      <Link href="/links/" className="mt-4 inline-block">
-        <Button type="button" variant="outline">
-          Back to links
-        </Button>
-      </Link>
+    <div className="flex flex-col gap-4">
+      <PageHeader title="Not available to you" />
+      <div className="rounded-lg border p-6">
+        <p className="text-sm text-muted-foreground">
+          This page needs a more privileged role than <strong>{role}</strong>. Ask an admin if you
+          need it.
+        </p>
+        <Link href="/links/" className="mt-4 inline-block">
+          <Button type="button" variant="outline">
+            Back to links
+          </Button>
+        </Link>
+      </div>
     </div>
   )
 }

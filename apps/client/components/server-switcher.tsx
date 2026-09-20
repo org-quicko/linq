@@ -47,7 +47,7 @@ export function ServerSwitcher() {
       <DropdownMenuTrigger asChild>
         <button
           type="button"
-          className="flex w-full items-center gap-2 rounded-md border px-2.5 py-2 text-left transition-colors hover:bg-muted"
+          className="flex h-11 w-full items-center gap-2 rounded-lg border px-2.5 text-left transition-colors hover:bg-sidebar-border"
           title="Switch server"
         >
           <span className="min-w-0 flex-1">
