@@ -6,6 +6,7 @@ import { loadConfig } from "./config.ts"
 import { createDb } from "./db/client.ts"
 import { runMigrations } from "./db/migrate.ts"
 import { createApp } from "./http/app.ts"
+import { guarded as guardedMetadata, startMetadata } from "./link-metadata.ts"
 import { flushLogs, initLogger, log } from "./log.ts"
 import { flushVisits } from "./visits/record.ts"
 
@@ -20,7 +21,8 @@ await bootstrap(db, config)
 
 const cache = await startCache(config)
 const caddy = guardedCaddy(startCaddy(config))
-const app = createApp({ db, config, cache, caddy })
+const metadata = guardedMetadata(startMetadata(config))
+const app = createApp({ db, config, cache, caddy, metadata })
 
 // Repairs Caddy's routes after its own restart, or a first boot alongside a
 // fresh Caddy container whose skeleton config has no routes yet.

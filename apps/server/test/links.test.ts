@@ -1,7 +1,14 @@
 import { beforeAll, describe, expect, test } from "bun:test"
 import { inArray } from "drizzle-orm"
 import { links } from "../src/db/schema.ts"
+import {
+  httpMetadataFetcher,
+  type MetadataFetcher,
+  noMetadata,
+  startMetadata,
+} from "../src/link-metadata.ts"
 import { createHarness, type Harness } from "./helpers/app.ts"
+import { testConfig } from "./helpers/db.ts"
 
 let h: Harness
 let admin: { keyId: string; key: string }
@@ -455,7 +462,9 @@ describe("GET /api/v1/links", () => {
     await h.recordVisits(hot.id, scoped, { human: 2, bot: 1 })
     await h.recordVisits(cold.id, scoped, { human: 1, bot: 0 })
 
-    const res = await h.request(`/api/v1/links?domain_id=${scoped}&sort=visits`, { key: author.key })
+    const res = await h.request(`/api/v1/links?domain_id=${scoped}&sort=visits`, {
+      key: author.key,
+    })
     const body = await res.json()
     expect(body.data.map((l: { id: string }) => l.id)).toEqual([hot.id, cold.id])
     expect(body.data[0]).toMatchObject({ human_visits: 2, bot_visits: 1 })
@@ -546,5 +555,160 @@ describe("GET /api/v1/tags", () => {
       { tag: "shared", count: 2 },
       { tag: "solo", count: 1 },
     ])
+  })
+})
+
+describe("link preview metadata", () => {
+  let hMeta: Harness
+  let metaAuthor: { keyId: string; key: string }
+  let metaDomain: string
+
+  const fakeMetadata: MetadataFetcher = {
+    fetch: async (destination) =>
+      destination.includes("blocked")
+        ? { name: null, description: null, icon_url: null }
+        : {
+            name: "Fetched title",
+            description: "Fetched description",
+            icon_url: "https://cdn.example/icon.png",
+          },
+  }
+
+  beforeAll(async () => {
+    hMeta = await createHarness({ metadata: fakeMetadata })
+    metaAuthor = await hMeta.actor("author")
+    metaDomain = await hMeta.createDomain("metadata.test")
+  })
+
+  test("create, nothing supplied fills name, description, icon_url from fetch", async () => {
+    const link = await hMeta.createLink(metaAuthor.key, metaDomain, {
+      destination: "https://example.com/page",
+    })
+    expect(link.name).toBe("Fetched title")
+    expect(link.description).toBe("Fetched description")
+    expect(link.icon_url).toBe("https://cdn.example/icon.png")
+  })
+
+  test("create, name supplied, description omitted keeps name and fills description and icon_url", async () => {
+    const link = await hMeta.createLink(metaAuthor.key, metaDomain, {
+      destination: "https://example.com/custom-name",
+      name: "Custom title",
+    })
+    expect(link.name).toBe("Custom title")
+    expect(link.description).toBe("Fetched description")
+    expect(link.icon_url).toBe("https://cdn.example/icon.png")
+  })
+
+  test("create against a destination whose fetch finds nothing succeeds with null fields", async () => {
+    const link = await hMeta.createLink(metaAuthor.key, metaDomain, {
+      destination: "https://example.com/blocked",
+    })
+    expect(link.name).toBeNull()
+    expect(link.description).toBeNull()
+    expect(link.icon_url).toBeNull()
+  })
+
+  test("patch changing destination refreshes name, description, icon_url", async () => {
+    const link = await hMeta.createLink(metaAuthor.key, metaDomain, {
+      destination: "https://example.com/blocked",
+    })
+    expect(link.name).toBeNull()
+    expect(link.description).toBeNull()
+    expect(link.icon_url).toBeNull()
+
+    const res = await hMeta.patch(`/api/v1/links/${link.id}`, metaAuthor.key, {
+      destination: "https://example.com/new-dest",
+    })
+    expect(res.status).toBe(200)
+    const updated = await res.json()
+    expect(updated.name).toBe("Fetched title")
+    expect(updated.description).toBe("Fetched description")
+    expect(updated.icon_url).toBe("https://cdn.example/icon.png")
+  })
+
+  test("patch changing destination and explicitly clearing name keeps name null", async () => {
+    const link = await hMeta.createLink(metaAuthor.key, metaDomain, {
+      destination: "https://example.com/initial",
+    })
+    expect(link.name).toBe("Fetched title")
+
+    const res = await hMeta.patch(`/api/v1/links/${link.id}`, metaAuthor.key, {
+      destination: "https://example.com/other",
+      name: null,
+    })
+    expect(res.status).toBe(200)
+    const updated = await res.json()
+    expect(updated.name).toBeNull()
+    expect(updated.description).toBe("Fetched description")
+    expect(updated.icon_url).toBe("https://cdn.example/icon.png")
+  })
+
+  test("patch changing destination where fetch finds nothing keeps old name, description, icon_url", async () => {
+    const link = await hMeta.createLink(metaAuthor.key, metaDomain, {
+      destination: "https://example.com/initial",
+    })
+    expect(link.name).toBe("Fetched title")
+    expect(link.description).toBe("Fetched description")
+    expect(link.icon_url).toBe("https://cdn.example/icon.png")
+
+    const res = await hMeta.patch(`/api/v1/links/${link.id}`, metaAuthor.key, {
+      destination: "https://example.com/blocked",
+    })
+    expect(res.status).toBe(200)
+    const updated = await res.json()
+    expect(updated.name).toBe("Fetched title")
+    expect(updated.description).toBe("Fetched description")
+    expect(updated.icon_url).toBe("https://cdn.example/icon.png")
+  })
+
+  test("patch that does not touch destination never invokes the fetcher", async () => {
+    let callCount = 0
+    let shouldThrow = false
+    const spyMetadata: MetadataFetcher = {
+      fetch: async () => {
+        callCount++
+        if (shouldThrow) throw new Error("fetch should not have been called")
+        return {
+          name: "Initial title",
+          description: "Initial description",
+          icon_url: "https://cdn.example/icon.png",
+        }
+      },
+    }
+    const hSpy = await createHarness({ metadata: spyMetadata })
+    const a = await hSpy.actor("author")
+    const d = await hSpy.createDomain("spy.test")
+
+    const link = await hSpy.createLink(a.key, d, { destination: "https://example.com/initial" })
+    expect(callCount).toBe(1)
+    expect(link.name).toBe("Initial title")
+
+    shouldThrow = true
+    const res = await hSpy.patch(`/api/v1/links/${link.id}`, a.key, { tags: ["untouched"] })
+    expect(res.status).toBe(200)
+    expect(callCount).toBe(1)
+    const updated = await res.json()
+    expect(updated.tags).toEqual(["untouched"])
+    expect(updated.name).toBe("Initial title")
+    expect(updated.description).toBe("Initial description")
+    expect(updated.icon_url).toBe("https://cdn.example/icon.png")
+  })
+})
+
+describe("SSRF guard", () => {
+  test("httpMetadataFetcher blocks loopback and cloud metadata", async () => {
+    const fetcher = httpMetadataFetcher()
+    const meta1 = await fetcher.fetch("http://169.254.169.254/")
+    expect(meta1).toEqual({ name: null, description: null, icon_url: null })
+
+    const meta2 = await fetcher.fetch("http://127.0.0.1:1/")
+    expect(meta2).toEqual({ name: null, description: null, icon_url: null })
+  })
+})
+
+describe("startMetadata config", () => {
+  test("returns noMetadata when LINQ_FETCH_LINK_METADATA is false", () => {
+    const metadata = startMetadata({ ...testConfig, LINQ_FETCH_LINK_METADATA: "false" })
+    expect(metadata).toBe(noMetadata)
   })
 })

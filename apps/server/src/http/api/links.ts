@@ -68,6 +68,8 @@ function toLink(row: LinkRow): Link {
     short_url: shortUrl(row.domain_host, link.slug),
     destination: link.destination,
     name: link.name,
+    description: link.description,
+    icon_url: link.icon_url,
     tags: link.tags,
     forward_query: link.forward_query,
     preset_params: link.preset_params,
@@ -235,6 +237,7 @@ export const linkRoutes = new Hono<Env>()
   .post("/", validate("json", linkCreateSchema), async (c) => {
     assertRole(c.var.principal, "author")
     const body = c.req.valid("json")
+    const fetched = await c.var.metadata.fetch(body.destination)
 
     // FOR SHARE conflicts with the archiver's FOR UPDATE (domains.ts's
     // archive transactions) but not with itself, so concurrent creates on
@@ -256,7 +259,9 @@ export const linkRoutes = new Hono<Env>()
         {
           domain_id: body.domain_id,
           destination: body.destination,
-          name: body.name ?? null,
+          name: body.name ?? fetched.name ?? null,
+          description: body.description ?? fetched.description ?? null,
+          icon_url: fetched.icon_url,
           tags: body.tags,
           forward_query: body.forward_query,
           preset_params: body.preset_params,
@@ -307,6 +312,9 @@ export const linkRoutes = new Hono<Env>()
       if (!can.ownLink(owner)) throw ApiError.conflict("a viewer key cannot own a link")
     }
 
+    const fetched =
+      patch.destination !== undefined ? await c.var.metadata.fetch(patch.destination) : null
+
     await c.var.db.transaction(async (tx) => {
       await tx
         .update(links)
@@ -315,7 +323,17 @@ export const linkRoutes = new Hono<Env>()
           // arrives as an ISO string and the column takes a Date, so the spread
           // would not typecheck. See keys.ts's PATCH for the same pattern.
           ...(patch.destination !== undefined ? { destination: patch.destination } : {}),
-          ...(patch.name !== undefined ? { name: patch.name } : {}),
+          ...(patch.name !== undefined
+            ? { name: patch.name }
+            : fetched
+              ? { name: fetched.name ?? existing.name }
+              : {}),
+          ...(patch.description !== undefined
+            ? { description: patch.description }
+            : fetched
+              ? { description: fetched.description ?? existing.description }
+              : {}),
+          ...(fetched ? { icon_url: fetched.icon_url ?? existing.icon_url } : {}),
           ...(patch.tags !== undefined ? { tags: patch.tags } : {}),
           ...(patch.forward_query !== undefined ? { forward_query: patch.forward_query } : {}),
           ...(patch.preset_params !== undefined ? { preset_params: patch.preset_params } : {}),

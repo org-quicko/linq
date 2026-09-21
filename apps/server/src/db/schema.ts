@@ -75,6 +75,13 @@ export const links = pgTable(
     slug: text("slug").notNull(),
     destination: text("destination").notNull(),
     name: text("name"),
+    /** Filled from the destination's <head> when the request didn't supply
+     *  one. See docs/adr/0014. */
+    description: text("description"),
+    /** The destination's favicon, resolved to an absolute URL. Never
+     *  caller-supplied — always whatever the last fetch found, or null.
+     *  See docs/adr/0014. */
+    icon_url: text("icon_url"),
     tags: text("tags").array().notNull().default(sql`'{}'::text[]`),
     forward_query: boolean("forward_query").notNull().default(true),
     preset_params: jsonb("preset_params").$type<Record<string, string>>().notNull().default({}),

@@ -78,6 +78,7 @@ export function LinkFormDialog({
   const [slug, setSlug] = useState(mode === "edit" ? (link?.slug ?? "") : "")
   const [destination, setDestination] = useState(link?.destination ?? "")
   const [name, setName] = useState(link?.name ?? "")
+  const [description, setDescription] = useState(link?.description ?? "")
   const [tags, setTags] = useState<string[]>(link?.tags ?? [])
   const [owner_id, setOwnerId] = useState(link?.owner_id ?? "")
   const [forward_query, setForwardQuery] = useState(link?.forward_query ?? true)
@@ -129,6 +130,7 @@ export function LinkFormDialog({
             domain_id: chosenDomain as string,
             slug: slug.trim() || undefined,
             name: name.trim() || undefined,
+            description: description.trim() || undefined,
             rules: validRules,
           }).unwrap(),
         {
@@ -148,6 +150,7 @@ export function LinkFormDialog({
           body: {
             ...shared,
             name: name.trim() || null,
+            description: description.trim() || null,
             ...(owner_id !== current.owner_id ? { owner_id } : {}),
             ...(rulesDirty ? { rules: validRules } : {}),
           },
@@ -164,7 +167,10 @@ export function LinkFormDialog({
         </DialogHeader>
 
         <div className="flex max-h-[70vh] flex-col gap-4 overflow-y-auto pr-1">
-          <Field label="Destination URL" hint="https:// is added automatically if you leave it out.">
+          <Field
+            label="Destination URL"
+            hint="https:// is added automatically if you leave it out."
+          >
             <Input
               value={destination}
               onChange={(event) => setDestination(event.target.value)}
@@ -193,6 +199,10 @@ export function LinkFormDialog({
 
           <Field label="Title" hint="Optional, for your own reference.">
             <Input value={name} onChange={(event) => setName(event.target.value)} />
+          </Field>
+
+          <Field label="Description" hint="Optional, for your own reference.">
+            <Input value={description} onChange={(event) => setDescription(event.target.value)} />
           </Field>
 
           <Field label="Tags" hint="Pick one in use, or add a new one.">
@@ -349,7 +359,8 @@ function ShortLinkField({
   slug: string
   onSlugChange: (slug: string) => void
 }) {
-  const currentHost = mode === "create" ? domains.find((d) => d.id === domain_id)?.host : domain_host
+  const currentHost =
+    mode === "create" ? domains.find((d) => d.id === domain_id)?.host : domain_host
 
   return (
     <div className="flex h-9 items-stretch overflow-hidden rounded-lg border border-input bg-transparent focus-within:border-ring focus-within:ring-3 focus-within:ring-ring/50">

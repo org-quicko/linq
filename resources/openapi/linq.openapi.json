@@ -1964,6 +1964,8 @@
           "short_url",
           "destination",
           "name",
+          "description",
+          "icon_url",
           "tags",
           "forward_query",
           "preset_params",
@@ -2008,6 +2010,20 @@
               "null"
             ],
             "maxLength": 200
+          },
+          "description": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "maxLength": 500
+          },
+          "icon_url": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "uri"
           },
           "tags": {
             "type": "array",
@@ -2101,6 +2117,10 @@
             "type": "string",
             "maxLength": 200
           },
+          "description": {
+            "type": "string",
+            "maxLength": 500
+          },
           "tags": {
             "type": "array",
             "maxItems": 20,
@@ -2154,6 +2174,13 @@
               "null"
             ],
             "maxLength": 200
+          },
+          "description": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "maxLength": 500
           },
           "tags": {
             "type": "array",

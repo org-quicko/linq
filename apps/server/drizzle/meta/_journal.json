@@ -134,6 +134,13 @@
       "when": 1789993186962,
       "tag": "0018_qr_codes",
       "breakpoints": true
+    },
+    {
+      "idx": 19,
+      "version": "7",
+      "when": 1789999919787,
+      "tag": "0019_link_metadata",
+      "breakpoints": true
     }
   ]
 }

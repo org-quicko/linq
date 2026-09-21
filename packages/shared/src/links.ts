@@ -18,6 +18,8 @@ export const linkCreateSchema = z.object({
   slug: slugSchema.optional(),
   destination: urlSchema,
   name: z.string().trim().max(200).optional(),
+  /** Omit to have it filled from the destination's <head>. See docs/adr/0014. */
+  description: z.string().trim().max(500).optional(),
   tags: z.array(tagSchema).max(20).default([]),
   forward_query: z.boolean().default(true),
   preset_params: presetParamsSchema.default({}),
@@ -38,6 +40,7 @@ export const linkPatchSchema = z
   .strictObject({
     destination: urlSchema,
     name: z.string().trim().max(200).nullable(),
+    description: z.string().trim().max(500).nullable(),
     tags: z.array(tagSchema).max(20),
     forward_query: z.boolean(),
     preset_params: presetParamsSchema,
@@ -93,6 +96,8 @@ export type Link = {
   short_url: string
   destination: string
   name: string | null
+  description: string | null
+  icon_url: string | null
   tags: string[]
   forward_query: boolean
   preset_params: Record<string, string>

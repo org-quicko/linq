@@ -45,6 +45,14 @@ const schema = z
     LINQ_CADDY_ADMIN_URL: z.string().min(1).optional(),
     /** Where Caddy reverse-proxies a matched domain to. Required once the admin URL is set. */
     LINQ_CADDY_UPSTREAM: z.string().min(1).optional(),
+    /**
+     * Set to "false" to stop linq's server from fetching any destination's
+     * <head> for a title/description/favicon. An enum of the two literal
+     * strings, not `z.coerce.boolean()` — that coercion treats the
+     * non-empty string "false" as truthy, which is exactly the footgun an
+     * opt-out flag cannot afford. See docs/adr/0014.
+     */
+    LINQ_FETCH_LINK_METADATA: z.enum(["true", "false"]).default("true"),
   })
   // Naming redis without somewhere to reach it is the one combination that
   // cannot be resolved by a default, so it is rejected rather than guessed at.

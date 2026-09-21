@@ -36,4 +36,5 @@ export const testConfig: Config = {
   LINQ_LOG_RETAIN: 5,
   LINQ_CADDY_ADMIN_URL: undefined,
   LINQ_CADDY_UPSTREAM: undefined,
+  LINQ_FETCH_LINK_METADATA: "true",
 }

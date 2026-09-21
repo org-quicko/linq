@@ -90,6 +90,8 @@ Table links {
   slug          text            [not null, note: 'Immutable, and never released except by a purge']
   destination   text            [not null]
   name          text
+  description   text            [note: 'Filled from the destination <head> when the request did not supply one. See docs/adr/0014.']
+  icon_url      text            [note: 'The destination favicon, resolved to an absolute URL. See docs/adr/0014.']
   tags          "text[]"        [not null, default: `'{}'::text[]`]
   forward_query boolean         [not null, default: true, note: 'Merge the incoming query string over the destination']
   preset_params jsonb           [not null, default: `'{}'::jsonb`, note: 'Record<string,string>: set on the destination when forward_query is true, overriding its own query and the forwarded one. At most 20.']

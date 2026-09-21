@@ -5,6 +5,7 @@ import { type Caddy, noCaddy } from "../../src/caddy.ts"
 import type { Db } from "../../src/db/client.ts"
 import { apiKeys, domains, visits } from "../../src/db/schema.ts"
 import { createApp } from "../../src/http/app.ts"
+import { type MetadataFetcher, noMetadata } from "../../src/link-metadata.ts"
 import { createTestDb, testConfig } from "./db.ts"
 
 /** `json()` is deliberately loose: the assertion in each test does the narrowing. */
@@ -42,6 +43,7 @@ export type Harness = {
 export type HarnessOptions = {
   cache?: Cache
   caddy?: Caddy
+  metadata?: MetadataFetcher
   config?: Partial<typeof testConfig>
 }
 
@@ -57,6 +59,7 @@ export async function createHarness(options: HarnessOptions = {}): Promise<Harne
     config,
     cache: options.cache ?? noCache,
     caddy: options.caddy ?? noCaddy,
+    metadata: options.metadata ?? noMetadata,
   })
 
   const request: Harness["request"] = async (path, init = {}) => {

@@ -251,7 +251,24 @@ function LinkRow({
       <RowCard
         tile={
           <RowCardTile>
-            {routesDynamically ? <Globe className="size-4" /> : <Link2 className="size-4" />}
+            {link.icon_url ? (
+              // biome-ignore lint/performance/noImgElement: arbitrary external favicons cannot be routed through next/image
+              <img
+                src={link.icon_url}
+                alt=""
+                className="size-4"
+                onError={(e) => {
+                  e.currentTarget.style.display = "none"
+                }}
+              />
+            ) : null}
+            {!link.icon_url ? (
+              routesDynamically ? (
+                <Globe className="size-4" />
+              ) : (
+                <Link2 className="size-4" />
+              )
+            ) : null}
           </RowCardTile>
         }
         className="px-5 py-3"
