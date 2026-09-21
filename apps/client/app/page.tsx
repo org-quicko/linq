@@ -1,6 +1,6 @@
 "use client"
 
-import { ArrowLeft, Link2, Pencil, Plus, Trash2 } from "lucide-react"
+import { Link2, Pencil, Plus, Trash2 } from "lucide-react"
 import { useRouter, useSearchParams } from "next/navigation"
 import { Suspense, useEffect, useState } from "react"
 import { ConfirmButton } from "@/components/common"
@@ -69,6 +69,10 @@ function Servers() {
   }
 
   async function connect(server: Server) {
+    if (server.id === activeId) {
+      window.location.href = appUrl("/analytics/")
+      return
+    }
     setConnecting(server.id)
     setErrorForServer(null)
     const result = await probeServer(server.apiUrl, server.apiKey)
@@ -86,28 +90,13 @@ function Servers() {
   return (
     <div className="flex min-h-screen flex-col bg-background">
       {/* Top bar with wordmark */}
-      <div className="flex h-14 items-center justify-between border-b px-6">
+      <div className="flex h-14 items-center border-b px-6">
         <div className="flex items-center gap-2">
           <div className="flex size-[22px] shrink-0 items-center justify-center rounded-[6px] bg-primary text-primary-foreground">
             <Link2 className="size-3.5" />
           </div>
           <span className="font-heading text-[15px] font-semibold tracking-tight">Linq</span>
         </div>
-
-        {activeId ? (
-          <Button
-            type="button"
-            variant="ghost"
-            size="sm"
-            className="gap-1.5 text-xs text-muted-foreground hover:text-foreground"
-            onClick={() => {
-              window.location.href = appUrl("/analytics/")
-            }}
-          >
-            <ArrowLeft className="size-3.5" />
-            Back to dashboard
-          </Button>
-        ) : null}
       </div>
 
       {/* Centered card */}
@@ -165,6 +154,7 @@ function Servers() {
                   {servers.map((server) => (
                     <div key={server.id} className="flex flex-col gap-1">
                       <RowCard
+                        onClick={() => connect(server)}
                         tile={
                           <RowCardTile>
                             <Link2 className="size-4" />
@@ -181,7 +171,7 @@ function Servers() {
                                 disabled={connecting === server.id}
                                 onClick={() => connect(server)}
                               >
-                                {connecting === server.id ? "Connecting…" : "Switch"}
+                                {connecting === server.id ? "Connecting…" : "Connect"}
                               </Button>
                             ) : null}
                             <IconButton
