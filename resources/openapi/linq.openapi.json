@@ -1677,7 +1677,7 @@
         ],
         "operationId": "followLink",
         "summary": "Follow a short link",
-        "description": "The product. Matched last, so every path linq answers itself — `/api`,\n`/home`, `/health`, `/robots.txt`, `/favicon.ico` — wins first and can\nnever be claimed as a slug.\n\nResolution: the `Host` header selects the domain, the slug selects the\nlink, then the first rule whose conditions all hold supplies the\ndestination, falling back to the link's own. With `forward_query` on,\nthe incoming query is merged over the destination's, incoming winning.\n\nAn unknown host, or an archived one, is an **untracked** 404. A live\ndomain with no matching active link is an **orphan visit**: recorded,\nthen sent to the domain's `fallback_url`, or 404 if it has none.\n\n`GET` is recorded; `HEAD` is answered identically and never recorded.\n",
+        "description": "The product. Matched last, so every path linq answers itself — `/api`,\n`/home`, `/health`, `/robots.txt`, `/favicon.ico` — wins first and can\nnever be claimed as a slug.\n\nResolution: the `Host` header selects the domain, the slug selects the\nlink, then the first rule whose conditions all hold supplies the\ndestination, falling back to the link's own. With `forward_query` on,\nthe incoming query is merged over the destination's, incoming winning.\n\nAn unknown host, or an archived one, is an **untracked** 404 — except\nthe root path (empty slug) on a host that was never registered as a\ndomain at all, which redirects to the Client UI (`/home/`) instead, since\nno domain's own redirect could ever have claimed it. An archived domain's\nroot path stays a 404 like everything else on it. A live domain with no\nmatching active link is an **orphan visit**: recorded, then sent to the\nmatching redirect field (root path, malformed slug, or plain unknown\nslug each have their own, all falling back to `fallback_url`), or 404 if\nnone is set.\n\n`GET` is recorded; `HEAD` is answered identically and never recorded.\n",
         "security": [],
         "responses": {
           "302": {
@@ -1698,7 +1698,7 @@
             }
           },
           "404": {
-            "description": "Unknown host, archived domain, or no link and no fallback URL.",
+            "description": "An archived domain, a non-root path on an unregistered host, or a live domain with no matching link and no redirect field set for the case. The root path on an unregistered host is a 302 to /home/ instead — see the operation description.",
             "content": {
               "text/plain": {
                 "schema": {

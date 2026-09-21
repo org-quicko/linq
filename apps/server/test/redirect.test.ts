@@ -45,6 +45,17 @@ describe("domain resolution", () => {
     expect(await visitCount()).toBe(before)
   })
 
+  test("the root path on a host nobody registered redirects to the admin UI", async () => {
+    const before = await visitCount()
+    const res = await get("/", { host: "never-registered.test" })
+    expect(res.status).toBe(302)
+    expect(res.headers.get("location")).toBe("/home/")
+    // Only the bare root gets the friendlier fallback — anything else on the
+    // same never-registered host is still a genuine, untracked 404.
+    expect((await get("/anything", { host: "never-registered.test" })).status).toBe(404)
+    expect(await visitCount()).toBe(before)
+  })
+
   test("an archived domain is an untracked 404 for everything", async () => {
     const admin = await h.actor("admin")
     const closed = await h.createDomain("closed.test")

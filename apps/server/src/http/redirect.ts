@@ -47,13 +47,18 @@ export type ResolvedTarget = {
  * then with its port stripped, so one `links.example.com` row also answers
  * requests on a non-standard port while `localhost:3000` still matches verbatim.
  */
+function candidateHosts(hostHeader: string): string[] {
+  const host = hostHeader.trim().toLowerCase()
+  const bare = host.replace(/:\d+$/, "")
+  return bare === host ? [host] : [host, bare]
+}
+
 export function findActiveDomain(db: Db, hostHeader: string): Promise<ResolvedDomain | null> {
   return span(
     "domain.findActive",
     async () => {
       const host = hostHeader.trim().toLowerCase()
-      const bare = host.replace(/:\d+$/, "")
-      const candidates = bare === host ? [host] : [host, bare]
+      const candidates = candidateHosts(hostHeader)
 
       const rows = await db
         .select({
@@ -77,6 +82,31 @@ export function findActiveDomain(db: Db, hostHeader: string): Promise<ResolvedDo
         : null
     },
     { in: { host: hostHeader }, out: (domain) => ({ domain_id: domain?.id ?? null }) },
+  )
+}
+
+/**
+ * Whether this host was ever registered as a domain at all, active or
+ * archived. Used only to decide the root path's admin-UI fallback below,
+ * which must fire for a host nobody registered but never for an archived
+ * one — that stays a 404 for everything, root path included, same as
+ * `findActiveDomain` already guarantees for a slug. Deliberately uncached
+ * and only ever queried once `findActiveDomain` has already missed, since it
+ * exists purely to cover the rare "unclaimed root path" case, not the hot
+ * redirect path.
+ */
+function hostHasAnyDomain(db: Db, hostHeader: string): Promise<boolean> {
+  return span(
+    "domain.hostHasAny",
+    async () => {
+      const rows = await db
+        .select({ id: domains.id })
+        .from(domains)
+        .where(inArray(domains.host, candidateHosts(hostHeader)))
+        .limit(1)
+      return rows.length > 0
+    },
+    { in: { host: hostHeader } },
   )
 }
 
@@ -183,10 +213,18 @@ export const redirectHandler = factory.createHandlers(async (c) => {
   const firstSegment = slug.split("/")[0]?.toLowerCase() ?? ""
   if (RESERVED_SLUGS.has(firstSegment)) return c.text("Not Found", 404)
 
-  // 2. An unknown or archived domain is not ours to report on.
+  // 2. An unknown or archived domain is not ours to report on — except at the
+  //    root path of a host nobody ever registered at all, where the Client
+  //    UI is a friendlier landing place than a bare 404 and costs nothing
+  //    since no domain's own redirect could ever have claimed it. An
+  //    archived domain's root path stays a 404 like everything else on it
+  //    (hostHasAnyDomain is what tells the two apart).
   const host = c.req.header("host") ?? url.host
   const domain = await through(c, domainKey(host), () => findActiveDomain(c.var.db, host))
-  if (!domain) return c.text("Not Found", 404)
+  if (!domain) {
+    if (slug === "" && !(await hostHasAnyDomain(c.var.db, host))) return redirectToAdmin(c)
+    return c.text("Not Found", 404)
+  }
 
   // HEAD is answered exactly like GET but never tracked.
   const tracked = c.req.method === "GET"
@@ -221,6 +259,12 @@ export const redirectHandler = factory.createHandlers(async (c) => {
   //    first), and each falls back to `fallback_url` when unset. `?? null`
   //    guards a cache entry written before these fields existed (see
   //    ResolvedDomain), not the DB row, which is always complete.
+  //
+  //    No admin-UI fallback here, unlike the unknown-domain 404 above: this
+  //    domain was deliberately registered as a real shortening domain, so an
+  //    operator who never got around to configuring its root redirect gets
+  //    the same 404 as any other unclaimed path — not a surprise landing
+  //    page. The fallback only ever covers a host nobody registered at all.
   if (!link) {
     const destination =
       slug === ""
@@ -271,6 +315,16 @@ export const redirectHandler = factory.createHandlers(async (c) => {
 function sendRedirect(c: Context<Env>, destination: string) {
   c.header("cache-control", "no-store")
   return c.redirect(destination, 302)
+}
+
+/**
+ * The root path's fallback of last resort. Not cached, for the same reason
+ * as `sendRedirect`: configuring a base path redirect later must take over
+ * immediately, not wait out a stale 302 some intermediary held onto.
+ */
+function redirectToAdmin(c: Context<Env>) {
+  c.header("cache-control", "no-store")
+  return c.redirect("/home/", 302)
 }
 
 /**
