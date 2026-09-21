@@ -33,14 +33,15 @@ const GROUP_LABELS: Record<GroupBy, string> = {
 /** Ranked dimensions beyond this are dropped: a long tail reads as noise. */
 const MAX_BARS = 20
 /** Days beyond this (only reachable via "All time") are dropped the same way. */
-const MAX_DAYS = 90
+export const MAX_DAYS = 90
 
 /**
  * One bucket per day in the window. The aggregate only returns days that had a
  * visit, which would otherwise draw a gap-free axis that misreads as
- * consecutive days.
+ * consecutive days. Exported for the Analytics overview chart
+ * (analytics-overview.tsx), which needs the same continuous days.
  */
-function fillDays(buckets: StatsBucket[], from: string | undefined): StatsBucket[] {
+export function fillDays(buckets: StatsBucket[], from: string | undefined): StatsBucket[] {
   if (buckets.length === 0) return buckets
   const byKey = new Map(buckets.map((bucket) => [bucket.key, bucket]))
   const d = new Date(`${from?.slice(0, 10) ?? buckets[0].key}T00:00:00Z`)

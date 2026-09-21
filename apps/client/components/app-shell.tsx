@@ -10,7 +10,7 @@ import { QueryState } from "@/components/common"
 import { PageHeader, ThemeToggle } from "@/components/patterns"
 import { ServerSwitcher } from "@/components/server-switcher"
 import { Button } from "@/components/ui/button"
-import { activeServer, disconnect } from "../lib/servers"
+import { activeServer } from "../lib/servers"
 import { type Me, useGetMeQuery } from "../lib/store/keys"
 
 /**
@@ -132,10 +132,9 @@ export function AppShell({
  */
 function Chrome({ actor, me, children }: { actor?: Actor; me?: Me; children: ReactNode }) {
   const active = activeHref(usePathname())
-  const router = useRouter()
 
   return (
-    <div className="flex min-h-screen bg-muted">
+    <div className="flex h-screen overflow-hidden bg-muted">
       <aside className="flex w-60 shrink-0 flex-col gap-2 p-4">
         <Link
           href="/links/"
@@ -175,18 +174,6 @@ function Chrome({ actor, me, children }: { actor?: Actor; me?: Me; children: Rea
               <span className="min-w-0 flex-1 truncate text-xs text-muted-foreground">
                 {me.name} · {me.role}
               </span>
-              <Button
-                type="button"
-                variant="ghost"
-                size="sm"
-                onClick={() => {
-                  disconnect()
-                  router.replace("/")
-                }}
-                title="Disconnect from this server"
-              >
-                Leave
-              </Button>
             </div>
             <div className="flex items-center justify-between px-2.5">
               <span className="text-xs text-muted-foreground">Theme</span>
@@ -196,7 +183,7 @@ function Chrome({ actor, me, children }: { actor?: Actor; me?: Me; children: Rea
         ) : null}
       </aside>
 
-      <main className="flex min-h-screen flex-1 flex-col p-4 pl-0">
+      <main className="flex h-screen flex-1 flex-col p-4 pl-0">
         <div className="min-h-0 flex-1 overflow-y-auto rounded-xl bg-card shadow-panel">
           <div className="mx-auto max-w-[1080px] px-6 py-6">{children}</div>
         </div>
