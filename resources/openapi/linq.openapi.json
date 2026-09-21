@@ -622,6 +622,58 @@
         }
       }
     },
+    "/api/v1/links/count": {
+      "get": {
+        "tags": [
+          "Links"
+        ],
+        "operationId": "countLinks",
+        "summary": "Count links",
+        "description": "Just the `total` a page from `GET /links` would also carry, for a caller — such as the sidebar's link/archive badges — that never needed the rows or the joins that build them. Takes only `status`; every other list filter is out of scope here.",
+        "parameters": [
+          {
+            "name": "status",
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "enum": [
+                "active",
+                "archived",
+                "all"
+              ],
+              "default": "active"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The count.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "total"
+                  ],
+                  "properties": {
+                    "total": {
+                      "type": "integer",
+                      "minimum": 0
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/ValidationFailed"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          }
+        }
+      }
+    },
     "/api/v1/links/{id}": {
       "parameters": [
         {
@@ -1227,6 +1279,31 @@
           },
           {
             "$ref": "#/components/parameters/Orphan"
+          },
+          {
+            "name": "platform",
+            "in": "query",
+            "schema": {
+              "$ref": "#/components/schemas/Platform"
+            }
+          },
+          {
+            "name": "os",
+            "in": "query",
+            "description": "Open vocabulary (unlike platform), lowercased at the boundary.",
+            "schema": {
+              "type": "string",
+              "minLength": 1
+            }
+          },
+          {
+            "name": "browser",
+            "in": "query",
+            "description": "Open vocabulary (unlike platform), lowercased at the boundary.",
+            "schema": {
+              "type": "string",
+              "minLength": 1
+            }
           }
         ],
         "responses": {
@@ -1388,6 +1465,11 @@
       }
     },
     "/api/v1/keys/{id}": {
+      "parameters": [
+        {
+          "$ref": "#/components/parameters/Id"
+        }
+      ],
       "get": {
         "operationId": "getKey",
         "tags": [
@@ -1395,7 +1477,6 @@
         ],
         "summary": "Get a key",
         "description": "Requires **admin**.\n",
-        "parameters": null,
         "responses": {
           "200": {
             "description": "The key.",
@@ -1406,6 +1487,15 @@
                 }
               }
             }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
           }
         }
       },
@@ -1416,7 +1506,6 @@
         ],
         "summary": "Update a key",
         "description": "Requires **admin**. Changing the role of the key you are calling with is a 403.\n",
-        "parameters": null,
         "requestBody": {
           "required": true,
           "content": {
@@ -1437,6 +1526,18 @@
                 }
               }
             }
+          },
+          "400": {
+            "$ref": "#/components/responses/ValidationFailed"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
           }
         }
       },
@@ -1459,6 +1560,98 @@
           },
           "404": {
             "$ref": "#/components/responses/NotFound"
+          }
+        }
+      }
+    },
+    "/api/v1/keys/{id}/links/reassign": {
+      "parameters": [
+        {
+          "$ref": "#/components/parameters/Id"
+        }
+      ],
+      "post": {
+        "tags": [
+          "Keys"
+        ],
+        "operationId": "reassignKeyLinks",
+        "summary": "Reassign a key's links",
+        "description": "Moves every link `id` owns to another key, or to nobody, in one call. The same move `DELETE /keys/{id}` already makes automatically for a revoked key's links — this is for doing it ahead of time, such as before demoting a key that owns links to viewer (which the role change alone would otherwise refuse with a 409).\n\nRequires: **admin** for any key, or the key's own owner (author or higher) reassigning its own.\n",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "to"
+                ],
+                "properties": {
+                  "to": {
+                    "oneOf": [
+                      {
+                        "type": "string",
+                        "format": "uuid"
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ],
+                    "description": "The key to move the links to. Null leaves them unassigned."
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "How many links moved.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "moved"
+                  ],
+                  "properties": {
+                    "moved": {
+                      "type": "integer",
+                      "minimum": 0
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/ValidationFailed"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "description": "The target key (`to`) does not exist.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "The target key is a viewer, which may not own a link.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
           }
         }
       }
@@ -1691,6 +1884,8 @@
           "enum": [
             "day",
             "platform",
+            "os",
+            "browser",
             "referer",
             "destination",
             "slug"
@@ -1872,6 +2067,8 @@
           "id",
           "host",
           "fallback_url",
+          "base_path_redirect",
+          "invalid_short_url_redirect",
           "status",
           "link_count",
           "created_at",
@@ -1895,12 +2092,26 @@
             ],
             "description": "Where orphan visits go. Null means 404."
           },
+          "base_path_redirect": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Where a bare GET / on this host goes. Null falls back to fallback_url."
+          },
+          "invalid_short_url_redirect": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Where a malformed (not just unknown) slug goes. Null falls back to fallback_url."
+          },
           "status": {
             "$ref": "#/components/schemas/ResourceStatus"
           },
           "link_count": {
             "type": "integer",
-            "description": "Active links only, because this is the count that decides whether the domain may be archived."
+            "description": "Every link on the domain, archived included — the count that must reach zero before the domain may be archived or purged."
           },
           "created_at": {
             "type": "string",
@@ -1924,7 +2135,37 @@
             "pattern": "^[a-z0-9.-]+(:\\d{1,5})?$"
           },
           "fallback_url": {
-            "$ref": "#/components/schemas/Url"
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/Url"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Where an unmatched-but-well-formed slug goes. Absent or null means 404."
+          },
+          "base_path_redirect": {
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/Url"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Where a bare GET / on this host goes. Absent falls back to fallback_url."
+          },
+          "invalid_short_url_redirect": {
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/Url"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Where a malformed (not just unknown) slug goes. Absent falls back to fallback_url."
           }
         }
       },
@@ -1934,6 +2175,26 @@
         "minProperties": 1,
         "properties": {
           "fallback_url": {
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/Url"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "base_path_redirect": {
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/Url"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "invalid_short_url_redirect": {
             "oneOf": [
               {
                 "$ref": "#/components/schemas/Url"
@@ -2055,8 +2316,12 @@
             "$ref": "#/components/schemas/ResourceStatus"
           },
           "owner_id": {
-            "type": "string",
-            "format": "uuid"
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "uuid",
+            "description": "Null when the key that owned this link was revoked — a link outlives the key that created it."
           },
           "owner_name": {
             "type": [
@@ -2156,6 +2421,15 @@
             "type": "boolean",
             "default": false,
             "description": "Opt-in: appears in the domain's public /llms.txt catalogue. See docs/adr/0013."
+          },
+          "rules": {
+            "type": "array",
+            "maxItems": 50,
+            "default": [],
+            "description": "Ordered alternate destinations, created together with the link.",
+            "items": {
+              "$ref": "#/components/schemas/RuleInput"
+            }
           }
         }
       },
@@ -2221,6 +2495,14 @@
           "listed": {
             "type": "boolean",
             "description": "Opt-in: appears in the domain's public /llms.txt catalogue. See docs/adr/0013."
+          },
+          "rules": {
+            "type": "array",
+            "maxItems": 50,
+            "description": "Replaces the whole ordered set, same as PUT /links/{id}/rules. Absent leaves the existing rules unchanged; send [] to clear them.",
+            "items": {
+              "$ref": "#/components/schemas/RuleInput"
+            }
           }
         }
       },
@@ -2496,6 +2778,8 @@
           "occurred_at",
           "is_bot",
           "platform",
+          "os",
+          "browser",
           "user_agent",
           "referer",
           "destination",
@@ -2532,6 +2816,20 @@
           },
           "platform": {
             "$ref": "#/components/schemas/Platform"
+          },
+          "os": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Open vocabulary (unlike platform), lowercased. Null when it couldn't be determined."
+          },
+          "browser": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Open vocabulary (unlike platform), lowercased. Null when it couldn't be determined."
           },
           "user_agent": {
             "type": [
