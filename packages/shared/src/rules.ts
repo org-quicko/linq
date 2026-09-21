@@ -28,6 +28,6 @@ export const rulesPutSchema = z.array(ruleInputSchema).max(50)
 
 export type Rule = RuleInput & {
   id: string
-  linkId: string
+  link_id: string
   position: number
 }

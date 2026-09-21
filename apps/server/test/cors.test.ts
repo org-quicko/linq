@@ -75,8 +75,8 @@ describe("CORS on /api", () => {
   test("leaves redirects alone", async () => {
     // A redirect is a top-level navigation, not a fetch, so it needs no CORS
     // header and must not start emitting one.
-    const domainId = await h.createDomain("localhost")
-    const link = await h.createLink(key, domainId, {
+    const domain_id = await h.createDomain("localhost")
+    const link = await h.createLink(key, domain_id, {
       slug: "cors1",
       destination: "https://example.com/",
     })

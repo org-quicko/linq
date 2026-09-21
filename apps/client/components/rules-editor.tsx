@@ -178,11 +178,11 @@ export function RulesList({
  * server refuses the write in any case.
  */
 export function RulesEditor({
-  linkId,
+  link_id,
   rules,
   readOnly,
 }: {
-  linkId: string
+  link_id: string
   rules: Rule[]
   readOnly: boolean
 }) {
@@ -194,7 +194,7 @@ export function RulesEditor({
   const { run, saving } = useRun()
 
   function save() {
-    return run(() => updateRules({ linkId, rules: drafts }).unwrap(), {
+    return run(() => updateRules({ link_id, rules: drafts }).unwrap(), {
       success: "Rules saved.",
       fallback: "Could not save the rules.",
       onSuccess: () => setDirty(false),

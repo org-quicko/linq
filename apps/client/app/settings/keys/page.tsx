@@ -148,8 +148,8 @@ function KeyRow({ apiKey, actor, allKeys }: { apiKey: ApiKey; actor: Actor; allK
         {isMine ? <Badge variant="secondary">This key</Badge> : null}
       </span>
       <span className="truncate font-mono text-xs text-muted-foreground">
-        {apiKey.prefix} · Created <When iso={apiKey.createdAt} relative /> · Expires{" "}
-        {apiKey.expiresAt ? <When iso={apiKey.expiresAt} relative /> : "never"}
+        {apiKey.prefix} · Created <When iso={apiKey.created_at} relative /> · Expires{" "}
+        {apiKey.expires_at ? <When iso={apiKey.expires_at} relative /> : "never"}
       </span>
     </RowCard>
   )

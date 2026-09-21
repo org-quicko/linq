@@ -2,10 +2,10 @@ import type { Browser, Os, Platform } from "@linq/shared"
 import { UAParser } from "ua-parser-js"
 
 /** Three checks, in order; anything unrecognised counts as a desktop. */
-export function detectPlatform(userAgent: string | null | undefined): Platform {
-  if (!userAgent) return "desktop"
-  if (/Android/i.test(userAgent)) return "android"
-  if (/iPhone|iPad|iPod/i.test(userAgent)) return "ios"
+export function detectPlatform(user_agent: string | null | undefined): Platform {
+  if (!user_agent) return "desktop"
+  if (/Android/i.test(user_agent)) return "android"
+  if (/iPhone|iPad|iPod/i.test(user_agent)) return "ios"
   return "desktop"
 }
 
@@ -14,15 +14,15 @@ export function detectPlatform(userAgent: string | null | undefined): Platform {
  * casing alone — ua-parser-js's own casing ("macOS", "Windows") isn't
  * consistent enough to store verbatim.
  */
-export function detectOs(userAgent: string | null | undefined): Os | null {
-  if (!userAgent) return null
-  const name = UAParser(userAgent).os.name
+export function detectOs(user_agent: string | null | undefined): Os | null {
+  if (!user_agent) return null
+  const name = UAParser(user_agent).os.name
   return name ? name.toLowerCase() : null
 }
 
 /** Same lowercasing as `detectOs`, same reason. */
-export function detectBrowser(userAgent: string | null | undefined): Browser | null {
-  if (!userAgent) return null
-  const name = UAParser(userAgent).browser.name
+export function detectBrowser(user_agent: string | null | undefined): Browser | null {
+  if (!user_agent) return null
+  const name = UAParser(user_agent).browser.name
   return name ? name.toLowerCase() : null
 }

@@ -1,8 +1,8 @@
 import { isbot } from "isbot"
 
 /** A request with no User-Agent at all is not a browser, so it counts as a bot. */
-export function detectBot(userAgent: string | null | undefined): boolean {
-  return !userAgent || isbot(userAgent)
+export function detectBot(user_agent: string | null | undefined): boolean {
+  return !user_agent || isbot(user_agent)
 }
 
 /**
@@ -11,9 +11,9 @@ export function detectBot(userAgent: string | null | undefined): boolean {
  * search crawler is a bot too, but it expects the real redirect, not a
  * preview page, so it is deliberately not included here.
  */
-export function isPreviewCrawler(userAgent: string | null | undefined): boolean {
-  if (!userAgent) return false
+export function isPreviewCrawler(user_agent: string | null | undefined): boolean {
+  if (!user_agent) return false
   return /Slackbot|Twitterbot|facebookexternalhit|Facebot|Discordbot|LinkedInBot|TelegramBot|WhatsApp|SkypeUriPreview/i.test(
-    userAgent,
+    user_agent,
   )
 }

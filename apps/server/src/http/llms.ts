@@ -50,7 +50,7 @@ export function renderLlms(host: string, entries: LlmsEntry[], truncated: boolea
  * this order changes only when its contents change, so it stays diff-friendly
  * and a crawler's conditional fetch remains meaningful.
  */
-async function renderForDomain(db: Db, domainId: string, host: string): Promise<string> {
+async function renderForDomain(db: Db, domain_id: string, host: string): Promise<string> {
   return span(
     "llms.render",
     async () => {
@@ -60,10 +60,10 @@ async function renderForDomain(db: Db, domainId: string, host: string): Promise<
         .from(links)
         .where(
           and(
-            eq(links.domainId, domainId),
+            eq(links.domain_id, domain_id),
             eq(links.status, "active"),
             eq(links.listed, true),
-            or(isNull(links.expiresAt), gt(links.expiresAt, now)),
+            or(isNull(links.expires_at), gt(links.expires_at, now)),
           ),
         )
         .orderBy(asc(sql`coalesce(${links.name}, ${links.slug})`), asc(links.id))
@@ -77,7 +77,7 @@ async function renderForDomain(db: Db, domainId: string, host: string): Promise<
       }))
       return renderLlms(host, entries, truncated)
     },
-    { in: { domainId }, out: (md) => ({ bytes: md.length }) },
+    { in: { domain_id }, out: (md) => ({ bytes: md.length }) },
   )
 }
 

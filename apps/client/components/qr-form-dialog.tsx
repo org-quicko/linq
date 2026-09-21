@@ -44,26 +44,26 @@ export function QrFormDialog({
   mode: "create" | "edit"
   qrCode?: QrCode
 }) {
-  const [linkId, setLinkId] = useState(qrCode?.linkId ?? "")
-  const [linkName, setLinkName] = useState(qrCode?.linkName ?? qrCode?.slug ?? "")
+  const [link_id, setLinkId] = useState(qrCode?.link_id ?? "")
+  const [link_name, setLinkName] = useState(qrCode?.link_name ?? qrCode?.slug ?? "")
   const [name, setName] = useState(qrCode?.name ?? "")
-  const [dotColor, setDotColor] = useState(qrCode?.dotColor ?? "#000000")
-  const [bgColor, setBgColor] = useState(qrCode?.bgColor ?? "#ffffff")
+  const [dot_color, setDotColor] = useState(qrCode?.dot_color ?? "#000000")
+  const [bg_color, setBgColor] = useState(qrCode?.bg_color ?? "#ffffff")
   const [pattern, setPattern] = useState<(typeof QR_PATTERNS)[number]>(qrCode?.pattern ?? "squares")
 
-  // In create mode the preview's shortUrl comes off the picked link, live
+  // In create mode the preview's short_url comes off the picked link, live
   // before anything is saved; in edit mode it is already on the record.
-  const linked = useGetLinkQuery(mode === "create" && linkId ? linkId : skipToken)
-  const shortUrl = mode === "edit" ? (qrCode?.shortUrl ?? "") : (linked.data?.shortUrl ?? "")
+  const linked = useGetLinkQuery(mode === "create" && link_id ? link_id : skipToken)
+  const short_url = mode === "edit" ? (qrCode?.short_url ?? "") : (linked.data?.short_url ?? "")
 
   const [createQrCode] = useCreateQrCodeMutation()
   const [updateQrCode] = useUpdateQrCodeMutation()
   const { run, saving } = useRun()
 
   function submit() {
-    const body = { name: name.trim() || null, dotColor, bgColor, pattern }
+    const body = { name: name.trim() || null, dot_color, bg_color, pattern }
     if (mode === "create") {
-      run(() => createQrCode({ linkId, ...body }).unwrap(), {
+      run(() => createQrCode({ link_id, ...body }).unwrap(), {
         success: "QR code created.",
         fallback: "Could not create that QR code.",
         onSuccess: () => onOpenChange(false),
@@ -78,7 +78,7 @@ export function QrFormDialog({
     })
   }
 
-  const config = { shortUrl, dotColor, bgColor, pattern }
+  const config = { short_url, dot_color, bg_color, pattern }
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -88,7 +88,7 @@ export function QrFormDialog({
         </DialogHeader>
 
         <div className="flex flex-col items-center gap-3 rounded-lg border bg-muted/40 p-4">
-          {shortUrl ? (
+          {short_url ? (
             <QrPreview config={config} size={160} />
           ) : (
             <div className="flex size-40 items-center justify-center text-center text-xs text-muted-foreground">
@@ -102,7 +102,7 @@ export function QrFormDialog({
                 type="button"
                 variant="outline"
                 size="sm"
-                disabled={!shortUrl}
+                disabled={!short_url}
                 onClick={() => downloadQr(config, name.trim() || "qr-code", extension)}
               >
                 <Download />
@@ -123,8 +123,8 @@ export function QrFormDialog({
               </div>
             ) : (
               <LinkFilter
-                value={linkId}
-                name={linkName}
+                value={link_id}
+                name={link_name}
                 status="active"
                 onSelect={(id, nm) => {
                   setLinkId(id)
@@ -139,8 +139,8 @@ export function QrFormDialog({
           </Field>
 
           <div className="grid grid-cols-2 gap-3">
-            <ColorField label="Code colour" value={dotColor} onChange={setDotColor} />
-            <ColorField label="Background" value={bgColor} onChange={setBgColor} />
+            <ColorField label="Code colour" value={dot_color} onChange={setDotColor} />
+            <ColorField label="Background" value={bg_color} onChange={setBgColor} />
           </div>
 
           <Field label="Pattern">
@@ -156,7 +156,7 @@ export function QrFormDialog({
           <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>
             Cancel
           </Button>
-          <Button type="button" disabled={saving || !linkId} onClick={submit}>
+          <Button type="button" disabled={saving || !link_id} onClick={submit}>
             {mode === "create" ? "Create" : "Save"}
           </Button>
         </DialogFooter>

@@ -36,28 +36,28 @@ type DeviceView = "platform" | "os" | "browser"
 export function AnalyticsOverview() {
   const router = useRouter()
   const searchParams = useSearchParams()
-  const urlLinkId = searchParams.get("linkId") ?? ""
-  const [linkId, setLinkId] = useState(urlLinkId)
-  // `linkName` is not carried in the URL, so a deep link resolves it here —
+  const urlLinkId = searchParams.get("link_id") ?? ""
+  const [link_id, setLinkId] = useState(urlLinkId)
+  // `link_name` is not carried in the URL, so a deep link resolves it here —
   // `skipToken` is the pattern `link-form-dialog.tsx` already uses for "no id yet".
   const linked = useGetLinkQuery(urlLinkId || skipToken)
-  const [linkName, setLinkName] = useState("")
+  const [link_name, setLinkName] = useState("")
   const { range, setRange, from } = useRange()
-  const path = linkId ? `/v1/links/${linkId}/stats` : "/v1/stats"
+  const path = link_id ? `/v1/links/${link_id}/stats` : "/v1/stats"
 
   useEffect(() => {
     if (linked.data) setLinkName(linked.data.name ?? linked.data.slug)
   }, [linked.data])
 
-  const daily = useGetStatsQuery({ path, params: { groupBy: "day", from } })
+  const daily = useGetStatsQuery({ path, params: { group_by: "day", from } })
   const orphans = useGetStatsQuery(
-    { path: "/v1/stats", params: { groupBy: "day", from, orphan: "true" } },
-    { skip: Boolean(linkId) },
+    { path: "/v1/stats", params: { group_by: "day", from, orphan: "true" } },
+    { skip: Boolean(link_id) },
   )
-  const referrers = useGetStatsQuery({ path, params: { groupBy: "referer", from } })
+  const referrers = useGetStatsQuery({ path, params: { group_by: "referer", from } })
 
   const [deviceView, setDeviceView] = useState<DeviceView>("platform")
-  const devices = useGetStatsQuery({ path, params: { groupBy: deviceView, from } })
+  const devices = useGetStatsQuery({ path, params: { group_by: deviceView, from } })
 
   const totals = sumBuckets(daily.data)
   const orphanTotal = sumBuckets(orphans.data)
@@ -66,12 +66,12 @@ export function AnalyticsOverview() {
     <div className="flex flex-col gap-4">
       <div className="flex flex-wrap items-center justify-between gap-2">
         <LinkFilter
-          value={linkId}
-          name={linkName}
+          value={link_id}
+          name={link_name}
           onSelect={(id, name) => {
             setLinkId(id)
             setLinkName(name)
-            router.replace(`/analytics/?linkId=${id}`)
+            router.replace(`/analytics/?link_id=${id}`)
           }}
           onClear={() => {
             setLinkId("")
@@ -96,7 +96,7 @@ export function AnalyticsOverview() {
           pct={pct(totals.bot, totals.total)}
           isLoading={daily.isLoading}
         />
-        {!linkId ? (
+        {!link_id ? (
           <StatTile label="Orphan clicks" value={orphanTotal.total} isLoading={orphans.isLoading} />
         ) : null}
       </div>

@@ -12,7 +12,7 @@ import { generateKey, hashKey, keyPrefix } from "./keys.ts"
  */
 export async function createApiKey(
   db: Db,
-  opts: { name: string; role: Role; expiresAt?: Date | null },
+  opts: { name: string; role: Role; expires_at?: Date | null },
 ): Promise<{ row: typeof apiKeys.$inferSelect; secret: string }> {
   const secret = generateKey()
   const [row] = await db
@@ -21,9 +21,9 @@ export async function createApiKey(
       id: Bun.randomUUIDv7(),
       name: opts.name,
       role: opts.role,
-      keyHash: hashKey(secret),
+      key_hash: hashKey(secret),
       prefix: keyPrefix(secret),
-      expiresAt: opts.expiresAt ?? null,
+      expires_at: opts.expires_at ?? null,
     })
     .returning()
   if (!row) throw new Error("insert returned no row")

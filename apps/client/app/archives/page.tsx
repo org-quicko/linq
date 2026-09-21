@@ -143,7 +143,7 @@ function ArchivedLinksTab() {
           >
             <ShortLink link={link} />
             <span className="truncate text-xs text-muted-foreground">
-              {link.destination} · Archived <When iso={link.updatedAt} relative />
+              {link.destination} · Archived <When iso={link.updated_at} relative />
             </span>
           </RowCard>
         )}
@@ -188,8 +188,8 @@ function ArchivedDomainsTab() {
         >
           <span className="truncate font-medium">{domain.host}</span>
           <span className="truncate text-xs text-muted-foreground">
-            {domain.fallbackUrl ?? "404 when blank"} · {domain.linkCount} link
-            {domain.linkCount === 1 ? "" : "s"}
+            {domain.fallback_url ?? "404 when blank"} · {domain.link_count} link
+            {domain.link_count === 1 ? "" : "s"}
           </span>
         </RowCard>
       )}

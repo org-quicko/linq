@@ -23,9 +23,9 @@ const PATTERN_TYPES: Record<
 }
 
 export type QrStyleConfig = {
-  shortUrl: string
-  dotColor: string
-  bgColor: string
+  short_url: string
+  dot_color: string
+  bg_color: string
   pattern: QrPattern
 }
 
@@ -35,13 +35,13 @@ export function qrOptions(config: QrStyleConfig, size: number): Options {
   return {
     width: size,
     height: size,
-    data: config.shortUrl,
+    data: config.short_url,
     margin: 0,
     qrOptions: { errorCorrectionLevel: "Q" },
-    dotsOptions: { color: config.dotColor, type: types.dots },
-    cornersSquareOptions: { color: config.dotColor, type: types.cornerSquare },
-    cornersDotOptions: { color: config.dotColor, type: types.cornerDot },
-    backgroundOptions: { color: config.bgColor },
+    dotsOptions: { color: config.dot_color, type: types.dots },
+    cornersSquareOptions: { color: config.dot_color, type: types.cornerSquare },
+    cornersDotOptions: { color: config.dot_color, type: types.cornerDot },
+    backgroundOptions: { color: config.bg_color },
   }
 }
 

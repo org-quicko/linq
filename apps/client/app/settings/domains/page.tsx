@@ -82,9 +82,9 @@ function DomainRow({ domain, isAdmin }: { domain: Domain; isAdmin: boolean }) {
     })
 
   const redirectCount = [
-    domain.basePathRedirect,
-    domain.fallbackUrl,
-    domain.invalidShortUrlRedirect,
+    domain.base_path_redirect,
+    domain.fallback_url,
+    domain.invalid_short_url_redirect,
   ].filter(Boolean).length
 
   return (
@@ -124,7 +124,7 @@ function DomainRow({ domain, isAdmin }: { domain: Domain; isAdmin: boolean }) {
         {redirectCount
           ? `${redirectCount} redirect${redirectCount === 1 ? "" : "s"} configured`
           : "No redirects configured"}{" "}
-        · {domain.linkCount} link{domain.linkCount === 1 ? "" : "s"}
+        · {domain.link_count} link{domain.link_count === 1 ? "" : "s"}
       </span>
     </RowCard>
   )
@@ -134,10 +134,10 @@ function DomainRow({ domain, isAdmin }: { domain: Domain; isAdmin: boolean }) {
 function EditRedirectsDialog({ domain }: { domain: Domain }) {
   const [updateDomain] = useUpdateDomainMutation()
   const [open, setOpen] = useState(false)
-  const [basePathRedirect, setBasePathRedirect] = useState(domain.basePathRedirect ?? "")
-  const [fallbackUrl, setFallbackUrl] = useState(domain.fallbackUrl ?? "")
-  const [invalidShortUrlRedirect, setInvalidShortUrlRedirect] = useState(
-    domain.invalidShortUrlRedirect ?? "",
+  const [base_path_redirect, setBasePathRedirect] = useState(domain.base_path_redirect ?? "")
+  const [fallback_url, setFallbackUrl] = useState(domain.fallback_url ?? "")
+  const [invalid_short_url_redirect, setInvalidShortUrlRedirect] = useState(
+    domain.invalid_short_url_redirect ?? "",
   )
   const { run, saving } = useRun()
 
@@ -147,9 +147,9 @@ function EditRedirectsDialog({ domain }: { domain: Domain }) {
         updateDomain({
           id: domain.id,
           body: {
-            basePathRedirect: basePathRedirect.trim() || null,
-            fallbackUrl: fallbackUrl.trim() || null,
-            invalidShortUrlRedirect: invalidShortUrlRedirect.trim() || null,
+            base_path_redirect: base_path_redirect.trim() || null,
+            fallback_url: fallback_url.trim() || null,
+            invalid_short_url_redirect: invalid_short_url_redirect.trim() || null,
           },
         }).unwrap(),
       {
@@ -165,9 +165,9 @@ function EditRedirectsDialog({ domain }: { domain: Domain }) {
       onOpenChange={(next) => {
         setOpen(next)
         if (next) {
-          setBasePathRedirect(domain.basePathRedirect ?? "")
-          setFallbackUrl(domain.fallbackUrl ?? "")
-          setInvalidShortUrlRedirect(domain.invalidShortUrlRedirect ?? "")
+          setBasePathRedirect(domain.base_path_redirect ?? "")
+          setFallbackUrl(domain.fallback_url ?? "")
+          setInvalidShortUrlRedirect(domain.invalid_short_url_redirect ?? "")
         }
       }}
     >
@@ -195,7 +195,7 @@ function EditRedirectsDialog({ domain }: { domain: Domain }) {
             hint={`Where visitors land if they open ${domain.host} directly, with no short code.`}
           >
             <Input
-              value={basePathRedirect}
+              value={base_path_redirect}
               onChange={(event) => setBasePathRedirect(event.target.value)}
               placeholder="No redirect"
             />
@@ -205,7 +205,7 @@ function EditRedirectsDialog({ domain }: { domain: Domain }) {
             hint="Where visitors land if the short code doesn't match any link."
           >
             <Input
-              value={fallbackUrl}
+              value={fallback_url}
               onChange={(event) => setFallbackUrl(event.target.value)}
               placeholder="No redirect"
             />
@@ -215,7 +215,7 @@ function EditRedirectsDialog({ domain }: { domain: Domain }) {
             hint="Where visitors land if the short code is malformed rather than simply missing."
           >
             <Input
-              value={invalidShortUrlRedirect}
+              value={invalid_short_url_redirect}
               onChange={(event) => setInvalidShortUrlRedirect(event.target.value)}
               placeholder="No redirect"
             />
@@ -242,7 +242,7 @@ function AddDomainDialog() {
   const { run, saving } = useRun()
 
   const create = () =>
-    run(() => createDomain({ host: host.trim(), fallbackUrl: null }).unwrap(), {
+    run(() => createDomain({ host: host.trim(), fallback_url: null }).unwrap(), {
       fallback: "Could not add that domain.",
       onSuccess: () => {
         setOpen(false)

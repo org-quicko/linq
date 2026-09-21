@@ -37,13 +37,13 @@ export function QrPreview({ config, size }: { config: QrStyleConfig; size: numbe
     return () => {
       cancelled = true
     }
-  }, [config.shortUrl, config.dotColor, config.bgColor, config.pattern, size])
+  }, [config.short_url, config.dot_color, config.bg_color, config.pattern, size])
 
   return (
     <div
       ref={host}
       role="img"
-      aria-label={`QR code for ${config.shortUrl}`}
+      aria-label={`QR code for ${config.short_url}`}
       className="flex items-center justify-center"
     />
   )

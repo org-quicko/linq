@@ -4,20 +4,20 @@ import { cn } from "cn"
 import NextLink from "next/link"
 import { CopyButton } from "@/components/common"
 
-type ShortLinkLike = { domainHost: string; slug: string; shortUrl: string }
+type ShortLinkLike = { domain_host: string; slug: string; short_url: string }
 
 /** The plain "host/slug" text, for contexts that need a string, not markup —
  *  a dialog title (`Purge ${shortLinkText(link)}?`) chief among them. */
-export function shortLinkText(link: Pick<ShortLinkLike, "domainHost" | "slug">): string {
-  return `${link.domainHost}/${link.slug}`
+export function shortLinkText(link: Pick<ShortLinkLike, "domain_host" | "slug">): string {
+  return `${link.domain_host}/${link.slug}`
 }
 
 /**
  * Renders "host/slug" paired with a copy button — and the copy button always
- * copies `link.shortUrl`, the server-built value, never a re-derived string.
+ * copies `link.short_url`, the server-built value, never a re-derived string.
  * Before this existed, three rows built their own scheme-less
- * `{domainHost}/{slug}` display text right next to a `CopyButton` that
- * copied a *different* value (`shortUrl`, which includes the scheme): the
+ * `{domain_host}/{slug}` display text right next to a `CopyButton` that
+ * copied a *different* value (`short_url`, which includes the scheme): the
  * text you read and the text you copied were not the same string.
  */
 export function ShortLink({
@@ -49,7 +49,7 @@ export function ShortLink({
       ) : (
         <span className={cn("truncate", className)}>{text}</span>
       )}
-      {copy ? <CopyButton value={link.shortUrl} /> : null}
+      {copy ? <CopyButton value={link.short_url} /> : null}
     </span>
   )
 }

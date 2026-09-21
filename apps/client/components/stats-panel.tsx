@@ -79,16 +79,16 @@ export function StatsPanel({
   initialGroupBy?: GroupBy
   extraParams?: Record<string, string | undefined>
 }) {
-  const [groupBy, setGroupBy] = useState<GroupBy>(initialGroupBy)
+  const [group_by, setGroupBy] = useState<GroupBy>(initialGroupBy)
   const { range, setRange, from } = useRange()
-  const horizontal = groupBy !== "day"
+  const horizontal = group_by !== "day"
 
   const {
     data: stats,
     isLoading,
     isFetching,
     error,
-  } = useGetStatsQuery({ path, params: { ...extraParams, groupBy, from } })
+  } = useGetStatsQuery({ path, params: { ...extraParams, group_by, from } })
 
   const all = stats ?? []
 
@@ -118,7 +118,7 @@ export function StatsPanel({
           <RangePicker value={range} onChange={setRange} />
           <Picker
             className="w-48"
-            value={groupBy}
+            value={group_by}
             onChange={(value) => setGroupBy(value as GroupBy)}
             options={groups.map((group) => ({ value: group, label: GROUP_LABELS[group] }))}
           />

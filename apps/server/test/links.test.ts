@@ -19,7 +19,7 @@ describe("POST /api/v1/links", () => {
   test("a viewer may not create one", async () => {
     const viewer = await h.actor("viewer")
     const res = await h.post("/api/v1/links", viewer.key, {
-      domainId: domain,
+      domain_id: domain,
       destination: "https://example.com/",
     })
     expect(res.status).toBe(403)
@@ -29,14 +29,14 @@ describe("POST /api/v1/links", () => {
     const link = await h.createLink(author.key, domain, { destination: "https://example.com/a" })
     expect(link.slug).toHaveLength(6)
     expect(link.slug).toMatch(/^[A-Za-z0-9]{6}$/)
-    expect(link.ownerId).toBe(author.keyId)
-    expect(link.shortUrl).toBe(`https://links.test/${link.slug}`)
+    expect(link.owner_id).toBe(author.keyId)
+    expect(link.short_url).toBe(`https://links.test/${link.slug}`)
     expect(link).toMatchObject({
       status: "active",
-      forwardQuery: true,
-      presetParams: {},
-      humanVisits: 0,
-      botVisits: 0,
+      forward_query: true,
+      preset_params: {},
+      human_visits: 0,
+      bot_visits: 0,
     })
   })
 
@@ -47,7 +47,7 @@ describe("POST /api/v1/links", () => {
 
   test("refuses a slug already taken on the domain, archived ones included", async () => {
     const taken = await h.post("/api/v1/links", author.key, {
-      domainId: domain,
+      domain_id: domain,
       destination: "https://example.com/",
       slug: "launch",
     })
@@ -57,7 +57,7 @@ describe("POST /api/v1/links", () => {
     const doomed = await h.createLink(author.key, domain, { slug: "doomed" })
     await h.request(`/api/v1/links/${doomed.id}`, { key: author.key, method: "DELETE" })
     const reuse = await h.post("/api/v1/links", author.key, {
-      domainId: domain,
+      domain_id: domain,
       destination: "https://example.com/",
       slug: "doomed",
     })
@@ -73,7 +73,7 @@ describe("POST /api/v1/links", () => {
   test("rejects reserved slugs", async () => {
     for (const slug of ["api", "home", "health", "robots.txt", "favicon.ico", "HOME"]) {
       const res = await h.post("/api/v1/links", author.key, {
-        domainId: domain,
+        domain_id: domain,
         destination: "https://example.com/",
         slug,
       })
@@ -83,14 +83,14 @@ describe("POST /api/v1/links", () => {
 
   test("rejects a malformed slug and a non-http destination", async () => {
     const badSlug = await h.post("/api/v1/links", author.key, {
-      domainId: domain,
+      domain_id: domain,
       destination: "https://example.com/",
       slug: "has spaces/and-slash",
     })
     expect(badSlug.status).toBe(400)
 
     const badDestination = await h.post("/api/v1/links", author.key, {
-      domainId: domain,
+      domain_id: domain,
       destination: "javascript:alert(1)",
     })
     expect(badDestination.status).toBe(400)
@@ -98,7 +98,7 @@ describe("POST /api/v1/links", () => {
 
   test("an unknown domain is a 404", async () => {
     const res = await h.post("/api/v1/links", author.key, {
-      domainId: "00000000-0000-7000-8000-000000000000",
+      domain_id: "00000000-0000-7000-8000-000000000000",
       destination: "https://example.com/",
     })
     expect(res.status).toBe(404)
@@ -111,7 +111,7 @@ describe("POST /api/v1/links", () => {
 })
 
 describe("PATCH /api/v1/links/:id", () => {
-  test("slug and domainId are immutable and rejected outright", async () => {
+  test("slug and domain_id are immutable and rejected outright", async () => {
     const link = await h.createLink(author.key, domain)
     const other = await h.createDomain("immutable.test")
 
@@ -119,14 +119,14 @@ describe("PATCH /api/v1/links/:id", () => {
       400,
     )
     expect(
-      (await h.patch(`/api/v1/links/${link.id}`, author.key, { domainId: other })).status,
+      (await h.patch(`/api/v1/links/${link.id}`, author.key, { domain_id: other })).status,
     ).toBe(400)
 
     const unchanged = await (
       await h.request(`/api/v1/links/${link.id}`, { key: author.key })
     ).json()
     expect(unchanged.slug).toBe(link.slug)
-    expect(unchanged.domainId).toBe(domain)
+    expect(unchanged.domain_id).toBe(domain)
   })
 
   test("an author edits its own link but not another one", async () => {
@@ -165,40 +165,40 @@ describe("preset params", () => {
     const link = await h.createLink(author.key, domain)
 
     const set = await h.patch(`/api/v1/links/${link.id}`, author.key, {
-      presetParams: { utm_source: "qr" },
+      preset_params: { utm_source: "qr" },
     })
     expect(set.status).toBe(200)
-    expect(await set.json()).toMatchObject({ presetParams: { utm_source: "qr" } })
+    expect(await set.json()).toMatchObject({ preset_params: { utm_source: "qr" } })
 
-    const cleared = await h.patch(`/api/v1/links/${link.id}`, author.key, { presetParams: {} })
+    const cleared = await h.patch(`/api/v1/links/${link.id}`, author.key, { preset_params: {} })
     expect(cleared.status).toBe(200)
-    expect(await cleared.json()).toMatchObject({ presetParams: {} })
+    expect(await cleared.json()).toMatchObject({ preset_params: {} })
   })
 
   test("rejects an empty key", async () => {
     const res = await h.post("/api/v1/links", author.key, {
-      domainId: domain,
+      domain_id: domain,
       destination: "https://example.com/",
-      presetParams: { "": "value" },
+      preset_params: { "": "value" },
     })
     expect(res.status).toBe(400)
   })
 
   test("rejects an over-long value", async () => {
     const res = await h.post("/api/v1/links", author.key, {
-      domainId: domain,
+      domain_id: domain,
       destination: "https://example.com/",
-      presetParams: { a: "x".repeat(513) },
+      preset_params: { a: "x".repeat(513) },
     })
     expect(res.status).toBe(400)
   })
 
   test("rejects more than 20 keys", async () => {
-    const presetParams = Object.fromEntries(Array.from({ length: 21 }, (_, i) => [`k${i}`, "v"]))
+    const preset_params = Object.fromEntries(Array.from({ length: 21 }, (_, i) => [`k${i}`, "v"]))
     const res = await h.post("/api/v1/links", author.key, {
-      domainId: domain,
+      domain_id: domain,
       destination: "https://example.com/",
-      presetParams,
+      preset_params,
     })
     expect(res.status).toBe(400)
   })
@@ -207,7 +207,7 @@ describe("preset params", () => {
 describe("an unowned link", () => {
   /**
    * Revoking a key nulls `owner_id` rather than being refused, so every link
-   * read has to survive a missing owner. `linkQuery` joins for `ownerName`, and
+   * read has to survive a missing owner. `linkQuery` joins for `owner_name`, and
    * an inner join would make these links vanish from the list entirely.
    */
   test("survives its owner being revoked, and stays listed", async () => {
@@ -221,7 +221,7 @@ describe("an unowned link", () => {
     expect(revoked.status).toBe(204)
 
     const fetched = await (await h.request(`/api/v1/links/${link.id}`, { key: admin.key })).json()
-    expect(fetched).toMatchObject({ ownerId: null, ownerName: null, slug: "outlives-its-owner" })
+    expect(fetched).toMatchObject({ owner_id: null, owner_name: null, slug: "outlives-its-owner" })
 
     const list = await (await h.request("/api/v1/links", { key: admin.key })).json()
     expect(list.data.map((l: { id: string }) => l.id)).toContain(link.id)
@@ -249,30 +249,30 @@ describe("ownership transfer", () => {
     const recipient = await h.createKey({ role: "author", name: "Recipient" })
 
     const res = await h.patch(`/api/v1/links/${link.id}`, author.key, {
-      ownerId: recipient.keyId,
+      owner_id: recipient.keyId,
     })
     expect(res.status).toBe(200)
-    expect(await res.json()).toMatchObject({ ownerId: recipient.keyId, ownerName: "Recipient" })
+    expect(await res.json()).toMatchObject({ owner_id: recipient.keyId, owner_name: "Recipient" })
   })
 
   test("an manager may edit a link it does not own but not reassign it", async () => {
     const manager = await h.actor("manager")
     const link = await h.createLink(author.key, domain)
 
-    const res = await h.patch(`/api/v1/links/${link.id}`, manager.key, { ownerId: manager.keyId })
+    const res = await h.patch(`/api/v1/links/${link.id}`, manager.key, { owner_id: manager.keyId })
     expect(res.status).toBe(403)
   })
 
   test("an admin reassigns anything", async () => {
     const link = await h.createLink(author.key, domain)
-    const res = await h.patch(`/api/v1/links/${link.id}`, admin.key, { ownerId: admin.keyId })
+    const res = await h.patch(`/api/v1/links/${link.id}`, admin.key, { owner_id: admin.keyId })
     expect(res.status).toBe(200)
   })
 
   test("transferring to an unknown user is a 404", async () => {
     const link = await h.createLink(author.key, domain)
     const res = await h.patch(`/api/v1/links/${link.id}`, admin.key, {
-      ownerId: "00000000-0000-7000-8000-000000000000",
+      owner_id: "00000000-0000-7000-8000-000000000000",
     })
     expect(res.status).toBe(404)
   })
@@ -281,41 +281,41 @@ describe("ownership transfer", () => {
     const link = await h.createLink(author.key, domain)
     const viewer = await h.createKey({ role: "viewer", name: "Viewer" })
 
-    const res = await h.patch(`/api/v1/links/${link.id}`, author.key, { ownerId: viewer.keyId })
+    const res = await h.patch(`/api/v1/links/${link.id}`, author.key, { owner_id: viewer.keyId })
     expect(res.status).toBe(409)
     expect((await res.json()).error.code).toBe("conflict")
 
     const unchanged = await (
       await h.request(`/api/v1/links/${link.id}`, { key: author.key })
     ).json()
-    expect(unchanged.ownerId).toBe(author.keyId)
+    expect(unchanged.owner_id).toBe(author.keyId)
   })
 
   test("transferring to an author key works", async () => {
     const link = await h.createLink(author.key, domain)
     const recipient = await h.createKey({ role: "author", name: "Recipient" })
 
-    const res = await h.patch(`/api/v1/links/${link.id}`, author.key, { ownerId: recipient.keyId })
+    const res = await h.patch(`/api/v1/links/${link.id}`, author.key, { owner_id: recipient.keyId })
     expect(res.status).toBe(200)
-    expect(await res.json()).toMatchObject({ ownerId: recipient.keyId, ownerName: "Recipient" })
+    expect(await res.json()).toMatchObject({ owner_id: recipient.keyId, owner_name: "Recipient" })
   })
 
   test("an admin transferring someone else's link to a viewer also gets 409, not 403", async () => {
     const link = await h.createLink(author.key, domain)
     const viewer = await h.createKey({ role: "viewer", name: "Viewer" })
 
-    const res = await h.patch(`/api/v1/links/${link.id}`, admin.key, { ownerId: viewer.keyId })
+    const res = await h.patch(`/api/v1/links/${link.id}`, admin.key, { owner_id: viewer.keyId })
     expect(res.status).toBe(409)
   })
 })
 
 describe("bulk reassign (POST /api/v1/keys/:id/links/reassign)", () => {
-  test("bumps updatedAt on every link it moves", async () => {
+  test("bumps updated_at on every link it moves", async () => {
     // Guards the deliberate bump in plans/Plan_26.md §B2 against a future
     // "optimisation" that drops it, which would make the Updated sort lie.
     const owner = await h.createKey({ role: "author", name: "BulkOwner" })
     const link = await h.createLink(owner.key, domain)
-    const before = link.updatedAt
+    const before = link.updated_at
 
     await Bun.sleep(5)
     const recipient = await h.createKey({ role: "author", name: "BulkRecipient" })
@@ -326,45 +326,45 @@ describe("bulk reassign (POST /api/v1/keys/:id/links/reassign)", () => {
     expect(await res.json()).toEqual({ moved: 1 })
 
     const after = await (await h.request(`/api/v1/links/${link.id}`, { key: admin.key })).json()
-    expect(new Date(after.updatedAt).getTime()).toBeGreaterThan(new Date(before).getTime())
+    expect(new Date(after.updated_at).getTime()).toBeGreaterThan(new Date(before).getTime())
   })
 })
 
 describe("link expiry", () => {
-  test("POST echoes expiresAt as ISO, and PATCH round-trips it", async () => {
+  test("POST echoes expires_at as ISO, and PATCH round-trips it", async () => {
     const iso = new Date(Date.now() + 3600_000).toISOString()
-    const link = await h.createLink(author.key, domain, { expiresAt: iso })
-    expect(link.expiresAt).toBe(iso)
+    const link = await h.createLink(author.key, domain, { expires_at: iso })
+    expect(link.expires_at).toBe(iso)
 
     const later = new Date(Date.now() + 7200_000).toISOString()
-    const updated = await h.patch(`/api/v1/links/${link.id}`, author.key, { expiresAt: later })
-    expect((await updated.json()).expiresAt).toBe(later)
+    const updated = await h.patch(`/api/v1/links/${link.id}`, author.key, { expires_at: later })
+    expect((await updated.json()).expires_at).toBe(later)
 
-    const cleared = await h.patch(`/api/v1/links/${link.id}`, author.key, { expiresAt: null })
-    expect((await cleared.json()).expiresAt).toBeNull()
+    const cleared = await h.patch(`/api/v1/links/${link.id}`, author.key, { expires_at: null })
+    expect((await cleared.json()).expires_at).toBeNull()
   })
 
   test("defaults to never expiring", async () => {
     const link = await h.createLink(author.key, domain)
-    expect(link.expiresAt).toBeNull()
+    expect(link.expires_at).toBeNull()
   })
 
   test("?expiry partitions the list; the default list includes an expired link", async () => {
     const scoped = await h.createDomain("expiry-filter.test")
     const live = await h.createLink(author.key, scoped, {
       slug: "still-live",
-      expiresAt: new Date(Date.now() + 3600_000).toISOString(),
+      expires_at: new Date(Date.now() + 3600_000).toISOString(),
     })
     const dead = await h.createLink(author.key, scoped, {
       slug: "long-dead",
-      expiresAt: new Date(Date.now() - 1000).toISOString(),
+      expires_at: new Date(Date.now() - 1000).toISOString(),
     })
     const forever = await h.createLink(author.key, scoped, { slug: "forever" })
 
     const list = async (query = "") =>
       (
         await (
-          await h.request(`/api/v1/links?domainId=${scoped}${query}`, { key: author.key })
+          await h.request(`/api/v1/links?domain_id=${scoped}${query}`, { key: author.key })
         ).json()
       ).data.map((l: { id: string }) => l.id) as string[]
 
@@ -400,7 +400,7 @@ describe("GET /api/v1/links", () => {
     const list = async (query: string) =>
       (
         await (
-          await h.request(`/api/v1/links?domainId=${scoped}${query}`, { key: author.key })
+          await h.request(`/api/v1/links?domain_id=${scoped}${query}`, { key: author.key })
         ).json()
       ).data as { id: string }[]
 
@@ -422,12 +422,12 @@ describe("GET /api/v1/links", () => {
     const list = async (query: string) =>
       (
         await (
-          await h.request(`/api/v1/links?domainId=${scoped}&${query}`, { key: author.key })
+          await h.request(`/api/v1/links?domain_id=${scoped}&${query}`, { key: author.key })
         ).json()
       ).data as { id: string }[]
 
     expect((await list("tags=report")).map((l) => l.id)).toEqual([tagged.id])
-    expect((await list(`ownerId=${other.keyId}`)).map((l) => l.id)).toHaveLength(1)
+    expect((await list(`owner_id=${other.keyId}`)).map((l) => l.id)).toHaveLength(1)
     expect((await list("search=quarter")).map((l) => l.id)).toEqual([tagged.id])
     expect((await list("search=QUARTERLY+REPORT")).map((l) => l.id)).toEqual([tagged.id])
     expect(await list("tags=nothing")).toHaveLength(0)
@@ -437,7 +437,7 @@ describe("GET /api/v1/links", () => {
     const scoped = await h.createDomain("paged.test")
     for (let i = 0; i < 3; i++) await h.createLink(author.key, scoped, { slug: `p${i}` })
 
-    const res = await h.request(`/api/v1/links?domainId=${scoped}&limit=2`, { key: author.key })
+    const res = await h.request(`/api/v1/links?domain_id=${scoped}&limit=2`, { key: author.key })
     const body = await res.json()
     expect(body.data).toHaveLength(2)
     expect(body).toMatchObject({ total: 3, limit: 2, offset: 0 })
@@ -455,19 +455,19 @@ describe("GET /api/v1/links", () => {
     await h.recordVisits(hot.id, scoped, { human: 2, bot: 1 })
     await h.recordVisits(cold.id, scoped, { human: 1, bot: 0 })
 
-    const res = await h.request(`/api/v1/links?domainId=${scoped}&sort=visits`, { key: author.key })
+    const res = await h.request(`/api/v1/links?domain_id=${scoped}&sort=visits`, { key: author.key })
     const body = await res.json()
     expect(body.data.map((l: { id: string }) => l.id)).toEqual([hot.id, cold.id])
-    expect(body.data[0]).toMatchObject({ humanVisits: 2, botVisits: 1 })
+    expect(body.data[0]).toMatchObject({ human_visits: 2, bot_visits: 1 })
   })
 
-  test("sorts by updatedAt, leading with the link PATCHed last", async () => {
+  test("sorts by updated_at, leading with the link PATCHed last", async () => {
     const scoped = await h.createDomain("updated.test")
     const first = await h.createLink(author.key, scoped, { slug: "first" })
     const second = await h.createLink(author.key, scoped, { slug: "second" })
     await h.patch(`/api/v1/links/${first.id}`, author.key, { name: "touched last" })
 
-    const res = await h.request(`/api/v1/links?domainId=${scoped}&sort=updatedAt&order=desc`, {
+    const res = await h.request(`/api/v1/links?domain_id=${scoped}&sort=updated_at&order=desc`, {
       key: author.key,
     })
     const body = await res.json()
@@ -479,12 +479,12 @@ describe("GET /api/v1/links", () => {
     for (let i = 0; i < 3; i++) await h.createLink(author.key, scoped, { slug: `o${i}` })
 
     const desc = await (
-      await h.request(`/api/v1/links?domainId=${scoped}&sort=createdAt&order=desc`, {
+      await h.request(`/api/v1/links?domain_id=${scoped}&sort=created_at&order=desc`, {
         key: author.key,
       })
     ).json()
     const asc = await (
-      await h.request(`/api/v1/links?domainId=${scoped}&sort=createdAt&order=asc`, {
+      await h.request(`/api/v1/links?domain_id=${scoped}&sort=created_at&order=asc`, {
         key: author.key,
       })
     ).json()
@@ -506,7 +506,7 @@ describe("GET /api/v1/links", () => {
     )
     await h.db
       .update(links)
-      .set({ createdAt: now })
+      .set({ created_at: now })
       .where(
         inArray(
           links.id,
@@ -517,7 +517,7 @@ describe("GET /api/v1/links", () => {
     const pages = await Promise.all(
       [0, 1, 2].map((offset) =>
         h
-          .request(`/api/v1/links?domainId=${scoped}&limit=1&offset=${offset}`, {
+          .request(`/api/v1/links?domain_id=${scoped}&limit=1&offset=${offset}`, {
             key: author.key,
           })
           .then((r) => r.json()),

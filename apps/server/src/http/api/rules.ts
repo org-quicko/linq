@@ -16,7 +16,7 @@ const idParam = validate("param", z.object({ id: uuidSchema }))
 function toRule(row: typeof rules.$inferSelect): Rule {
   return {
     id: row.id,
-    linkId: row.linkId,
+    link_id: row.link_id,
     position: row.position,
     destination: row.destination,
     conditions: row.conditions,
@@ -39,18 +39,18 @@ export const ruleRoutes = new Hono<Env>()
   .put("/:id/rules", idParam, validate("json", rulesPutSchema), async (c) => {
     const { id } = c.req.valid("param")
     const link = await loadLink(c.var.db, id)
-    assertCanEdit(c.var.principal, link.ownerId)
+    assertCanEdit(c.var.principal, link.owner_id)
     const input = c.req.valid("json")
 
     // One transaction: a failed insert must never leave the link with its old
     // rules deleted and no new ones in their place.
     await c.var.db.transaction(async (tx) => {
-      await tx.delete(rules).where(eq(rules.linkId, id))
+      await tx.delete(rules).where(eq(rules.link_id, id))
       if (input.length === 0) return
       await tx.insert(rules).values(
         input.map((rule, position) => ({
           id: Bun.randomUUIDv7(),
-          linkId: id,
+          link_id: id,
           position,
           destination: rule.destination,
           conditions: rule.conditions,
@@ -60,6 +60,6 @@ export const ruleRoutes = new Hono<Env>()
 
     // The redirect caches a link's rules inside its target entry, so replacing
     // them has to clear it just as editing the link itself does.
-    await c.var.cache.del(targetKey(link.domainId, link.slug))
+    await c.var.cache.del(targetKey(link.domain_id, link.slug))
     return c.json((await listRules(c.var.db, id)).map(toRule))
   })

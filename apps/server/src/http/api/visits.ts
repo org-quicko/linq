@@ -9,15 +9,15 @@ import { validate } from "../validate.ts"
 function toVisit(row: typeof visits.$inferSelect): Visit {
   return {
     id: row.id,
-    linkId: row.linkId,
-    domainId: row.domainId,
-    slugRequested: row.slugRequested,
-    occurredAt: row.occurredAt.toISOString(),
-    isBot: row.isBot,
+    link_id: row.link_id,
+    domain_id: row.domain_id,
+    slug_requested: row.slug_requested,
+    occurred_at: row.occurred_at.toISOString(),
+    is_bot: row.is_bot,
     platform: row.platform,
     os: row.os,
     browser: row.browser,
-    userAgent: row.userAgent,
+    user_agent: row.user_agent,
     referer: row.referer,
     destination: row.destination,
     query: row.query,
@@ -33,20 +33,20 @@ function visitFilters(q: {
   from?: string
   to?: string
   bot?: "true" | "false" | "any"
-  linkId?: string
-  domainId?: string
+  link_id?: string
+  domain_id?: string
   orphan?: "true" | "false"
   platform?: Platform
   os?: string
   browser?: string
 }): SQL[] {
   const filters: SQL[] = []
-  if (q.from) filters.push(gte(visits.occurredAt, new Date(q.from)))
-  if (q.to) filters.push(lte(visits.occurredAt, new Date(q.to)))
-  if (q.bot && q.bot !== "any") filters.push(eq(visits.isBot, q.bot === "true"))
-  if (q.linkId) filters.push(eq(visits.linkId, q.linkId))
-  if (q.domainId) filters.push(eq(visits.domainId, q.domainId))
-  if (q.orphan === "true") filters.push(isNull(visits.linkId))
+  if (q.from) filters.push(gte(visits.occurred_at, new Date(q.from)))
+  if (q.to) filters.push(lte(visits.occurred_at, new Date(q.to)))
+  if (q.bot && q.bot !== "any") filters.push(eq(visits.is_bot, q.bot === "true"))
+  if (q.link_id) filters.push(eq(visits.link_id, q.link_id))
+  if (q.domain_id) filters.push(eq(visits.domain_id, q.domain_id))
+  if (q.orphan === "true") filters.push(isNull(visits.link_id))
   if (q.platform) filters.push(eq(visits.platform, q.platform))
   if (q.os) filters.push(eq(visits.os, q.os))
   if (q.browser) filters.push(eq(visits.browser, q.browser))
@@ -54,8 +54,8 @@ function visitFilters(q: {
 }
 
 /**
- * Mounted at /visits; the raw log, newest first, narrowed by `linkId`,
- * `domainId` or `orphan` — one route rather than one per scope, because the
+ * Mounted at /visits; the raw log, newest first, narrowed by `link_id`,
+ * `domain_id` or `orphan` — one route rather than one per scope, because the
  * only thing that changes between them is a predicate.
  *
  * Unlike the stats endpoints this reads the detail table: a visit row is the
@@ -74,7 +74,7 @@ export const visitRoutes = new Hono<Env>().get(
       .from(visits)
       .where(where)
       // `id` is a UUIDv7, so it breaks ties in the order the visits happened.
-      .orderBy(desc(visits.occurredAt), desc(visits.id))
+      .orderBy(desc(visits.occurred_at), desc(visits.id))
       .limit(q.limit)
       .offset(q.offset)
     const [{ total }] = await c.var.db.select({ total: count() }).from(visits).where(where)

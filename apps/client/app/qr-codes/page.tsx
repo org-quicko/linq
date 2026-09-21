@@ -111,8 +111,8 @@ function QrCodeRow({
   const { run } = useRun()
   const [confirmDelete, setConfirmDelete] = useState(false)
   // The client-side courtesy check (plans/Plan_31.md §A1): an adapter object,
-  // never a bare `qrCode.ownerId` — a QR code has no owner of its own.
-  const editable = can.editLink(actor, { ownerId: qrCode.linkOwnerId })
+  // never a bare `qrCode.owner_id` — a QR code has no owner of its own.
+  const editable = can.editLink(actor, { owner_id: qrCode.link_owner_id })
 
   return (
     <>
@@ -121,8 +121,8 @@ function QrCodeRow({
           // A colour swatch, not a live render: a 40px QR is unreadable, and
           // rendering one per row costs a library instance and an SVG render
           // per row to convey nothing. The swatch still shows the styling.
-          <RowCardTile style={{ backgroundColor: qrCode.bgColor }}>
-            <QrCodeIcon className="size-4" style={{ color: qrCode.dotColor }} />
+          <RowCardTile style={{ backgroundColor: qrCode.bg_color }}>
+            <QrCodeIcon className="size-4" style={{ color: qrCode.dot_color }} />
           </RowCardTile>
         }
         actions={
@@ -149,7 +149,7 @@ function QrCodeRow({
           {qrCode.name ? (
             <span className="truncate text-sm font-semibold">{qrCode.name}</span>
           ) : null}
-          {/* No adapter object needed here: `slug`/`domainHost`/`shortUrl` are
+          {/* No adapter object needed here: `slug`/`domain_host`/`short_url` are
            *  unprefixed on `QrCode` so it satisfies `ShortLinkLike` directly. */}
           <ShortLink link={qrCode} />
         </div>

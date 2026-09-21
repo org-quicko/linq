@@ -74,20 +74,20 @@ export function LinkFormDialog({
   const activeDomains = (domains.data?.data ?? []).filter((domain) => domain.status === "active")
   const canTransfer = mode === "edit" && !!link && can.transferLink(actor, link)
 
-  const [domainId, setDomainId] = useState(link?.domainId ?? "")
+  const [domain_id, setDomainId] = useState(link?.domain_id ?? "")
   const [slug, setSlug] = useState(mode === "edit" ? (link?.slug ?? "") : "")
   const [destination, setDestination] = useState(link?.destination ?? "")
   const [name, setName] = useState(link?.name ?? "")
   const [tags, setTags] = useState<string[]>(link?.tags ?? [])
-  const [ownerId, setOwnerId] = useState(link?.ownerId ?? "")
-  const [forwardQuery, setForwardQuery] = useState(link?.forwardQuery ?? true)
+  const [owner_id, setOwnerId] = useState(link?.owner_id ?? "")
+  const [forward_query, setForwardQuery] = useState(link?.forward_query ?? true)
   const [listed, setListed] = useState(link?.listed ?? false)
-  const [presetParams, setPresetParams] = useState<PresetParamRow[]>(() =>
-    link ? presetParamsToRows(link.presetParams) : [],
+  const [preset_params, setPresetParams] = useState<PresetParamRow[]>(() =>
+    link ? presetParamsToRows(link.preset_params) : [],
   )
-  const [paramsOpen, setParamsOpen] = useState(!!link && Object.keys(link.presetParams).length > 0)
-  const [expiresAt, setExpiresAt] = useState(() => toDatetimeLocal(link?.expiresAt ?? null))
-  const [expiryOpen, setExpiryOpen] = useState(!!link?.expiresAt)
+  const [paramsOpen, setParamsOpen] = useState(!!link && Object.keys(link.preset_params).length > 0)
+  const [expires_at, setExpiresAt] = useState(() => toDatetimeLocal(link?.expires_at ?? null))
+  const [expiryOpen, setExpiryOpen] = useState(!!link?.expires_at)
 
   const { data: existingRules } = useGetLinkRulesQuery(link?.id ?? skipToken)
   const [rulesDrafts, setRulesDrafts] = useState<RuleDraft[]>([])
@@ -103,7 +103,7 @@ export function LinkFormDialog({
     }
   }, [existingRules, rulesDirty])
 
-  const chosenDomain = mode === "create" ? domainId || activeDomains[0]?.id || "" : link?.domainId
+  const chosenDomain = mode === "create" ? domain_id || activeDomains[0]?.id || "" : link?.domain_id
 
   function submit() {
     const validRules = rulesOpen
@@ -115,9 +115,9 @@ export function LinkFormDialog({
     const shared = {
       destination: destination.trim(),
       tags,
-      forwardQuery,
-      presetParams: rowsToPresetParams(presetParams),
-      expiresAt: expiryOpen ? fromDatetimeLocal(expiresAt) : null,
+      forward_query,
+      preset_params: rowsToPresetParams(preset_params),
+      expires_at: expiryOpen ? fromDatetimeLocal(expires_at) : null,
       listed,
     }
 
@@ -126,7 +126,7 @@ export function LinkFormDialog({
         () =>
           createLink({
             ...shared,
-            domainId: chosenDomain as string,
+            domain_id: chosenDomain as string,
             slug: slug.trim() || undefined,
             name: name.trim() || undefined,
             rules: validRules,
@@ -148,7 +148,7 @@ export function LinkFormDialog({
           body: {
             ...shared,
             name: name.trim() || null,
-            ...(ownerId !== current.ownerId ? { ownerId } : {}),
+            ...(owner_id !== current.owner_id ? { owner_id } : {}),
             ...(rulesDirty ? { rules: validRules } : {}),
           },
         }).unwrap(),
@@ -182,8 +182,8 @@ export function LinkFormDialog({
           >
             <ShortLinkField
               mode={mode}
-              domainHost={link?.domainHost}
-              domainId={chosenDomain ?? ""}
+              domain_host={link?.domain_host}
+              domain_id={chosenDomain ?? ""}
               domains={activeDomains}
               onDomainChange={setDomainId}
               slug={slug}
@@ -209,13 +209,13 @@ export function LinkFormDialog({
               }
             >
               <Picker
-                value={ownerId}
+                value={owner_id}
                 disabled={!canTransfer}
                 onChange={setOwnerId}
                 options={(keys.data?.data ?? [])
                   // The server refuses a viewer as an owner; the current owner
                   // still renders even if a demotion since made it one.
-                  .filter((key) => can.ownLink(key) || key.id === link?.ownerId)
+                  .filter((key) => can.ownLink(key) || key.id === link?.owner_id)
                   .map((key) => ({ value: key.id, label: key.name }))}
               />
             </Field>
@@ -228,7 +228,7 @@ export function LinkFormDialog({
 
           <Label className="font-normal">
             <Checkbox
-              checked={forwardQuery}
+              checked={forward_query}
               onCheckedChange={(checked) => setForwardQuery(checked === true)}
             />
             Forward query parameters on redirect
@@ -241,10 +241,10 @@ export function LinkFormDialog({
             onOpenChange={setParamsOpen}
           >
             <PresetParamsEditor
-              rows={presetParams}
+              rows={preset_params}
               onChange={setPresetParams}
               readOnly={false}
-              forwardQuery={forwardQuery}
+              forward_query={forward_query}
             />
           </ToggleSection>
 
@@ -256,7 +256,7 @@ export function LinkFormDialog({
           >
             <Input
               type="datetime-local"
-              value={expiresAt}
+              value={expires_at}
               onChange={(event) => setExpiresAt(event.target.value)}
             />
           </ToggleSection>
@@ -334,22 +334,22 @@ function ToggleSection({
  */
 function ShortLinkField({
   mode,
-  domainHost,
-  domainId,
+  domain_host,
+  domain_id,
   domains,
   onDomainChange,
   slug,
   onSlugChange,
 }: {
   mode: "create" | "edit"
-  domainHost?: string
-  domainId: string
+  domain_host?: string
+  domain_id: string
   domains: Domain[]
   onDomainChange: (id: string) => void
   slug: string
   onSlugChange: (slug: string) => void
 }) {
-  const currentHost = mode === "create" ? domains.find((d) => d.id === domainId)?.host : domainHost
+  const currentHost = mode === "create" ? domains.find((d) => d.id === domain_id)?.host : domain_host
 
   return (
     <div className="flex h-9 items-stretch overflow-hidden rounded-lg border border-input bg-transparent focus-within:border-ring focus-within:ring-3 focus-within:ring-ring/50">

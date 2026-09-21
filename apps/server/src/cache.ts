@@ -39,19 +39,19 @@ export const noCache: Cache = {
 export const domainKey = (host: string): string => `linq:domain:${host.trim().toLowerCase()}`
 
 /** The whole redirect answer for one slug on one domain: link, rules and all. */
-export const targetKey = (domainId: string, slug: string): string =>
-  `linq:target:${domainId}:${slug}`
+export const targetKey = (domain_id: string, slug: string): string =>
+  `linq:target:${domain_id}:${slug}`
 
 /** The whole rendered /llms.txt for one domain. A string round-trips through
  *  both backends unchanged, so unlike a row array it needs no date handling. */
-export const llmsKey = (domainId: string): string => `linq:llms:${domainId}`
+export const llmsKey = (domain_id: string): string => `linq:llms:${domain_id}`
 
 /** Everything a link mutation makes stale: its redirect entry and its
  *  domain's published catalogue. One call, so a new mutation cannot forget
  *  half of it. */
-export const linkKeys = (domainId: string, slug: string): string[] => [
-  targetKey(domainId, slug),
-  llmsKey(domainId),
+export const linkKeys = (domain_id: string, slug: string): string[] => [
+  targetKey(domain_id, slug),
+  llmsKey(domain_id),
 ]
 
 /**

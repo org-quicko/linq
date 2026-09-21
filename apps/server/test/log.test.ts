@@ -106,9 +106,9 @@ describe("plumbing", () => {
     // query, so a matching reqId proves async storage crosses the driver.
     const out = await capture()
     const h = await createHarness()
-    const domainId = await h.createDomain("localhost")
+    const domain_id = await h.createDomain("localhost")
     const { key } = await h.actor("author")
-    const link = await h.createLink(key, domainId, { slug: "traced" })
+    const link = await h.createLink(key, domain_id, { slug: "traced" })
 
     out.lines.length = 0
     await h.request(`/${link.slug}`)
@@ -257,7 +257,7 @@ describe("privacy", () => {
   test("a client address is never written, not even at debug (adr 0003)", async () => {
     const out = await capture()
     const h = await createHarness()
-    const domainId = await h.createDomain("localhost", "https://example.com/fallback")
+    const domain_id = await h.createDomain("localhost", "https://example.com/fallback")
 
     await h.request("/nothing-here?utm_source=news", {
       headers: { "x-forwarded-for": "203.0.113.42, 198.51.100.7" },
@@ -267,7 +267,7 @@ describe("privacy", () => {
     expect(text).not.toContain("203.0.113.42")
     expect(text).not.toContain("198.51.100.7")
     expect(text).not.toContain("x-forwarded-for")
-    expect(domainId).toBeTruthy()
+    expect(domain_id).toBeTruthy()
   })
 
   test("query keys are logged but their values are not", async () => {

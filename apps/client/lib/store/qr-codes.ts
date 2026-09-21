@@ -3,7 +3,7 @@ import { qs } from "../api"
 import { apiSlice } from "./api"
 
 type QrCodeFilters = {
-  linkId?: string
+  link_id?: string
   search?: string
   limit?: number
   offset?: number

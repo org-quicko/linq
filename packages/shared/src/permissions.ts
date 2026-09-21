@@ -4,7 +4,7 @@ import { type Role, roleAtLeast } from "./roles.ts"
 export type Actor = { keyId: string; role: Role }
 
 /** Any resource that has an owner. Null means unowned — see docs/adr/0011. */
-export type Owned = { ownerId: string | null }
+export type Owned = { owner_id: string | null }
 
 /**
  * Every permission rule in linq, in one place.
@@ -40,11 +40,11 @@ export const can = {
    * so a null owner fails closed here rather than by a special case.
    *
    * Also the rule for a QR code (plans/Plan_31.md): a QR code has no owner of
-   * its own, so editing or deleting one is decided by its link's `ownerId`.
+   * its own, so editing or deleting one is decided by its link's `owner_id`.
    */
   editLink: (actor: Actor, link: Owned): boolean =>
     roleAtLeast(actor.role, "manager") ||
-    (actor.keyId === link.ownerId && roleAtLeast(actor.role, "author")),
+    (actor.keyId === link.owner_id && roleAtLeast(actor.role, "author")),
 
   /**
    * Handing a link to another key. A manager may change any link but hands over
@@ -54,7 +54,7 @@ export const can = {
    * Strictly narrower than `editLink`, which the server checks first.
    */
   transferLink: (actor: Actor, link: Owned): boolean =>
-    actor.role === "admin" || (actor.keyId === link.ownerId && roleAtLeast(actor.role, "author")),
+    actor.role === "admin" || (actor.keyId === link.owner_id && roleAtLeast(actor.role, "author")),
 
   /**
    * Destroying an archived Link or Domain for good. Admin only, and deliberately

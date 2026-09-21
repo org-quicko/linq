@@ -3,8 +3,8 @@ import { qs } from "../api"
 import { apiSlice } from "./api"
 
 export type VisitFilters = {
-  linkId?: string
-  domainId?: string
+  link_id?: string
+  domain_id?: string
   orphan?: "true"
   bot?: "any" | "true" | "false"
   platform?: Platform
@@ -18,7 +18,7 @@ export type VisitFilters = {
 export const visitsApi = apiSlice.injectEndpoints({
   endpoints: (build) => ({
     /**
-     * One endpoint for every scope: the link detail card passes `linkId`, the
+     * One endpoint for every scope: the link detail card passes `link_id`, the
      * visits page passes whatever its filters are set to, and `qs` drops the
      * ones left undefined.
      */

@@ -114,7 +114,7 @@ describe("reconcileCaddy", () => {
 
     const upserts: Array<[string, string]> = []
     const spy: Caddy = {
-      upsert: async (domainId, host) => void upserts.push([domainId, host]),
+      upsert: async (domain_id, host) => void upserts.push([domain_id, host]),
       remove: async () => {},
     }
     await reconcileCaddy(db, spy)

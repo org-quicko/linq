@@ -28,9 +28,9 @@ export function toApiKey(row: typeof apiKeys.$inferSelect): ApiKey {
     name: row.name,
     role: row.role,
     prefix: row.prefix,
-    expiresAt: row.expiresAt?.toISOString() ?? null,
-    createdAt: row.createdAt.toISOString(),
-    updatedAt: row.updatedAt.toISOString(),
+    expires_at: row.expires_at?.toISOString() ?? null,
+    created_at: row.created_at.toISOString(),
+    updated_at: row.updated_at.toISOString(),
   }
 }
 
@@ -40,7 +40,7 @@ export function toApiKey(row: typeof apiKeys.$inferSelect): ApiKey {
  * Every role may list keys, but only an admin sees more than
  * `{ id, name, role }`: the Client UI needs the names to render a link's
  * owner, and it needs the role to filter transfer targets with `can.ownLink`
- * so it never offers one the server will refuse. `prefix`, `expiresAt` and
+ * so it never offers one the server will refuse. `prefix`, `expires_at` and
  * the timestamps stay admin-only — nothing else in the UI needs them.
  */
 export const keyRoutes = new Hono<Env>()
@@ -70,7 +70,7 @@ export const keyRoutes = new Hono<Env>()
     const { row, secret } = await createApiKey(c.var.db, {
       name: body.name,
       role: body.role,
-      expiresAt: body.expiresAt ? new Date(body.expiresAt) : null,
+      expires_at: body.expires_at ? new Date(body.expires_at) : null,
     })
 
     const created: ApiKeyCreated = { ...toApiKey(row), secret }
@@ -105,7 +105,7 @@ export const keyRoutes = new Hono<Env>()
     // call — see POST /keys/:id/links/reassign — and revoking the key
     // outright is still unconditional (docs/adr/0011).
     if (patch.role !== undefined && !can.ownLink({ role: patch.role })) {
-      const [{ n }] = await c.var.db.select({ n: count() }).from(links).where(eq(links.ownerId, id))
+      const [{ n }] = await c.var.db.select({ n: count() }).from(links).where(eq(links.owner_id, id))
       if (n > 0) {
         throw ApiError.conflict(
           `key owns ${n} link${n === 1 ? "" : "s"}; reassign them before demoting it to viewer`,
@@ -116,14 +116,14 @@ export const keyRoutes = new Hono<Env>()
     const [row] = await c.var.db
       .update(apiKeys)
       .set({
-        // Spelled out rather than spread: `expiresAt` arrives as an ISO string
+        // Spelled out rather than spread: `expires_at` arrives as an ISO string
         // and the column takes a Date, so a blanket spread would not typecheck.
         ...(patch.name !== undefined ? { name: patch.name } : {}),
         ...(patch.role !== undefined ? { role: patch.role } : {}),
-        ...(patch.expiresAt !== undefined
-          ? { expiresAt: patch.expiresAt ? new Date(patch.expiresAt) : null }
+        ...(patch.expires_at !== undefined
+          ? { expires_at: patch.expires_at ? new Date(patch.expires_at) : null }
           : {}),
-        updatedAt: new Date(),
+        updated_at: new Date(),
       })
       .where(eq(apiKeys.id, id))
       .returning()
@@ -155,7 +155,7 @@ export const keyRoutes = new Hono<Env>()
       if (!can.ownLink(target)) throw ApiError.conflict("a viewer key cannot own a link")
     }
 
-    // A reassignment is a modification, so it bumps `updatedAt` exactly like
+    // A reassignment is a modification, so it bumps `updated_at` exactly like
     // the per-link PATCH does — the "Updated" sort is meant to reorder here.
     //
     // No cache invalidation: ownership is not part of `ResolvedTarget`
@@ -163,8 +163,8 @@ export const keyRoutes = new Hono<Env>()
     // `owner_id`.
     const moved = await c.var.db
       .update(links)
-      .set({ ownerId: to, updatedAt: new Date() })
-      .where(eq(links.ownerId, id))
+      .set({ owner_id: to, updated_at: new Date() })
+      .where(eq(links.owner_id, id))
       .returning({ id: links.id })
 
     return c.json({ moved: moved.length })

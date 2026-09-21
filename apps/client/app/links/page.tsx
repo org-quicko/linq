@@ -56,8 +56,8 @@ import {
 import { useDebounced, useRun } from "../../lib/hooks"
 import { useArchiveLinkMutation, useLinksFeedInfiniteQuery } from "../../lib/store/links"
 
-type Filters = { domainId: string; order: "asc" | "desc" }
-const EMPTY: Filters = { domainId: "", order: "desc" }
+type Filters = { domain_id: string; order: "asc" | "desc" }
+const EMPTY: Filters = { domain_id: "", order: "desc" }
 
 /** Create/Edit/Duplicate all go through one dialog; `null` means closed. */
 type DialogState = { mode: "create" | "edit"; link?: Link } | null
@@ -77,7 +77,7 @@ function LinksList({ actor }: { actor: Actor }) {
   const settledSearch = useDebounced(search)
 
   const links = useLinksFeedInfiniteQuery({
-    domainId: filters.domainId || undefined,
+    domain_id: filters.domain_id || undefined,
     order: filters.order,
     search: settledSearch || undefined,
     tags: tags.join(",") || undefined,
@@ -153,8 +153,8 @@ function LinksList({ actor }: { actor: Actor }) {
 
             <DomainPicker
               multiple
-              value={filters.domainId}
-              onChange={(domainId) => setFilters((f) => ({ ...f, domainId }))}
+              value={filters.domain_id}
+              onChange={(domain_id) => setFilters((f) => ({ ...f, domain_id }))}
             />
           </div>
 
@@ -244,7 +244,7 @@ function LinkRow({
   const duplicatable = can.createLink(actor)
   // More than one rule reads as "this link routes dynamically" — a single
   // rule is still just one alternate destination, not a decision tree.
-  const routesDynamically = link.ruleCount > 1
+  const routesDynamically = link.rule_count > 1
 
   return (
     <>
@@ -260,7 +260,7 @@ function LinkRow({
             <IconButton
               icon={BarChart3}
               label="View analytics"
-              onClick={() => router.push(`/analytics/?linkId=${link.id}`)}
+              onClick={() => router.push(`/analytics/?link_id=${link.id}`)}
             />
             {editable || duplicatable ? (
               <DropdownMenu>
@@ -302,7 +302,7 @@ function LinkRow({
             {routesDynamically ? "Routes dynamically" : link.destination}
           </span>
           <span aria-hidden>·</span>
-          <When iso={link.createdAt} relative />
+          <When iso={link.created_at} relative />
         </span>
         {link.tags.length > 0 ? (
           <div className="mt-1 flex flex-wrap gap-1">
@@ -319,7 +319,7 @@ function LinkRow({
         <DialogContent>
           <DialogHeader>
             <DialogTitle>
-              Archive {link.domainHost}/{link.slug}?
+              Archive {link.domain_host}/{link.slug}?
             </DialogTitle>
             <DialogDescription>
               The short URL stops resolving immediately. Nothing is deleted, and the slug stays

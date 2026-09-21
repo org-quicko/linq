@@ -144,7 +144,7 @@ describe("invalidation", () => {
   test("changing a domain's fallback clears its entry", async () => {
     await get("/nothing-here")
     await h.patch(`/api/v1/domains/${domain}`, admin.key, {
-      fallbackUrl: "https://example.com/elsewhere",
+      fallback_url: "https://example.com/elsewhere",
     })
     expect((await get("/nothing-here")).headers.get("location")).toBe(
       "https://example.com/elsewhere",
@@ -161,7 +161,7 @@ describe("invalidation", () => {
     expect((await h.request("/x", { host: "later.test" })).status).toBe(404)
     await h.post("/api/v1/domains", admin.key, {
       host: "later.test",
-      fallbackUrl: "https://example.com/later",
+      fallback_url: "https://example.com/later",
     })
     const res = await h.request("/x", { host: "later.test" })
     expect(res.headers.get("location")).toBe("https://example.com/later")
@@ -286,7 +286,7 @@ describe("expiry inside the cache", () => {
   test("a warm entry still expires on schedule, though the row is never touched", async () => {
     const link = await h.createLink(author.key, domain, {
       slug: "ticking",
-      expiresAt: new Date(Date.now() + 50).toISOString(),
+      expires_at: new Date(Date.now() + 50).toISOString(),
     })
     expect((await get("/ticking")).headers.get("location")).toBe(link.destination)
 
@@ -295,13 +295,13 @@ describe("expiry inside the cache", () => {
     expect(res.headers.get("location")).toBe("https://example.com/fallback")
   })
 
-  test("clearing expiresAt to null resolves immediately, proving the del reached the key", async () => {
+  test("clearing expires_at to null resolves immediately, proving the del reached the key", async () => {
     const link = await h.createLink(author.key, domain, {
       slug: "reprieved",
-      expiresAt: new Date(Date.now() + 50).toISOString(),
+      expires_at: new Date(Date.now() + 50).toISOString(),
     })
     await get("/reprieved")
-    await h.patch(`/api/v1/links/${link.id}`, author.key, { expiresAt: null })
+    await h.patch(`/api/v1/links/${link.id}`, author.key, { expires_at: null })
     expect((await get("/reprieved")).headers.get("location")).toBe(link.destination)
   })
 })
@@ -324,8 +324,8 @@ describe("degradation", () => {
   async function redirectsAnyway(cache: Cache) {
     const down = await createHarness({ cache })
     const who = await down.actor("author")
-    const domainId = await down.createDomain("down.test")
-    const link = await down.createLink(who.key, domainId, { slug: "still-works" })
+    const domain_id = await down.createDomain("down.test")
+    const link = await down.createLink(who.key, domain_id, { slug: "still-works" })
 
     const res = await down.request("/still-works", { host: "down.test" })
     expect(res.status).toBe(302)

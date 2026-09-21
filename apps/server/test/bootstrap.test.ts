@@ -10,9 +10,9 @@ describe("bootstrap", () => {
 
     const keys = await db.select().from(apiKeys)
     expect(keys).toHaveLength(1)
-    expect(keys[0]).toMatchObject({ name: "bootstrap", role: "admin", expiresAt: null })
+    expect(keys[0]).toMatchObject({ name: "bootstrap", role: "admin", expires_at: null })
     // Only the hash is kept, and the prefix is the readable half of the secret.
-    expect(keys[0]?.keyHash).toHaveLength(64)
+    expect(keys[0]?.key_hash).toHaveLength(64)
     expect(keys[0]?.prefix).toStartWith("linq_")
   })
 

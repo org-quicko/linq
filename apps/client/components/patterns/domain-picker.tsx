@@ -17,14 +17,14 @@ const ANY_DOMAIN = "__any__"
 
 /**
  * A domain filter. Single-select by default — owning its own domain list and
- * the empty-string sentinel above, so a page just holds `domainId: string`,
+ * the empty-string sentinel above, so a page just holds `domain_id: string`,
  * `""` meaning all — for the two scoped-to-one-domain call sites
  * (`app/analytics/page.tsx`'s Visits and Orphans sections, which feed a
- * single `domainId` into `/v1/stats` and `/v1/visits`).
+ * single `domain_id` into `/v1/stats` and `/v1/visits`).
  *
  * `multiple` switches it to a checkbox dropdown returning a comma-separated
  * id list, for the links list (plans/Plan_31.md §B3):
- * `linkListQuerySchema.domainId` accepts both a lone uuid and a
+ * `linkListQuerySchema.domain_id` accepts both a lone uuid and a
  * comma-separated list, so this is the only other caller that needs the
  * plural shape.
  */
@@ -35,7 +35,7 @@ export function DomainPicker({
   multiple = false,
 }: {
   value: string
-  onChange: (domainId: string) => void
+  onChange: (domain_id: string) => void
   className?: string
   multiple?: boolean
 }) {

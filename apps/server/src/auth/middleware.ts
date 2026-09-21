@@ -32,14 +32,14 @@ export const authenticate = createMiddleware<Env>(async (c, next) => {
       keyId: apiKeys.id,
       name: apiKeys.name,
       role: apiKeys.role,
-      expiresAt: apiKeys.expiresAt,
+      expires_at: apiKeys.expires_at,
     })
     .from(apiKeys)
-    .where(eq(apiKeys.keyHash, hashKey(token)))
+    .where(eq(apiKeys.key_hash, hashKey(token)))
     .limit(1)
 
   if (!row) throw ApiError.unauthorized()
-  if (row.expiresAt && row.expiresAt.getTime() <= Date.now()) {
+  if (row.expires_at && row.expires_at.getTime() <= Date.now()) {
     throw ApiError.unauthorized("API key has expired")
   }
 

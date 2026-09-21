@@ -22,14 +22,14 @@ describe("POST /api/v1/domains", () => {
   test("creates a domain and lowercases the host", async () => {
     const res = await h.post("/api/v1/domains", admin.key, {
       host: "Links.Example.COM",
-      fallbackUrl: "https://example.com/home",
+      fallback_url: "https://example.com/home",
     })
     expect(res.status).toBe(201)
     expect(await res.json()).toMatchObject({
       host: "links.example.com",
-      fallbackUrl: "https://example.com/home",
+      fallback_url: "https://example.com/home",
       status: "active",
-      linkCount: 0,
+      link_count: 0,
     })
   })
 
@@ -46,7 +46,7 @@ describe("POST /api/v1/domains", () => {
   test("rejects a fallback that is not an absolute http(s) URL", async () => {
     const res = await h.post("/api/v1/domains", admin.key, {
       host: "other.test",
-      fallbackUrl: "/relative",
+      fallback_url: "/relative",
     })
     expect(res.status).toBe(400)
   })
@@ -59,7 +59,7 @@ describe("GET /api/v1/domains", () => {
     expect(res.status).toBe(200)
     const body = await res.json()
     expect(body.total).toBeGreaterThan(0)
-    expect(body.data[0]).toHaveProperty("linkCount")
+    expect(body.data[0]).toHaveProperty("link_count")
   })
 
   test("counts every link, archived included", async () => {
@@ -69,13 +69,13 @@ describe("GET /api/v1/domains", () => {
     await h.createLink(author.key, domain, { slug: "dropped" })
 
     const before = await (await h.request(`/api/v1/domains/${domain}`, { key: admin.key })).json()
-    expect(before.linkCount).toBe(2)
+    expect(before.link_count).toBe(2)
 
     // The count is now "what must reach zero to archive or purge the
     // domain", so archiving a link no longer drops it out.
     await h.request(`/api/v1/links/${kept.id}`, { key: author.key, method: "DELETE" })
     const after = await (await h.request(`/api/v1/domains/${domain}`, { key: admin.key })).json()
-    expect(after.linkCount).toBe(2)
+    expect(after.link_count).toBe(2)
   })
 })
 
@@ -144,7 +144,7 @@ describe("archiving a domain", () => {
 
     const author = await h.actor("author")
     const res = await h.post("/api/v1/links", author.key, {
-      domainId: domain,
+      domain_id: domain,
       destination: "https://example.com",
     })
     expect(res.status).toBe(409)
@@ -178,16 +178,16 @@ describe("PATCH /api/v1/domains/:id", () => {
     const domain = await h.createDomain("fallback.test")
     const manager = await h.actor("manager")
     expect(
-      (await h.patch(`/api/v1/domains/${domain}`, manager.key, { fallbackUrl: null })).status,
+      (await h.patch(`/api/v1/domains/${domain}`, manager.key, { fallback_url: null })).status,
     ).toBe(403)
 
     const ok = await h.patch(`/api/v1/domains/${domain}`, admin.key, {
-      fallbackUrl: "https://example.com/oops",
+      fallback_url: "https://example.com/oops",
     })
-    expect(await ok.json()).toMatchObject({ fallbackUrl: "https://example.com/oops" })
+    expect(await ok.json()).toMatchObject({ fallback_url: "https://example.com/oops" })
 
-    const cleared = await h.patch(`/api/v1/domains/${domain}`, admin.key, { fallbackUrl: null })
-    expect(await cleared.json()).toMatchObject({ fallbackUrl: null })
+    const cleared = await h.patch(`/api/v1/domains/${domain}`, admin.key, { fallback_url: null })
+    expect(await cleared.json()).toMatchObject({ fallback_url: null })
   })
 
   test("an unknown domain is a 404", async () => {
@@ -197,35 +197,35 @@ describe("PATCH /api/v1/domains/:id", () => {
     expect(res.status).toBe(404)
   })
 
-  test("round-trips basePathRedirect and invalidShortUrlRedirect through POST/PATCH/GET", async () => {
+  test("round-trips base_path_redirect and invalid_short_url_redirect through POST/PATCH/GET", async () => {
     const created = await h.post("/api/v1/domains", admin.key, {
       host: "redirects.test",
-      fallbackUrl: "https://example.com/fallback",
-      basePathRedirect: "https://example.com/home",
-      invalidShortUrlRedirect: "https://example.com/bad-slug",
+      fallback_url: "https://example.com/fallback",
+      base_path_redirect: "https://example.com/home",
+      invalid_short_url_redirect: "https://example.com/bad-slug",
     })
     const domain = await created.json()
     expect(domain).toMatchObject({
-      fallbackUrl: "https://example.com/fallback",
-      basePathRedirect: "https://example.com/home",
-      invalidShortUrlRedirect: "https://example.com/bad-slug",
+      fallback_url: "https://example.com/fallback",
+      base_path_redirect: "https://example.com/home",
+      invalid_short_url_redirect: "https://example.com/bad-slug",
     })
 
     const patched = await h.patch(`/api/v1/domains/${domain.id}`, admin.key, {
-      basePathRedirect: "https://example.com/home2",
-      invalidShortUrlRedirect: null,
+      base_path_redirect: "https://example.com/home2",
+      invalid_short_url_redirect: null,
     })
     expect(await patched.json()).toMatchObject({
-      basePathRedirect: "https://example.com/home2",
-      invalidShortUrlRedirect: null,
+      base_path_redirect: "https://example.com/home2",
+      invalid_short_url_redirect: null,
       // Untouched by this patch.
-      fallbackUrl: "https://example.com/fallback",
+      fallback_url: "https://example.com/fallback",
     })
 
     const fetched = await h.request(`/api/v1/domains/${domain.id}`, { key: admin.key })
     expect(await fetched.json()).toMatchObject({
-      basePathRedirect: "https://example.com/home2",
-      invalidShortUrlRedirect: null,
+      base_path_redirect: "https://example.com/home2",
+      invalid_short_url_redirect: null,
     })
   })
 })
@@ -238,8 +238,8 @@ describe("caddy sync", () => {
     return {
       upserts,
       removes,
-      upsert: async (domainId) => void upserts.push(domainId),
-      remove: async (domainId) => void removes.push(domainId),
+      upsert: async (domain_id) => void upserts.push(domain_id),
+      remove: async (domain_id) => void removes.push(domain_id),
     }
   }
 
@@ -274,7 +274,7 @@ describe("caddy sync", () => {
     const domain = await own.createDomain("fallback-sync.test")
 
     await own.patch(`/api/v1/domains/${domain}`, owner.key, {
-      fallbackUrl: "https://example.com/x",
+      fallback_url: "https://example.com/x",
     })
     expect(caddy.upserts).toEqual([])
     expect(caddy.removes).toEqual([])

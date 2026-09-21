@@ -21,11 +21,11 @@ const idParam = validate("param", z.object({ id: uuidSchema }))
 
 type QrCodeRow = {
   qrCode: typeof qrCodes.$inferSelect
-  linkName: string | null
-  linkStatus: "active" | "archived"
-  linkOwnerId: string | null
+  link_name: string | null
+  link_status: "active" | "archived"
+  link_owner_id: string | null
   slug: string
-  domainHost: string
+  domain_host: string
 }
 
 /** Maps a joined QR code row to the JSON shape the API returns. */
@@ -33,19 +33,19 @@ function toQrCode(row: QrCodeRow): QrCode {
   const { qrCode } = row
   return {
     id: qrCode.id,
-    linkId: qrCode.linkId,
+    link_id: qrCode.link_id,
     name: qrCode.name,
-    dotColor: qrCode.dotColor,
-    bgColor: qrCode.bgColor,
+    dot_color: qrCode.dot_color,
+    bg_color: qrCode.bg_color,
     pattern: qrCode.pattern,
-    linkName: row.linkName,
-    linkStatus: row.linkStatus,
-    linkOwnerId: row.linkOwnerId,
+    link_name: row.link_name,
+    link_status: row.link_status,
+    link_owner_id: row.link_owner_id,
     slug: row.slug,
-    domainHost: row.domainHost,
-    shortUrl: shortUrl(row.domainHost, row.slug),
-    createdAt: qrCode.createdAt.toISOString(),
-    updatedAt: qrCode.updatedAt.toISOString(),
+    domain_host: row.domain_host,
+    short_url: shortUrl(row.domain_host, row.slug),
+    created_at: qrCode.created_at.toISOString(),
+    updated_at: qrCode.updated_at.toISOString(),
   }
 }
 
@@ -53,21 +53,21 @@ function toQrCode(row: QrCodeRow): QrCode {
  * Inner joins only: `qr_codes.link_id` is NOT NULL behind a foreign key, and
  * `links.domain_id` the same, so neither join can ever drop a row. No
  * `leftJoin(apiKeys)` — that exists in `links.ts` only to resolve
- * `ownerName`, which a QR row does not carry (plans/Plan_31.md §A1).
+ * `owner_name`, which a QR row does not carry (plans/Plan_31.md §A1).
  */
 function qrCodeQuery(db: Db) {
   return db
     .select({
       qrCode: qrCodes,
-      linkName: links.name,
-      linkStatus: links.status,
-      linkOwnerId: links.ownerId,
+      link_name: links.name,
+      link_status: links.status,
+      link_owner_id: links.owner_id,
       slug: links.slug,
-      domainHost: domains.host,
+      domain_host: domains.host,
     })
     .from(qrCodes)
-    .innerJoin(links, eq(links.id, qrCodes.linkId))
-    .innerJoin(domains, eq(domains.id, links.domainId))
+    .innerJoin(links, eq(links.id, qrCodes.link_id))
+    .innerJoin(domains, eq(domains.id, links.domain_id))
 }
 
 /** Loads one QR code as a complete API response, or throws 404. */
@@ -79,11 +79,11 @@ function fetchQrCode(db: Db, id: string): Promise<QrCode> {
       if (!row) throw ApiError.notFound("QR code")
       return toQrCode(row)
     },
-    { in: { qrCodeId: id } },
+    { in: { qr_code_id: id } },
   )
 }
 
-/** The raw row plus its link, for a permission check that needs the link's `ownerId`. */
+/** The raw row plus its link, for a permission check that needs the link's `owner_id`. */
 function loadQrCode(
   db: Db,
   id: string,
@@ -94,13 +94,13 @@ function loadQrCode(
       const [row] = await db
         .select({ qrCode: qrCodes, link: links })
         .from(qrCodes)
-        .innerJoin(links, eq(links.id, qrCodes.linkId))
+        .innerJoin(links, eq(links.id, qrCodes.link_id))
         .where(eq(qrCodes.id, id))
         .limit(1)
       if (!row) throw ApiError.notFound("QR code")
       return row
     },
-    { in: { qrCodeId: id } },
+    { in: { qr_code_id: id } },
   )
 }
 
@@ -114,7 +114,7 @@ export const qrCodeRoutes = new Hono<Env>()
     const q = c.req.valid("query")
 
     const filters: SQL[] = []
-    if (q.linkId) filters.push(eq(qrCodes.linkId, q.linkId))
+    if (q.link_id) filters.push(eq(qrCodes.link_id, q.link_id))
     if (q.search) {
       const term = `%${q.search}%`
       filters.push(
@@ -125,7 +125,7 @@ export const qrCodeRoutes = new Hono<Env>()
 
     const rows = await qrCodeQuery(c.var.db)
       .where(where)
-      .orderBy(desc(qrCodes.createdAt), desc(qrCodes.id))
+      .orderBy(desc(qrCodes.created_at), desc(qrCodes.id))
       .limit(q.limit)
       .offset(q.offset)
 
@@ -136,7 +136,7 @@ export const qrCodeRoutes = new Hono<Env>()
     const [{ total }] = await c.var.db
       .select({ total: count() })
       .from(qrCodes)
-      .innerJoin(links, eq(links.id, qrCodes.linkId))
+      .innerJoin(links, eq(links.id, qrCodes.link_id))
       .where(where)
 
     return c.json({ data: rows.map(toQrCode), total, limit: q.limit, offset: q.offset })
@@ -145,8 +145,8 @@ export const qrCodeRoutes = new Hono<Env>()
   .post("/", validate("json", qrCodeCreateSchema), async (c) => {
     const body = c.req.valid("json")
     // Unknown link first: a missing link is a 404, not a permission question.
-    const link = await loadLink(c.var.db, body.linkId)
-    assertCanEdit(c.var.principal, link.ownerId)
+    const link = await loadLink(c.var.db, body.link_id)
+    assertCanEdit(c.var.principal, link.owner_id)
     if (link.status === "archived") {
       throw ApiError.conflict("cannot attach a QR code to an archived link")
     }
@@ -155,10 +155,10 @@ export const qrCodeRoutes = new Hono<Env>()
       .insert(qrCodes)
       .values({
         id: Bun.randomUUIDv7(),
-        linkId: body.linkId,
+        link_id: body.link_id,
         name: body.name ?? null,
-        dotColor: body.dotColor,
-        bgColor: body.bgColor,
+        dot_color: body.dot_color,
+        bg_color: body.bg_color,
         pattern: body.pattern,
       })
       .returning()
@@ -172,13 +172,13 @@ export const qrCodeRoutes = new Hono<Env>()
     const { id } = c.req.valid("param")
     const patch = c.req.valid("json")
     const { link } = await loadQrCode(c.var.db, id)
-    assertCanEdit(c.var.principal, link.ownerId)
+    assertCanEdit(c.var.principal, link.owner_id)
 
     // A blanket spread is safe here, unlike `links.ts`: every patchable field
     // is a string the column takes as-is, and the schema is strict.
     await c.var.db
       .update(qrCodes)
-      .set({ ...patch, updatedAt: new Date() })
+      .set({ ...patch, updated_at: new Date() })
       .where(eq(qrCodes.id, id))
 
     return c.json(await fetchQrCode(c.var.db, id))
@@ -190,7 +190,7 @@ export const qrCodeRoutes = new Hono<Env>()
   .delete("/:id", idParam, async (c) => {
     const { id } = c.req.valid("param")
     const { link } = await loadQrCode(c.var.db, id)
-    assertCanEdit(c.var.principal, link.ownerId)
+    assertCanEdit(c.var.principal, link.owner_id)
 
     await c.var.db.delete(qrCodes).where(eq(qrCodes.id, id))
     return c.body(null, 204)

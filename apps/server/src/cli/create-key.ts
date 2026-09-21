@@ -32,17 +32,17 @@ if (!ROLES.includes(role)) {
   process.exit(1)
 }
 
-let expiresAt: Date | null = null
+let expires_at: Date | null = null
 if (values.expires) {
-  expiresAt = new Date(values.expires)
-  if (Number.isNaN(expiresAt.getTime())) {
+  expires_at = new Date(values.expires)
+  if (Number.isNaN(expires_at.getTime())) {
     console.error(`--expires is not a date: ${values.expires}`)
     process.exit(1)
   }
 }
 
 const db = createDb(loadConfig().DATABASE_URL)
-const { secret } = await createApiKey(db, { name, role, expiresAt })
+const { secret } = await createApiKey(db, { name, role, expires_at })
 
 // Printed, never logged: a plaintext key in a rotating file on a mounted volume
 // is strictly worse than one line in the operator's terminal.

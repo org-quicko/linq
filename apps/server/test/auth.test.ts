@@ -46,7 +46,7 @@ describe("authentication", () => {
   })
 
   test("rejects an expired key", async () => {
-    const { key } = await h.createKey({ role: "admin", expiresAt: new Date(Date.now() - 1000) })
+    const { key } = await h.createKey({ role: "admin", expires_at: new Date(Date.now() - 1000) })
     const res = await h.request("/api/v1/me", { key })
     expect(res.status).toBe(401)
     expect((await res.json()).error.message).toContain("expired")

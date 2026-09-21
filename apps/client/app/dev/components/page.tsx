@@ -95,7 +95,7 @@ export default function ComponentGalleryPage() {
                     {link.destination}
                   </TableCell>
                   <TableCell>
-                    <When iso={link.updatedAt} relative />
+                    <When iso={link.updated_at} relative />
                   </TableCell>
                 </TableRow>
               )}
@@ -113,7 +113,7 @@ export default function ComponentGalleryPage() {
             <div key={link.id} className="flex items-center gap-3 rounded-lg border p-3">
               <ShortLink link={link} href="#" />
               <span className="ml-auto text-xs text-muted-foreground">
-                <When iso={link.updatedAt} relative />
+                <When iso={link.updated_at} relative />
               </span>
             </div>
           )}
@@ -182,10 +182,10 @@ export default function ComponentGalleryPage() {
       <Section title="When — relative">
         <div className="flex flex-col gap-1 rounded-md border p-4 text-sm">
           <span>
-            Absolute: <When iso={FIXTURE_LINKS[0].updatedAt} />
+            Absolute: <When iso={FIXTURE_LINKS[0].updated_at} />
           </span>
           <span>
-            Relative: <When iso={FIXTURE_LINKS[0].updatedAt} relative />
+            Relative: <When iso={FIXTURE_LINKS[0].updated_at} relative />
           </span>
         </div>
       </Section>
@@ -222,7 +222,7 @@ export default function ComponentGalleryPage() {
             <ShortLink link={FIXTURE_LINKS[1]} href="#" />
             <span className="truncate text-xs text-muted-foreground">
               {FIXTURE_LINKS[1].destination} · Archived{" "}
-              <When iso={FIXTURE_LINKS[1].updatedAt} relative />
+              <When iso={FIXTURE_LINKS[1].updated_at} relative />
             </span>
           </RowCard>
           <RowCard
@@ -274,46 +274,46 @@ const daysAgo = (n: number) => new Date(now.getTime() - n * 24 * 60 * 60 * 1000)
 const FIXTURE_LINKS: Link[] = [
   {
     id: "1",
-    domainId: "d1",
-    domainHost: "go.example.com",
+    domain_id: "d1",
+    domain_host: "go.example.com",
     slug: "spring-sale",
-    shortUrl: "https://go.example.com/spring-sale",
+    short_url: "https://go.example.com/spring-sale",
     destination: "https://example.com/campaigns/spring-sale-2026",
     name: "Spring sale",
     tags: ["campaign", "email"],
-    forwardQuery: true,
-    presetParams: {},
+    forward_query: true,
+    preset_params: {},
     status: "active",
-    ownerId: "k1",
-    ownerName: "ops",
-    humanVisits: 482,
-    botVisits: 12,
-    expiresAt: null,
+    owner_id: "k1",
+    owner_name: "ops",
+    human_visits: 482,
+    bot_visits: 12,
+    expires_at: null,
     listed: false,
-    ruleCount: 2,
-    createdAt: daysAgo(30),
-    updatedAt: daysAgo(2),
+    rule_count: 2,
+    created_at: daysAgo(30),
+    updated_at: daysAgo(2),
   },
   {
     id: "2",
-    domainId: "d2",
-    domainHost: "links.example.org",
+    domain_id: "d2",
+    domain_host: "links.example.org",
     slug: "beta",
-    shortUrl: "https://links.example.org/beta",
+    short_url: "https://links.example.org/beta",
     destination: "https://example.org/beta-signup",
     name: null,
     tags: [],
-    forwardQuery: false,
-    presetParams: {},
+    forward_query: false,
+    preset_params: {},
     status: "archived",
-    ownerId: null,
-    ownerName: null,
-    humanVisits: 9,
-    botVisits: 1,
-    expiresAt: null,
+    owner_id: null,
+    owner_name: null,
+    human_visits: 9,
+    bot_visits: 1,
+    expires_at: null,
     listed: false,
-    ruleCount: 0,
-    createdAt: daysAgo(90),
-    updatedAt: daysAgo(20),
+    rule_count: 0,
+    created_at: daysAgo(90),
+    updated_at: daysAgo(20),
   },
 ]

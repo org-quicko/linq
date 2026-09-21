@@ -23,7 +23,7 @@ function LinkDetailRedirect() {
 
   useEffect(() => {
     if (id) {
-      router.replace(`/analytics/?linkId=${encodeURIComponent(id)}`)
+      router.replace(`/analytics/?link_id=${encodeURIComponent(id)}`)
     } else {
       router.replace("/links/")
     }

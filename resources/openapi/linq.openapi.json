@@ -4,7 +4,7 @@
     "title": "linq",
     "version": "0.1.0",
     "summary": "Self-hosted URL shortener and dynamic-link service.",
-    "description": "Three things share one port: the REST API under `/api`, the Client UI's\nstatic export under `/home`, and the redirect on every other path.\n\n**Authentication.** Every `/api/v1/*` route needs an API key, sent as\n`Authorization: Bearer <key>` or `X-Api-Key: <key>`. A key is the principal:\nnobody logs in, and there are no user accounts. A key whose `expiresAt` has\npassed fails with 401.\n\n**Roles** are ordered `viewer < author < manager < admin`. Each operation\nbelow states the minimum it needs.\n\n**Errors** all share one envelope, documented on the `Error` schema.\n\n**Lists** all share one envelope — `{ data, total, limit, offset }` — where\n`total` counts every row matching the filters, not just the page.\n\n---\n\nWritten by hand from `apps/server/src/http/`, which stays the source of\ntruth; the zod schemas in `packages/shared/src/` are what the server\nactually validates against, and the constraints here mirror them.\n"
+    "description": "Three things share one port: the REST API under `/api`, the Client UI's\nstatic export under `/home`, and the redirect on every other path.\n\n**Authentication.** Every `/api/v1/*` route needs an API key, sent as\n`Authorization: Bearer <key>` or `X-Api-Key: <key>`. A key is the principal:\nnobody logs in, and there are no user accounts. A key whose `expires_at` has\npassed fails with 401.\n\n**Roles** are ordered `viewer < author < manager < admin`. Each operation\nbelow states the minimum it needs.\n\n**Errors** all share one envelope, documented on the `Error` schema.\n\n**Lists** all share one envelope — `{ data, total, limit, offset }` — where\n`total` counts every row matching the filters, not just the page.\n\n---\n\nWritten by hand from `apps/server/src/http/`, which stays the source of\ntruth; the zod schemas in `packages/shared/src/` are what the server\nactually validates against, and the constraints here mirror them.\n"
   },
   "servers": [
     {
@@ -460,7 +460,7 @@
             }
           },
           {
-            "name": "domainId",
+            "name": "domain_id",
             "in": "query",
             "schema": {
               "type": "string",
@@ -468,7 +468,7 @@
             }
           },
           {
-            "name": "ownerId",
+            "name": "owner_id",
             "in": "query",
             "schema": {
               "type": "string",
@@ -494,11 +494,11 @@
             "schema": {
               "type": "string",
               "enum": [
-                "createdAt",
-                "updatedAt",
+                "created_at",
+                "updated_at",
                 "visits"
               ],
-              "default": "createdAt"
+              "default": "created_at"
             }
           },
           {
@@ -516,7 +516,7 @@
           {
             "name": "expiry",
             "in": "query",
-            "description": "Filters on expiresAt against the current time. `live` includes links that never expire.",
+            "description": "Filters on expires_at against the current time. `live` includes links that never expire.",
             "schema": {
               "type": "string",
               "enum": [
@@ -659,7 +659,7 @@
         ],
         "operationId": "updateLink",
         "summary": "Update a link",
-        "description": "Requires: **author** for a link you own, **manager** for any link.\n\n`slug` and `domainId` are immutable, and the body is strict, so sending\neither is a 400 rather than a silently ignored field. Changing\n`ownerId` additionally needs **admin**, unless you are transferring your\nown link.\n",
+        "description": "Requires: **author** for a link you own, **manager** for any link.\n\n`slug` and `domain_id` are immutable, and the body is strict, so sending\neither is a 400 rather than a silently ignored field. Changing\n`owner_id` additionally needs **admin**, unless you are transferring your\nown link.\n",
         "requestBody": {
           "required": true,
           "content": {
@@ -694,7 +694,7 @@
             "$ref": "#/components/responses/NotFound"
           },
           "409": {
-            "description": "The target of `ownerId` is a viewer key, which may not own a link.",
+            "description": "The target of `owner_id` is a viewer key, which may not own a link.",
             "content": {
               "application/json": {
                 "schema": {
@@ -913,7 +913,7 @@
             "$ref": "#/components/parameters/Offset"
           },
           {
-            "name": "linkId",
+            "name": "link_id",
             "in": "query",
             "schema": {
               "type": "string",
@@ -969,7 +969,7 @@
         ],
         "operationId": "createQrCode",
         "summary": "Create a QR code",
-        "description": "Requires: **author** on the target link's owner, **manager** for any link. A QR code is always attached to a link — `linkId` is required — and the link must be active: an archived link's short URL does not resolve, so a code for one would be born dead.\n",
+        "description": "Requires: **author** on the target link's owner, **manager** for any link. A QR code is always attached to a link — `link_id` is required — and the link must be active: an archived link's short URL does not resolve, so a code for one would be born dead.\n",
         "requestBody": {
           "required": true,
           "content": {
@@ -1060,7 +1060,7 @@
         ],
         "operationId": "updateQrCode",
         "summary": "Update a QR code",
-        "description": "Requires: **author** for the owner of the QR code's link, **manager** for any. `linkId` is immutable — re-pointing a QR code at a different link would invalidate every printed copy — and the body is strict, so sending it is a 400 rather than a silently ignored field.\n",
+        "description": "Requires: **author** for the owner of the QR code's link, **manager** for any. `link_id` is immutable — re-pointing a QR code at a different link would invalidate every printed copy — and the body is strict, so sending it is a 400 rather than a silently ignored field.\n",
         "requestBody": {
           "required": true,
           "content": {
@@ -1141,7 +1141,7 @@
             "$ref": "#/components/parameters/Orphan"
           },
           {
-            "name": "domainId",
+            "name": "domain_id",
             "in": "query",
             "schema": {
               "type": "string",
@@ -1169,7 +1169,7 @@
         ],
         "operationId": "listVisits",
         "summary": "The raw visit log",
-        "description": "Newest first, narrowed by `linkId`, `domainId` or `orphan`. One route\nfor every scope, because the only thing that changes between them is a\npredicate.\n\nUnlike the reports above, this reads the detail table: a visit row is\nthe only place a user agent, a query string or an exact instant\nsurvives. Its window is therefore in **instants**, not whole days.\n\nAn id that matches nothing reports nothing rather than 404ing — this is\nthe log with a filter on it, not a view of one link.\n",
+        "description": "Newest first, narrowed by `link_id`, `domain_id` or `orphan`. One route\nfor every scope, because the only thing that changes between them is a\npredicate.\n\nUnlike the reports above, this reads the detail table: a visit row is\nthe only place a user agent, a query string or an exact instant\nsurvives. Its window is therefore in **instants**, not whole days.\n\nAn id that matches nothing reports nothing rather than 404ing — this is\nthe log with a filter on it, not a view of one link.\n",
         "parameters": [
           {
             "$ref": "#/components/parameters/Limit"
@@ -1180,7 +1180,7 @@
           {
             "name": "from",
             "in": "query",
-            "description": "Inclusive lower bound on `occurredAt`.",
+            "description": "Inclusive lower bound on `occurred_at`.",
             "schema": {
               "type": "string",
               "format": "date-time"
@@ -1189,7 +1189,7 @@
           {
             "name": "to",
             "in": "query",
-            "description": "Inclusive upper bound on `occurredAt`.",
+            "description": "Inclusive upper bound on `occurred_at`.",
             "schema": {
               "type": "string",
               "format": "date-time"
@@ -1210,7 +1210,7 @@
             }
           },
           {
-            "name": "linkId",
+            "name": "link_id",
             "in": "query",
             "schema": {
               "type": "string",
@@ -1218,7 +1218,7 @@
             }
           },
           {
-            "name": "domainId",
+            "name": "domain_id",
             "in": "query",
             "schema": {
               "type": "string",
@@ -1484,7 +1484,7 @@
         ],
         "operationId": "followLink",
         "summary": "Follow a short link",
-        "description": "The product. Matched last, so every path linq answers itself — `/api`,\n`/home`, `/health`, `/robots.txt`, `/favicon.ico` — wins first and can\nnever be claimed as a slug.\n\nResolution: the `Host` header selects the domain, the slug selects the\nlink, then the first rule whose conditions all hold supplies the\ndestination, falling back to the link's own. With `forwardQuery` on,\nthe incoming query is merged over the destination's, incoming winning.\n\nAn unknown host, or an archived one, is an **untracked** 404. A live\ndomain with no matching active link is an **orphan visit**: recorded,\nthen sent to the domain's `fallbackUrl`, or 404 if it has none.\n\n`GET` is recorded; `HEAD` is answered identically and never recorded.\n",
+        "description": "The product. Matched last, so every path linq answers itself — `/api`,\n`/home`, `/health`, `/robots.txt`, `/favicon.ico` — wins first and can\nnever be claimed as a slug.\n\nResolution: the `Host` header selects the domain, the slug selects the\nlink, then the first rule whose conditions all hold supplies the\ndestination, falling back to the link's own. With `forward_query` on,\nthe incoming query is merged over the destination's, incoming winning.\n\nAn unknown host, or an archived one, is an **untracked** 404. A live\ndomain with no matching active link is an **orphan visit**: recorded,\nthen sent to the domain's `fallback_url`, or 404 if it has none.\n\n`GET` is recorded; `HEAD` is answered identically and never recorded.\n",
         "security": [],
         "responses": {
           "302": {
@@ -1683,7 +1683,7 @@
         }
       },
       "GroupBy": {
-        "name": "groupBy",
+        "name": "group_by",
         "in": "query",
         "description": "The dimension to bucket on. `day` comes back in chronological order so a\nchart can plot it as given; every other dimension is ranked by volume,\nbusiest first.\n",
         "schema": {
@@ -1871,11 +1871,11 @@
         "required": [
           "id",
           "host",
-          "fallbackUrl",
+          "fallback_url",
           "status",
-          "linkCount",
-          "createdAt",
-          "updatedAt"
+          "link_count",
+          "created_at",
+          "updated_at"
         ],
         "properties": {
           "id": {
@@ -1888,7 +1888,7 @@
             "pattern": "^[a-z0-9.-]+(:\\d{1,5})?$",
             "description": "Lowercased, optionally carrying a port."
           },
-          "fallbackUrl": {
+          "fallback_url": {
             "type": [
               "string",
               "null"
@@ -1898,15 +1898,15 @@
           "status": {
             "$ref": "#/components/schemas/ResourceStatus"
           },
-          "linkCount": {
+          "link_count": {
             "type": "integer",
             "description": "Active links only, because this is the count that decides whether the domain may be archived."
           },
-          "createdAt": {
+          "created_at": {
             "type": "string",
             "format": "date-time"
           },
-          "updatedAt": {
+          "updated_at": {
             "type": "string",
             "format": "date-time"
           }
@@ -1923,7 +1923,7 @@
             "maxLength": 253,
             "pattern": "^[a-z0-9.-]+(:\\d{1,5})?$"
           },
-          "fallbackUrl": {
+          "fallback_url": {
             "$ref": "#/components/schemas/Url"
           }
         }
@@ -1933,7 +1933,7 @@
         "description": "`host` is immutable and is not accepted.",
         "minProperties": 1,
         "properties": {
-          "fallbackUrl": {
+          "fallback_url": {
             "oneOf": [
               {
                 "$ref": "#/components/schemas/Url"
@@ -1958,43 +1958,43 @@
         "type": "object",
         "required": [
           "id",
-          "domainId",
-          "domainHost",
+          "domain_id",
+          "domain_host",
           "slug",
-          "shortUrl",
+          "short_url",
           "destination",
           "name",
           "tags",
-          "forwardQuery",
-          "presetParams",
+          "forward_query",
+          "preset_params",
           "status",
-          "ownerId",
-          "ownerName",
-          "humanVisits",
-          "botVisits",
-          "expiresAt",
+          "owner_id",
+          "owner_name",
+          "human_visits",
+          "bot_visits",
+          "expires_at",
           "listed",
-          "ruleCount",
-          "createdAt",
-          "updatedAt"
+          "rule_count",
+          "created_at",
+          "updated_at"
         ],
         "properties": {
           "id": {
             "type": "string",
             "format": "uuid"
           },
-          "domainId": {
+          "domain_id": {
             "type": "string",
             "format": "uuid"
           },
-          "domainHost": {
+          "domain_host": {
             "type": "string"
           },
           "slug": {
             "type": "string",
             "pattern": "^[A-Za-z0-9_-]{1,64}$"
           },
-          "shortUrl": {
+          "short_url": {
             "type": "string",
             "format": "uri",
             "description": "The full URL, assembled from the domain host and the slug."
@@ -2017,46 +2017,46 @@
               "maxLength": 50
             }
           },
-          "forwardQuery": {
+          "forward_query": {
             "type": "boolean",
-            "description": "Merge the incoming query string over the destination's own. Also gates presetParams: off, neither the incoming query nor the preset params touch the destination."
+            "description": "Merge the incoming query string over the destination's own. Also gates preset_params: off, neither the incoming query nor the preset params touch the destination."
           },
-          "ruleCount": {
+          "rule_count": {
             "type": "integer",
             "minimum": 0,
             "description": "How many rules (alternate destinations) this link carries."
           },
-          "presetParams": {
+          "preset_params": {
             "type": "object",
             "maxProperties": 20,
             "additionalProperties": {
               "type": "string",
               "maxLength": 512
             },
-            "description": "Set on the destination at redirect time, overriding both the destination's own query and anything forwarded. Applied only when forwardQuery is true."
+            "description": "Set on the destination at redirect time, overriding both the destination's own query and anything forwarded. Applied only when forward_query is true."
           },
           "status": {
             "$ref": "#/components/schemas/ResourceStatus"
           },
-          "ownerId": {
+          "owner_id": {
             "type": "string",
             "format": "uuid"
           },
-          "ownerName": {
+          "owner_name": {
             "type": [
               "string",
               "null"
             ]
           },
-          "humanVisits": {
+          "human_visits": {
             "type": "integer",
             "minimum": 0
           },
-          "botVisits": {
+          "bot_visits": {
             "type": "integer",
             "minimum": 0
           },
-          "expiresAt": {
+          "expires_at": {
             "type": [
               "string",
               "null"
@@ -2068,11 +2068,11 @@
             "type": "boolean",
             "description": "Opt-in: appears in the domain's public /llms.txt catalogue. See docs/adr/0013."
           },
-          "createdAt": {
+          "created_at": {
             "type": "string",
             "format": "date-time"
           },
-          "updatedAt": {
+          "updated_at": {
             "type": "string",
             "format": "date-time"
           }
@@ -2081,11 +2081,11 @@
       "LinkCreate": {
         "type": "object",
         "required": [
-          "domainId",
+          "domain_id",
           "destination"
         ],
         "properties": {
-          "domainId": {
+          "domain_id": {
             "type": "string",
             "format": "uuid"
           },
@@ -2110,11 +2110,11 @@
               "maxLength": 50
             }
           },
-          "forwardQuery": {
+          "forward_query": {
             "type": "boolean",
             "default": true
           },
-          "presetParams": {
+          "preset_params": {
             "type": "object",
             "maxProperties": 20,
             "default": {},
@@ -2122,9 +2122,9 @@
               "type": "string",
               "maxLength": 512
             },
-            "description": "Set on the destination at redirect time, overriding both the destination's own query and anything forwarded. Applied only when forwardQuery is true."
+            "description": "Set on the destination at redirect time, overriding both the destination's own query and anything forwarded. Applied only when forward_query is true."
           },
-          "expiresAt": {
+          "expires_at": {
             "type": [
               "string",
               "null"
@@ -2141,7 +2141,7 @@
       },
       "LinkPatch": {
         "type": "object",
-        "description": "Strict: `slug` and `domainId` are immutable, and sending either is a 400 rather than a silently ignored field.",
+        "description": "Strict: `slug` and `domain_id` are immutable, and sending either is a 400 rather than a silently ignored field.",
         "additionalProperties": false,
         "minProperties": 1,
         "properties": {
@@ -2163,27 +2163,27 @@
               "maxLength": 50
             }
           },
-          "forwardQuery": {
+          "forward_query": {
             "type": "boolean"
           },
-          "presetParams": {
+          "preset_params": {
             "type": "object",
             "maxProperties": 20,
             "additionalProperties": {
               "type": "string",
               "maxLength": 512
             },
-            "description": "Set on the destination at redirect time, overriding both the destination's own query and anything forwarded. Applied only when forwardQuery is true. Send {} to clear."
+            "description": "Set on the destination at redirect time, overriding both the destination's own query and anything forwarded. Applied only when forward_query is true. Send {} to clear."
           },
           "status": {
             "$ref": "#/components/schemas/ResourceStatus"
           },
-          "ownerId": {
+          "owner_id": {
             "type": "string",
             "format": "uuid",
             "description": "Transferring ownership. Your own link, or any link as an admin. 409 if the target key is a viewer — a viewer may not own a link."
           },
-          "expiresAt": {
+          "expires_at": {
             "type": [
               "string",
               "null"
@@ -2273,7 +2273,7 @@
             "type": "object",
             "required": [
               "id",
-              "linkId",
+              "link_id",
               "position"
             ],
             "properties": {
@@ -2281,7 +2281,7 @@
                 "type": "string",
                 "format": "uuid"
               },
-              "linkId": {
+              "link_id": {
                 "type": "string",
                 "format": "uuid"
               },
@@ -2296,29 +2296,29 @@
       },
       "QrCode": {
         "type": "object",
-        "description": "A styled QR code for a link's short URL. The encoded data is never stored — it is always the link's current shortUrl, resolved at read time.",
+        "description": "A styled QR code for a link's short URL. The encoded data is never stored — it is always the link's current short_url, resolved at read time.",
         "required": [
           "id",
-          "linkId",
+          "link_id",
           "name",
-          "dotColor",
-          "bgColor",
+          "dot_color",
+          "bg_color",
           "pattern",
-          "linkName",
-          "linkStatus",
-          "linkOwnerId",
+          "link_name",
+          "link_status",
+          "link_owner_id",
           "slug",
-          "domainHost",
-          "shortUrl",
-          "createdAt",
-          "updatedAt"
+          "domain_host",
+          "short_url",
+          "created_at",
+          "updated_at"
         ],
         "properties": {
           "id": {
             "type": "string",
             "format": "uuid"
           },
-          "linkId": {
+          "link_id": {
             "type": "string",
             "format": "uuid"
           },
@@ -2329,26 +2329,26 @@
             ],
             "maxLength": 120
           },
-          "dotColor": {
+          "dot_color": {
             "$ref": "#/components/schemas/HexColor"
           },
-          "bgColor": {
+          "bg_color": {
             "$ref": "#/components/schemas/HexColor"
           },
           "pattern": {
             "$ref": "#/components/schemas/QrPattern"
           },
-          "linkName": {
+          "link_name": {
             "type": [
               "string",
               "null"
             ],
             "description": "Denormalised from the link, so a list row renders without a second request."
           },
-          "linkStatus": {
+          "link_status": {
             "$ref": "#/components/schemas/ResourceStatus"
           },
-          "linkOwnerId": {
+          "link_owner_id": {
             "type": [
               "string",
               "null"
@@ -2359,18 +2359,18 @@
           "slug": {
             "type": "string"
           },
-          "domainHost": {
+          "domain_host": {
             "type": "string"
           },
-          "shortUrl": {
+          "short_url": {
             "type": "string",
             "format": "uri"
           },
-          "createdAt": {
+          "created_at": {
             "type": "string",
             "format": "date-time"
           },
-          "updatedAt": {
+          "updated_at": {
             "type": "string",
             "format": "date-time"
           }
@@ -2391,10 +2391,10 @@
       "QrCodeCreate": {
         "type": "object",
         "required": [
-          "linkId"
+          "link_id"
         ],
         "properties": {
-          "linkId": {
+          "link_id": {
             "type": "string",
             "format": "uuid",
             "description": "Required — a QR code is never free-floating."
@@ -2407,7 +2407,7 @@
             "minLength": 1,
             "maxLength": 120
           },
-          "dotColor": {
+          "dot_color": {
             "allOf": [
               {
                 "$ref": "#/components/schemas/HexColor"
@@ -2415,7 +2415,7 @@
             ],
             "default": "#000000"
           },
-          "bgColor": {
+          "bg_color": {
             "allOf": [
               {
                 "$ref": "#/components/schemas/HexColor"
@@ -2435,7 +2435,7 @@
       },
       "QrCodePatch": {
         "type": "object",
-        "description": "Strict: `linkId` is immutable — re-pointing a QR code at a different link would invalidate every printed copy — and sending it is a 400 rather than a silently ignored field.",
+        "description": "Strict: `link_id` is immutable — re-pointing a QR code at a different link would invalidate every printed copy — and sending it is a 400 rather than a silently ignored field.",
         "additionalProperties": false,
         "minProperties": 1,
         "properties": {
@@ -2447,10 +2447,10 @@
             "minLength": 1,
             "maxLength": 120
           },
-          "dotColor": {
+          "dot_color": {
             "$ref": "#/components/schemas/HexColor"
           },
-          "bgColor": {
+          "bg_color": {
             "$ref": "#/components/schemas/HexColor"
           },
           "pattern": {
@@ -2463,13 +2463,13 @@
         "description": "One request to a domain.",
         "required": [
           "id",
-          "linkId",
-          "domainId",
-          "slugRequested",
-          "occurredAt",
-          "isBot",
+          "link_id",
+          "domain_id",
+          "slug_requested",
+          "occurred_at",
+          "is_bot",
           "platform",
-          "userAgent",
+          "user_agent",
           "referer",
           "destination",
           "query"
@@ -2479,7 +2479,7 @@
             "type": "string",
             "format": "uuid"
           },
-          "linkId": {
+          "link_id": {
             "type": [
               "string",
               "null"
@@ -2487,26 +2487,26 @@
             "format": "uuid",
             "description": "Null is an orphan visit — unknown slug, archived link, or the root path."
           },
-          "domainId": {
+          "domain_id": {
             "type": "string",
             "format": "uuid"
           },
-          "slugRequested": {
+          "slug_requested": {
             "type": "string",
             "description": "What the caller asked for, empty for the root path."
           },
-          "occurredAt": {
+          "occurred_at": {
             "type": "string",
             "format": "date-time"
           },
-          "isBot": {
+          "is_bot": {
             "type": "boolean",
             "description": "Decided once at ingest. A request with no user agent at all counts as a bot."
           },
           "platform": {
             "$ref": "#/components/schemas/Platform"
           },
-          "userAgent": {
+          "user_agent": {
             "type": [
               "string",
               "null"
@@ -2577,7 +2577,7 @@
           "role": {
             "$ref": "#/components/schemas/Role"
           },
-          "expiresAt": {
+          "expires_at": {
             "type": [
               "string",
               "null"
@@ -2595,9 +2595,9 @@
           "name",
           "role",
           "prefix",
-          "expiresAt",
-          "createdAt",
-          "updatedAt"
+          "expires_at",
+          "created_at",
+          "updated_at"
         ],
         "properties": {
           "id": {
@@ -2616,18 +2616,18 @@
             "type": "string",
             "description": "The first characters of the secret, so a key is recognisable in a list."
           },
-          "expiresAt": {
+          "expires_at": {
             "type": [
               "string",
               "null"
             ],
             "format": "date-time"
           },
-          "createdAt": {
+          "created_at": {
             "type": "string",
             "format": "date-time"
           },
-          "updatedAt": {
+          "updated_at": {
             "type": "string",
             "format": "date-time"
           }
@@ -2689,7 +2689,7 @@
           "role": {
             "$ref": "#/components/schemas/Role"
           },
-          "expiresAt": {
+          "expires_at": {
             "type": [
               "string",
               "null"

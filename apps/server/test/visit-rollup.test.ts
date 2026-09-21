@@ -16,7 +16,7 @@ const DIMENSIONS = {
   platform: sql`${visits.platform}::text`,
   referer: sql`coalesce(${visits.referer}, '')`,
   destination: sql`coalesce(${visits.destination}, '')`,
-  slug: sql`${visits.slugRequested}`,
+  slug: sql`${visits.slug_requested}`,
 } as const
 
 /**
@@ -28,43 +28,43 @@ const DIMENSIONS = {
 async function liveDays(db: Db, dimension: keyof typeof DIMENSIONS) {
   const rows = await db
     .select({
-      day: sql<string>`to_char(${visits.occurredAt} at time zone 'UTC', 'YYYY-MM-DD')`.as("day"),
-      domainId: visits.domainId,
-      linkId: visits.linkId,
+      day: sql<string>`to_char(${visits.occurred_at} at time zone 'UTC', 'YYYY-MM-DD')`.as("day"),
+      domain_id: visits.domain_id,
+      link_id: visits.link_id,
       value: sql<string>`${DIMENSIONS[dimension]}`.as("value"),
-      isBot: visits.isBot,
+      is_bot: visits.is_bot,
       count: sql<number>`count(*)`.mapWith(Number),
     })
     .from(visits)
     .groupBy(sql`1, 2, 3, 4, 5`)
   return rows
-    .map((r) => `${r.day}|${r.domainId}|${r.linkId ?? "-"}|${r.value}|${r.isBot}|${r.count}`)
+    .map((r) => `${r.day}|${r.domain_id}|${r.link_id ?? "-"}|${r.value}|${r.is_bot}|${r.count}`)
     .sort()
 }
 
 async function rolledDays(db: Db, dimension: keyof typeof DIMENSIONS) {
   const rows = await db.select().from(visitDays).where(eq(visitDays.dimension, dimension))
   return rows
-    .map((r) => `${r.day}|${r.domainId}|${r.linkId ?? "-"}|${r.value}|${r.isBot}|${r.count}`)
+    .map((r) => `${r.day}|${r.domain_id}|${r.link_id ?? "-"}|${r.value}|${r.is_bot}|${r.count}`)
     .sort()
 }
 
 async function liveCounts(db: Db) {
   const rows = await db
     .select({
-      domainId: visits.domainId,
-      linkId: visits.linkId,
-      human: sql<number>`count(*) filter (where not ${visits.isBot})`.mapWith(Number),
-      bot: sql<number>`count(*) filter (where ${visits.isBot})`.mapWith(Number),
+      domain_id: visits.domain_id,
+      link_id: visits.link_id,
+      human: sql<number>`count(*) filter (where not ${visits.is_bot})`.mapWith(Number),
+      bot: sql<number>`count(*) filter (where ${visits.is_bot})`.mapWith(Number),
     })
     .from(visits)
-    .groupBy(visits.domainId, visits.linkId)
-  return rows.map((r) => `${r.domainId}|${r.linkId ?? "-"}|${r.human}|${r.bot}`).sort()
+    .groupBy(visits.domain_id, visits.link_id)
+  return rows.map((r) => `${r.domain_id}|${r.link_id ?? "-"}|${r.human}|${r.bot}`).sort()
 }
 
 async function rolledCounts(db: Db) {
   const rows = await db.select().from(visitCounts)
-  return rows.map((r) => `${r.domainId}|${r.linkId ?? "-"}|${r.human}|${r.bot}`).sort()
+  return rows.map((r) => `${r.domain_id}|${r.link_id ?? "-"}|${r.human}|${r.bot}`).sort()
 }
 
 let h: Harness
@@ -159,9 +159,9 @@ describe("the summary counts", () => {
     }
     await flushVisits()
 
-    const [row] = await h.db.select().from(visitCounts).where(eq(visitCounts.linkId, link.id))
+    const [row] = await h.db.select().from(visitCounts).where(eq(visitCounts.link_id, link.id))
     expect({ human: row.human, bot: row.bot }).toEqual({ human: 2, bot: 1 })
-    expect(row.lastVisitAt).not.toBeNull()
+    expect(row.last_visit_at).not.toBeNull()
   })
 
   test("orphans get one row per domain, not one per slug", async () => {
@@ -169,7 +169,7 @@ describe("the summary counts", () => {
     await h.request("/elsewhere", { host: HOST, headers: { "user-agent": DESKTOP } })
     await flushVisits()
 
-    const rows = await h.db.select().from(visitCounts).where(isNull(visitCounts.linkId))
+    const rows = await h.db.select().from(visitCounts).where(isNull(visitCounts.link_id))
     expect(rows).toHaveLength(1)
     expect(rows[0].human).toBe(2)
   })
@@ -185,7 +185,7 @@ describe("purge", () => {
     const orphanBefore = await h.db
       .select()
       .from(visitCounts)
-      .where(and(eq(visitCounts.domainId, domain), isNull(visitCounts.linkId)))
+      .where(and(eq(visitCounts.domain_id, domain), isNull(visitCounts.link_id)))
 
     await h.request(`/api/v1/links/${one.id}`, { key: author.key, method: "DELETE" })
     await h.request(`/api/v1/links/${one.id}/purge`, { key: admin.key, method: "DELETE" })
@@ -197,7 +197,7 @@ describe("purge", () => {
     }
     expect(await rolledCounts(h.db)).toEqual(await liveCounts(h.db))
 
-    const leftBehind = await h.db.select().from(visitDays).where(eq(visitDays.linkId, one.id))
+    const leftBehind = await h.db.select().from(visitDays).where(eq(visitDays.link_id, one.id))
     expect(leftBehind).toHaveLength(0)
 
     // The domain's genuine orphan traffic (from `traffic()`'s unknown slug and
@@ -205,7 +205,7 @@ describe("purge", () => {
     const orphanAfter = await h.db
       .select()
       .from(visitCounts)
-      .where(and(eq(visitCounts.domainId, domain), isNull(visitCounts.linkId)))
+      .where(and(eq(visitCounts.domain_id, domain), isNull(visitCounts.link_id)))
     expect(orphanAfter).toEqual(orphanBefore)
   })
 
@@ -219,7 +219,7 @@ describe("purge", () => {
     await h.recordVisits(null, spare, { human: 1 })
     await flushVisits()
     expect(
-      await h.db.select().from(visitDays).where(eq(visitDays.domainId, spare)),
+      await h.db.select().from(visitDays).where(eq(visitDays.domain_id, spare)),
     ).not.toHaveLength(0)
 
     await h.request(`/api/v1/links/${link.id}`, { key: author.key, method: "DELETE" })
@@ -228,18 +228,18 @@ describe("purge", () => {
     const orphanAfterLinkPurge = await h.db
       .select()
       .from(visitCounts)
-      .where(and(eq(visitCounts.domainId, spare), isNull(visitCounts.linkId)))
+      .where(and(eq(visitCounts.domain_id, spare), isNull(visitCounts.link_id)))
     expect(orphanAfterLinkPurge).not.toHaveLength(0)
 
     await h.request(`/api/v1/domains/${spare}`, { key: admin.key, method: "DELETE" })
     await h.request(`/api/v1/domains/${spare}/purge`, { key: admin.key, method: "DELETE" })
 
-    expect(await h.db.select().from(visitDays).where(eq(visitDays.domainId, spare))).toHaveLength(0)
+    expect(await h.db.select().from(visitDays).where(eq(visitDays.domain_id, spare))).toHaveLength(0)
     expect(
       await h.db
         .select()
         .from(visitCounts)
-        .where(and(eq(visitCounts.domainId, spare), isNull(visitCounts.linkId))),
+        .where(and(eq(visitCounts.domain_id, spare), isNull(visitCounts.link_id))),
     ).toHaveLength(0)
   })
 })

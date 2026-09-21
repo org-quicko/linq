@@ -22,8 +22,8 @@ export type GroupBy = (typeof GROUP_BY)[number]
 
 /** Narrows a read to one link, one domain, or the orphan slice. */
 const scope = {
-  linkId: uuidSchema.optional(),
-  domainId: uuidSchema.optional(),
+  link_id: uuidSchema.optional(),
+  domain_id: uuidSchema.optional(),
   /** Restrict to visits that resolved to no link. */
   orphan: z.enum(["true", "false"]).default("false"),
 }
@@ -54,25 +54,25 @@ export const visitListQuerySchema = paginationSchema.extend({
 export const statsQuerySchema = z.object({
   from: z.iso.date().optional(),
   to: z.iso.date().optional(),
-  groupBy: z.enum(GROUP_BY).default("day"),
+  group_by: z.enum(GROUP_BY).default("day"),
 })
 
 export const globalStatsQuerySchema = statsQuerySchema.extend({
   orphan: scope.orphan,
-  domainId: scope.domainId,
+  domain_id: scope.domain_id,
 })
 
 export type Visit = {
   id: string
-  linkId: string | null
-  domainId: string
-  slugRequested: string
-  occurredAt: string
-  isBot: boolean
+  link_id: string | null
+  domain_id: string
+  slug_requested: string
+  occurred_at: string
+  is_bot: boolean
   platform: Platform
   os: Os | null
   browser: Browser | null
-  userAgent: string | null
+  user_agent: string | null
   referer: string | null
   destination: string | null
   query: Record<string, string[]> | null

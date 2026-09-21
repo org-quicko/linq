@@ -19,20 +19,20 @@ import { validate } from "../validate.ts"
 
 const idParam = validate("param", z.object({ id: uuidSchema }))
 
-type DomainRow = { domain: typeof domains.$inferSelect; linkCount: number }
+type DomainRow = { domain: typeof domains.$inferSelect; link_count: number }
 
 /** Maps a domain row and its link count to the JSON shape the API returns. */
-function toDomain({ domain, linkCount }: DomainRow): Domain {
+function toDomain({ domain, link_count }: DomainRow): Domain {
   return {
     id: domain.id,
     host: domain.host,
-    fallbackUrl: domain.fallbackUrl,
-    basePathRedirect: domain.basePathRedirect,
-    invalidShortUrlRedirect: domain.invalidShortUrlRedirect,
+    fallback_url: domain.fallback_url,
+    base_path_redirect: domain.base_path_redirect,
+    invalid_short_url_redirect: domain.invalid_short_url_redirect,
     status: domain.status,
-    linkCount,
-    createdAt: domain.createdAt.toISOString(),
-    updatedAt: domain.updatedAt.toISOString(),
+    link_count,
+    created_at: domain.created_at.toISOString(),
+    updated_at: domain.updated_at.toISOString(),
   }
 }
 
@@ -42,18 +42,18 @@ function toDomain({ domain, linkCount }: DomainRow): Domain {
  */
 function domainQuery(db: Db) {
   const counts = db
-    .select({ domainId: links.domainId, n: sql<number>`count(*)`.as("n") })
+    .select({ domain_id: links.domain_id, n: sql<number>`count(*)`.as("n") })
     .from(links)
-    .groupBy(links.domainId)
+    .groupBy(links.domain_id)
     .as("link_counts")
 
   return db
     .select({
       domain: domains,
-      linkCount: sql<number>`coalesce(${counts.n}, 0)`.mapWith(Number),
+      link_count: sql<number>`coalesce(${counts.n}, 0)`.mapWith(Number),
     })
     .from(domains)
-    .leftJoin(counts, eq(counts.domainId, domains.id))
+    .leftJoin(counts, eq(counts.domain_id, domains.id))
 }
 
 /** Loads one domain as a complete API response, or throws 404. */
@@ -65,7 +65,7 @@ function fetchDomain(db: Db, id: string): Promise<Domain> {
       if (!row) throw ApiError.notFound("domain")
       return toDomain(row)
     },
-    { in: { domainId: id }, out: (domain) => ({ host: domain.host, status: domain.status }) },
+    { in: { domain_id: id }, out: (domain) => ({ host: domain.host, status: domain.status }) },
   )
 }
 
@@ -76,19 +76,19 @@ function fetchDomain(db: Db, id: string): Promise<Domain> {
  * (docs/adr/0002), so either operation would strand a row that has nowhere
  * to go. Purging the links is the only way through, by design.
  */
-function assertNoLinks(db: Db, domainId: string): Promise<void> {
+function assertNoLinks(db: Db, domain_id: string): Promise<void> {
   return span(
     "domain.assertNoLinks",
     async () => {
       const [{ n }] = await db
         .select({ n: count() })
         .from(links)
-        .where(eq(links.domainId, domainId))
+        .where(eq(links.domain_id, domain_id))
       if (n > 0) {
         throw ApiError.conflict(`domain still has ${n} link${n === 1 ? "" : "s"}; purge them first`)
       }
     },
-    { in: { domainId } },
+    { in: { domain_id } },
   )
 }
 
@@ -118,9 +118,9 @@ export const domainRoutes = new Hono<Env>()
       .values({
         id: Bun.randomUUIDv7(),
         host: body.host,
-        fallbackUrl: body.fallbackUrl ?? null,
-        basePathRedirect: body.basePathRedirect ?? null,
-        invalidShortUrlRedirect: body.invalidShortUrlRedirect ?? null,
+        fallback_url: body.fallback_url ?? null,
+        base_path_redirect: body.base_path_redirect ?? null,
+        invalid_short_url_redirect: body.invalid_short_url_redirect ?? null,
       })
       .onConflictDoNothing({ target: domains.host })
       .returning()
@@ -129,7 +129,7 @@ export const domainRoutes = new Hono<Env>()
     // Clears the negative entry a request to this host left behind while it 404'd.
     await c.var.cache.del(domainKey(row.host))
     await c.var.caddy.upsert(row.id, row.host)
-    return c.json(toDomain({ domain: row, linkCount: 0 }), 201)
+    return c.json(toDomain({ domain: row, link_count: 0 }), 201)
   })
 
   .get("/:id", idParam, async (c) => c.json(await fetchDomain(c.var.db, c.req.valid("param").id)))
@@ -153,13 +153,13 @@ export const domainRoutes = new Hono<Env>()
         await assertNoLinks(tx, id)
         await tx
           .update(domains)
-          .set({ ...patch, updatedAt: new Date() })
+          .set({ ...patch, updated_at: new Date() })
           .where(eq(domains.id, id))
       })
     } else {
       await c.var.db
         .update(domains)
-        .set({ ...patch, updatedAt: new Date() })
+        .set({ ...patch, updated_at: new Date() })
         .where(eq(domains.id, id))
     }
     // Every patchable field except the status itself — the three redirect
@@ -186,7 +186,7 @@ export const domainRoutes = new Hono<Env>()
       await assertNoLinks(tx, id)
       await tx
         .update(domains)
-        .set({ status: "archived", updatedAt: new Date() })
+        .set({ status: "archived", updated_at: new Date() })
         .where(eq(domains.id, id))
     })
     await c.var.cache.del(domainKey(before.host))
@@ -212,7 +212,7 @@ export const domainRoutes = new Hono<Env>()
       await assertNoLinks(tx, id)
       try {
         await span("domain.purge", async () => tx.delete(domains).where(eq(domains.id, id)), {
-          in: { domainId: id, host: domain.host },
+          in: { domain_id: id, host: domain.host },
         })
       } catch (err) {
         // The pre-check above is for the message; `links.domain_id` is ON

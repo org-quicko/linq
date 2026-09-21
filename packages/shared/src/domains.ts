@@ -5,18 +5,18 @@ import { resourceStatusSchema } from "./roles.ts"
 export const domainCreateSchema = z.object({
   host: hostSchema,
   /** Where an unmatched-but-well-formed slug goes. Absent means 404. */
-  fallbackUrl: urlSchema.nullable().optional(),
-  /** Where a bare `GET /` on this host goes. Absent falls back to `fallbackUrl`. */
-  basePathRedirect: urlSchema.nullable().optional(),
-  /** Where a malformed (not just unknown) slug goes. Absent falls back to `fallbackUrl`. */
-  invalidShortUrlRedirect: urlSchema.nullable().optional(),
+  fallback_url: urlSchema.nullable().optional(),
+  /** Where a bare `GET /` on this host goes. Absent falls back to `fallback_url`. */
+  base_path_redirect: urlSchema.nullable().optional(),
+  /** Where a malformed (not just unknown) slug goes. Absent falls back to `fallback_url`. */
+  invalid_short_url_redirect: urlSchema.nullable().optional(),
 })
 
 export const domainPatchSchema = z
   .object({
-    fallbackUrl: urlSchema.nullable(),
-    basePathRedirect: urlSchema.nullable(),
-    invalidShortUrlRedirect: urlSchema.nullable(),
+    fallback_url: urlSchema.nullable(),
+    base_path_redirect: urlSchema.nullable(),
+    invalid_short_url_redirect: urlSchema.nullable(),
     status: resourceStatusSchema,
   })
   .partial()
@@ -24,11 +24,11 @@ export const domainPatchSchema = z
 export type Domain = {
   id: string
   host: string
-  fallbackUrl: string | null
-  basePathRedirect: string | null
-  invalidShortUrlRedirect: string | null
+  fallback_url: string | null
+  base_path_redirect: string | null
+  invalid_short_url_redirect: string | null
   status: "active" | "archived"
-  linkCount: number
-  createdAt: string
-  updatedAt: string
+  link_count: number
+  created_at: string
+  updated_at: string
 }

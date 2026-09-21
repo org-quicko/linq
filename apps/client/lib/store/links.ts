@@ -3,9 +3,9 @@ import { qs } from "../api"
 import { apiSlice } from "./api"
 
 type LinkFilters = {
-  domainId?: string
+  domain_id?: string
   status?: "active" | "archived" | "all"
-  sort?: "createdAt" | "updatedAt" | "visits"
+  sort?: "created_at" | "updated_at" | "visits"
   order?: "asc" | "desc"
   search?: string
   tags?: string
@@ -16,7 +16,7 @@ type LinkFilters = {
 /** `linksFeed`'s query arg: the same filters minus the pagination fields,
  *  which the endpoint itself owns (fixed page size, `pageParam` as the
  *  offset). */
-type LinkInfiniteFilters = Pick<LinkFilters, "domainId" | "tags" | "search" | "order">
+type LinkInfiniteFilters = Pick<LinkFilters, "domain_id" | "tags" | "search" | "order">
 
 export const linksApi = apiSlice.injectEndpoints({
   endpoints: (build) => ({
@@ -48,7 +48,7 @@ export const linksApi = apiSlice.injectEndpoints({
         },
       },
       query: ({ queryArg, pageParam }) => ({
-        path: `/v1/links${qs({ ...queryArg, sort: "createdAt", limit: 25, offset: pageParam })}`,
+        path: `/v1/links${qs({ ...queryArg, sort: "created_at", limit: 25, offset: pageParam })}`,
       }),
       providesTags: (result) =>
         result
@@ -67,8 +67,8 @@ export const linksApi = apiSlice.injectEndpoints({
     }),
 
     getLinkRules: build.query<Rule[], string>({
-      query: (linkId) => ({ path: `/v1/links/${linkId}/rules` }),
-      providesTags: (_result, _error, linkId) => [{ type: "Link", id: `${linkId}-rules` }],
+      query: (link_id) => ({ path: `/v1/links/${link_id}/rules` }),
+      providesTags: (_result, _error, link_id) => [{ type: "Link", id: `${link_id}-rules` }],
     }),
 
     createLink: build.mutation<Link, LinkCreate>({
@@ -106,13 +106,13 @@ export const linksApi = apiSlice.injectEndpoints({
       ],
     }),
 
-    updateLinkRules: build.mutation<void, { linkId: string; rules: unknown[] }>({
-      query: ({ linkId, rules }) => ({
-        path: `/v1/links/${linkId}/rules`,
+    updateLinkRules: build.mutation<void, { link_id: string; rules: unknown[] }>({
+      query: ({ link_id, rules }) => ({
+        path: `/v1/links/${link_id}/rules`,
         method: "PUT",
         body: rules,
       }),
-      invalidatesTags: (_result, _error, { linkId }) => [{ type: "Link", id: `${linkId}-rules` }],
+      invalidatesTags: (_result, _error, { link_id }) => [{ type: "Link", id: `${link_id}-rules` }],
     }),
   }),
 })

@@ -74,7 +74,7 @@ describe("GET /llms.txt", () => {
       listed: true,
     })
     const body = await (await get("/llms.txt")).text()
-    expect(body).toContain(`[Public link](${link.shortUrl}): ${link.destination}`)
+    expect(body).toContain(`[Public link](${link.short_url}): ${link.destination}`)
   })
 
   test("a link created without listed does not appear — the security property", async () => {
@@ -87,17 +87,17 @@ describe("GET /llms.txt", () => {
     const link = await h.createLink(author.key, domain, { slug: "was-listed", listed: true })
     await h.request(`/api/v1/links/${link.id}`, { key: author.key, method: "DELETE" })
     const body = await (await get("/llms.txt")).text()
-    expect(body).not.toContain(link.shortUrl)
+    expect(body).not.toContain(link.short_url)
   })
 
   test("an expired listed link does not appear", async () => {
     const link = await h.createLink(author.key, domain, {
       slug: "expired-listed",
       listed: true,
-      expiresAt: new Date(Date.now() - 1000).toISOString(),
+      expires_at: new Date(Date.now() - 1000).toISOString(),
     })
     const body = await (await get("/llms.txt")).text()
-    expect(body).not.toContain(link.shortUrl)
+    expect(body).not.toContain(link.short_url)
   })
 })
 
@@ -106,12 +106,12 @@ describe("invalidation", () => {
     const cache = memoryCache(testConfig)
     const cached = await createHarness({ cache })
     const owner = await cached.actor("author")
-    const domainId = await cached.createDomain("llms-cache.test")
+    const domain_id = await cached.createDomain("llms-cache.test")
 
     const first = await cached.request("/llms.txt", { host: "llms-cache.test" })
     expect(await first.text()).not.toContain("Second link")
 
-    await cached.createLink(owner.key, domainId, {
+    await cached.createLink(owner.key, domain_id, {
       slug: "second",
       name: "Second link",
       listed: true,

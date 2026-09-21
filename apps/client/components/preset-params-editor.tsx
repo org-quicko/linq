@@ -7,8 +7,8 @@ import { Input } from "@/components/ui/input"
 export type PresetParamRow = { key: string; value: string }
 
 /** Seeds the editor's row list from the wire shape. */
-export function presetParamsToRows(presetParams: Record<string, string>): PresetParamRow[] {
-  return Object.entries(presetParams).map(([key, value]) => ({ key, value }))
+export function presetParamsToRows(preset_params: Record<string, string>): PresetParamRow[] {
+  return Object.entries(preset_params).map(([key, value]) => ({ key, value }))
 }
 
 /**
@@ -37,16 +37,16 @@ export function PresetParamsEditor({
   rows,
   onChange,
   readOnly,
-  forwardQuery,
+  forward_query,
 }: {
   rows: PresetParamRow[]
   onChange: (rows: PresetParamRow[]) => void
   readOnly: boolean
   /**
-   * The unsaved `forwardQuery` draft, not the persisted value, so the hint
+   * The unsaved `forward_query` draft, not the persisted value, so the hint
    * tracks the checkbox whichever of the two fields is set first.
    */
-  forwardQuery: boolean
+  forward_query: boolean
 }) {
   function edit(index: number, next: Partial<PresetParamRow>) {
     onChange(rows.map((row, i) => (i === index ? { ...row, ...next } : row)))
@@ -54,7 +54,7 @@ export function PresetParamsEditor({
 
   return (
     <div className="flex flex-col gap-2">
-      {!forwardQuery ? (
+      {!forward_query ? (
         <p className="text-sm text-muted-foreground">
           Not applied while this link does not forward the query.
         </p>

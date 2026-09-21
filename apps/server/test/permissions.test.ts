@@ -65,8 +65,8 @@ describe("assertCanTransfer", () => {
 const ME = "key-me"
 const OTHER = "key-other"
 const actor = (role: Role): Actor => ({ keyId: ME, role })
-const mine = { ownerId: ME }
-const theirs = { ownerId: OTHER }
+const mine = { owner_id: ME }
+const theirs = { owner_id: OTHER }
 
 describe("can", () => {
   test("ownLink needs author or better", () => {

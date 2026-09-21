@@ -63,7 +63,7 @@ describe("DELETE /api/v1/links/:id/purge", () => {
     await archive(h, `links/${link.id}`, author.key)
 
     const taken = await h.post("/api/v1/links", author.key, {
-      domainId: domain,
+      domain_id: domain,
       destination: "https://example.com/",
       slug: "reusable",
     })

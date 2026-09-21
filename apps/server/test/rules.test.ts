@@ -104,8 +104,8 @@ describe("the rules API", () => {
     domain = await h.createDomain("rules.test")
   })
 
-  const put = (linkId: string, key: string, body: unknown) =>
-    h.request(`/api/v1/links/${linkId}/rules`, { key, method: "PUT", body: JSON.stringify(body) })
+  const put = (link_id: string, key: string, body: unknown) =>
+    h.request(`/api/v1/links/${link_id}/rules`, { key, method: "PUT", body: JSON.stringify(body) })
 
   const androidRule = {
     destination: "https://example.com/app",
@@ -147,24 +147,24 @@ describe("the rules API", () => {
     expect(await (await put(link.id, author.key, [])).json()).toEqual([])
   })
 
-  test("the link response's ruleCount tracks the rule set", async () => {
+  test("the link response's rule_count tracks the rule set", async () => {
     const link = await h.createLink(author.key, domain)
-    expect(link.ruleCount).toBe(0)
+    expect(link.rule_count).toBe(0)
 
     await put(link.id, author.key, [androidRule])
     const one = await (await h.request(`/api/v1/links/${link.id}`, { key: author.key })).json()
-    expect(one.ruleCount).toBe(1)
+    expect(one.rule_count).toBe(1)
 
     await put(link.id, author.key, [
       androidRule,
       { destination: "https://example.com/ios", conditions: [{ type: "platform", value: "ios" }] },
     ])
     const two = await (await h.request(`/api/v1/links/${link.id}`, { key: author.key })).json()
-    expect(two.ruleCount).toBe(2)
+    expect(two.rule_count).toBe(2)
 
     await put(link.id, author.key, [])
     const cleared = await (await h.request(`/api/v1/links/${link.id}`, { key: author.key })).json()
-    expect(cleared.ruleCount).toBe(0)
+    expect(cleared.rule_count).toBe(0)
   })
 
   test("rejects a rule with no conditions", async () => {
@@ -228,7 +228,7 @@ describe("the rules API", () => {
       key: author.key,
       method: "POST",
       body: JSON.stringify({
-        domainId: domain,
+        domain_id: domain,
         destination: "https://example.com/default",
         rules: [androidRule],
       }),
@@ -285,11 +285,11 @@ describe("rules in the redirect", () => {
     domain = await h.createDomain(HOST)
   })
 
-  const get = (path: string, userAgent = DESKTOP) =>
-    h.request(path, { host: HOST, headers: { "user-agent": userAgent } })
+  const get = (path: string, user_agent = DESKTOP) =>
+    h.request(path, { host: HOST, headers: { "user-agent": user_agent } })
 
-  const location = async (path: string, userAgent = DESKTOP) =>
-    (await get(path, userAgent)).headers.get("location")
+  const location = async (path: string, user_agent = DESKTOP) =>
+    (await get(path, user_agent)).headers.get("location")
 
   test("a platform rule wins over the default destination", async () => {
     const link = await h.createLink(author.key, domain, {
@@ -337,7 +337,7 @@ describe("rules in the redirect", () => {
     const [row] = await h.db
       .select()
       .from(visits)
-      .where(eq(visits.linkId, link.id))
+      .where(eq(visits.link_id, link.id))
       .orderBy(desc(visits.id))
       .limit(1)
     expect(row).toMatchObject({

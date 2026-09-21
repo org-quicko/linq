@@ -23,7 +23,7 @@ export const keysApi = apiSlice.injectEndpoints({
           : [{ type: "Key" as const, id: "LIST" }],
     }),
 
-    mintKey: build.mutation<ApiKeyCreated, { name: string; role: Role; expiresAt?: string | null }>(
+    mintKey: build.mutation<ApiKeyCreated, { name: string; role: Role; expires_at?: string | null }>(
       {
         query: (body) => ({ path: "/v1/keys", method: "POST", body }),
         invalidatesTags: [{ type: "Key", id: "LIST" }],

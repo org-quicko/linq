@@ -41,7 +41,7 @@ describe("GET /api/v1/keys", () => {
     const body = await (await h.request("/api/v1/keys", { key: admin.key })).json()
     for (const key of body.data) {
       expect(key).not.toHaveProperty("secret")
-      expect(key).not.toHaveProperty("keyHash")
+      expect(key).not.toHaveProperty("key_hash")
     }
   })
 })
@@ -148,8 +148,8 @@ describe("POST /api/v1/keys/:id/links/reassign", () => {
     expect(await res.json()).toEqual({ moved: 1 })
 
     const moved = await (await h.request(`/api/v1/links/${link.id}`, { key: admin.key })).json()
-    expect(moved.ownerId).toBe(recipient.keyId)
-    expect(moved.ownerName).toBe("Recipient")
+    expect(moved.owner_id).toBe(recipient.keyId)
+    expect(moved.owner_name).toBe("Recipient")
 
     expect((await patch(`/api/v1/keys/${owner.keyId}`, admin.key, { role: "viewer" })).status).toBe(
       200,
@@ -166,7 +166,7 @@ describe("POST /api/v1/keys/:id/links/reassign", () => {
     expect(await res.json()).toEqual({ moved: 1 })
 
     const unowned = await (await h.request(`/api/v1/links/${link.id}`, { key: admin.key })).json()
-    expect(unowned.ownerId).toBeNull()
+    expect(unowned.owner_id).toBeNull()
 
     expect((await patch(`/api/v1/keys/${owner.keyId}`, admin.key, { role: "viewer" })).status).toBe(
       200,
@@ -237,7 +237,7 @@ describe("DELETE /api/v1/keys/:id", () => {
     expect(res.status).toBe(204)
 
     const after = await (await h.request(`/api/v1/links/${link.id}`, { key: admin.key })).json()
-    expect(after.ownerId).toBeNull()
+    expect(after.owner_id).toBeNull()
   })
 
   test("nobody revokes the key they are calling with", async () => {

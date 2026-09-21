@@ -44,11 +44,11 @@ const idParam = validate("param", z.object({ id: uuidSchema }))
 
 type LinkRow = {
   link: typeof links.$inferSelect
-  domainHost: string
-  ownerName: string | null
-  humanVisits: number
-  botVisits: number
-  ruleCount: number
+  domain_host: string
+  owner_name: string | null
+  human_visits: number
+  bot_visits: number
+  rule_count: number
 }
 
 /** A port only ever appears in a local setup, where no TLS terminator is in front. */
@@ -62,25 +62,25 @@ function toLink(row: LinkRow): Link {
   const { link } = row
   return {
     id: link.id,
-    domainId: link.domainId,
-    domainHost: row.domainHost,
+    domain_id: link.domain_id,
+    domain_host: row.domain_host,
     slug: link.slug,
-    shortUrl: shortUrl(row.domainHost, link.slug),
+    short_url: shortUrl(row.domain_host, link.slug),
     destination: link.destination,
     name: link.name,
     tags: link.tags,
-    forwardQuery: link.forwardQuery,
-    presetParams: link.presetParams,
+    forward_query: link.forward_query,
+    preset_params: link.preset_params,
     status: link.status,
-    ownerId: link.ownerId,
-    ownerName: row.ownerName,
-    humanVisits: row.humanVisits,
-    botVisits: row.botVisits,
-    expiresAt: link.expiresAt?.toISOString() ?? null,
+    owner_id: link.owner_id,
+    owner_name: row.owner_name,
+    human_visits: row.human_visits,
+    bot_visits: row.bot_visits,
+    expires_at: link.expires_at?.toISOString() ?? null,
     listed: link.listed,
-    ruleCount: row.ruleCount,
-    createdAt: link.createdAt.toISOString(),
-    updatedAt: link.updatedAt.toISOString(),
+    rule_count: row.rule_count,
+    created_at: link.created_at.toISOString(),
+    updated_at: link.updated_at.toISOString(),
   }
 }
 
@@ -96,21 +96,21 @@ function linkQuery(db: Db) {
   const query = db
     .select({
       link: links,
-      domainHost: domains.host,
-      ownerName: apiKeys.name,
-      humanVisits: sql<number>`coalesce(${visitCounts.human}, 0)`.mapWith(Number),
-      botVisits: sql<number>`coalesce(${visitCounts.bot}, 0)`.mapWith(Number),
+      domain_host: domains.host,
+      owner_name: apiKeys.name,
+      human_visits: sql<number>`coalesce(${visitCounts.human}, 0)`.mapWith(Number),
+      bot_visits: sql<number>`coalesce(${visitCounts.bot}, 0)`.mapWith(Number),
       // A correlated subquery, not a join: `rules` is 1:N and every other join
       // here is 1:1, so joining it directly would multiply rows.
-      ruleCount:
-        sql<number>`(select count(*) from ${rules} where ${rules.linkId} = ${links.id})`.mapWith(
+      rule_count:
+        sql<number>`(select count(*) from ${rules} where ${rules.link_id} = ${links.id})`.mapWith(
           Number,
         ),
     })
     .from(links)
-    .innerJoin(domains, eq(domains.id, links.domainId))
-    .leftJoin(apiKeys, eq(apiKeys.id, links.ownerId))
-    .leftJoin(visitCounts, eq(visitCounts.linkId, links.id))
+    .innerJoin(domains, eq(domains.id, links.domain_id))
+    .leftJoin(apiKeys, eq(apiKeys.id, links.owner_id))
+    .leftJoin(visitCounts, eq(visitCounts.link_id, links.id))
 
   return {
     query,
@@ -127,7 +127,7 @@ function fetchLink(db: Db, id: string): Promise<Link> {
       if (!row) throw ApiError.notFound("link")
       return toLink(row)
     },
-    { in: { linkId: id }, out: (link) => ({ slug: link.slug, status: link.status }) },
+    { in: { link_id: id }, out: (link) => ({ slug: link.slug, status: link.status }) },
   )
 }
 
@@ -140,7 +140,7 @@ export function loadLink(db: Db, id: string): Promise<typeof links.$inferSelect>
       if (!row) throw ApiError.notFound("link")
       return row
     },
-    { in: { linkId: id }, out: (link) => ({ ownerId: link.ownerId, status: link.status }) },
+    { in: { link_id: id }, out: (link) => ({ owner_id: link.owner_id, status: link.status }) },
   )
 }
 
@@ -166,7 +166,7 @@ function insertLink(
             id: Bun.randomUUIDv7(),
             slug: opts.slug ?? randomSlug(opts.slugLength),
           })
-          .onConflictDoNothing({ target: [links.domainId, links.slug] })
+          .onConflictDoNothing({ target: [links.domain_id, links.slug] })
           .returning()
         // The attempt count is the signal that LINQ_SLUG_LENGTH is running out.
         if (row) return { row, attempts: i + 1 }
@@ -175,8 +175,8 @@ function insertLink(
       throw ApiError.conflict("could not allocate a free slug; raise LINQ_SLUG_LENGTH")
     },
     {
-      in: { domainId: values.domainId, slug: opts.slug ?? null },
-      out: ({ row, attempts }) => ({ linkId: row.id, slug: row.slug, attempts }),
+      in: { domain_id: values.domain_id, slug: opts.slug ?? null },
+      out: ({ row, attempts }) => ({ link_id: row.id, slug: row.slug, attempts }),
     },
   ).then(({ row }) => row)
 }
@@ -188,8 +188,8 @@ export const linkRoutes = new Hono<Env>()
 
     const filters: SQL[] = []
     if (q.status !== "all") filters.push(eq(links.status, q.status))
-    if (q.domainId.length) filters.push(inArray(links.domainId, q.domainId))
-    if (q.ownerId) filters.push(eq(links.ownerId, q.ownerId))
+    if (q.domain_id.length) filters.push(inArray(links.domain_id, q.domain_id))
+    if (q.owner_id) filters.push(eq(links.owner_id, q.owner_id))
     if (q.tags.length) filters.push(arrayOverlaps(links.tags, q.tags))
     if (q.search) {
       const term = `%${q.search}%`
@@ -204,8 +204,8 @@ export const linkRoutes = new Hono<Env>()
       const now = new Date()
       filters.push(
         q.expiry === "expired"
-          ? (and(isNotNull(links.expiresAt), lte(links.expiresAt, now)) as SQL)
-          : (or(isNull(links.expiresAt), gt(links.expiresAt, now)) as SQL),
+          ? (and(isNotNull(links.expires_at), lte(links.expires_at, now)) as SQL)
+          : (or(isNull(links.expires_at), gt(links.expires_at, now)) as SQL),
       )
     }
     const where = filters.length ? and(...filters) : undefined
@@ -213,8 +213,8 @@ export const linkRoutes = new Hono<Env>()
     // Every sortable column in one place; `visits` is the joined expression
     // rather than a column, which is why this is a map and not a field name.
     const sortable = {
-      createdAt: links.createdAt,
-      updatedAt: links.updatedAt,
+      created_at: links.created_at,
+      updated_at: links.updated_at,
       visits: total,
     } as const
     const direction = q.order === "asc" ? asc : desc
@@ -245,7 +245,7 @@ export const linkRoutes = new Hono<Env>()
       const [domain] = await tx
         .select()
         .from(domains)
-        .where(eq(domains.id, body.domainId))
+        .where(eq(domains.id, body.domain_id))
         .for("share")
         .limit(1)
       if (!domain) throw ApiError.notFound("domain")
@@ -254,14 +254,14 @@ export const linkRoutes = new Hono<Env>()
       const linkRow = await insertLink(
         tx,
         {
-          domainId: body.domainId,
+          domain_id: body.domain_id,
           destination: body.destination,
           name: body.name ?? null,
           tags: body.tags,
-          forwardQuery: body.forwardQuery,
-          presetParams: body.presetParams,
-          ownerId: c.var.principal.keyId,
-          expiresAt: body.expiresAt ? new Date(body.expiresAt) : null,
+          forward_query: body.forward_query,
+          preset_params: body.preset_params,
+          owner_id: c.var.principal.keyId,
+          expires_at: body.expires_at ? new Date(body.expires_at) : null,
           listed: body.listed,
         },
         { slug: body.slug, slugLength: c.var.config.LINQ_SLUG_LENGTH },
@@ -271,7 +271,7 @@ export const linkRoutes = new Hono<Env>()
         await tx.insert(rules).values(
           body.rules.map((rule, position) => ({
             id: Bun.randomUUIDv7(),
-            linkId: linkRow.id,
+            link_id: linkRow.id,
             position,
             destination: rule.destination,
             conditions: rule.conditions,
@@ -283,7 +283,7 @@ export const linkRoutes = new Hono<Env>()
     })
 
     // Clears the negative entry left behind while this slug was 404ing.
-    await c.var.cache.del(...linkKeys(row.domainId, row.slug))
+    await c.var.cache.del(...linkKeys(row.domain_id, row.slug))
     return c.json(await fetchLink(c.var.db, row.id), 201)
   })
 
@@ -293,14 +293,14 @@ export const linkRoutes = new Hono<Env>()
     const { id } = c.req.valid("param")
     const patch = c.req.valid("json")
     const existing = await loadLink(c.var.db, id)
-    assertCanEdit(c.var.principal, existing.ownerId)
+    assertCanEdit(c.var.principal, existing.owner_id)
 
-    if (patch.ownerId !== undefined) {
-      assertCanTransfer(c.var.principal, existing.ownerId)
+    if (patch.owner_id !== undefined) {
+      assertCanTransfer(c.var.principal, existing.owner_id)
       const [owner] = await c.var.db
         .select({ id: apiKeys.id, role: apiKeys.role })
         .from(apiKeys)
-        .where(eq(apiKeys.id, patch.ownerId))
+        .where(eq(apiKeys.id, patch.owner_id))
         .limit(1)
       if (!owner) throw ApiError.notFound("key")
       // Not 403: the caller is allowed, the *target* is not eligible.
@@ -311,31 +311,31 @@ export const linkRoutes = new Hono<Env>()
       await tx
         .update(links)
         .set({
-          // Spelled out rather than a blanket `...patch` spread: `expiresAt`
+          // Spelled out rather than a blanket `...patch` spread: `expires_at`
           // arrives as an ISO string and the column takes a Date, so the spread
           // would not typecheck. See keys.ts's PATCH for the same pattern.
           ...(patch.destination !== undefined ? { destination: patch.destination } : {}),
           ...(patch.name !== undefined ? { name: patch.name } : {}),
           ...(patch.tags !== undefined ? { tags: patch.tags } : {}),
-          ...(patch.forwardQuery !== undefined ? { forwardQuery: patch.forwardQuery } : {}),
-          ...(patch.presetParams !== undefined ? { presetParams: patch.presetParams } : {}),
+          ...(patch.forward_query !== undefined ? { forward_query: patch.forward_query } : {}),
+          ...(patch.preset_params !== undefined ? { preset_params: patch.preset_params } : {}),
           ...(patch.status !== undefined ? { status: patch.status } : {}),
-          ...(patch.ownerId !== undefined ? { ownerId: patch.ownerId } : {}),
-          ...(patch.expiresAt !== undefined
-            ? { expiresAt: patch.expiresAt ? new Date(patch.expiresAt) : null }
+          ...(patch.owner_id !== undefined ? { owner_id: patch.owner_id } : {}),
+          ...(patch.expires_at !== undefined
+            ? { expires_at: patch.expires_at ? new Date(patch.expires_at) : null }
             : {}),
           ...(patch.listed !== undefined ? { listed: patch.listed } : {}),
-          updatedAt: new Date(),
+          updated_at: new Date(),
         })
         .where(eq(links.id, id))
 
       if (patch.rules !== undefined) {
-        await tx.delete(rules).where(eq(rules.linkId, id))
+        await tx.delete(rules).where(eq(rules.link_id, id))
         if (patch.rules.length > 0) {
           await tx.insert(rules).values(
             patch.rules.map((rule, position) => ({
               id: Bun.randomUUIDv7(),
-              linkId: id,
+              link_id: id,
               position,
               destination: rule.destination,
               conditions: rule.conditions,
@@ -344,7 +344,7 @@ export const linkRoutes = new Hono<Env>()
         }
       }
     })
-    await c.var.cache.del(...linkKeys(existing.domainId, existing.slug))
+    await c.var.cache.del(...linkKeys(existing.domain_id, existing.slug))
     return c.json(await fetchLink(c.var.db, id))
   })
 
@@ -352,13 +352,13 @@ export const linkRoutes = new Hono<Env>()
   .delete("/:id", idParam, async (c) => {
     const { id } = c.req.valid("param")
     const existing = await loadLink(c.var.db, id)
-    assertCanEdit(c.var.principal, existing.ownerId)
+    assertCanEdit(c.var.principal, existing.owner_id)
 
     await c.var.db
       .update(links)
-      .set({ status: "archived", updatedAt: new Date() })
+      .set({ status: "archived", updated_at: new Date() })
       .where(eq(links.id, id))
-    await c.var.cache.del(...linkKeys(existing.domainId, existing.slug))
+    await c.var.cache.del(...linkKeys(existing.domain_id, existing.slug))
     return c.json(await fetchLink(c.var.db, id))
   })
 
@@ -380,9 +380,9 @@ export const linkRoutes = new Hono<Env>()
     }
 
     await span("link.purge", async () => c.var.db.delete(links).where(eq(links.id, id)), {
-      in: { linkId: id, slug: existing.slug },
+      in: { link_id: id, slug: existing.slug },
     })
-    await c.var.cache.del(...linkKeys(existing.domainId, existing.slug))
+    await c.var.cache.del(...linkKeys(existing.domain_id, existing.slug))
     return c.body(null, 204)
   })
 

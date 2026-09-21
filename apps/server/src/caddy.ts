@@ -10,8 +10,8 @@ import { reqLog, span } from "./log.ts"
  * another's. See docs/adr/0012.
  */
 export type Caddy = {
-  upsert(domainId: string, host: string): Promise<void>
-  remove(domainId: string): Promise<void>
+  upsert(domain_id: string, host: string): Promise<void>
+  remove(domain_id: string): Promise<void>
 }
 
 /** What runs when Caddy sync is switched off — every install without LINQ_CADDY_ADMIN_URL. */
@@ -24,18 +24,18 @@ export const noCaddy: Caddy = { upsert: async () => {}, remove: async () => {} }
  */
 export function guarded(caddy: Caddy): Caddy {
   return {
-    async upsert(domainId, host) {
+    async upsert(domain_id, host) {
       try {
-        await caddy.upsert(domainId, host)
+        await caddy.upsert(domain_id, host)
       } catch (err) {
-        reqLog().error({ err, domainId }, "caddy upsert failed")
+        reqLog().error({ err, domain_id }, "caddy upsert failed")
       }
     },
-    async remove(domainId) {
+    async remove(domain_id) {
       try {
-        await caddy.remove(domainId)
+        await caddy.remove(domain_id)
       } catch (err) {
-        reqLog().error({ err, domainId }, "caddy remove failed")
+        reqLog().error({ err, domain_id }, "caddy remove failed")
       }
     },
   }
@@ -47,8 +47,8 @@ function hostnameOf(host: string): string {
 }
 
 /** One domain, one route object, addressed by this id for its whole lifetime. */
-function routeId(domainId: string): string {
-  return `domain:${domainId}`
+function routeId(domain_id: string): string {
+  return `domain:${domain_id}`
 }
 
 /** Opens a client bound to one Caddy admin API, or a no-op when none is configured. */
@@ -57,8 +57,8 @@ export function startCaddy(config: Config): Caddy {
   const adminUrl = config.LINQ_CADDY_ADMIN_URL
   const upstream = config.LINQ_CADDY_UPSTREAM! // enforced by config's superRefine
 
-  async function remove(domainId: string): Promise<void> {
-    const res = await fetch(`${adminUrl}/id/${routeId(domainId)}`, { method: "DELETE" })
+  async function remove(domain_id: string): Promise<void> {
+    const res = await fetch(`${adminUrl}/id/${routeId(domain_id)}`, { method: "DELETE" })
     // 404 is the idempotent case — already gone — not a failure.
     if (!res.ok && res.status !== 404) {
       throw new Error(`caddy admin API ${res.status}: ${await res.text()}`)
@@ -66,29 +66,29 @@ export function startCaddy(config: Config): Caddy {
   }
 
   return {
-    async upsert(domainId, host) {
+    async upsert(domain_id, host) {
       await span(
         "caddy.upsert",
         async () => {
           // Delete-then-add is what makes this idempotent without first
           // asking Caddy what it currently holds: a reactivated domain and a
           // brand-new one look identical to this call.
-          await remove(domainId)
+          await remove(domain_id)
           const res = await fetch(`${adminUrl}/config/apps/http/servers/srv0/routes`, {
             method: "POST",
             headers: { "content-type": "application/json" },
             body: JSON.stringify({
-              "@id": routeId(domainId),
+              "@id": routeId(domain_id),
               match: [{ host: [hostnameOf(host)] }],
               handle: [{ handler: "reverse_proxy", upstreams: [{ dial: upstream }] }],
             }),
           })
           if (!res.ok) throw new Error(`caddy admin API ${res.status}: ${await res.text()}`)
         },
-        { in: { domainId } },
+        { in: { domain_id } },
       )
     },
-    remove: (domainId) => span("caddy.remove", () => remove(domainId), { in: { domainId } }),
+    remove: (domain_id) => span("caddy.remove", () => remove(domain_id), { in: { domain_id } }),
   }
 }
 

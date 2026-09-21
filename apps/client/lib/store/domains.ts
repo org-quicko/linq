@@ -19,9 +19,9 @@ export const domainsApi = apiSlice.injectEndpoints({
       Domain,
       {
         host: string
-        fallbackUrl?: string | null
-        basePathRedirect?: string | null
-        invalidShortUrlRedirect?: string | null
+        fallback_url?: string | null
+        base_path_redirect?: string | null
+        invalid_short_url_redirect?: string | null
       }
     >({
       query: (body) => ({ path: "/v1/domains", method: "POST", body }),

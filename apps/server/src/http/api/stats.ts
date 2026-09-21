@@ -18,15 +18,15 @@ import { loadLink } from "./links.ts"
 const idParam = validate("param", z.object({ id: uuidSchema }))
 
 /**
- * The rollup dimension a `groupBy` reads.
+ * The rollup dimension a `group_by` reads.
  *
  * `day` is the one that does not name a dimension of its own: it groups the
  * `total` rows by their date rather than by their value. Every other grouping
  * is its own dimension, stored with `''` where nothing was recorded — a real
  * referer or destination could collide with a word like "unknown".
  */
-function dimensionOf(groupBy: GroupBy) {
-  return groupBy === "day" ? "total" : groupBy
+function dimensionOf(group_by: GroupBy) {
+  return group_by === "day" ? "total" : group_by
 }
 
 /** The window every report shares: whole UTC days, both ends inclusive. */
@@ -48,13 +48,13 @@ export function dayFilters(q: { from?: string; to?: string }): SQL[] {
  * visits is absent rather than zero — only the client knows which days the
  * window was meant to cover, so it is the one that fills the gaps.
  */
-export function aggregateVisits(db: Db, scope: SQL[], groupBy: GroupBy): Promise<StatsBucket[]> {
+export function aggregateVisits(db: Db, scope: SQL[], group_by: GroupBy): Promise<StatsBucket[]> {
   const key =
-    groupBy === "day"
+    group_by === "day"
       ? sql<string>`to_char(${visitDays.day}, 'YYYY-MM-DD')`
       : sql<string>`${visitDays.value}`
-  const human = sql<number>`coalesce(sum(${visitDays.count}) filter (where not ${visitDays.isBot}), 0)`
-  const bot = sql<number>`coalesce(sum(${visitDays.count}) filter (where ${visitDays.isBot}), 0)`
+  const human = sql<number>`coalesce(sum(${visitDays.count}) filter (where not ${visitDays.is_bot}), 0)`
+  const bot = sql<number>`coalesce(sum(${visitDays.count}) filter (where ${visitDays.is_bot}), 0)`
   const volume = sql`sum(${visitDays.count})`
 
   return span(
@@ -63,10 +63,10 @@ export function aggregateVisits(db: Db, scope: SQL[], groupBy: GroupBy): Promise
       db
         .select({ key, human: human.mapWith(Number), bot: bot.mapWith(Number) })
         .from(visitDays)
-        .where(and(eq(visitDays.dimension, dimensionOf(groupBy)), ...scope))
+        .where(and(eq(visitDays.dimension, dimensionOf(group_by)), ...scope))
         .groupBy(key)
-        .orderBy(...(groupBy === "day" ? [asc(key)] : [desc(volume), asc(key)])),
-    { in: { groupBy }, out: (buckets) => ({ buckets: buckets.length }) },
+        .orderBy(...(group_by === "day" ? [asc(key)] : [desc(volume), asc(key)])),
+    { in: { group_by }, out: (buckets) => ({ buckets: buckets.length }) },
   )
 }
 
@@ -81,8 +81,8 @@ export const linkStatsRoutes = new Hono<Env>().get(
     // Load first, so an unknown link is a 404 rather than an empty report.
     await loadLink(c.var.db, id)
 
-    const scope = [eq(visitDays.linkId, id), ...dayFilters(q)]
-    return c.json(await aggregateVisits(c.var.db, scope, q.groupBy))
+    const scope = [eq(visitDays.link_id, id), ...dayFilters(q)]
+    return c.json(await aggregateVisits(c.var.db, scope, q.group_by))
   },
 )
 
@@ -99,8 +99,8 @@ export const domainStatsRoutes = new Hono<Env>().get(
   async (c) => {
     const { id } = c.req.valid("param")
     const q = c.req.valid("query")
-    const scope = [eq(visitDays.domainId, id), ...dayFilters(q)]
-    return c.json(await aggregateVisits(c.var.db, scope, q.groupBy))
+    const scope = [eq(visitDays.domain_id, id), ...dayFilters(q)]
+    return c.json(await aggregateVisits(c.var.db, scope, q.group_by))
   },
 )
 
@@ -115,8 +115,8 @@ export const globalStatsRoutes = new Hono<Env>().get(
   async (c) => {
     const q = c.req.valid("query")
     const scope = dayFilters(q)
-    if (q.orphan === "true") scope.push(isNull(visitDays.linkId))
-    if (q.domainId) scope.push(eq(visitDays.domainId, q.domainId))
-    return c.json(await aggregateVisits(c.var.db, scope, q.groupBy))
+    if (q.orphan === "true") scope.push(isNull(visitDays.link_id))
+    if (q.domain_id) scope.push(eq(visitDays.domain_id, q.domain_id))
+    return c.json(await aggregateVisits(c.var.db, scope, q.group_by))
   },
 )

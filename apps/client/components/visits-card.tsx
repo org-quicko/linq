@@ -20,7 +20,7 @@ import { type Range, useRange } from "@/lib/hooks"
 import { useListVisitsQuery } from "../lib/store/visits"
 
 /** What narrows the log. Every field is optional; together they are the scope. */
-export type VisitScope = { linkId?: string; domainId?: string; orphan?: "true" }
+export type VisitScope = { link_id?: string; domain_id?: string; orphan?: "true" }
 
 const PAGE = 25
 /** Radix refuses an item whose value is "", so "no filter" needs a real value. */
@@ -53,7 +53,7 @@ export function VisitsCard({
 
   // A scope change comes from the parent, so it cannot reset the offset the way
   // the pickers below do — and page 7 of a list that just got shorter is empty.
-  const scopeKey = `${scope.linkId ?? ""}|${scope.domainId ?? ""}|${scope.orphan ?? ""}`
+  const scopeKey = `${scope.link_id ?? ""}|${scope.domain_id ?? ""}|${scope.orphan ?? ""}`
   // biome-ignore lint/correctness/useExhaustiveDependencies: the key is the dependency
   useEffect(() => setOffset(0), [scopeKey])
 
@@ -72,7 +72,7 @@ export function VisitsCard({
 
   // On a single link every row requested the same slug, so the column would say
   // the same thing all the way down.
-  const showSlug = !scope.linkId
+  const showSlug = !scope.link_id
   const head = [
     "When",
     ...(showSlug ? ["Slug"] : []),
@@ -155,11 +155,11 @@ export function VisitsCard({
             {rows.map((visit) => (
               <TableRow key={visit.id}>
                 <TableCell>
-                  <When iso={visit.occurredAt} />
+                  <When iso={visit.occurred_at} />
                 </TableCell>
                 {showSlug ? (
                   <TableCell className="font-mono text-xs">
-                    {visit.slugRequested === "" ? "/" : visit.slugRequested}
+                    {visit.slug_requested === "" ? "/" : visit.slug_requested}
                   </TableCell>
                 ) : null}
                 <TableCell>{visit.platform}</TableCell>
@@ -171,7 +171,7 @@ export function VisitsCard({
                 <TableCell className="max-w-[16rem] truncate text-muted-foreground">
                   <span title={visit.destination ?? ""}>{visit.destination ?? "—"}</span>
                 </TableCell>
-                <TableCell>{visit.isBot ? <Badge variant="outline">Bot</Badge> : null}</TableCell>
+                <TableCell>{visit.is_bot ? <Badge variant="outline">Bot</Badge> : null}</TableCell>
               </TableRow>
             ))}
           </DataTable>

@@ -3,9 +3,9 @@ import type { QR_PATTERNS } from "@linq/shared"
 import { qrOptions } from "../lib/qr.ts"
 
 const config = (pattern: (typeof QR_PATTERNS)[number]) => ({
-  shortUrl: "https://lnq.to/abc",
-  dotColor: "#123456",
-  bgColor: "#ffffff",
+  short_url: "https://lnq.to/abc",
+  dot_color: "#123456",
+  bg_color: "#ffffff",
   pattern,
 })
 
@@ -38,7 +38,7 @@ describe("qrOptions", () => {
   })
 
   test("the dot colour drives the corners too, so a code is never two-tone", () => {
-    const options = qrOptions({ ...config("dots"), dotColor: "#abcdef" }, 100)
+    const options = qrOptions({ ...config("dots"), dot_color: "#abcdef" }, 100)
     expect(options.dotsOptions?.color).toBe("#abcdef")
     expect(options.cornersSquareOptions?.color).toBe("#abcdef")
     expect(options.cornersDotOptions?.color).toBe("#abcdef")

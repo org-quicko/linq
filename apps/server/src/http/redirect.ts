@@ -17,9 +17,9 @@ import type { Env } from "./env.ts"
 /** The part of a domain row the redirect needs. Null means no active domain. */
 export type ResolvedDomain = {
   id: string
-  fallbackUrl: string | null
-  basePathRedirect: string | null
-  invalidShortUrlRedirect: string | null
+  fallback_url: string | null
+  base_path_redirect: string | null
+  invalid_short_url_redirect: string | null
 }
 
 /**
@@ -27,11 +27,11 @@ export type ResolvedDomain = {
  * answers the whole redirect. Null means no active link, i.e. an orphan visit.
  */
 export type ResolvedTarget = {
-  linkId: string
+  link_id: string
   name: string | null
   destination: string
-  forwardQuery: boolean
-  presetParams: Record<string, string>
+  forward_query: boolean
+  preset_params: Record<string, string>
   rules: { destination: string; conditions: Condition[] }[]
   /**
    * Epoch milliseconds, not a Date and not an ISO string: this object is
@@ -39,7 +39,7 @@ export type ResolvedTarget = {
    * one, and a number is the only shape that survives both identically. Null means
    * the link never expires.
    */
-  expiresAt: number | null
+  expires_at: number | null
 }
 
 /**
@@ -59,9 +59,9 @@ export function findActiveDomain(db: Db, hostHeader: string): Promise<ResolvedDo
         .select({
           id: domains.id,
           host: domains.host,
-          fallbackUrl: domains.fallbackUrl,
-          basePathRedirect: domains.basePathRedirect,
-          invalidShortUrlRedirect: domains.invalidShortUrlRedirect,
+          fallback_url: domains.fallback_url,
+          base_path_redirect: domains.base_path_redirect,
+          invalid_short_url_redirect: domains.invalid_short_url_redirect,
         })
         .from(domains)
         .where(and(inArray(domains.host, candidates), eq(domains.status, "active")))
@@ -70,13 +70,13 @@ export function findActiveDomain(db: Db, hostHeader: string): Promise<ResolvedDo
       return row
         ? {
             id: row.id,
-            fallbackUrl: row.fallbackUrl,
-            basePathRedirect: row.basePathRedirect,
-            invalidShortUrlRedirect: row.invalidShortUrlRedirect,
+            fallback_url: row.fallback_url,
+            base_path_redirect: row.base_path_redirect,
+            invalid_short_url_redirect: row.invalid_short_url_redirect,
           }
         : null
     },
-    { in: { host: hostHeader }, out: (domain) => ({ domainId: domain?.id ?? null }) },
+    { in: { host: hostHeader }, out: (domain) => ({ domain_id: domain?.id ?? null }) },
   )
 }
 
@@ -84,30 +84,30 @@ export function findActiveDomain(db: Db, hostHeader: string): Promise<ResolvedDo
  * Looks up what a slug resolves to on one domain, rules included. Archived links
  * are invisible here.
  */
-function findActiveTarget(db: Db, domainId: string, slug: string): Promise<ResolvedTarget | null> {
+function findActiveTarget(db: Db, domain_id: string, slug: string): Promise<ResolvedTarget | null> {
   return span(
     "link.findActive",
     async () => {
       const [row] = await db
         .select()
         .from(links)
-        .where(and(eq(links.domainId, domainId), eq(links.slug, slug), eq(links.status, "active")))
+        .where(and(eq(links.domain_id, domain_id), eq(links.slug, slug), eq(links.status, "active")))
         .limit(1)
       if (!row) return null
       // Rules ride inside the same entry: every hit that resolves reads them, so
       // caching the link without them would leave a query behind on the hot path.
       const ordered = await listRules(db, row.id)
       return {
-        linkId: row.id,
+        link_id: row.id,
         name: row.name,
         destination: row.destination,
-        forwardQuery: row.forwardQuery,
-        presetParams: row.presetParams,
+        forward_query: row.forward_query,
+        preset_params: row.preset_params,
         rules: ordered.map((r) => ({ destination: r.destination, conditions: r.conditions })),
-        expiresAt: row.expiresAt?.getTime() ?? null,
+        expires_at: row.expires_at?.getTime() ?? null,
       }
     },
-    { in: { domainId, slug }, out: (target) => ({ linkId: target?.linkId ?? null }) },
+    { in: { domain_id, slug }, out: (target) => ({ link_id: target?.link_id ?? null }) },
   )
 }
 
@@ -164,7 +164,7 @@ export function queryMap(params: URLSearchParams): Record<string, string[]> | nu
  * because every status change also dels `targetKey`. See plans/Plan_25.md.
  */
 function expired(target: ResolvedTarget): boolean {
-  return typeof target.expiresAt === "number" && target.expiresAt <= Date.now()
+  return typeof target.expires_at === "number" && target.expires_at <= Date.now()
 }
 
 const factory = createFactory<Env>()
@@ -190,7 +190,7 @@ export const redirectHandler = factory.createHandlers(async (c) => {
 
   // HEAD is answered exactly like GET but never tracked.
   const tracked = c.req.method === "GET"
-  const userAgent = c.req.header("user-agent") ?? null
+  const user_agent = c.req.header("user-agent") ?? null
   const cached = slug
     ? await through(c, targetKey(domain.id, slug), () =>
         findActiveTarget(c.var.db, domain.id, slug),
@@ -200,17 +200,17 @@ export const redirectHandler = factory.createHandlers(async (c) => {
   // 2b. An expired link is an unknown slug: same orphan path, same null
   //     link_id, same fallback. See `expired` for why this is not a WHERE.
   const isExpired = cached !== null && expired(cached)
-  if (isExpired) reqLog().debug({ linkId: cached.linkId, slug }, "link expired")
+  if (isExpired) reqLog().debug({ link_id: cached.link_id, slug }, "link expired")
   const link = isExpired ? null : cached
 
   const visit = {
-    domainId: domain.id,
-    slugRequested: slug,
-    isBot: detectBot(userAgent),
-    platform: detectPlatform(userAgent),
-    os: detectOs(userAgent),
-    browser: detectBrowser(userAgent),
-    userAgent,
+    domain_id: domain.id,
+    slug_requested: slug,
+    is_bot: detectBot(user_agent),
+    platform: detectPlatform(user_agent),
+    os: detectOs(user_agent),
+    browser: detectBrowser(user_agent),
+    user_agent,
     referer: c.req.header("referer") ?? null,
     query: queryMap(url.searchParams),
   }
@@ -218,19 +218,19 @@ export const redirectHandler = factory.createHandlers(async (c) => {
   // 3. Root path, unknown slug or archived link: an orphan visit on a live domain.
   //    Three redirect fields, three cases, in this order — root path wins over
   //    malformed (an empty slug also fails SLUG_PATTERN, so it must be checked
-  //    first), and each falls back to `fallbackUrl` when unset. `?? null`
+  //    first), and each falls back to `fallback_url` when unset. `?? null`
   //    guards a cache entry written before these fields existed (see
   //    ResolvedDomain), not the DB row, which is always complete.
   if (!link) {
     const destination =
       slug === ""
-        ? (domain.basePathRedirect ?? domain.fallbackUrl)
+        ? (domain.base_path_redirect ?? domain.fallback_url)
         : SLUG_PATTERN.test(slug)
-          ? domain.fallbackUrl
-          : (domain.invalidShortUrlRedirect ?? domain.fallbackUrl)
-    if (tracked) recordVisit(c.var.db, { ...visit, linkId: null, destination })
+          ? domain.fallback_url
+          : (domain.invalid_short_url_redirect ?? domain.fallback_url)
+    if (tracked) recordVisit(c.var.db, { ...visit, link_id: null, destination })
     if (!destination) return c.text("Not Found", 404)
-    return isPreviewCrawler(userAgent)
+    return isPreviewCrawler(user_agent)
       ? ogPreview(c, host, slug, null)
       : sendRedirect(c, destination)
   }
@@ -244,9 +244,9 @@ export const redirectHandler = factory.createHandlers(async (c) => {
   const chosen = ruled ?? link.destination
   // `matchRules` is synchronous and on the hot path, so it gets one line rather
   // than a span; which branch won is the only part worth recording.
-  reqLog().debug({ linkId: link.linkId, matchedRule: ruled !== null }, "rules matched")
+  reqLog().debug({ link_id: link.link_id, matchedRule: ruled !== null }, "rules matched")
 
-  // 6. `forwardQuery` is the link's switch for touching the outgoing query at
+  // 6. `forward_query` is the link's switch for touching the outgoing query at
   //    all: off passes the destination through exactly as written, presets
   //    included. On, the incoming query merges in first and the link's own
   //    preset params then overwrite whatever is there — the destination's query
@@ -255,16 +255,16 @@ export const redirectHandler = factory.createHandlers(async (c) => {
   //    carries whatever the caller sent, so baking it into `destination` too
   //    would double-count it and fragment one real destination into one bucket
   //    per distinct querystring. See plans/Plan_22.md.
-  const sendTo = link.forwardQuery
-    ? applyPresets(mergeQuery(chosen, url.searchParams), link.presetParams)
+  const sendTo = link.forward_query
+    ? applyPresets(mergeQuery(chosen, url.searchParams), link.preset_params)
     : chosen
 
   // 8. Insert after the response is built, and never await it. Recorded as
   //    `chosen` — the Destination the link or rule actually names — not
   //    `sendTo`, which is a different, effectively unique string per click.
-  if (tracked) recordVisit(c.var.db, { ...visit, linkId: link.linkId, destination: chosen })
+  if (tracked) recordVisit(c.var.db, { ...visit, link_id: link.link_id, destination: chosen })
 
-  return isPreviewCrawler(userAgent) ? ogPreview(c, host, slug, link) : sendRedirect(c, sendTo)
+  return isPreviewCrawler(user_agent) ? ogPreview(c, host, slug, link) : sendRedirect(c, sendTo)
 })
 
 /** 7. Always 302, never cached: the destination can change under a live slug. */

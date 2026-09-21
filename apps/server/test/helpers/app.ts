@@ -20,20 +20,20 @@ export type Harness = {
   ) => Promise<TestResponse>
   post: (path: string, key: string, body: unknown) => Promise<TestResponse>
   patch: (path: string, key: string, body: unknown) => Promise<TestResponse>
-  createKey: (opts: { role: Role; name?: string; expiresAt?: Date }) => Promise<{
+  createKey: (opts: { role: Role; name?: string; expires_at?: Date }) => Promise<{
     keyId: string
     key: string
   }>
   /** A key of `role`. The key is the principal, so this is the whole identity. */
   actor: (role: Role) => Promise<{ keyId: string; key: string }>
   /** Inserted directly: most suites need a domain without exercising its API. */
-  createDomain: (host: string, fallbackUrl?: string) => Promise<string>
+  createDomain: (host: string, fallback_url?: string) => Promise<string>
   /** Goes through the API, so slug generation and ownership are the real thing. */
-  createLink: (key: string, domainId: string, body?: Record<string, unknown>) => Promise<Link>
+  createLink: (key: string, domain_id: string, body?: Record<string, unknown>) => Promise<Link>
   /** Visit rows written straight to the table; the redirect handler lands in milestone 4. */
   recordVisits: (
-    linkId: string | null,
-    domainId: string,
+    link_id: string | null,
+    domain_id: string,
     counts: { human?: number; bot?: number },
     overrides?: Partial<typeof visits.$inferInsert>,
   ) => Promise<void>
@@ -67,16 +67,16 @@ export async function createHarness(options: HarnessOptions = {}): Promise<Harne
     return await app.fetch(new Request(`http://${host}${path}`, { ...rest, headers }))
   }
 
-  const createKey: Harness["createKey"] = async ({ role, name = role, expiresAt }) => {
+  const createKey: Harness["createKey"] = async ({ role, name = role, expires_at }) => {
     const secret = generateKey()
     const keyId = Bun.randomUUIDv7()
     await db.insert(apiKeys).values({
       id: keyId,
       name,
       role,
-      keyHash: hashKey(secret),
+      key_hash: hashKey(secret),
       prefix: keyPrefix(secret),
-      expiresAt: expiresAt ?? null,
+      expires_at: expires_at ?? null,
     })
     return { keyId, key: secret }
   }
@@ -88,31 +88,31 @@ export async function createHarness(options: HarnessOptions = {}): Promise<Harne
     post: (path, key, body) => request(path, { key, method: "POST", body: JSON.stringify(body) }),
     patch: (path, key, body) => request(path, { key, method: "PATCH", body: JSON.stringify(body) }),
     actor: (role) => createKey({ role }),
-    createDomain: async (host, fallbackUrl) => {
+    createDomain: async (host, fallback_url) => {
       const id = Bun.randomUUIDv7()
-      await db.insert(domains).values({ id, host, fallbackUrl: fallbackUrl ?? null })
+      await db.insert(domains).values({ id, host, fallback_url: fallback_url ?? null })
       return id
     },
-    createLink: async (key, domainId, body = {}) => {
+    createLink: async (key, domain_id, body = {}) => {
       const res = await request("/api/v1/links", {
         key,
         method: "POST",
-        body: JSON.stringify({ domainId, destination: "https://example.com/", ...body }),
+        body: JSON.stringify({ domain_id, destination: "https://example.com/", ...body }),
       })
       if (res.status !== 201)
         throw new Error(`createLink failed: ${res.status} ${await res.text()}`)
       return (await res.json()) as Link
     },
-    recordVisits: async (linkId, domainId, counts, overrides = {}) => {
+    recordVisits: async (link_id, domain_id, counts, overrides = {}) => {
       const rows = [
         ...Array.from({ length: counts.human ?? 0 }, () => false),
         ...Array.from({ length: counts.bot ?? 0 }, () => true),
-      ].map((isBot) => ({
+      ].map((is_bot) => ({
         id: Bun.randomUUIDv7(),
-        linkId,
-        domainId,
-        slugRequested: "test",
-        isBot,
+        link_id,
+        domain_id,
+        slug_requested: "test",
+        is_bot,
         platform: "desktop" as const,
         ...overrides,
       }))

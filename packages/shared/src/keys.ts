@@ -6,18 +6,18 @@ export const keyCreateSchema = z.object({
   name: z.string().trim().min(1).max(100),
   role: roleSchema,
   /** ISO-8601. Absent means the key never expires. */
-  expiresAt: z.iso.datetime().nullable().optional(),
+  expires_at: z.iso.datetime().nullable().optional(),
 })
 
 export const keyPatchSchema = z
   .object({
     name: z.string().trim().min(1).max(100),
     role: roleSchema,
-    expiresAt: z.iso.datetime().nullable(),
+    expires_at: z.iso.datetime().nullable(),
   })
   .partial()
 
-/** `POST /keys/:id/links/reassign`. Null means unassign, mirroring a link's own `ownerId: null`. */
+/** `POST /keys/:id/links/reassign`. Null means unassign, mirroring a link's own `owner_id: null`. */
 export const keyLinksReassignSchema = z.object({
   to: uuidSchema.nullable(),
 })
@@ -31,9 +31,9 @@ export type ApiKey = {
   name: string
   role: Role
   prefix: string
-  expiresAt: string | null
-  createdAt: string
-  updatedAt: string
+  expires_at: string | null
+  created_at: string
+  updated_at: string
 }
 
 /**

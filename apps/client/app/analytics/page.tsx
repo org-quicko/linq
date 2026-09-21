@@ -22,7 +22,7 @@ export default function AnalyticsPage() {
       {() => (
         <div className="flex h-full min-h-0 flex-col gap-4 overflow-y-auto px-7 py-6">
           <PageHeader title="Analytics" />
-          {/* AnalyticsOverview reads ?linkId= via useSearchParams (plans/Plan_31.md
+          {/* AnalyticsOverview reads ?link_id= via useSearchParams (plans/Plan_31.md
            *  §C3), which needs a Suspense boundary under output: "export". */}
           <Suspense fallback={null}>
             <AnalyticsOverview />
@@ -37,20 +37,20 @@ export default function AnalyticsPage() {
 
 /** The raw traffic log, with its own domain filter. */
 function VisitsSection() {
-  const [domainId, setDomainId] = useState("")
+  const [domain_id, setDomainId] = useState("")
 
   return (
     <>
       <StatsPanel
         path="/v1/stats"
         title="Traffic"
-        extraParams={{ domainId: domainId || undefined }}
+        extraParams={{ domain_id: domain_id || undefined }}
       />
 
       <VisitsCard
         title="Log"
-        scope={{ domainId: domainId || undefined }}
-        extraFilters={<DomainPicker className="w-48" value={domainId} onChange={setDomainId} />}
+        scope={{ domain_id: domain_id || undefined }}
+        extraFilters={<DomainPicker className="w-48" value={domain_id} onChange={setDomainId} />}
       />
     </>
   )
@@ -64,7 +64,7 @@ function VisitsSection() {
  * slice it is always the domain's fallback URL.
  */
 function OrphansSection() {
-  const [domainId, setDomainId] = useState("")
+  const [domain_id, setDomainId] = useState("")
 
   return (
     <>
@@ -73,7 +73,7 @@ function OrphansSection() {
           <CardTitle>Domain</CardTitle>
         </CardHeader>
         <CardContent>
-          <DomainPicker className="max-w-sm" value={domainId} onChange={setDomainId} />
+          <DomainPicker className="max-w-sm" value={domain_id} onChange={setDomainId} />
         </CardContent>
       </Card>
 
@@ -82,12 +82,12 @@ function OrphansSection() {
         title="Missed links"
         initialGroupBy="slug"
         groups={["slug", "day", "platform", "referer"]}
-        extraParams={{ orphan: "true", domainId: domainId || undefined }}
+        extraParams={{ orphan: "true", domain_id: domain_id || undefined }}
       />
 
       <VisitsCard
         title="Missed requests"
-        scope={{ orphan: "true", domainId: domainId || undefined }}
+        scope={{ orphan: "true", domain_id: domain_id || undefined }}
       />
     </>
   )
