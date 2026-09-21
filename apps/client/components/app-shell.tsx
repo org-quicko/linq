@@ -2,7 +2,7 @@
 
 import { type Actor, can, type Role } from "@linq/shared"
 import { cn } from "cn"
-import { Archive, LineChart, Link2, QrCode, Settings } from "lucide-react"
+import { Archive, LineChart, Link2, Settings } from "lucide-react"
 import Link from "next/link"
 import { usePathname, useRouter } from "next/navigation"
 import { type ReactNode, useEffect } from "react"
@@ -38,7 +38,6 @@ type NavItem = {
 
 const NAV: NavItem[] = [
   { href: "/links/", label: "Short links", icon: Link2, visible: () => true },
-  { href: "/qr-codes/", label: "QR codes", icon: QrCode, visible: () => true },
   { href: "/analytics/", label: "Analytics", icon: LineChart, visible: () => true },
   { href: "/archives/", label: "Archives", icon: Archive, visible: can.purge },
 ]
@@ -194,7 +193,9 @@ function Chrome({ actor, me, children }: { actor?: Actor; me?: Me; children: Rea
 
       <main className="flex h-screen flex-1 flex-col p-4 pl-0">
         <div className="flex min-h-0 flex-1 flex-col overflow-hidden rounded-xl bg-card shadow-panel">
-          <div className="mx-auto flex min-h-0 w-full max-w-[1080px] flex-1 flex-col">{children}</div>
+          <div className="mx-auto flex min-h-0 w-full max-w-[1080px] flex-1 flex-col">
+            {children}
+          </div>
         </div>
       </main>
     </div>

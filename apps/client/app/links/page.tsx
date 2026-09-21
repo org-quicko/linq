@@ -31,6 +31,7 @@ import {
   ShortLink,
   Tag,
 } from "@/components/patterns"
+import { ShareMenu } from "@/components/share-menu"
 import { TagPicker } from "@/components/tag-picker"
 import { Button } from "@/components/ui/button"
 import {
@@ -279,6 +280,7 @@ function LinkRow({
               label="View analytics"
               onClick={() => router.push(`/analytics/?link_id=${link.id}`)}
             />
+            <ShareMenu link={link} />
             {editable || duplicatable ? (
               <DropdownMenu>
                 <DropdownMenuTrigger asChild>

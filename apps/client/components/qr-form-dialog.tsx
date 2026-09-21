@@ -38,14 +38,21 @@ export function QrFormDialog({
   onOpenChange,
   mode,
   qrCode,
+  presetLink,
 }: {
   open: boolean
   onOpenChange: (open: boolean) => void
   mode: "create" | "edit"
   qrCode?: QrCode
+  /** Create mode only: opened from a link row that already knows which link
+   *  it's for, so the "Short link" field is frozen instead of shown as a
+   *  picker — same treatment edit mode already gives a saved QR code's link. */
+  presetLink?: { id: string; name: string }
 }) {
-  const [link_id, setLinkId] = useState(qrCode?.link_id ?? "")
-  const [link_name, setLinkName] = useState(qrCode?.link_name ?? qrCode?.slug ?? "")
+  const [link_id, setLinkId] = useState(qrCode?.link_id ?? presetLink?.id ?? "")
+  const [link_name, setLinkName] = useState(
+    qrCode?.link_name ?? qrCode?.slug ?? presetLink?.name ?? "",
+  )
   const [name, setName] = useState(qrCode?.name ?? "")
   const [dot_color, setDotColor] = useState(qrCode?.dot_color ?? "#000000")
   const [bg_color, setBgColor] = useState(qrCode?.bg_color ?? "#ffffff")
@@ -115,11 +122,15 @@ export function QrFormDialog({
         <div className="flex flex-col gap-3">
           <Field
             label="Short link"
-            hint={mode === "edit" ? "Can't be changed after creation." : undefined}
+            hint={mode === "edit" || presetLink ? "Can't be changed after creation." : undefined}
           >
             {mode === "edit" && qrCode ? (
               <div className="flex h-9 items-center rounded-lg border bg-muted px-2.5 text-[12.5px]">
                 <ShortLink link={qrCode} copy={false} />
+              </div>
+            ) : presetLink ? (
+              <div className="flex h-9 items-center rounded-lg border bg-muted px-2.5 text-[12.5px]">
+                {link_name}
               </div>
             ) : (
               <LinkFilter
