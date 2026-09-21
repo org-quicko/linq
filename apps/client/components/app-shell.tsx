@@ -1,6 +1,7 @@
 "use client"
 
 import { type Actor, can, type Role } from "@linq/shared"
+import { skipToken } from "@reduxjs/toolkit/query/react"
 import { cn } from "cn"
 import { Archive, LineChart, Link2, Settings } from "lucide-react"
 import Link from "next/link"
@@ -12,6 +13,7 @@ import { ServerSwitcher } from "@/components/server-switcher"
 import { Button } from "@/components/ui/button"
 import { activeServer } from "../lib/servers"
 import { type Me, useGetMeQuery } from "../lib/store/keys"
+import { useCountLinksQuery } from "../lib/store/links"
 
 /**
  * The sidebar's entries. Flat — no grouping — per the design: Settings is
@@ -104,7 +106,7 @@ export function AppShell({
   if (isLoading || error || !me) {
     return (
       <Chrome>
-        <div className="h-full overflow-y-auto px-7 py-6">
+        <div className="no-scrollbar h-full overflow-y-auto px-7 py-6">
           <QueryState
             isLoading={isLoading}
             error={error ?? (me ? null : { message: "Could not load your account." })}
@@ -119,7 +121,7 @@ export function AppShell({
   return (
     <Chrome actor={actor} me={me}>
       {requires && !requires(actor) ? (
-        <div className="h-full overflow-y-auto px-7 py-6">
+        <div className="no-scrollbar h-full overflow-y-auto px-7 py-6">
           <NotPermitted role={me.role} />
         </div>
       ) : (
@@ -141,6 +143,18 @@ export function AppShell({
 function Chrome({ actor, me, children }: { actor?: Actor; me?: Me; children: ReactNode }) {
   const active = activeHref(usePathname())
 
+  // Both share `listLinks`'s "LIST" tag, so any create/archive/purge
+  // anywhere in the app refetches these too — the sidebar counts stay live
+  // without a bespoke invalidation of their own.
+  const activeLinks = useCountLinksQuery(actor ? {} : skipToken)
+  const archivedLinks = useCountLinksQuery(
+    actor && can.purge(actor) ? { status: "archived" } : skipToken,
+  )
+  const counts: Partial<Record<string, number>> = {
+    "/links/": activeLinks.data?.total,
+    "/archives/": archivedLinks.data?.total,
+  }
+
   return (
     <div className="flex h-screen overflow-hidden bg-muted">
       <aside className="flex w-60 shrink-0 flex-col gap-2 p-4">
@@ -159,7 +173,12 @@ function Chrome({ actor, me, children }: { actor?: Actor; me?: Me; children: Rea
         <nav className="mt-2.5 flex flex-col gap-0.5">
           {NAV.map((item) =>
             !actor || item.visible(actor) ? (
-              <NavLink key={item.href} item={item} active={active === item.href} />
+              <NavLink
+                key={item.href}
+                item={item}
+                active={active === item.href}
+                count={counts[item.href]}
+              />
             ) : null,
           )}
         </nav>
@@ -202,7 +221,17 @@ function Chrome({ actor, me, children }: { actor?: Actor; me?: Me; children: Rea
   )
 }
 
-function NavLink({ item, active }: { item: NavItem; active: boolean }) {
+function NavLink({
+  item,
+  active,
+  count,
+}: {
+  item: NavItem
+  active: boolean
+  /** Omitted, not zero, hides the badge — an empty list gets no "0" clutter,
+   *  matching the mockup's own `hasActiveLinks`/`hasArchivedLinks` gate. */
+  count?: number
+}) {
   const Icon = item.icon
   return (
     <Link
@@ -216,6 +245,7 @@ function NavLink({ item, active }: { item: NavItem; active: boolean }) {
     >
       <Icon className={cn("size-4 shrink-0", !active && "text-muted-foreground")} />
       {item.label}
+      {count ? <span className="ml-auto text-[11px] text-muted-foreground">{count}</span> : null}
     </Link>
   )
 }

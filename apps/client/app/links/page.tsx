@@ -173,7 +173,7 @@ function LinksList({ actor }: { actor: Actor }) {
       </div>
 
       {/* Scrolls on its own; the header and toolbar above stay put. */}
-      <div className="flex min-h-0 flex-1 flex-col gap-4 overflow-y-auto px-7 pb-6">
+      <div className="no-scrollbar flex min-h-0 flex-1 flex-col gap-4 overflow-y-auto px-7 pb-6">
         <Collection
           query={links}
           rows={rows}

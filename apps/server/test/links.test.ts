@@ -538,6 +538,29 @@ describe("GET /api/v1/links", () => {
   })
 })
 
+describe("GET /api/v1/links/count", () => {
+  test("defaults to active, and moves a link between active and archived", async () => {
+    const scoped = await h.createDomain("count.test")
+    const live = await h.createLink(author.key, scoped, { slug: "count-live" })
+
+    // Counted instance-wide, not per domain (the endpoint takes only
+    // `status`), so this asserts the delta a fresh archive makes rather than
+    // an exact total that would depend on every other describe block's data.
+    const total = async (query = "") =>
+      (
+        await (await h.request(`/api/v1/links/count${query}`, { key: author.key })).json()
+      ).total as number
+
+    const activeBefore = await total()
+    const archivedBefore = await total("?status=archived")
+
+    await h.request(`/api/v1/links/${live.id}`, { key: author.key, method: "DELETE" })
+
+    expect(await total()).toBe(activeBefore - 1)
+    expect(await total("?status=archived")).toBe(archivedBefore + 1)
+  })
+})
+
 describe("GET /api/v1/tags", () => {
   // Tags are counted across the whole instance, so this needs a database of its own.
   test("counts tags over active links, most used first", async () => {

@@ -88,6 +88,14 @@ export const linkListQuerySchema = paginationSchema.extend({
   expiry: z.enum(["any", "live", "expired"]).default("any"),
 })
 
+/** Just the `status` filter `linkListQuerySchema` also takes — a count has no
+ *  page to sort or paginate, so those fields don't apply here. */
+export const linkCountQuerySchema = z.object({
+  status: z.enum(["active", "archived", "all"]).default("active"),
+})
+
+export type LinkCount = { total: number }
+
 export type Link = {
   id: string
   domain_id: string

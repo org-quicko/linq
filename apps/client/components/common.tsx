@@ -57,12 +57,7 @@ export function Field({
         <span className="text-foreground">{label}</span>
         {children}
       </Label>
-      {/*
-       * The hint slot is always present, even when empty. A hinted field would
-       * otherwise be taller than a bare one, which pushes its control out of
-       * line with its neighbours in any row of fields.
-       */}
-      <span className="min-h-4 text-xs text-muted-foreground">{hint}</span>
+      {hint ? <span className="text-xs text-muted-foreground">{hint}</span> : null}
     </div>
   )
 }

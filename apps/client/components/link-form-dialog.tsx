@@ -2,7 +2,7 @@
 
 import { type Actor, can, type Domain, type Link } from "@linq/shared"
 import { skipToken } from "@reduxjs/toolkit/query/react"
-import { CalendarIcon, ChevronDown, Route, TagIcon } from "lucide-react"
+import { CalendarIcon, ChevronDown, Info, Route, TagIcon } from "lucide-react"
 import { type ReactNode, useEffect, useState } from "react"
 import { Field, Picker } from "@/components/common"
 import {
@@ -31,6 +31,7 @@ import {
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Switch } from "@/components/ui/switch"
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip"
 import { fromDatetimeLocal, toDatetimeLocal, withScheme } from "../lib/api"
 import { useRun } from "../lib/hooks"
 import { useListDomainsQuery } from "../lib/store/domains"
@@ -166,11 +167,11 @@ export function LinkFormDialog({
           <DialogTitle>{mode === "create" ? "Create link" : "Edit link"}</DialogTitle>
         </DialogHeader>
 
-        <div className="flex max-h-[70vh] flex-col gap-4 overflow-y-auto pr-1">
-          <Field
-            label="Destination URL"
-            hint="https:// is added automatically if you leave it out."
-          >
+        {/* -m-1/p-1 cancel out visually (fields stay aligned with the header
+            and footer) but give the scroll container's clipping box enough
+            room that a focused field's ring isn't cut off at its edge. */}
+        <div className="no-scrollbar -m-1 flex max-h-[70vh] flex-col gap-3 overflow-y-auto p-1">
+          <Field label="Destination URL">
             <Input
               value={destination}
               onChange={(event) => setDestination(event.target.value)}
@@ -183,7 +184,7 @@ export function LinkFormDialog({
             hint={
               mode === "edit"
                 ? "Short links can't be changed after creation — existing copies would stop working."
-                : "Leave blank for a generated one."
+                : undefined
             }
           >
             <ShortLinkField
@@ -197,15 +198,15 @@ export function LinkFormDialog({
             />
           </Field>
 
-          <Field label="Title" hint="Optional, for your own reference.">
+          <Field label="Title">
             <Input value={name} onChange={(event) => setName(event.target.value)} />
           </Field>
 
-          <Field label="Description" hint="Optional, for your own reference.">
+          <Field label="Description">
             <Input value={description} onChange={(event) => setDescription(event.target.value)} />
           </Field>
 
-          <Field label="Tags" hint="Pick one in use, or add a new one.">
+          <Field label="Tags">
             <TagPicker value={tags} onChange={setTags} creatable placeholder="No tags" />
           </Field>
 
@@ -231,18 +232,32 @@ export function LinkFormDialog({
             </Field>
           ) : null}
 
-          <Label className="font-normal">
-            <Checkbox checked={listed} onCheckedChange={(checked) => setListed(checked === true)} />
-            List in /llms.txt — publishes this link's name and destination, readable without a key
-          </Label>
+          <div className="flex items-center gap-1.5">
+            <Label className="font-normal">
+              <Checkbox
+                checked={listed}
+                onCheckedChange={(checked) => setListed(checked === true)}
+              />
+              List in /llms.txt
+            </Label>
+            <InfoTip>
+              Publishes this link's name and destination in /llms.txt, readable without a key.
+            </InfoTip>
+          </div>
 
-          <Label className="font-normal">
-            <Checkbox
-              checked={forward_query}
-              onCheckedChange={(checked) => setForwardQuery(checked === true)}
-            />
-            Forward query parameters on redirect
-          </Label>
+          <div className="flex items-center gap-1.5">
+            <Label className="font-normal">
+              <Checkbox
+                checked={forward_query}
+                onCheckedChange={(checked) => setForwardQuery(checked === true)}
+              />
+              Forward query params on redirect
+            </Label>
+            <InfoTip>
+              When this short URL is visited, any query params appended to it are forwarded to the
+              destination.
+            </InfoTip>
+          </div>
 
           <ToggleSection
             icon={<TagIcon className="size-3.5" />}
@@ -303,6 +318,22 @@ export function LinkFormDialog({
         </DialogFooter>
       </DialogContent>
     </Dialog>
+  )
+}
+
+/** The mockup's small "i" glyph next to a checkbox whose label alone doesn't
+ *  carry the full explanation — hover for the detail, instead of running the
+ *  whole sentence into the checkbox's own label. */
+function InfoTip({ children }: { children: ReactNode }) {
+  return (
+    <Tooltip>
+      <TooltipTrigger asChild>
+        <span className="inline-flex text-muted-foreground">
+          <Info className="size-3.5" />
+        </span>
+      </TooltipTrigger>
+      <TooltipContent className="max-w-60">{children}</TooltipContent>
+    </Tooltip>
   )
 }
 

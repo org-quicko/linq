@@ -2,6 +2,7 @@ import {
   ApiError,
   can,
   type Link,
+  linkCountQuerySchema,
   linkCreateSchema,
   linkListQuerySchema,
   linkPatchSchema,
@@ -232,6 +233,20 @@ export const linkRoutes = new Hono<Env>()
     const [{ total: matched }] = await c.var.db.select({ total: count() }).from(links).where(where)
 
     return c.json({ data: rows.map(toLink), total: matched, limit: q.limit, offset: q.offset })
+  })
+
+  /**
+   * Just the count — no rows, no joins. Registered ahead of `/:id` so "count"
+   * is never swallowed by that route's uuid param. The client's sidebar
+   * badges are what this is for: reading `total` off `GET /` would work too,
+   * but at the cost of fetching (and joining across three tables for) a row
+   * neither badge displays.
+   */
+  .get("/count", validate("query", linkCountQuerySchema), async (c) => {
+    const q = c.req.valid("query")
+    const where = q.status !== "all" ? eq(links.status, q.status) : undefined
+    const [{ total }] = await c.var.db.select({ total: count() }).from(links).where(where)
+    return c.json({ total })
   })
 
   .post("/", validate("json", linkCreateSchema), async (c) => {

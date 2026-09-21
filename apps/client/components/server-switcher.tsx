@@ -47,16 +47,13 @@ export function ServerSwitcher() {
       <DropdownMenuTrigger asChild>
         <button
           type="button"
-          className="flex h-11 w-full items-center gap-2 rounded-lg border px-2.5 text-left transition-colors hover:bg-sidebar-border"
+          className="flex w-full items-center gap-2 rounded-lg border p-3 text-left transition-colors hover:bg-sidebar-border"
           title="Switch server"
         >
-          <span className="min-w-0 flex-1">
-            <span className="block truncate text-sm font-medium">
-              {current?.name ?? "No server"}
-            </span>
-            <span className="block truncate text-xs text-muted-foreground">{current?.apiUrl}</span>
+          <span className="min-w-0 flex-1 truncate text-[13.5px] font-semibold tracking-[-0.01em]">
+            {current?.name ?? "No server"}
           </span>
-          <ChevronsUpDown size={14} className="shrink-0 text-muted-foreground" />
+          <ChevronsUpDown size={13} className="shrink-0 text-muted-foreground" />
         </button>
       </DropdownMenuTrigger>
 
@@ -64,8 +61,11 @@ export function ServerSwitcher() {
         <DropdownMenuLabel>Servers</DropdownMenuLabel>
         {servers.map((server) => (
           <DropdownMenuItem key={server.id} onSelect={() => switchTo(server.id)}>
-            <span className="min-w-0 flex-1 truncate">{server.name}</span>
-            {server.id === current?.id ? <Check size={14} /> : null}
+            <span className="flex min-w-0 flex-1 flex-col gap-px">
+              <span className="truncate font-medium">{server.name}</span>
+              <span className="truncate text-[11px] text-muted-foreground">{server.apiUrl}</span>
+            </span>
+            {server.id === current?.id ? <Check size={14} className="shrink-0" /> : null}
           </DropdownMenuItem>
         ))}
 

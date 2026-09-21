@@ -150,7 +150,7 @@ function Servers() {
               </div>
             ) : (
               <div className="flex flex-col gap-4">
-                <div className="flex max-h-[320px] flex-col gap-2.5 overflow-y-auto">
+                <div className="no-scrollbar flex max-h-[320px] flex-col gap-2.5 overflow-y-auto">
                   {servers.map((server) => (
                     <div key={server.id} className="flex flex-col gap-1">
                       <RowCard

@@ -1,4 +1,4 @@
-import type { Link, LinkCreate, LinkPatch, Page, Rule } from "@linq/shared"
+import type { Link, LinkCount, LinkCreate, LinkPatch, Page, Rule } from "@linq/shared"
 import { qs } from "../api"
 import { apiSlice } from "./api"
 
@@ -29,6 +29,14 @@ export const linksApi = apiSlice.injectEndpoints({
               { type: "Link" as const, id: "LIST" },
             ]
           : [{ type: "Link" as const, id: "LIST" }],
+    }),
+
+    /** Just the number — the sidebar's Short links/Archives badges, which
+     *  never needed a row. Shares `listLinks`'s "LIST" tag, so it refetches
+     *  on the same create/archive/purge mutations without a tag of its own. */
+    countLinks: build.query<LinkCount, { status?: "active" | "archived" | "all" }>({
+      query: (filters) => ({ path: `/v1/links/count${qs(filters)}` }),
+      providesTags: [{ type: "Link", id: "LIST" }],
     }),
 
     /** The links list's infinite-scroll feed (plans/Plan_31.md §B4). Kept
@@ -119,6 +127,7 @@ export const linksApi = apiSlice.injectEndpoints({
 
 export const {
   useListLinksQuery,
+  useCountLinksQuery,
   useLinksFeedInfiniteQuery,
   useGetLinkQuery,
   useGetLinkRulesQuery,

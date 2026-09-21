@@ -37,7 +37,7 @@ export default function ArchivesPage() {
 
 function Archives() {
   return (
-    <div className="flex h-full min-h-0 flex-col gap-4 overflow-y-auto px-7 py-6">
+    <div className="no-scrollbar flex h-full min-h-0 flex-col gap-4 overflow-y-auto px-7 py-6">
       <PageHeader title="Archives" description="Archived links. Purging is permanent." />
       <ArchivedLinksTab />
     </div>

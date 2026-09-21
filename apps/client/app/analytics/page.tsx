@@ -20,7 +20,7 @@ export default function AnalyticsPage() {
   return (
     <AppShell>
       {() => (
-        <div className="flex h-full min-h-0 flex-col gap-4 overflow-y-auto px-7 py-6">
+        <div className="no-scrollbar flex h-full min-h-0 flex-col gap-4 overflow-y-auto px-7 py-6">
           <PageHeader title="Analytics" />
           {/* AnalyticsOverview reads ?link_id= via useSearchParams (plans/Plan_31.md
            *  §C3), which needs a Suspense boundary under output: "export". */}

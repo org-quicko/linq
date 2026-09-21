@@ -145,7 +145,7 @@ export function QrFormDialog({
             )}
           </Field>
 
-          <Field label="Title" hint="Optional, for your own reference.">
+          <Field label="Title">
             <Input value={name} onChange={(e) => setName(e.target.value)} placeholder="No title" />
           </Field>
 
