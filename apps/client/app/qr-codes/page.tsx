@@ -1,9 +1,10 @@
 "use client"
 
 import { type Actor, can, type QrCode } from "@linq/shared"
-import { MoreVertical, Pencil, QrCode as QrCodeIcon, Search, Trash2 } from "lucide-react"
+import { Download, MoreVertical, Pencil, QrCode as QrCodeIcon, Search, Trash2 } from "lucide-react"
 import { useState } from "react"
 import { AppShell } from "@/components/app-shell"
+import { When } from "@/components/common"
 import {
   Collection,
   IconButton,
@@ -30,6 +31,7 @@ import {
 } from "@/components/ui/dropdown-menu"
 import { InputGroup, InputGroupAddon, InputGroupInput } from "@/components/ui/input-group"
 import { useDebounced, useRun } from "../../lib/hooks"
+import { downloadQr } from "../../lib/qr"
 import { useDeleteQrCodeMutation, useListQrCodesQuery } from "../../lib/store/qr-codes"
 
 /** Create/edit share one dialog; `null` means closed. */
@@ -85,6 +87,14 @@ function QrCodesList({ actor }: { actor: Actor }) {
         )}
       </Collection>
 
+      {rows.length > 0 ? (
+        <div className="flex items-center gap-3 py-2 text-xs text-muted-foreground">
+          <div className="h-px flex-1 bg-border" />
+          These were all the QR codes you had.
+          <div className="h-px flex-1 bg-border" />
+        </div>
+      ) : null}
+
       {dialog ? (
         <QrFormDialog
           key={`${dialog.mode}-${dialog.qrCode?.id ?? "new"}`}
@@ -126,33 +136,71 @@ function QrCodeRow({
           </RowCardTile>
         }
         actions={
-          editable ? (
+          <>
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
-                <IconButton icon={MoreVertical} label="Row actions" />
+                <IconButton icon={Download} label="Download QR code" />
               </DropdownMenuTrigger>
               <DropdownMenuContent align="end">
-                <DropdownMenuItem onClick={onEdit}>
-                  <Pencil />
-                  Edit
+                <DropdownMenuItem
+                  onClick={() => downloadQr(qrCode, qrCode.name?.trim() || qrCode.slug, "png")}
+                >
+                  PNG
                 </DropdownMenuItem>
-                <DropdownMenuItem onClick={() => setConfirmDelete(true)}>
-                  <Trash2 />
-                  Delete
+                <DropdownMenuItem
+                  onClick={() => downloadQr(qrCode, qrCode.name?.trim() || qrCode.slug, "jpeg")}
+                >
+                  JPEG
+                </DropdownMenuItem>
+                <DropdownMenuItem
+                  onClick={() => downloadQr(qrCode, qrCode.name?.trim() || qrCode.slug, "jpg")}
+                >
+                  JPG
                 </DropdownMenuItem>
               </DropdownMenuContent>
             </DropdownMenu>
-          ) : null
+
+            {editable ? (
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <IconButton icon={MoreVertical} label="Row actions" />
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="end">
+                  <DropdownMenuItem onClick={onEdit}>
+                    <Pencil />
+                    Edit
+                  </DropdownMenuItem>
+                  <DropdownMenuItem onClick={() => setConfirmDelete(true)}>
+                    <Trash2 />
+                    Delete
+                  </DropdownMenuItem>
+                </DropdownMenuContent>
+              </DropdownMenu>
+            ) : null}
+          </>
         }
       >
-        <div className="flex items-center gap-2 min-w-0">
-          {qrCode.name ? (
+        {qrCode.name ? (
+          <>
             <span className="truncate text-sm font-semibold">{qrCode.name}</span>
-          ) : null}
-          {/* No adapter object needed here: `slug`/`domain_host`/`short_url` are
-           *  unprefixed on `QrCode` so it satisfies `ShortLinkLike` directly. */}
-          <ShortLink link={qrCode} />
-        </div>
+            <span className="flex items-center gap-1 truncate text-xs text-muted-foreground">
+              <ShortLink link={qrCode} copy={false} className="text-xs text-muted-foreground" />
+              <span aria-hidden>·</span>
+              <When iso={qrCode.created_at} relative />
+            </span>
+          </>
+        ) : (
+          <>
+            <ShortLink
+              link={qrCode}
+              copy={false}
+              className="text-sm font-semibold text-foreground"
+            />
+            <span className="truncate text-xs text-muted-foreground">
+              <When iso={qrCode.created_at} relative />
+            </span>
+          </>
+        )}
       </RowCard>
 
       <Dialog open={confirmDelete} onOpenChange={setConfirmDelete}>

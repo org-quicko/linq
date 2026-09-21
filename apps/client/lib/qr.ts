@@ -45,18 +45,20 @@ export function qrOptions(config: QrStyleConfig, size: number): Options {
   }
 }
 
+export type QrDownloadExtension = FileExtension | "jpg"
+
 /** Builds a throwaway, never-appended instance sized for print and triggers
  *  the browser download — the dialog's preview instance is sized for screen
  *  and never used for this. */
 export async function downloadQr(
   config: QrStyleConfig,
   name: string,
-  extension: FileExtension,
+  extension: QrDownloadExtension,
 ): Promise<void> {
   const { default: QRCodeStyling } = await import("qr-code-styling")
   const instance = new QRCodeStyling({
     ...qrOptions(config, 1080),
     type: extension === "svg" ? "svg" : "canvas",
   })
-  await instance.download({ name, extension })
+  await instance.download({ name, extension: extension as FileExtension })
 }
