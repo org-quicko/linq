@@ -1,8 +1,8 @@
 "use client"
 
-import { type Actor, can, type Link } from "@linq/shared"
+import { type Actor, can, type Domain, type Link } from "@linq/shared"
 import { skipToken } from "@reduxjs/toolkit/query/react"
-import { CalendarIcon, Route, TagIcon } from "lucide-react"
+import { CalendarIcon, ChevronDown, Route, TagIcon } from "lucide-react"
 import { type ReactNode, useEffect, useState } from "react"
 import { Field, Picker } from "@/components/common"
 import {
@@ -22,6 +22,12 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog"
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Switch } from "@/components/ui/switch"
@@ -158,7 +164,7 @@ export function LinkFormDialog({
         </DialogHeader>
 
         <div className="flex max-h-[70vh] flex-col gap-4 overflow-y-auto pr-1">
-          <Field label="Destination" hint="An absolute http(s) URL.">
+          <Field label="Destination URL" hint="An absolute http(s) URL.">
             <Input
               value={destination}
               onChange={(event) => setDestination(event.target.value)}
@@ -166,42 +172,26 @@ export function LinkFormDialog({
             />
           </Field>
 
-          <div className="grid grid-cols-2 gap-3">
-            <Field label="Domain">
-              {mode === "create" ? (
-                <Picker
-                  value={chosenDomain ?? ""}
-                  onChange={setDomainId}
-                  options={activeDomains.map((domain) => ({
-                    value: domain.id,
-                    label: domain.host,
-                  }))}
-                />
-              ) : (
-                <Input value={link?.domainHost} disabled readOnly />
-              )}
-            </Field>
+          <Field
+            label="Short link"
+            hint={
+              mode === "edit"
+                ? "Short links can't be changed after creation — existing copies would stop working."
+                : "Leave blank for a generated one."
+            }
+          >
+            <ShortLinkField
+              mode={mode}
+              domainHost={link?.domainHost}
+              domainId={chosenDomain ?? ""}
+              domains={activeDomains}
+              onDomainChange={setDomainId}
+              slug={slug}
+              onSlugChange={setSlug}
+            />
+          </Field>
 
-            <Field
-              label="Slug"
-              hint={
-                mode === "edit"
-                  ? "Immutable, and never reused once taken."
-                  : "Leave blank for a generated one."
-              }
-            >
-              <Input
-                value={slug}
-                onChange={(event) => setSlug(event.target.value)}
-                placeholder="spring-sale"
-                spellCheck={false}
-                disabled={mode === "edit"}
-                readOnly={mode === "edit"}
-              />
-            </Field>
-          </div>
-
-          <Field label="Name" hint="Optional, for your own reference.">
+          <Field label="Title" hint="Optional, for your own reference.">
             <Input value={name} onChange={(event) => setName(event.target.value)} />
           </Field>
 
@@ -232,16 +222,16 @@ export function LinkFormDialog({
           ) : null}
 
           <Label className="font-normal">
+            <Checkbox checked={listed} onCheckedChange={(checked) => setListed(checked === true)} />
+            List in /llms.txt — publishes this link's name and destination, readable without a key
+          </Label>
+
+          <Label className="font-normal">
             <Checkbox
               checked={forwardQuery}
               onCheckedChange={(checked) => setForwardQuery(checked === true)}
             />
-            Forward incoming query parameters to the destination
-          </Label>
-
-          <Label className="font-normal">
-            <Checkbox checked={listed} onCheckedChange={(checked) => setListed(checked === true)} />
-            List in /llms.txt — publishes this link's name and destination, readable without a key
+            Forward query parameters on redirect
           </Label>
 
           <ToggleSection
@@ -273,7 +263,7 @@ export function LinkFormDialog({
 
           <ToggleSection
             icon={<Route className="size-3.5" />}
-            label="Routing rules"
+            label="Rules"
             open={rulesOpen}
             onOpenChange={(next) => {
               setRulesOpen(next)
@@ -332,6 +322,70 @@ function ToggleSection({
         <Switch checked={open} onCheckedChange={onOpenChange} />
       </Label>
       {open ? <div className="border-t p-3">{children}</div> : null}
+    </div>
+  )
+}
+
+/**
+ * The domain and the slug as one control — the mockup's "Short Link" field,
+ * a domain pill attached to the slug input rather than two side-by-side
+ * dropdown/input pairs. The domain is only pickable in `mode: "create"`; an
+ * existing link's domain is locked the same way its slug already is.
+ */
+function ShortLinkField({
+  mode,
+  domainHost,
+  domainId,
+  domains,
+  onDomainChange,
+  slug,
+  onSlugChange,
+}: {
+  mode: "create" | "edit"
+  domainHost?: string
+  domainId: string
+  domains: Domain[]
+  onDomainChange: (id: string) => void
+  slug: string
+  onSlugChange: (slug: string) => void
+}) {
+  const currentHost = mode === "create" ? domains.find((d) => d.id === domainId)?.host : domainHost
+
+  return (
+    <div className="flex h-9 items-stretch overflow-hidden rounded-lg border border-input bg-transparent focus-within:border-ring focus-within:ring-3 focus-within:ring-ring/50">
+      {mode === "create" ? (
+        <DropdownMenu>
+          <DropdownMenuTrigger asChild>
+            <button
+              type="button"
+              className="flex shrink-0 items-center gap-1 border-r bg-muted/40 px-2.5 text-sm hover:bg-muted"
+            >
+              <span className="max-w-36 truncate">{currentHost ?? "No domain"}</span>
+              <ChevronDown className="size-3.5 shrink-0 text-muted-foreground" />
+            </button>
+          </DropdownMenuTrigger>
+          <DropdownMenuContent align="start">
+            {domains.map((domain) => (
+              <DropdownMenuItem key={domain.id} onSelect={() => onDomainChange(domain.id)}>
+                {domain.host}
+              </DropdownMenuItem>
+            ))}
+          </DropdownMenuContent>
+        </DropdownMenu>
+      ) : (
+        <span className="flex shrink-0 items-center border-r bg-muted/40 px-2.5 text-sm text-muted-foreground">
+          {currentHost}
+        </span>
+      )}
+      <input
+        className="min-w-0 flex-1 bg-transparent px-2.5 text-sm outline-none placeholder:text-muted-foreground disabled:cursor-not-allowed disabled:opacity-50"
+        value={slug}
+        onChange={(event) => onSlugChange(event.target.value)}
+        placeholder="spring-sale"
+        spellCheck={false}
+        disabled={mode === "edit"}
+        readOnly={mode === "edit"}
+      />
     </div>
   )
 }
