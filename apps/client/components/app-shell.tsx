@@ -2,7 +2,7 @@
 
 import { type Actor, can, type Role } from "@linq/shared"
 import { cn } from "cn"
-import { Archive, LineChart, Link2, Settings } from "lucide-react"
+import { Archive, LineChart, Link2, QrCode, Settings } from "lucide-react"
 import Link from "next/link"
 import { usePathname, useRouter } from "next/navigation"
 import { type ReactNode, useEffect } from "react"
@@ -38,6 +38,7 @@ type NavItem = {
 
 const NAV: NavItem[] = [
   { href: "/links/", label: "Short links", icon: Link2, visible: () => true },
+  { href: "/qr-codes/", label: "QR codes", icon: QrCode, visible: () => true },
   { href: "/analytics/", label: "Analytics", icon: LineChart, visible: () => true },
   { href: "/archives/", label: "Archives", icon: Archive, visible: can.purge },
 ]
@@ -104,10 +105,12 @@ export function AppShell({
   if (isLoading || error || !me) {
     return (
       <Chrome>
-        <QueryState
-          isLoading={isLoading}
-          error={error ?? (me ? null : { message: "Could not load your account." })}
-        />
+        <div className="h-full overflow-y-auto px-7 py-6">
+          <QueryState
+            isLoading={isLoading}
+            error={error ?? (me ? null : { message: "Could not load your account." })}
+          />
+        </div>
       </Chrome>
     )
   }
@@ -116,7 +119,13 @@ export function AppShell({
 
   return (
     <Chrome actor={actor} me={me}>
-      {requires && !requires(actor) ? <NotPermitted role={me.role} /> : children(actor)}
+      {requires && !requires(actor) ? (
+        <div className="h-full overflow-y-auto px-7 py-6">
+          <NotPermitted role={me.role} />
+        </div>
+      ) : (
+        children(actor)
+      )}
     </Chrome>
   )
 }
@@ -184,8 +193,8 @@ function Chrome({ actor, me, children }: { actor?: Actor; me?: Me; children: Rea
       </aside>
 
       <main className="flex h-screen flex-1 flex-col p-4 pl-0">
-        <div className="min-h-0 flex-1 overflow-y-auto rounded-xl bg-card shadow-panel">
-          <div className="mx-auto max-w-[1080px] px-6 py-6">{children}</div>
+        <div className="flex min-h-0 flex-1 flex-col overflow-hidden rounded-xl bg-card shadow-panel">
+          <div className="mx-auto flex min-h-0 w-full max-w-[1080px] flex-1 flex-col">{children}</div>
         </div>
       </main>
     </div>

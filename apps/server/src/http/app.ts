@@ -14,6 +14,7 @@ import { domainRoutes } from "./api/domains.ts"
 import { keyRoutes } from "./api/keys.ts"
 import { linkRoutes, tagRoutes } from "./api/links.ts"
 import { meRoutes } from "./api/me.ts"
+import { qrCodeRoutes } from "./api/qr-codes.ts"
 import { ruleRoutes } from "./api/rules.ts"
 import { domainStatsRoutes, globalStatsRoutes, linkStatsRoutes } from "./api/stats.ts"
 import { visitRoutes } from "./api/visits.ts"
@@ -76,6 +77,7 @@ export function createApp({ db, config, cache = noCache, caddy = noCaddy }: AppD
   v1.route("/links", linkRoutes)
   v1.route("/links", ruleRoutes)
   v1.route("/links", linkStatsRoutes)
+  v1.route("/qr-codes", qrCodeRoutes)
   v1.route("/stats", globalStatsRoutes)
   v1.route("/visits", visitRoutes)
   v1.route("/tags", tagRoutes)

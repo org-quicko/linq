@@ -1,29 +1,23 @@
 "use client"
 
 import type { StatsBucket } from "@linq/shared"
+import { skipToken } from "@reduxjs/toolkit/query/react"
 import type { LucideIcon } from "lucide-react"
-import { ChevronDown, Globe, Link2, Monitor, Smartphone, X } from "lucide-react"
+import { ChevronDown, Globe, Link2, Monitor, Smartphone } from "lucide-react"
+import { useRouter, useSearchParams } from "next/navigation"
 import type { ReactNode } from "react"
-import { useMemo, useState } from "react"
+import { useEffect, useMemo, useState } from "react"
 import { RangePicker } from "@/components/common"
+import { LinkFilter } from "@/components/patterns"
 import { fillDays, MAX_DAYS } from "@/components/stats-panel"
-import {
-  Command,
-  CommandEmpty,
-  CommandGroup,
-  CommandInput,
-  CommandItem,
-  CommandList,
-} from "@/components/ui/command"
 import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
-import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
-import { useDebounced, useRange } from "@/lib/hooks"
-import { useListLinksQuery } from "../lib/store/links"
+import { useRange } from "@/lib/hooks"
+import { useGetLinkQuery } from "../lib/store/links"
 import { useGetStatsQuery } from "../lib/store/stats"
 
 type DeviceView = "platform" | "os" | "browser"
@@ -40,10 +34,20 @@ type DeviceView = "platform" | "os" | "browser"
  * stats endpoints don't accept today, so the rows here are read-only.
  */
 export function AnalyticsOverview() {
-  const [linkId, setLinkId] = useState("")
+  const router = useRouter()
+  const searchParams = useSearchParams()
+  const urlLinkId = searchParams.get("linkId") ?? ""
+  const [linkId, setLinkId] = useState(urlLinkId)
+  // `linkName` is not carried in the URL, so a deep link resolves it here —
+  // `skipToken` is the pattern `link-form-dialog.tsx` already uses for "no id yet".
+  const linked = useGetLinkQuery(urlLinkId || skipToken)
   const [linkName, setLinkName] = useState("")
   const { range, setRange, from } = useRange()
   const path = linkId ? `/v1/links/${linkId}/stats` : "/v1/stats"
+
+  useEffect(() => {
+    if (linked.data) setLinkName(linked.data.name ?? linked.data.slug)
+  }, [linked.data])
 
   const daily = useGetStatsQuery({ path, params: { groupBy: "day", from } })
   const orphans = useGetStatsQuery(
@@ -67,10 +71,12 @@ export function AnalyticsOverview() {
           onSelect={(id, name) => {
             setLinkId(id)
             setLinkName(name)
+            router.replace(`/analytics/?linkId=${id}`)
           }}
           onClear={() => {
             setLinkId("")
             setLinkName("")
+            router.replace("/analytics/")
           }}
         />
         <RangePicker value={range} onChange={setRange} />
@@ -114,75 +120,6 @@ export function AnalyticsOverview() {
           selector={<DeviceViewSelector value={deviceView} onChange={setDeviceView} />}
         />
       </div>
-    </div>
-  )
-}
-
-/** A single-select, search-as-you-type link combobox. */
-function LinkFilter({
-  value,
-  name,
-  onSelect,
-  onClear,
-}: {
-  value: string
-  name: string
-  onSelect: (id: string, name: string) => void
-  onClear: () => void
-}) {
-  const [open, setOpen] = useState(false)
-  const [search, setSearch] = useState("")
-  const debounced = useDebounced(search)
-  const links = useListLinksQuery({ search: debounced || undefined, limit: 8 }, { skip: !open })
-  const rows = links.data?.data ?? []
-
-  return (
-    <div className="relative">
-      <Popover open={open} onOpenChange={setOpen}>
-        <PopoverTrigger asChild>
-          <button
-            type="button"
-            className="flex h-9 w-64 items-center gap-1.5 rounded-lg border bg-background px-2.5 pr-7 text-[12.5px]"
-          >
-            <Link2 className="size-[13px] shrink-0 text-muted-foreground" />
-            <span className="min-w-0 flex-1 truncate text-left">
-              {value ? name : <span className="text-muted-foreground">Search links</span>}
-            </span>
-          </button>
-        </PopoverTrigger>
-        <PopoverContent align="start" className="w-64 p-0">
-          <Command shouldFilter={false}>
-            <CommandInput placeholder="Search links" value={search} onValueChange={setSearch} />
-            <CommandList>
-              <CommandEmpty>No links found.</CommandEmpty>
-              <CommandGroup>
-                {rows.map((link) => (
-                  <CommandItem
-                    key={link.id}
-                    value={link.id}
-                    onSelect={() => {
-                      onSelect(link.id, link.name ?? link.slug)
-                      setOpen(false)
-                    }}
-                  >
-                    <span className="truncate">{link.name ?? link.slug}</span>
-                  </CommandItem>
-                ))}
-              </CommandGroup>
-            </CommandList>
-          </Command>
-        </PopoverContent>
-      </Popover>
-      {value ? (
-        <button
-          type="button"
-          aria-label="Clear link filter"
-          className="absolute top-1/2 right-1.5 -translate-y-1/2 rounded-sm p-0.5 hover:bg-border"
-          onClick={() => onClear()}
-        >
-          <X className="size-[11px]" />
-        </button>
-      ) : null}
     </div>
   )
 }

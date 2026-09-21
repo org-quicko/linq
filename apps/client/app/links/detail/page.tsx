@@ -4,8 +4,9 @@ import { useRouter, useSearchParams } from "next/navigation"
 import { Suspense, useEffect } from "react"
 
 /**
- * Backward compatibility: redirects legacy /links/detail/?id=... to /links/{id}/summary.
- * See plans/Plan_30.md.
+ * Backward compatibility: redirects legacy /links/detail/?id=... to the
+ * analytics page filtered to that link. The summary view it used to point at
+ * is gone (plans/Plan_31.md Part C).
  */
 export default function LinkDetailPage() {
   return (
@@ -22,11 +23,11 @@ function LinkDetailRedirect() {
 
   useEffect(() => {
     if (id) {
-      router.replace(`/links/${encodeURIComponent(id)}/summary/`)
+      router.replace(`/analytics/?linkId=${encodeURIComponent(id)}`)
     } else {
       router.replace("/links/")
     }
   }, [id, router])
 
-  return <p className="p-8 text-sm text-muted-foreground">Redirecting to summary…</p>
+  return <p className="p-8 text-sm text-muted-foreground">Redirecting to analytics…</p>
 }

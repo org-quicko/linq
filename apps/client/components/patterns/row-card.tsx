@@ -1,7 +1,7 @@
 "use client"
 
 import { cn } from "cn"
-import type { ReactNode } from "react"
+import type { CSSProperties, ReactNode } from "react"
 
 /**
  * The design's `.link-row` — replaces `DataTable` on Links, Archives,
@@ -47,10 +47,22 @@ export function RowCard({
   )
 }
 
-/** The 40px leading icon tile every `RowCard` uses for its subject's glyph. */
-export function RowCardTile({ children, className }: { children: ReactNode; className?: string }) {
+/** The 40px leading icon tile every `RowCard` uses for its subject's glyph.
+ *  `style` is the one escape hatch — the QR list swatches a row's own
+ *  colours, which can't be a Tailwind class since they're arbitrary hex from
+ *  user data. */
+export function RowCardTile({
+  children,
+  className,
+  style,
+}: {
+  children: ReactNode
+  className?: string
+  style?: CSSProperties
+}) {
   return (
     <div
+      style={style}
       className={cn(
         "flex size-10 shrink-0 items-center justify-center rounded-lg bg-muted text-muted-foreground",
         className,

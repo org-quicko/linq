@@ -1,6 +1,6 @@
 "use client"
 
-import { useState } from "react"
+import { Suspense, useState } from "react"
 import { AnalyticsOverview } from "@/components/analytics-overview"
 import { AppShell } from "@/components/app-shell"
 import { DomainPicker, PageHeader } from "@/components/patterns"
@@ -20,9 +20,13 @@ export default function AnalyticsPage() {
   return (
     <AppShell>
       {() => (
-        <div className="flex flex-col gap-4">
+        <div className="flex h-full min-h-0 flex-col gap-4 overflow-y-auto px-7 py-6">
           <PageHeader title="Analytics" />
-          <AnalyticsOverview />
+          {/* AnalyticsOverview reads ?linkId= via useSearchParams (plans/Plan_31.md
+           *  §C3), which needs a Suspense boundary under output: "export". */}
+          <Suspense fallback={null}>
+            <AnalyticsOverview />
+          </Suspense>
           <VisitsSection />
           <OrphansSection />
         </div>

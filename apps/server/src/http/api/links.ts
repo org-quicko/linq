@@ -16,6 +16,7 @@ import {
   eq,
   gt,
   ilike,
+  inArray,
   isNotNull,
   isNull,
   lte,
@@ -47,6 +48,7 @@ type LinkRow = {
   ownerName: string | null
   humanVisits: number
   botVisits: number
+  ruleCount: number
 }
 
 /** A port only ever appears in a local setup, where no TLS terminator is in front. */
@@ -76,6 +78,7 @@ function toLink(row: LinkRow): Link {
     botVisits: row.botVisits,
     expiresAt: link.expiresAt?.toISOString() ?? null,
     listed: link.listed,
+    ruleCount: row.ruleCount,
     createdAt: link.createdAt.toISOString(),
     updatedAt: link.updatedAt.toISOString(),
   }
@@ -97,6 +100,12 @@ function linkQuery(db: Db) {
       ownerName: apiKeys.name,
       humanVisits: sql<number>`coalesce(${visitCounts.human}, 0)`.mapWith(Number),
       botVisits: sql<number>`coalesce(${visitCounts.bot}, 0)`.mapWith(Number),
+      // A correlated subquery, not a join: `rules` is 1:N and every other join
+      // here is 1:1, so joining it directly would multiply rows.
+      ruleCount:
+        sql<number>`(select count(*) from ${rules} where ${rules.linkId} = ${links.id})`.mapWith(
+          Number,
+        ),
     })
     .from(links)
     .innerJoin(domains, eq(domains.id, links.domainId))
@@ -179,7 +188,7 @@ export const linkRoutes = new Hono<Env>()
 
     const filters: SQL[] = []
     if (q.status !== "all") filters.push(eq(links.status, q.status))
-    if (q.domainId) filters.push(eq(links.domainId, q.domainId))
+    if (q.domainId.length) filters.push(inArray(links.domainId, q.domainId))
     if (q.ownerId) filters.push(eq(links.ownerId, q.ownerId))
     if (q.tags.length) filters.push(arrayOverlaps(links.tags, q.tags))
     if (q.search) {

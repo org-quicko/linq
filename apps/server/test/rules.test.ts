@@ -147,6 +147,26 @@ describe("the rules API", () => {
     expect(await (await put(link.id, author.key, [])).json()).toEqual([])
   })
 
+  test("the link response's ruleCount tracks the rule set", async () => {
+    const link = await h.createLink(author.key, domain)
+    expect(link.ruleCount).toBe(0)
+
+    await put(link.id, author.key, [androidRule])
+    const one = await (await h.request(`/api/v1/links/${link.id}`, { key: author.key })).json()
+    expect(one.ruleCount).toBe(1)
+
+    await put(link.id, author.key, [
+      androidRule,
+      { destination: "https://example.com/ios", conditions: [{ type: "platform", value: "ios" }] },
+    ])
+    const two = await (await h.request(`/api/v1/links/${link.id}`, { key: author.key })).json()
+    expect(two.ruleCount).toBe(2)
+
+    await put(link.id, author.key, [])
+    const cleared = await (await h.request(`/api/v1/links/${link.id}`, { key: author.key })).json()
+    expect(cleared.ruleCount).toBe(0)
+  })
+
   test("rejects a rule with no conditions", async () => {
     const link = await h.createLink(author.key, domain)
     const res = await put(link.id, author.key, [

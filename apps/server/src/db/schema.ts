@@ -19,6 +19,7 @@ import {
 export const roleEnum = pgEnum("role", ["viewer", "author", "manager", "admin"])
 export const resourceStatusEnum = pgEnum("resource_status", ["active", "archived"])
 export const platformEnum = pgEnum("platform", ["android", "ios", "desktop"])
+export const qrPatternEnum = pgEnum("qr_pattern", ["squares", "rounded", "dots"])
 
 const createdAt = timestamp("created_at", { withTimezone: true }).notNull().defaultNow()
 const updatedAt = timestamp("updated_at", { withTimezone: true }).notNull().defaultNow()
@@ -115,6 +116,30 @@ export const rules = pgTable(
     conditions: jsonb("conditions").$type<Condition[]>().notNull(),
   },
   (t) => [uniqueIndex("rules_link_position_key").on(t.linkId, t.position)],
+)
+
+/**
+ * A QR code for a short link. The encoded data is never stored — it is
+ * always the link's current `shortUrl`, derived at request time, so renaming
+ * a domain re-points every printed code. Only the styling lives here.
+ * `ON DELETE CASCADE` is the whole enforcement of "a QR code is always
+ * associated with a short link". See plans/Plan_31.md.
+ */
+export const qrCodes = pgTable(
+  "qr_codes",
+  {
+    id: uuid("id").primaryKey(),
+    linkId: uuid("link_id")
+      .notNull()
+      .references(() => links.id, { onDelete: "cascade" }),
+    name: text("name"),
+    dotColor: text("dot_color").notNull().default("#000000"),
+    bgColor: text("bg_color").notNull().default("#ffffff"),
+    pattern: qrPatternEnum("pattern").notNull().default("squares"),
+    createdAt,
+    updatedAt,
+  },
+  (t) => [index("qr_codes_link_id_idx").on(t.linkId)],
 )
 
 /** One row per request. `link_id` null means an orphan visit. */
@@ -225,6 +250,7 @@ export const schema = {
   domains,
   links,
   rules,
+  qrCodes,
   visits,
   visitDays,
   visitCounts,

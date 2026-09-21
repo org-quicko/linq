@@ -1,5 +1,6 @@
 "use client"
 
+import { cn } from "cn"
 import { CheckIcon, ChevronsUpDownIcon, XIcon } from "lucide-react"
 import { useState } from "react"
 import { Badge } from "@/components/ui/badge"
@@ -37,12 +38,22 @@ export function TagPicker({
   creatable = false,
   disabled = false,
   placeholder = "Tags",
+  selectedLabel = (n) => `${n} selected`,
+  showChips = true,
+  className,
 }: {
   value: string[]
   onChange: (tags: string[]) => void
   creatable?: boolean
   disabled?: boolean
   placeholder?: string
+  /** How the trigger reads once something is picked. The links list toolbar
+   *  wants `Tag (n)` rather than the form field's `n selected`. */
+  selectedLabel?: (count: number) => string
+  /** The links list toolbar has no room for the removable-chip row the form
+   *  field shows below the control. */
+  showChips?: boolean
+  className?: string
 }) {
   const { data: tags, isLoading: tagsLoading } = useListTagsQuery()
   const [open, setOpen] = useState(false)
@@ -70,10 +81,10 @@ export function TagPicker({
             type="button"
             variant="outline"
             disabled={disabled}
-            className="w-full justify-between font-normal"
+            className={cn("w-full justify-between font-normal", className)}
           >
             <span className={value.length ? undefined : "text-muted-foreground"}>
-              {value.length ? `${value.length} selected` : placeholder}
+              {value.length ? selectedLabel(value.length) : placeholder}
             </span>
             <ChevronsUpDownIcon className="opacity-50" />
           </Button>
@@ -117,7 +128,7 @@ export function TagPicker({
         </PopoverContent>
       </Popover>
 
-      {value.length ? (
+      {showChips && value.length ? (
         <div className="flex flex-wrap gap-1">
           {value.map((tag) => (
             <Badge key={tag} variant="secondary" className="gap-1 pr-1">

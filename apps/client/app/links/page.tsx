@@ -1,33 +1,38 @@
 "use client"
 
-import { type Actor, can, type Link } from "@linq/shared"
+import { type Actor, can, type Link, type Page } from "@linq/shared"
 import {
   Archive,
   ArrowDownIcon,
   ArrowUpIcon,
+  BarChart3,
   Copy,
+  CornerDownRight,
+  Globe,
   Link2,
   MoreVertical,
   Pencil,
+  Plus,
+  Search,
+  X,
 } from "lucide-react"
-import NextLink from "next/link"
 import { useRouter } from "next/navigation"
-import { useState } from "react"
+import { useEffect, useRef, useState } from "react"
 import { AppShell } from "@/components/app-shell"
-import { Pager, Picker } from "@/components/common"
+import { When } from "@/components/common"
 import { LinkFormDialog } from "@/components/link-form-dialog"
 import {
   Collection,
   DomainPicker,
+  IconButton,
   PageHeader,
   RowCard,
   RowCardTile,
   ShortLink,
+  Tag,
 } from "@/components/patterns"
 import { TagPicker } from "@/components/tag-picker"
-import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
-import { Card, CardContent } from "@/components/ui/card"
 import {
   Dialog,
   DialogContent,
@@ -42,23 +47,22 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
-import { Input } from "@/components/ui/input"
+import {
+  InputGroup,
+  InputGroupAddon,
+  InputGroupButton,
+  InputGroupInput,
+} from "@/components/ui/input-group"
 import { useDebounced, useRun } from "../../lib/hooks"
-import { useArchiveLinkMutation, useListLinksQuery } from "../../lib/store/links"
+import { useArchiveLinkMutation, useLinksFeedInfiniteQuery } from "../../lib/store/links"
 
-type Filters = {
-  domainId: string
-  status: "active" | "archived" | "all"
-  sort: "createdAt" | "updatedAt" | "visits"
-  order: "asc" | "desc"
-}
+type Filters = { domainId: string; order: "asc" | "desc" }
+const EMPTY: Filters = { domainId: "", order: "desc" }
 
-const EMPTY: Filters = { domainId: "", status: "active", sort: "createdAt", order: "desc" }
-
-/** Create/Edit/Duplicate all go through one dialog (Part C4); `null` means closed. */
+/** Create/Edit/Duplicate all go through one dialog; `null` means closed. */
 type DialogState = { mode: "create" | "edit"; link?: Link } | null
 
-/** The main list: every link, filtered the same way the API filters them. */
+/** The main list: every active link, filtered the same way the API filters them. */
 export default function LinksPage() {
   return <AppShell>{(actor) => <LinksList actor={actor} />}</AppShell>
 }
@@ -67,113 +71,144 @@ function LinksList({ actor }: { actor: Actor }) {
   const [filters, setFilters] = useState<Filters>(EMPTY)
   const [search, setSearch] = useState("")
   const [tags, setTags] = useState<string[]>([])
-  const [offset, setOffset] = useState(0)
   const [dialog, setDialog] = useState<DialogState>(null)
-  const limit = 25
 
   // The box stays responsive while the request waits for the typing to stop.
   const settledSearch = useDebounced(search)
 
-  const links = useListLinksQuery({
-    ...filters,
-    search: settledSearch,
-    tags: tags.join(","),
-    limit,
-    offset,
+  const links = useLinksFeedInfiniteQuery({
+    domainId: filters.domainId || undefined,
+    order: filters.order,
+    search: settledSearch || undefined,
+    tags: tags.join(",") || undefined,
   })
 
-  /** Applies a filter change and returns to the first page of results. */
-  function update(next: Partial<Filters>) {
-    setFilters((current) => ({ ...current, ...next }))
-    setOffset(0)
-  }
+  const rows = links.data?.pages.flatMap((page: Page<Link>) => page.data) ?? []
 
-  const rows = links.data?.data ?? []
-  const total = links.data?.total ?? 0
+  // A bare sentinel div, observed natively — no library. Plus an explicit
+  // "Load more" button behind it: the observer alone has no keyboard or
+  // screen-reader path to the next page.
+  const sentinel = useRef<HTMLDivElement>(null)
+  const hasNextPage = links.hasNextPage ?? false
+  const isFetchingNextPage = links.isFetchingNextPage
+  const { fetchNextPage } = links
+  useEffect(() => {
+    const el = sentinel.current
+    if (!el || !hasNextPage) return
+    const observer = new IntersectionObserver((entries) => {
+      if (entries[0].isIntersecting && !isFetchingNextPage) fetchNextPage()
+    })
+    observer.observe(el)
+    return () => observer.disconnect()
+  }, [hasNextPage, isFetchingNextPage, fetchNextPage])
 
   return (
-    <div className="flex flex-col gap-4">
-      <PageHeader
-        title="Short links"
-        actions={
-          can.createLink(actor) ? (
-            <Button type="button" onClick={() => setDialog({ mode: "create" })}>
-              Create link
-            </Button>
-          ) : null
-        }
-      />
+    <div className="flex h-full min-h-0 flex-col">
+      {/* Pinned: only the list below scrolls (plans/Plan_31.md §B5). */}
+      <div className="flex shrink-0 flex-col gap-4 px-7 pt-6 pb-4">
+        <PageHeader
+          title="Short links"
+          actions={
+            can.createLink(actor) ? (
+              <Button type="button" onClick={() => setDialog({ mode: "create" })}>
+                <Plus className="size-3.5" />
+                Create link
+              </Button>
+            ) : null
+          }
+        />
 
-      <Card>
-        <CardContent className="grid gap-3 sm:grid-cols-2 lg:grid-cols-5">
-          <Input
-            placeholder="Search slug, name or destination"
-            value={search}
-            onChange={(event) => {
-              setSearch(event.target.value)
-              setOffset(0)
-            }}
-          />
-          <TagPicker
-            value={tags}
-            placeholder="Any tag"
-            onChange={(next) => {
-              setTags(next)
-              setOffset(0)
-            }}
-          />
-          <DomainPicker value={filters.domainId} onChange={(domainId) => update({ domainId })} />
-          <Picker
-            value={filters.status}
-            onChange={(value) => update({ status: value as Filters["status"] })}
-            options={[
-              { value: "active", label: "Active" },
-              { value: "archived", label: "Archived" },
-              { value: "all", label: "All" },
-            ]}
-          />
-          <div className="flex gap-2">
-            <Picker
-              className="flex-1"
-              value={filters.sort}
-              onChange={(value) => update({ sort: value as Filters["sort"] })}
-              options={[
-                { value: "createdAt", label: "Created" },
-                { value: "updatedAt", label: "Updated" },
-                { value: "visits", label: "Visits" },
-              ]}
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <div className="flex flex-wrap items-center gap-2">
+            <InputGroup className="w-[300px]">
+              <InputGroupAddon>
+                <Search />
+              </InputGroupAddon>
+              <InputGroupInput
+                placeholder="Search links"
+                value={search}
+                onChange={(event) => setSearch(event.target.value)}
+              />
+              {search ? (
+                <InputGroupAddon align="inline-end">
+                  <InputGroupButton
+                    size="icon-xs"
+                    aria-label="Clear search"
+                    onClick={() => setSearch("")}
+                  >
+                    <X />
+                  </InputGroupButton>
+                </InputGroupAddon>
+              ) : null}
+            </InputGroup>
+
+            <TagPicker
+              value={tags}
+              onChange={setTags}
+              placeholder="Tag"
+              selectedLabel={(n) => `Tag (${n})`}
+              showChips={false}
+              className="w-auto"
             />
+
+            <DomainPicker
+              multiple
+              value={filters.domainId}
+              onChange={(domainId) => setFilters((f) => ({ ...f, domainId }))}
+            />
+          </div>
+
+          <Button
+            type="button"
+            variant="outline"
+            onClick={() =>
+              setFilters((f) => ({ ...f, order: f.order === "desc" ? "asc" : "desc" }))
+            }
+          >
+            {filters.order === "desc" ? "Newest to Oldest" : "Oldest to Newest"}
+            {filters.order === "desc" ? <ArrowDownIcon /> : <ArrowUpIcon />}
+          </Button>
+        </div>
+      </div>
+
+      {/* Scrolls on its own; the header and toolbar above stay put. */}
+      <div className="flex min-h-0 flex-1 flex-col gap-4 overflow-y-auto px-7 pb-6">
+        <Collection
+          query={links}
+          rows={rows}
+          variant="list"
+          emptyMessage="No links match your search."
+        >
+          {(link: Link) => (
+            <LinkRow
+              key={link.id}
+              actor={actor}
+              link={link}
+              onEdit={() => setDialog({ mode: "edit", link })}
+              onDuplicate={() => setDialog({ mode: "create", link })}
+            />
+          )}
+        </Collection>
+
+        {hasNextPage ? (
+          <div ref={sentinel} className="flex justify-center py-2">
             <Button
               type="button"
               variant="outline"
-              size="icon"
-              aria-label={filters.order === "desc" ? "Sorted descending" : "Sorted ascending"}
-              onClick={() => update({ order: filters.order === "desc" ? "asc" : "desc" })}
+              disabled={isFetchingNextPage}
+              onClick={() => links.fetchNextPage()}
             >
-              {filters.order === "desc" ? <ArrowDownIcon /> : <ArrowUpIcon />}
+              {isFetchingNextPage ? "Loading…" : "Load more"}
             </Button>
           </div>
-        </CardContent>
-      </Card>
-
-      <Collection
-        query={links}
-        rows={rows}
-        variant="list"
-        emptyMessage="No links match these filters."
-      >
-        {(link) => (
-          <LinkRow
-            key={link.id}
-            actor={actor}
-            link={link}
-            onEdit={() => setDialog({ mode: "edit", link })}
-            onDuplicate={() => setDialog({ mode: "create", link })}
-          />
-        )}
-      </Collection>
-
-      <Pager total={total} limit={limit} offset={offset} onChange={setOffset} />
+        ) : rows.length > 0 ? (
+          <div className="flex items-center gap-3 py-2 text-xs text-muted-foreground">
+            <div className="h-px flex-1 bg-border" />
+            These were all the links you had.
+            <div className="h-px flex-1 bg-border" />
+          </div>
+        ) : null}
+      </div>
 
       {dialog ? (
         <LinkFormDialog
@@ -207,77 +242,72 @@ function LinkRow({
 
   const editable = can.editLink(actor, link)
   const duplicatable = can.createLink(actor)
+  // More than one rule reads as "this link routes dynamically" — a single
+  // rule is still just one alternate destination, not a decision tree.
+  const routesDynamically = link.ruleCount > 1
 
   return (
     <>
       <RowCard
         tile={
           <RowCardTile>
-            <Link2 className="size-4" />
+            {routesDynamically ? <Globe className="size-4" /> : <Link2 className="size-4" />}
           </RowCardTile>
         }
-        className={link.status === "archived" ? "opacity-60" : undefined}
-        onClick={() => router.push(`/links/${link.id}/summary/`)}
+        className="px-5 py-3"
         actions={
-          editable || duplicatable ? (
-            <DropdownMenu>
-              <DropdownMenuTrigger asChild>
-                <Button
-                  type="button"
-                  variant="ghost"
-                  size="icon"
-                  className="size-10"
-                  aria-label="Row actions"
-                >
-                  <MoreVertical />
-                </Button>
-              </DropdownMenuTrigger>
-              <DropdownMenuContent align="end">
-                {editable ? (
-                  <DropdownMenuItem onClick={onEdit}>
-                    <Pencil />
-                    Edit
-                  </DropdownMenuItem>
-                ) : null}
-                {duplicatable ? (
-                  <DropdownMenuItem onClick={onDuplicate}>
-                    <Copy />
-                    Duplicate
-                  </DropdownMenuItem>
-                ) : null}
-                {editable && link.status === "active" ? (
-                  <DropdownMenuItem onClick={() => setConfirmArchive(true)}>
-                    <Archive />
-                    Archive
-                  </DropdownMenuItem>
-                ) : null}
-              </DropdownMenuContent>
-            </DropdownMenu>
-          ) : null
+          <>
+            <IconButton
+              icon={BarChart3}
+              label="View analytics"
+              onClick={() => router.push(`/analytics/?linkId=${link.id}`)}
+            />
+            {editable || duplicatable ? (
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <IconButton icon={MoreVertical} label="Row actions" />
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="end">
+                  {editable ? (
+                    <DropdownMenuItem onClick={onEdit}>
+                      <Pencil />
+                      Edit
+                    </DropdownMenuItem>
+                  ) : null}
+                  {duplicatable ? (
+                    <DropdownMenuItem onClick={onDuplicate}>
+                      <Copy />
+                      Duplicate
+                    </DropdownMenuItem>
+                  ) : null}
+                  {editable ? (
+                    <DropdownMenuItem onClick={() => setConfirmArchive(true)}>
+                      <Archive />
+                      Archive
+                    </DropdownMenuItem>
+                  ) : null}
+                </DropdownMenuContent>
+              </DropdownMenu>
+            ) : null}
+          </>
         }
       >
         <div className="flex items-center gap-2 min-w-0">
-          {link.name ? (
-            <NextLink
-              href={`/links/${link.id}/summary/`}
-              className="truncate font-medium underline-offset-2 hover:underline"
-            >
-              {link.name}
-            </NextLink>
-          ) : null}
-          <ShortLink link={link} href={`/links/${link.id}/summary/`} />
-          {link.status === "archived" ? <Badge variant="outline">Archived</Badge> : null}
-          {link.expiresAt && new Date(link.expiresAt) <= new Date() ? (
-            <Badge variant="outline">Expired</Badge>
-          ) : null}
+          {link.name ? <span className="truncate text-sm font-semibold">{link.name}</span> : null}
+          <ShortLink link={link} className="text-[12.5px] font-medium text-foreground" />
         </div>
-        <span className="truncate text-xs text-muted-foreground">{link.destination}</span>
+        <span className="flex items-center gap-1 truncate text-xs text-muted-foreground">
+          <CornerDownRight className="size-3 shrink-0" />
+          <span className="truncate">
+            {routesDynamically ? "Routes dynamically" : link.destination}
+          </span>
+          <span aria-hidden>·</span>
+          <When iso={link.createdAt} relative />
+        </span>
         {link.tags.length > 0 ? (
           <div className="mt-1 flex flex-wrap gap-1">
             {link.tags.map((tag) => (
-              <Badge key={tag} variant="secondary">
-                {tag}
-              </Badge>
+              <Tag key={tag}>{tag}</Tag>
             ))}
           </div>
         ) : null}

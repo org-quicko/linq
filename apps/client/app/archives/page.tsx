@@ -2,7 +2,6 @@
 
 import { can, type Domain, type Link } from "@linq/shared"
 import { Globe, Link2, RotateCcw, Trash2 } from "lucide-react"
-import { useRouter } from "next/navigation"
 import { Suspense } from "react"
 import { AppShell } from "@/components/app-shell"
 import { ConfirmButton, When } from "@/components/common"
@@ -46,7 +45,7 @@ export default function ArchivesPage() {
 
 function Archives() {
   return (
-    <div className="flex flex-col gap-4">
+    <div className="flex h-full min-h-0 flex-col gap-4 overflow-y-auto px-7 py-6">
       <PageHeader
         title="Archives"
         description="Archived links and domains. Purging either is permanent."
@@ -65,7 +64,6 @@ function Archives() {
 }
 
 function ArchivedLinksTab() {
-  const router = useRouter()
   const links = useListLinksQuery({ status: "archived", limit: 200 })
   const rows = links.data?.data ?? []
   const [updateLink] = useUpdateLinkMutation()
@@ -126,7 +124,6 @@ function ArchivedLinksTab() {
                 <Link2 className="size-4" />
               </RowCardTile>
             }
-            onClick={() => router.push(`/links/${link.id}/summary/`)}
             actions={
               <>
                 <IconButton icon={RotateCcw} label="Restore link" onClick={() => restore(link)} />
@@ -144,7 +141,7 @@ function ArchivedLinksTab() {
               </>
             }
           >
-            <ShortLink link={link} href={`/links/${link.id}/summary/`} />
+            <ShortLink link={link} />
             <span className="truncate text-xs text-muted-foreground">
               {link.destination} · Archived <When iso={link.updatedAt} relative />
             </span>

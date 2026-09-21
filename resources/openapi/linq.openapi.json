@@ -51,6 +51,10 @@
       "description": "Visits, and the reports rolled up from them."
     },
     {
+      "name": "QR codes",
+      "description": "Styled QR codes for a short link. Always attached to exactly one link."
+    },
+    {
       "name": "Keys",
       "description": "Keys are the principals. Minting one is how access is granted; revoking it is how access is removed."
     },
@@ -887,6 +891,227 @@
           },
           "401": {
             "$ref": "#/components/responses/Unauthorized"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          }
+        }
+      }
+    },
+    "/api/v1/qr-codes": {
+      "get": {
+        "tags": [
+          "QR codes"
+        ],
+        "operationId": "listQrCodes",
+        "summary": "List QR codes",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/Limit"
+          },
+          {
+            "$ref": "#/components/parameters/Offset"
+          },
+          {
+            "name": "linkId",
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "name": "search",
+            "in": "query",
+            "description": "Substring match, case-insensitive, over the QR code's own name and its link's name and slug.",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "A page of QR codes.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "allOf": [
+                    {
+                      "$ref": "#/components/schemas/Page"
+                    },
+                    {
+                      "type": "object",
+                      "properties": {
+                        "data": {
+                          "type": "array",
+                          "items": {
+                            "$ref": "#/components/schemas/QrCode"
+                          }
+                        }
+                      }
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/ValidationFailed"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          }
+        }
+      },
+      "post": {
+        "tags": [
+          "QR codes"
+        ],
+        "operationId": "createQrCode",
+        "summary": "Create a QR code",
+        "description": "Requires: **author** on the target link's owner, **manager** for any link. A QR code is always attached to a link — `linkId` is required — and the link must be active: an archived link's short URL does not resolve, so a code for one would be born dead.\n",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/QrCodeCreate"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "The created QR code.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/QrCode"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/ValidationFailed"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "description": "The link does not exist.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "The link is archived.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/qr-codes/{id}": {
+      "parameters": [
+        {
+          "$ref": "#/components/parameters/Id"
+        }
+      ],
+      "get": {
+        "tags": [
+          "QR codes"
+        ],
+        "operationId": "getQrCode",
+        "summary": "Read a QR code",
+        "responses": {
+          "200": {
+            "description": "The QR code.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/QrCode"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          }
+        }
+      },
+      "patch": {
+        "tags": [
+          "QR codes"
+        ],
+        "operationId": "updateQrCode",
+        "summary": "Update a QR code",
+        "description": "Requires: **author** for the owner of the QR code's link, **manager** for any. `linkId` is immutable — re-pointing a QR code at a different link would invalidate every printed copy — and the body is strict, so sending it is a 400 rather than a silently ignored field.\n",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/QrCodePatch"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "The updated QR code.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/QrCode"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/ValidationFailed"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          }
+        }
+      },
+      "delete": {
+        "tags": [
+          "QR codes"
+        ],
+        "operationId": "deleteQrCode",
+        "summary": "Delete a QR code",
+        "description": "Requires: **author** for the owner of the QR code's link, **manager** for any. Hard delete, not archive: a QR code has no slug and no redirect, so archiving one would be ceremony with no consequence. See `docs/adr/0002`'s 2026-09-21 amendment. There is no purge route for QR codes.\n",
+        "responses": {
+          "204": {
+            "description": "Deleted."
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
           },
           "404": {
             "$ref": "#/components/responses/NotFound"
@@ -1749,6 +1974,7 @@
           "botVisits",
           "expiresAt",
           "listed",
+          "ruleCount",
           "createdAt",
           "updatedAt"
         ],
@@ -1794,6 +2020,11 @@
           "forwardQuery": {
             "type": "boolean",
             "description": "Merge the incoming query string over the destination's own. Also gates presetParams: off, neither the incoming query nor the preset params touch the destination."
+          },
+          "ruleCount": {
+            "type": "integer",
+            "minimum": 0,
+            "description": "How many rules (alternate destinations) this link carries."
           },
           "presetParams": {
             "type": "object",
@@ -2062,6 +2293,170 @@
             }
           }
         ]
+      },
+      "QrCode": {
+        "type": "object",
+        "description": "A styled QR code for a link's short URL. The encoded data is never stored — it is always the link's current shortUrl, resolved at read time.",
+        "required": [
+          "id",
+          "linkId",
+          "name",
+          "dotColor",
+          "bgColor",
+          "pattern",
+          "linkName",
+          "linkStatus",
+          "linkOwnerId",
+          "slug",
+          "domainHost",
+          "shortUrl",
+          "createdAt",
+          "updatedAt"
+        ],
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "linkId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "name": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "maxLength": 120
+          },
+          "dotColor": {
+            "$ref": "#/components/schemas/HexColor"
+          },
+          "bgColor": {
+            "$ref": "#/components/schemas/HexColor"
+          },
+          "pattern": {
+            "$ref": "#/components/schemas/QrPattern"
+          },
+          "linkName": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Denormalised from the link, so a list row renders without a second request."
+          },
+          "linkStatus": {
+            "$ref": "#/components/schemas/ResourceStatus"
+          },
+          "linkOwnerId": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "uuid",
+            "description": "The link's owner, not the QR code's own — a QR code has no owner of its own. A UI courtesy only; the server never trusts this field."
+          },
+          "slug": {
+            "type": "string"
+          },
+          "domainHost": {
+            "type": "string"
+          },
+          "shortUrl": {
+            "type": "string",
+            "format": "uri"
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "updatedAt": {
+            "type": "string",
+            "format": "date-time"
+          }
+        }
+      },
+      "QrPattern": {
+        "type": "string",
+        "enum": [
+          "squares",
+          "rounded",
+          "dots"
+        ]
+      },
+      "HexColor": {
+        "type": "string",
+        "pattern": "^#[0-9a-fA-F]{6}$"
+      },
+      "QrCodeCreate": {
+        "type": "object",
+        "required": [
+          "linkId"
+        ],
+        "properties": {
+          "linkId": {
+            "type": "string",
+            "format": "uuid",
+            "description": "Required — a QR code is never free-floating."
+          },
+          "name": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "minLength": 1,
+            "maxLength": 120
+          },
+          "dotColor": {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/HexColor"
+              }
+            ],
+            "default": "#000000"
+          },
+          "bgColor": {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/HexColor"
+              }
+            ],
+            "default": "#ffffff"
+          },
+          "pattern": {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/QrPattern"
+              }
+            ],
+            "default": "squares"
+          }
+        }
+      },
+      "QrCodePatch": {
+        "type": "object",
+        "description": "Strict: `linkId` is immutable — re-pointing a QR code at a different link would invalidate every printed copy — and sending it is a 400 rather than a silently ignored field.",
+        "additionalProperties": false,
+        "minProperties": 1,
+        "properties": {
+          "name": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "minLength": 1,
+            "maxLength": 120
+          },
+          "dotColor": {
+            "$ref": "#/components/schemas/HexColor"
+          },
+          "bgColor": {
+            "$ref": "#/components/schemas/HexColor"
+          },
+          "pattern": {
+            "$ref": "#/components/schemas/QrPattern"
+          }
+        }
       },
       "Visit": {
         "type": "object",

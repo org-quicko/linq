@@ -64,7 +64,20 @@ export const linkListQuerySchema = paginationSchema.extend({
             .filter(Boolean)
         : [],
     ),
-  domainId: uuidSchema.optional(),
+  /** Comma-separated; a link matches when its domain is any of them. Kept
+   *  as `domainId` rather than renamed to plural, so a caller passing a
+   *  single uuid keeps working unchanged. */
+  domainId: z
+    .string()
+    .optional()
+    .transform((v) =>
+      v
+        ? v
+            .split(",")
+            .map((s) => s.trim())
+            .filter((s) => uuidSchema.safeParse(s).success)
+        : [],
+    ),
   ownerId: uuidSchema.optional(),
   status: z.enum(["active", "archived", "all"]).default("active"),
   sort: z.enum(["createdAt", "updatedAt", "visits"]).default("createdAt"),
@@ -90,6 +103,9 @@ export type Link = {
   botVisits: number
   expiresAt: string | null
   listed: boolean
+  /** How many rules (alternate destinations) this link carries. Drives the
+   *  "routes dynamically" treatment in the client's list row once it exceeds 1. */
+  ruleCount: number
   createdAt: string
   updatedAt: string
 }

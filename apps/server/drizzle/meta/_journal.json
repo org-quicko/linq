@@ -127,6 +127,13 @@
       "when": 1789919300000,
       "tag": "0017_drop_bot_label",
       "breakpoints": true
+    },
+    {
+      "idx": 18,
+      "version": "7",
+      "when": 1789993186962,
+      "tag": "0018_qr_codes",
+      "breakpoints": true
     }
   ]
 }

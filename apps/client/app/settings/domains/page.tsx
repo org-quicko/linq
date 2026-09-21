@@ -44,9 +44,11 @@ export default function SettingsDomainsPage() {
   return (
     <AppShell>
       {(actor) => (
-        <SettingsNav actor={actor}>
-          <Domains actor={actor} />
-        </SettingsNav>
+        <div className="h-full min-h-0 overflow-y-auto px-7 py-6">
+          <SettingsNav actor={actor}>
+            <Domains actor={actor} />
+          </SettingsNav>
+        </div>
       )}
     </AppShell>
   )

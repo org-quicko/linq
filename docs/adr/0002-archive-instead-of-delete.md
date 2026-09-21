@@ -39,3 +39,7 @@ The reason: an archived Link still owns its slug on that Domain, and an archived
 The cost, accepted knowingly: retiring a host that ever carried Links now means purging every one of them first, and there is no bulk purge — for a Domain with hundreds of Links, that is hundreds of admin purges through today's API. A domain-scoped bulk Link purge is the obvious follow-up if this bites, and is deliberately not built here.
 
 `Domain.linkCount` in the API changes meaning with it: it now counts every Link, archived included, rather than active ones only. Same field, same type, a different number — any consumer reading it as "live links on this host" is silently wrong after this change.
+
+## Amendment · 2026-09-21 — QR codes are deleted, not archived (`plans/Plan_31.md`)
+
+QR codes are deleted, not archived, and have no purge. The decision above protects two things a QR code does not have: a reserved slug, and a visit history. Deleting one removes a saved appearance; it cannot hijack anything, and it loses no analytics — a scan is an ordinary visit on the link. `qr_codes.link_id` is `ON DELETE CASCADE` for the same reason. What a delete does *not* do is invalidate a printed code: the link is what resolves it, so archiving the link is still the only way to take one down.

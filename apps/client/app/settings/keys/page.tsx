@@ -41,9 +41,11 @@ export default function KeysPage() {
   return (
     <AppShell requires={can.manageKeys}>
       {(actor) => (
-        <SettingsNav actor={actor}>
-          <Keys actor={actor} />
-        </SettingsNav>
+        <div className="h-full min-h-0 overflow-y-auto px-7 py-6">
+          <SettingsNav actor={actor}>
+            <Keys actor={actor} />
+          </SettingsNav>
+        </div>
       )}
     </AppShell>
   )

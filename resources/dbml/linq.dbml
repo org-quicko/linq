@@ -9,9 +9,9 @@ Project linq {
   Note: '''
     A self-hosted URL shortener and dynamic-link service.
 
-    Seven tables in three groups: who acts (api_keys), what is served
-    (domains, links, rules), and what happened (visits, and the two rollups
-    derived from it).
+    Eight tables in three groups: who acts (api_keys), what is served
+    (domains, links, rules, qr_codes), and what happened (visits, and the two
+    rollups derived from it).
 
     Requires PostgreSQL 15+: visit_days and visit_counts use
     UNIQUE NULLS NOT DISTINCT.
@@ -36,6 +36,12 @@ Enum platform {
   android
   ios
   desktop [note: 'Also the fallback for an unknown or absent user agent.']
+}
+
+Enum qr_pattern {
+  squares
+  rounded
+  dots
 }
 
 Enum visit_dimension {
@@ -122,6 +128,28 @@ Table rules {
   }
 
   Note: 'Ordered alternate destinations. At most 50 per link.'
+}
+
+Table qr_codes {
+  id         uuid       [pk]
+  link_id    uuid       [not null, note: 'ON DELETE cascade — a QR code cannot outlive its link.']
+  name       text
+  dot_color  text       [not null, default: '#000000']
+  bg_color   text       [not null, default: '#ffffff']
+  pattern    qr_pattern [not null, default: 'squares']
+  created_at timestamptz [not null, default: `now()`]
+  updated_at timestamptz [not null, default: `now()`]
+
+  Indexes {
+    link_id [name: 'qr_codes_link_id_idx']
+  }
+
+  Note: '''
+    A styled QR code for a link's short URL. The encoded data is never
+    stored — always the link's current short URL, resolved at render time —
+    so only the styling lives here. Deleted, not archived: see docs/adr/0002's
+    2026-09-21 amendment.
+  '''
 }
 
 // ── Analytics ────────────────────────────────────────────────────────────────
@@ -211,6 +239,7 @@ Ref: links.domain_id > domains.id [delete: restrict]
 Ref: links.owner_id > api_keys.id [delete: set null]
 
 Ref: rules.link_id > links.id [delete: cascade]
+Ref: qr_codes.link_id > links.id [delete: cascade]
 
 Ref: visits.link_id   > links.id   [delete: set null]
 Ref: visits.domain_id > domains.id [delete: cascade]
@@ -232,6 +261,7 @@ TableGroup routing [color: #5c8001] {
   domains
   links
   rules
+  qr_codes
 }
 
 TableGroup analytics [color: #a14a3a] {
