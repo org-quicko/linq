@@ -4,7 +4,6 @@ import { type Actor, can, type QrCode } from "@linq/shared"
 import { Download, MoreVertical, Pencil, QrCode as QrCodeIcon, Search, Trash2 } from "lucide-react"
 import { useState } from "react"
 import { AppShell } from "@/components/app-shell"
-import { When } from "@/components/common"
 import {
   Collection,
   IconButton,
@@ -12,6 +11,7 @@ import {
   RowCard,
   RowCardTile,
   ShortLink,
+  When,
 } from "@/components/patterns"
 import { QrFormDialog } from "@/components/qr-form-dialog"
 import { Button } from "@/components/ui/button"
