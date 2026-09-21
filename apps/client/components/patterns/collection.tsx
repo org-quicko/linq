@@ -2,6 +2,7 @@
 
 import type { ReactNode } from "react"
 import { DataTable, QueryState, TableSkeleton } from "@/components/common"
+import { RowCardSkeleton } from "./row-card"
 
 /** The shape every RTK Query list hook returns, and the only part `Collection` needs. */
 type QueryLike = {
@@ -48,7 +49,18 @@ export function Collection<T>({
         error={query.error}
         empty={rows.length === 0}
         emptyMessage={emptyMessage}
-        skeleton={asTable ? <TableSkeleton head={head} /> : undefined}
+        skeleton={
+          asTable ? (
+            <TableSkeleton head={head} />
+          ) : (
+            <div className="flex flex-col gap-2">
+              {Array.from({ length: 5 }).map((_, i) => (
+                // biome-ignore lint/suspicious/noArrayIndexKey: static placeholder rows
+                <RowCardSkeleton key={i} />
+              ))}
+            </div>
+          )
+        }
       />
 
       {rows.length > 0 ? (

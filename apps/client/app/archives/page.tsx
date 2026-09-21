@@ -1,8 +1,7 @@
 "use client"
 
-import { can, type Domain, type Link } from "@linq/shared"
-import { Globe, Link2, RotateCcw, Trash2 } from "lucide-react"
-import { Suspense } from "react"
+import { can, type Link } from "@linq/shared"
+import { Link2, RotateCcw, Trash2 } from "lucide-react"
 import { AppShell } from "@/components/app-shell"
 import { ConfirmButton, When } from "@/components/common"
 import {
@@ -13,10 +12,8 @@ import {
   RowCardTile,
   ShortLink,
   shortLinkText,
-  TabShell,
 } from "@/components/patterns"
 import { useRun } from "../../lib/hooks"
-import { useListDomainsQuery, usePurgeDomainMutation } from "../../lib/store/domains"
 import {
   useListLinksQuery,
   usePurgeLinkMutation,
@@ -24,41 +21,25 @@ import {
 } from "../../lib/store/links"
 
 /**
- * Archived links and archived domains, as tabs of one page rather than two
- * separate trash pages — merging plans/Plan_27.md Part C2. Restoring a link
- * happens here now (it used to live only on the main list); a domain has no
- * restore action here or anywhere else it did not already have, since only
- * an admin's archive/restore toggle on Settings → Domains ever offered one.
+ * Archived links — domains don't live here (plans/Plan_27.md Part C3 moved
+ * domain archive/restore/purge onto Settings → Domains itself, which already
+ * shows every domain, active or archived, with a Restore action; a second
+ * copy of that flow here would just be a duplicate trash can for the same
+ * rows).
  *
- * `requires={can.purge}` is unchanged from both source pages: archived rows
- * are kept forever (docs/adr/0002) and purge is the only way to remove one,
- * so reaching this page at all is already an admin-only action.
+ * `requires={can.purge}` is unchanged from before: archived rows are kept
+ * forever (docs/adr/0002) and purge is the only way to remove one, so
+ * reaching this page at all is already an admin-only action.
  */
 export default function ArchivesPage() {
-  return (
-    // useSearchParams (inside TabShell) needs a Suspense boundary under the App Router.
-    <Suspense fallback={<p className="p-8 text-sm text-muted-foreground">Loading…</p>}>
-      <AppShell requires={can.purge}>{() => <Archives />}</AppShell>
-    </Suspense>
-  )
+  return <AppShell requires={can.purge}>{() => <Archives />}</AppShell>
 }
 
 function Archives() {
   return (
     <div className="flex h-full min-h-0 flex-col gap-4 overflow-y-auto px-7 py-6">
-      <PageHeader
-        title="Archives"
-        description="Archived links and domains. Purging either is permanent."
-      />
-
-      <TabShell
-        basePath="/archives/"
-        defaultTab="links"
-        tabs={[
-          { value: "links", label: "Links", content: <ArchivedLinksTab /> },
-          { value: "domains", label: "Domains", content: <ArchivedDomainsTab /> },
-        ]}
-      />
+      <PageHeader title="Archives" description="Archived links. Purging is permanent." />
+      <ArchivedLinksTab />
     </div>
   )
 }
@@ -149,50 +130,5 @@ function ArchivedLinksTab() {
         )}
       </Collection>
     </>
-  )
-}
-
-function ArchivedDomainsTab() {
-  const domains = useListDomainsQuery({ limit: 200 })
-  const rows = (domains.data?.data ?? []).filter((domain) => domain.status === "archived")
-  const [purgeDomain] = usePurgeDomainMutation()
-  const { run } = useRun()
-
-  function purge(domain: Domain) {
-    return run(() => purgeDomain(domain.id).unwrap())
-  }
-
-  return (
-    <Collection query={domains} rows={rows} variant="list" emptyMessage="Nothing archived.">
-      {(domain) => (
-        <RowCard
-          key={domain.id}
-          tile={
-            <RowCardTile>
-              <Globe className="size-4" />
-            </RowCardTile>
-          }
-          actions={
-            <ConfirmButton
-              className="size-10"
-              ariaLabel="Delete permanently"
-              title={`Purge ${domain.host}?`}
-              description="This destroys the domain and every visit ever recorded on it. It cannot be undone. The server refuses this while any link still points at the host, archived ones included."
-              confirmLabel="Purge for good"
-              confirmText={domain.host}
-              onConfirm={() => purge(domain)}
-            >
-              <Trash2 />
-            </ConfirmButton>
-          }
-        >
-          <span className="truncate font-medium">{domain.host}</span>
-          <span className="truncate text-xs text-muted-foreground">
-            {domain.fallback_url ?? "404 when blank"} · {domain.link_count} link
-            {domain.link_count === 1 ? "" : "s"}
-          </span>
-        </RowCard>
-      )}
-    </Collection>
   )
 }

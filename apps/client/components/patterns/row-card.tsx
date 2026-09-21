@@ -2,6 +2,7 @@
 
 import { cn } from "cn"
 import type { CSSProperties, ReactNode } from "react"
+import { Skeleton } from "@/components/ui/skeleton"
 
 /**
  * The design's `.link-row` — replaces `DataTable` on Links, Archives,
@@ -69,6 +70,30 @@ export function RowCardTile({
       )}
     >
       {children}
+    </div>
+  )
+}
+
+/**
+ * `RowCard`'s loading twin — same box model (40px tile, two text lines, a
+ * trailing action slot), so a list doesn't jump when its real rows replace
+ * this. `Collection` (@/components/patterns) renders a stack of these for
+ * every `variant="list"` page instead of `QueryState`'s plain "Loading…"
+ * text, the same way `TableSkeleton` already stood in for a `variant="table"`
+ * page.
+ */
+export function RowCardSkeleton() {
+  return (
+    <div className="flex items-center gap-4 rounded-lg border bg-card px-5 py-3.5">
+      <Skeleton className="size-10 shrink-0 rounded-lg" />
+      <div className="flex min-w-0 flex-1 flex-col gap-2">
+        <Skeleton className="h-4 w-40" />
+        <Skeleton className="h-3 w-64" />
+      </div>
+      <div className="flex shrink-0 items-center gap-2">
+        <Skeleton className="size-10 rounded-lg" />
+        <Skeleton className="size-10 rounded-lg" />
+      </div>
     </div>
   )
 }
