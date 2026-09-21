@@ -32,6 +32,7 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table"
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip"
 import { RANGES, type Range } from "@/lib/hooks"
 
 /**
@@ -163,7 +164,7 @@ function LinearProgress() {
 export function CopyButton({ value, label }: { value: string; label?: string }) {
   const [copied, setCopied] = useState(false)
 
-  return (
+  const button = (
     <Button
       type="button"
       variant="ghost"
@@ -178,6 +179,18 @@ export function CopyButton({ value, label }: { value: string; label?: string }) 
       {copied ? <CheckIcon /> : <CopyIcon />}
       {label ? (copied ? "Copied" : label) : null}
     </Button>
+  )
+
+  // Icon-only (no visible `label`) is the common case — e.g. the copy glyph
+  // next to every short link row — so it needs a hover tooltip to be
+  // identifiable. A button with its own visible text doesn't.
+  if (label) return button
+
+  return (
+    <Tooltip>
+      <TooltipTrigger asChild>{button}</TooltipTrigger>
+      <TooltipContent>{copied ? "Copied" : "Copy"}</TooltipContent>
+    </Tooltip>
   )
 }
 
@@ -302,11 +315,10 @@ export function Picker({
  * the server checks the role and the archived status regardless.
  *
  * `ariaLabel` is for an icon-only trigger (Archives' row actions), where
- * `children` carries no visible text of its own to name the button by. No
- * hover tooltip alongside it, unlike `IconButton` (@/components/patterns) —
- * the confirm dialog that opens on click already names the action, and
- * nesting a `Tooltip` trigger inside this `Dialog` trigger is fragile
- * Radix composition for that marginal benefit.
+ * `children` carries no visible text of its own to name the button by — it
+ * also gets a hover tooltip on that trigger, same as `IconButton`
+ * (@/components/patterns), so the row reads the same on hover whichever of
+ * the two it's using.
  */
 export function ConfirmButton({
   title,
@@ -343,20 +355,39 @@ export function ConfirmButton({
     setTyped("")
   }
 
+  const trigger = (
+    <Button
+      type="button"
+      variant={variant}
+      size={size}
+      disabled={disabled}
+      aria-label={ariaLabel}
+      className={className}
+    >
+      {children}
+    </Button>
+  )
+
   return (
     <Dialog open={open} onOpenChange={setOpenState}>
-      <DialogTrigger asChild>
-        <Button
-          type="button"
-          variant={variant}
-          size={size}
-          disabled={disabled}
-          aria-label={ariaLabel}
-          className={className}
-        >
-          {children}
-        </Button>
-      </DialogTrigger>
+      {/* `ariaLabel` only gets set for an icon-only trigger (no visible text
+          of its own), so that's also exactly when it needs a hover tooltip.
+          `Tooltip` has to sit outside `DialogTrigger` here, not the other way
+          round — `Tooltip`'s Radix root renders no DOM of its own to clone
+          props onto, so a `DialogTrigger asChild` wrapping it would never see
+          the click that's supposed to open the dialog. `DialogTrigger` is a
+          real forwarding primitive, so nesting it inside `TooltipTrigger`
+          composes cleanly instead. */}
+      {ariaLabel ? (
+        <Tooltip>
+          <TooltipTrigger asChild>
+            <DialogTrigger asChild>{trigger}</DialogTrigger>
+          </TooltipTrigger>
+          <TooltipContent>{ariaLabel}</TooltipContent>
+        </Tooltip>
+      ) : (
+        <DialogTrigger asChild>{trigger}</DialogTrigger>
+      )}
       <DialogContent>
         <DialogHeader>
           <DialogTitle>{title}</DialogTitle>

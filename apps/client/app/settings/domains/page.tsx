@@ -1,7 +1,7 @@
 "use client"
 
 import { type Actor, can, type Domain } from "@linq/shared"
-import { Globe, PencilLine, RotateCcw, Trash2 } from "lucide-react"
+import { CornerDownRight, Globe, Plus, RotateCcw, Trash2 } from "lucide-react"
 import { useState } from "react"
 import { AppShell } from "@/components/app-shell"
 import { ConfirmButton, Field } from "@/components/common"
@@ -66,7 +66,11 @@ function Domains({ actor }: { actor: Actor }) {
 
   return (
     <div className="flex flex-col gap-4">
-      <PageHeader title="Domains" actions={isAdmin ? <AddDomainDialog /> : null} />
+      <PageHeader
+        title="Domains"
+        description="Domains available when creating short links, with optional redirects."
+        actions={isAdmin ? <AddDomainDialog /> : null}
+      />
 
       <Collection query={domains} rows={rows} variant="list" emptyMessage="No domains yet.">
         {(domain) => <DomainRow key={domain.id} domain={domain} isAdmin={isAdmin} />}
@@ -184,15 +188,7 @@ function EditRedirectsDialog({ domain }: { domain: Domain }) {
       }}
     >
       <DialogTrigger asChild>
-        <Button
-          type="button"
-          variant="ghost"
-          size="icon"
-          className="size-10"
-          aria-label="Edit redirects"
-        >
-          <PencilLine />
-        </Button>
+        <IconButton icon={CornerDownRight} label="Edit redirects" />
       </DialogTrigger>
       <DialogContent className="sm:max-w-[480px]">
         <DialogHeader>
@@ -266,12 +262,13 @@ function AddDomainDialog() {
     <Dialog open={open} onOpenChange={setOpen}>
       <DialogTrigger asChild>
         <Button type="button" size="sm">
+          <Plus className="size-3.5" />
           Add domain
         </Button>
       </DialogTrigger>
       <DialogContent>
         <DialogHeader>
-          <DialogTitle>Add a domain</DialogTitle>
+          <DialogTitle>Add domain</DialogTitle>
           <DialogDescription>
             Point its DNS at linq. Include a port only for local use. Redirects can be set after.
           </DialogDescription>
@@ -282,12 +279,12 @@ function AddDomainDialog() {
             if (host.trim()) create()
           }}
         >
-          <Field label="Host">
+          <Field label="Domain">
             <Input
               autoFocus
               value={host}
               onChange={(event) => setHost(event.target.value)}
-              placeholder="links.example.com"
+              placeholder="e.g. links.example.com"
             />
           </Field>
         </form>

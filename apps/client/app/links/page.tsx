@@ -284,7 +284,7 @@ function LinkRow({
             {editable || duplicatable ? (
               <DropdownMenu>
                 <DropdownMenuTrigger asChild>
-                  <IconButton icon={MoreVertical} label="Row actions" />
+                  <IconButton icon={MoreVertical} label="More options" />
                 </DropdownMenuTrigger>
                 <DropdownMenuContent align="end">
                   {editable ? (

@@ -1,12 +1,19 @@
 "use client"
 
 import { type Actor, type ApiKey, type ApiKeyCreated, can, ROLES, type Role } from "@linq/shared"
-import { ArrowLeftRight, KeyRound, Trash2 } from "lucide-react"
+import { ArrowLeftRight, KeyRound, Plus, Trash2 } from "lucide-react"
 import { useState } from "react"
 import { AppShell } from "@/components/app-shell"
 import { ConfirmButton, CopyButton, Field, Picker, When } from "@/components/common"
-import { Collection, PageHeader, RowCard, RowCardTile, SettingsNav } from "@/components/patterns"
-import { Badge } from "@/components/ui/badge"
+import {
+  Collection,
+  IconButton,
+  PageHeader,
+  RowCard,
+  RowCardTile,
+  SettingsNav,
+  Tag,
+} from "@/components/patterns"
 import { Button } from "@/components/ui/button"
 import {
   Dialog,
@@ -57,7 +64,11 @@ function Keys({ actor }: { actor: Actor }) {
 
   return (
     <div className="flex flex-col gap-4">
-      <PageHeader title="Keys" actions={<MintKeyDialog />} />
+      <PageHeader
+        title="API keys"
+        description="Let scripts and integrations act on this workspace with a scoped key."
+        actions={<MintKeyDialog />}
+      />
 
       <Collection
         query={keys}
@@ -96,10 +107,10 @@ function KeyRow({ apiKey, actor, allKeys }: { apiKey: ApiKey; actor: Actor; allK
       actions={
         <>
           {/* Nobody changes their own role — the one-way door out of admin — so a
-              disabled control there would just be a Picker that never does anything. */}
-          {isMine ? (
-            <Badge variant="outline">{apiKey.role}</Badge>
-          ) : (
+              disabled control there would just be a Picker that never does anything.
+              Shown as a plain tag next to the name instead (below), same as any
+              other key's role once it's not editable. */}
+          {isMine ? null : (
             <Picker
               className="h-8 w-28"
               value={apiKey.role}
@@ -114,7 +125,7 @@ function KeyRow({ apiKey, actor, allKeys }: { apiKey: ApiKey; actor: Actor; allK
           {isMine ? null : (
             <ConfirmButton
               className="size-10"
-              ariaLabel="Revoke"
+              ariaLabel="Revoke key"
               title={`Revoke ${apiKey.name}?`}
               description="This key stops working immediately, and any link it owns becomes unowned. Revoking is a real delete, not an archive."
               confirmLabel="Revoke"
@@ -133,11 +144,17 @@ function KeyRow({ apiKey, actor, allKeys }: { apiKey: ApiKey; actor: Actor; allK
     >
       <span className="flex items-center gap-2">
         <span className="truncate font-medium">{apiKey.name}</span>
-        {isMine ? <Badge variant="secondary">This key</Badge> : null}
+        {isMine ? <Tag>{apiKey.role}</Tag> : null}
+        {isMine ? <Tag>This key</Tag> : null}
       </span>
       <span className="truncate font-mono text-xs text-muted-foreground">
-        {apiKey.prefix} · Created <When iso={apiKey.created_at} relative /> · Expires{" "}
-        {apiKey.expires_at ? <When iso={apiKey.expires_at} relative /> : "never"}
+        {apiKey.prefix} · Created <When iso={apiKey.created_at} relative />
+        {apiKey.expires_at ? (
+          <>
+            {" "}
+            · Expires <When iso={apiKey.expires_at} relative />
+          </>
+        ) : null}
       </span>
     </RowCard>
   )
@@ -177,15 +194,7 @@ function ReassignLinksDialog({ apiKey, allKeys }: { apiKey: ApiKey; allKeys: Api
   return (
     <Dialog open={open} onOpenChange={setOpen}>
       <DialogTrigger asChild>
-        <Button
-          type="button"
-          variant="ghost"
-          size="icon"
-          className="size-10"
-          aria-label="Reassign links"
-        >
-          <ArrowLeftRight />
-        </Button>
+        <IconButton icon={ArrowLeftRight} label="Reassign links" />
       </DialogTrigger>
       <DialogContent>
         <DialogHeader>
@@ -234,21 +243,26 @@ function MintKeyDialog() {
   return (
     <Dialog open={open} onOpenChange={(next) => (next ? setOpen(true) : close())}>
       <DialogTrigger asChild>
-        <Button size="sm">Mint key</Button>
+        <Button size="sm">
+          <Plus className="size-3.5" />
+          Create API key
+        </Button>
       </DialogTrigger>
       <DialogContent>
         {minted ? (
           <>
             <DialogHeader>
-              <DialogTitle>{minted.name} is in</DialogTitle>
-              <DialogDescription>Copy this key now. It is never shown again.</DialogDescription>
+              <DialogTitle>API key created</DialogTitle>
+              <DialogDescription>
+                Copy this key now — you won't be able to see it again.
+              </DialogDescription>
             </DialogHeader>
-            <div className="flex items-center gap-2">
-              <code className="flex-1 break-all rounded bg-muted p-2 font-mono text-xs">
-                {minted.secret}
-              </code>
-              <CopyButton value={minted.secret} />
-            </div>
+            <Field label="Secret key">
+              <div className="flex items-center gap-2 rounded-lg border bg-muted px-3 py-2">
+                <code className="flex-1 break-all font-mono text-xs">{minted.secret}</code>
+                <CopyButton value={minted.secret} />
+              </div>
+            </Field>
             <DialogFooter>
               <Button onClick={close}>Done</Button>
             </DialogFooter>
@@ -256,10 +270,7 @@ function MintKeyDialog() {
         ) : (
           <>
             <DialogHeader>
-              <DialogTitle>Mint a key</DialogTitle>
-              <DialogDescription>
-                The secret is shown once and stored only as a hash.
-              </DialogDescription>
+              <DialogTitle>Create API key</DialogTitle>
             </DialogHeader>
             <div className="flex flex-col gap-4">
               <Field label="Name" hint="Who or what this key is for.">
@@ -278,7 +289,7 @@ function MintKeyDialog() {
                 Cancel
               </Button>
               <Button disabled={saving || !name.trim()} onClick={mint}>
-                Mint
+                Create key
               </Button>
             </DialogFooter>
           </>
