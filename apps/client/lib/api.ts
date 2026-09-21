@@ -89,6 +89,13 @@ export function fromDatetimeLocal(value: string): string | null {
   return value ? new Date(value).toISOString() : null
 }
 
+/** Adds `https://` when a URL is typed without a scheme, so a destination
+ *  field never forces the user to type the absolute URL themselves. */
+export function withScheme(value: string): string {
+  const trimmed = value.trim()
+  return trimmed && !/^[a-z][a-z0-9+.-]*:\/\//i.test(trimmed) ? `https://${trimmed}` : trimmed
+}
+
 /** Builds a query string, dropping empty values so the URL stays readable. */
 export function qs(params: Record<string, string | number | boolean | undefined | null>): string {
   const search = new URLSearchParams()

@@ -31,7 +31,7 @@ import {
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Switch } from "@/components/ui/switch"
-import { fromDatetimeLocal, toDatetimeLocal } from "../lib/api"
+import { fromDatetimeLocal, toDatetimeLocal, withScheme } from "../lib/api"
 import { useRun } from "../lib/hooks"
 import { useListDomainsQuery } from "../lib/store/domains"
 import { useListKeysQuery } from "../lib/store/keys"
@@ -108,12 +108,12 @@ export function LinkFormDialog({
   function submit() {
     const validRules = rulesOpen
       ? rulesDrafts
-          .map((r) => ({ ...r, destination: r.destination.trim() }))
+          .map((r) => ({ ...r, destination: withScheme(r.destination) }))
           .filter((r) => r.destination.length > 0)
       : []
 
     const shared = {
-      destination: destination.trim(),
+      destination: withScheme(destination),
       tags,
       forward_query,
       preset_params: rowsToPresetParams(preset_params),
@@ -164,11 +164,11 @@ export function LinkFormDialog({
         </DialogHeader>
 
         <div className="flex max-h-[70vh] flex-col gap-4 overflow-y-auto pr-1">
-          <Field label="Destination URL" hint="An absolute http(s) URL.">
+          <Field label="Destination URL" hint="https:// is added automatically if you leave it out.">
             <Input
               value={destination}
               onChange={(event) => setDestination(event.target.value)}
-              placeholder="https://example.com/landing"
+              placeholder="example.com/landing"
             />
           </Field>
 

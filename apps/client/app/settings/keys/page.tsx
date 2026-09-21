@@ -76,11 +76,9 @@ function Keys({ actor }: { actor: Actor }) {
 function KeyRow({ apiKey, actor, allKeys }: { apiKey: ApiKey; actor: Actor; allKeys: ApiKey[] }) {
   const [updateKey] = useUpdateKeyMutation()
   const [revokeKey] = useRevokeKeyMutation()
-  const [name, setName] = useState(apiKey.name)
   const { run, saving } = useRun()
 
   const isMine = apiKey.id === actor.keyId
-  const changed = name.trim() !== apiKey.name && name.trim().length > 0
 
   const save = (body: Record<string, unknown>) =>
     run(() => updateKey({ id: apiKey.id, body }).unwrap(), {
@@ -134,17 +132,7 @@ function KeyRow({ apiKey, actor, allKeys }: { apiKey: ApiKey; actor: Actor; allK
       }
     >
       <span className="flex items-center gap-2">
-        <Input
-          className="h-7 w-44"
-          value={name}
-          disabled={saving}
-          onChange={(event) => setName(event.target.value)}
-        />
-        {changed ? (
-          <Button size="xs" disabled={saving} onClick={() => save({ name: name.trim() })}>
-            Save
-          </Button>
-        ) : null}
+        <span className="truncate font-medium">{apiKey.name}</span>
         {isMine ? <Badge variant="secondary">This key</Badge> : null}
       </span>
       <span className="truncate font-mono text-xs text-muted-foreground">

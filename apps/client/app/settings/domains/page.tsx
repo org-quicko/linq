@@ -1,7 +1,7 @@
 "use client"
 
 import { type Actor, can, type Domain } from "@linq/shared"
-import { Archive, Globe, PencilLine, RotateCcw } from "lucide-react"
+import { Globe, PencilLine, RotateCcw, Trash2 } from "lucide-react"
 import { useState } from "react"
 import { AppShell } from "@/components/app-shell"
 import { ConfirmButton, Field } from "@/components/common"
@@ -30,15 +30,20 @@ import {
   useArchiveDomainMutation,
   useCreateDomainMutation,
   useListDomainsQuery,
+  usePurgeDomainMutation,
   useUpdateDomainMutation,
 } from "../../../lib/store/domains"
 
 /**
  * Domains, moved under Settings alongside Keys — plans/Plan_27.md Part C3.
  * Everyone may read this page; only an admin sees the write controls.
- * Archiving is refused by the server while any link still points at the
- * domain, archived included, and that refusal is surfaced here rather than
- * pre-empted, so the rule lives in one place.
+ * Deleting a domain here is a hard delete, not an archive: it chains the
+ * existing archive and purge calls so an admin never leaves a domain sitting
+ * in the archived state, and the server's own archived-first check on purge
+ * still runs, so the FK guard is still the source of truth. Refused (409)
+ * while any link still points at the domain, archived included, and that
+ * refusal is surfaced here rather than pre-empted, so the rule lives in one
+ * place.
  */
 export default function SettingsDomainsPage() {
   return (
@@ -73,13 +78,19 @@ function Domains({ actor }: { actor: Actor }) {
 function DomainRow({ domain, isAdmin }: { domain: Domain; isAdmin: boolean }) {
   const [updateDomain] = useUpdateDomainMutation()
   const [archiveDomain] = useArchiveDomainMutation()
+  const [purgeDomain] = usePurgeDomainMutation()
   const { run } = useRun()
 
-  const toggleStatus = () =>
-    run(async () => {
-      if (domain.status === "active") await archiveDomain(domain.id).unwrap()
-      else await updateDomain({ id: domain.id, body: { status: "active" } }).unwrap()
-    })
+  const restore = () => run(() => updateDomain({ id: domain.id, body: { status: "active" } }).unwrap())
+
+  const remove = () =>
+    run(
+      async () => {
+        await archiveDomain(domain.id).unwrap()
+        await purgeDomain(domain.id).unwrap()
+      },
+      { success: "Domain deleted.", fallback: "Could not delete that domain." },
+    )
 
   const redirectCount = [
     domain.base_path_redirect,
@@ -101,16 +112,17 @@ function DomainRow({ domain, isAdmin }: { domain: Domain; isAdmin: boolean }) {
             {domain.status === "active" ? (
               <ConfirmButton
                 className="size-10"
-                ariaLabel="Archive"
-                title={`Archive ${domain.host}?`}
-                description="Every short URL on this host stops resolving, including its fallback. The server refuses this while any link, archived included, still points at this host. Purge them first."
-                confirmLabel="Archive"
-                onConfirm={toggleStatus}
+                ariaLabel="Delete"
+                title={`Delete ${domain.host}?`}
+                description="Permanently deletes this domain and every visit ever recorded on it. This cannot be undone. Refused while any link, archived included, still points at this host — purge them first."
+                confirmLabel="Delete"
+                confirmText={domain.host}
+                onConfirm={remove}
               >
-                <Archive />
+                <Trash2 />
               </ConfirmButton>
             ) : (
-              <IconButton icon={RotateCcw} label="Restore" onClick={toggleStatus} />
+              <IconButton icon={RotateCcw} label="Restore" onClick={restore} />
             )}
           </>
         ) : null
