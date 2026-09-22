@@ -4,10 +4,11 @@ node_modules
 .env
 .env.local
 data
-dist
-out
-.next
-*.tsbuildinfo
+**/dist
+**/out
+**/out-standalone
+**/.next
+**/*.tsbuildinfo
 apps/server/test
 plans
 docs
