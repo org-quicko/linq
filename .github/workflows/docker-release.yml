@@ -1,0 +1,95 @@
+# Builds and publishes the three linq container images — client, backend,
+# full — to Docker Hub and GHCR.
+#
+# Triggers on:
+#   - a push to main (a merge) -> tags each image `:latest`
+#   - a pushed tag with "beta" in it, e.g. v0.2.0-beta.1 -> tags each image
+#     with the version (no leading v) and `:beta`
+name: docker-release
+
+on:
+  push:
+    branches: [main]
+    tags: ["*beta*"]
+
+permissions:
+  contents: read
+
+env:
+  BUN_VERSION: "1.4"
+  DOCKERHUB_NAMESPACE: labsatquicko
+  GHCR_NAMESPACE: org-quicko
+
+concurrency:
+  group: docker-release-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  verify:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v7
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: ${{ env.BUN_VERSION }}
+      - run: bun install --frozen-lockfile
+      - name: Type-check
+        run: bun run typecheck
+      - name: Test
+        run: bun run test
+
+  publish:
+    needs: verify
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - dockerfile: dockerfiles/Dockerfile.client
+            image: linq-client
+          - dockerfile: dockerfiles/Dockerfile.backend
+            image: linq-backend
+          - dockerfile: dockerfiles/Dockerfile.full
+            image: linq
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: read
+      packages: write # ghcr.io, which is this repository's own registry
+    steps:
+      - uses: actions/checkout@v7
+      - uses: docker/setup-buildx-action@v3
+
+      - name: Log in to Docker Hub
+        uses: docker/login-action@v3
+        with:
+          username: ${{ vars.DOCKERHUB_USERNAME }}
+          password: ${{ secrets.DOCKERHUB_TOKEN }}
+
+      - name: Log in to GHCR
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      # `latest` on a merge to main, the bare version plus `beta` on a beta
+      # tag. Built from the git ref alone, so nothing downstream re-derives it.
+      - name: Docker metadata
+        id: meta
+        uses: docker/metadata-action@v5
+        with:
+          images: |
+            ${{ env.DOCKERHUB_NAMESPACE }}/${{ matrix.image }}
+            ghcr.io/${{ env.GHCR_NAMESPACE }}/${{ matrix.image }}
+          tags: |
+            type=raw,value=latest,enable=${{ github.ref_type == 'branch' }}
+            type=raw,value=beta,enable=${{ github.ref_type == 'tag' }}
+            type=match,pattern=v(.*),group=1,enable=${{ github.ref_type == 'tag' }}
+
+      - name: Build and push ${{ matrix.image }}
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: ${{ matrix.dockerfile }}
+          push: true
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}

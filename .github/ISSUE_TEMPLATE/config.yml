@@ -1,0 +1,11 @@
+# Blank issues stay on because Discussions are off: a question or a small
+# documentation fix has nowhere else to go. Turn this to false once the forms
+# cover every kind of issue this repo wants.
+blank_issues_enabled: true
+contact_links:
+  - name: Report a security vulnerability
+    url: https://github.com/org-quicko/linq/security/advisories/new
+    about: Report it privately here. Do not open a public issue for it.
+  - name: Documentation
+    url: https://github.com/org-quicko/linq/blob/main/README.md
+    about: Local setup, Docker, Redis/Caddy, deploying the Client UI.
