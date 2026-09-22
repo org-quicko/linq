@@ -20,7 +20,7 @@ const ANY_DOMAIN = "__any__"
  * the empty-string sentinel above, so a page just holds `domain_id: string`,
  * `""` meaning all — for the two scoped-to-one-domain call sites
  * (`app/analytics/page.tsx`'s Visits and Orphans sections, which feed a
- * single `domain_id` into `/v1/stats` and `/v1/visits`).
+ * single `domain_id` into analytics and raw-visit requests).
  *
  * `multiple` switches it to a checkbox dropdown returning a comma-separated
  * id list, for the links list (plans/Plan_31.md §B3):

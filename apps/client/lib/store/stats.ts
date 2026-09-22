@@ -1,4 +1,4 @@
-import type { StatsBucket } from "@linq/shared"
+import type { AnalyticsSummary, StatsBucket } from "@linq/shared"
 import { qs } from "../api"
 import { apiSlice } from "./api"
 
@@ -6,11 +6,21 @@ export type TagCount = { tag: string; count: number }
 
 export const statsApi = apiSlice.injectEndpoints({
   endpoints: (build) => ({
-    getStats: build.query<
+    getAnalyticsSummary: build.query<AnalyticsSummary, Record<string, string | undefined>>({
+      query: (params) => ({ path: `/v1/analytics/summary${qs(params)}` }),
+      providesTags: ["Stats"],
+    }),
+    getAnalyticsTimeseries: build.query<StatsBucket[], Record<string, string | undefined>>({
+      query: (params) => ({ path: `/v1/analytics/timeseries${qs(params)}` }),
+      providesTags: ["Stats"],
+    }),
+    getAnalyticsBreakdown: build.query<
       StatsBucket[],
-      { path: string; params?: Record<string, string | undefined> }
+      Record<string, string | undefined> & { dimension: string }
     >({
-      query: ({ path, params }) => ({ path: `${path}${qs(params ?? {})}` }),
+      query: ({ dimension, ...params }) => ({
+        path: `/v1/analytics/breakdown${qs({ dimension, ...params })}`,
+      }),
       providesTags: ["Stats"],
     }),
 
@@ -25,4 +35,9 @@ export const statsApi = apiSlice.injectEndpoints({
   }),
 })
 
-export const { useGetStatsQuery, useListTagsQuery } = statsApi
+export const {
+  useGetAnalyticsBreakdownQuery,
+  useGetAnalyticsSummaryQuery,
+  useGetAnalyticsTimeseriesQuery,
+  useListTagsQuery,
+} = statsApi

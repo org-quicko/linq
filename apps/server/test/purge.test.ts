@@ -17,10 +17,10 @@ const purge = (h: Harness, path: string, key: string) =>
 const archive = (h: Harness, path: string, key: string) =>
   h.request(`/api/v1/${path}`, { key, method: "DELETE" })
 
-/** Sums the human and bot counts of a stats response. */
+/** Reads the analytics summary for the selected scope. */
 async function totalVisits(h: Harness, query: string, key: string): Promise<number> {
-  const buckets = await (await h.request(`/api/v1/stats?${query}`, { key })).json()
-  return buckets.reduce((n: number, b: { human: number; bot: number }) => n + b.human + b.bot, 0)
+  const summary = await (await h.request(`/api/v1/analytics/summary?${query}`, { key })).json()
+  return summary.visits
 }
 
 beforeAll(async () => {

@@ -14,6 +14,14 @@ import {
   DialogTitle,
   DialogTrigger,
 } from "@/components/ui/dialog"
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuLabel,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import {
@@ -33,7 +41,7 @@ import {
   TableRow,
 } from "@/components/ui/table"
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip"
-import { RANGES, type Range } from "@/lib/hooks"
+import { isWindowWithinYear, RANGES, type Range } from "@/lib/hooks"
 
 /**
  * The pieces every page shares that shadcn has no primitive for, plus two thin
@@ -431,19 +439,72 @@ export function ConfirmButton({
  * `RANGES` the way ten other pickers would otherwise repeat by hand.
  */
 export function RangePicker({
-  value,
-  onChange,
+  preset,
+  custom,
+  label,
+  onPreset,
+  onCustom,
 }: {
-  value: Range
-  onChange: (range: Range) => void
+  preset: Range | "custom"
+  custom: { from: string; to: string } | null
+  label: string
+  onPreset: (range: Range) => void
+  onCustom: (range: { from: string; to: string }) => void
 }) {
+  const today = new Date().toISOString().slice(0, 10)
+  const earliest = new Date(Date.now() - 365 * 86_400_000).toISOString().slice(0, 10)
+  const [from, setFrom] = useState(custom?.from ?? "")
+  const [to, setTo] = useState(custom?.to ?? "")
+  const invalid = Boolean(from && to && (from > to || !isWindowWithinYear(from, to)))
+
   return (
-    <Picker
-      className="w-36"
-      value={value}
-      onChange={(next) => onChange(next as Range)}
-      options={RANGES.map((r) => ({ value: r.value, label: r.label }))}
-    />
+    <DropdownMenu>
+      <DropdownMenuTrigger asChild>
+        <Button type="button" variant="outline" className="min-w-36 justify-between">
+          {label}
+        </Button>
+      </DropdownMenuTrigger>
+      <DropdownMenuContent align="end" className="w-64">
+        {RANGES.map((range) => (
+          <DropdownMenuItem key={range.value} onSelect={() => onPreset(range.value)}>
+            <span className="flex-1">{range.label}</span>
+            {preset === range.value ? <CheckIcon className="size-4" /> : null}
+          </DropdownMenuItem>
+        ))}
+        <DropdownMenuSeparator />
+        <DropdownMenuLabel>Custom range</DropdownMenuLabel>
+        <div className="space-y-2 px-2 pb-2">
+          <div className="grid grid-cols-2 gap-2">
+            <Input
+              type="date"
+              value={from}
+              min={earliest}
+              max={today}
+              onChange={(e) => setFrom(e.target.value)}
+            />
+            <Input
+              type="date"
+              value={to}
+              min={earliest}
+              max={today}
+              onChange={(e) => setTo(e.target.value)}
+            />
+          </div>
+          {invalid ? (
+            <p className="text-xs text-destructive">Pick a range of one year or less.</p>
+          ) : null}
+          <Button
+            type="button"
+            size="sm"
+            className="w-full"
+            disabled={!from || !to || invalid}
+            onClick={() => onCustom({ from, to })}
+          >
+            Apply
+          </Button>
+        </div>
+      </DropdownMenuContent>
+    </DropdownMenu>
   )
 }
 

@@ -1,6 +1,7 @@
 import {
   ANALYTICS_FILTERS,
   type AnalyticsBreakdownQuery,
+  type AnalyticsDimension,
   type AnalyticsQuery,
   type AnalyticsSummary,
   analyticsBreakdownQuerySchema,
@@ -15,8 +16,36 @@ import { visitDays, visits } from "../../db/schema.ts"
 import { span } from "../../log.ts"
 import type { Env } from "../env.ts"
 import { validate } from "../validate.ts"
-import { aggregateVisits, dayFilters } from "./stats.ts"
 import { visitFilters } from "./visits.ts"
+
+/** The unfiltered path stays on the day rollup. Its helpers live here now
+ * that the legacy /stats route family is gone. */
+function dayFilters(q: { from?: string; to?: string }): SQL[] {
+  const filters: SQL[] = []
+  if (q.from) filters.push(sql`${visitDays.day} >= ${q.from}`)
+  if (q.to) filters.push(sql`${visitDays.day} <= ${q.to}`)
+  return filters
+}
+
+function aggregateVisits(
+  db: Db,
+  scope: SQL[],
+  dimension: AnalyticsDimension | "day",
+): Promise<StatsBucket[]> {
+  const key =
+    dimension === "day"
+      ? sql<string>`to_char(${visitDays.day}, 'YYYY-MM-DD')`
+      : sql<string>`${visitDays.value}`
+  const human = sql<number>`coalesce(sum(${visitDays.count}) filter (where not ${visitDays.is_bot}), 0)`
+  const bot = sql<number>`coalesce(sum(${visitDays.count}) filter (where ${visitDays.is_bot}), 0)`
+  const volume = sql`sum(${visitDays.count})`
+  return db
+    .select({ key, human: human.mapWith(Number), bot: bot.mapWith(Number) })
+    .from(visitDays)
+    .where(and(eq(visitDays.dimension, dimension === "day" ? "total" : dimension), ...scope))
+    .groupBy(key)
+    .orderBy(...(dimension === "day" ? [asc(key)] : [desc(volume), asc(key)]))
+}
 
 /** A filter the day rollup cannot answer. It stores one dimension per row,
  *  so combining two of them — or grouping by one while filtering another —

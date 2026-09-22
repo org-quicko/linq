@@ -8,18 +8,6 @@ import {
   uuidSchema,
 } from "./primitives.ts"
 
-export const GROUP_BY = [
-  "day",
-  "platform",
-  "os",
-  "browser",
-  "referer",
-  "destination",
-  /** The slug as requested. The only grouping that says anything about orphans. */
-  "slug",
-] as const
-export type GroupBy = (typeof GROUP_BY)[number]
-
 /** Narrows a read to one link, one domain, or the orphan slice. */
 const scope = {
   link_id: uuidSchema.optional(),
@@ -44,22 +32,6 @@ export const visitListQuerySchema = paginationSchema.extend({
   platform: platformSchema.optional(),
   os: openFilter,
   browser: openFilter,
-})
-
-/**
- * Reports filter on whole UTC days, not instants: they are served from a
- * day-grained rollup, and a window that cut a day in half could not be answered
- * from it. Both ends are inclusive. See docs/adr/0007.
- */
-export const statsQuerySchema = z.object({
-  from: z.iso.date().optional(),
-  to: z.iso.date().optional(),
-  group_by: z.enum(GROUP_BY).default("day"),
-})
-
-export const globalStatsQuerySchema = statsQuerySchema.extend({
-  orphan: scope.orphan,
-  domain_id: scope.domain_id,
 })
 
 export type Visit = {

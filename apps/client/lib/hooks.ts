@@ -19,14 +19,39 @@ export function useDebounced<T>(value: T, delay = 300): T {
   return settled
 }
 
-/** How far back to read. "0" sends no `from` at all, i.e. the whole history. */
+/** How far back to read. Analytics always sends a bounded whole-day window. */
 export const RANGES = [
   { value: "7", label: "Last 7 days" },
   { value: "30", label: "Last 30 days" },
   { value: "90", label: "Last 90 days" },
-  { value: "0", label: "All time" },
 ] as const
 export type Range = (typeof RANGES)[number]["value"]
+
+type DayWindow = { from: string; to: string }
+
+function utcDay(date: Date): string {
+  return date.toISOString().slice(0, 10)
+}
+
+export function presetWindow(range: Range, today = new Date()): DayWindow {
+  const end = utcDay(today)
+  const start = new Date(`${end}T00:00:00Z`)
+  start.setUTCDate(start.getUTCDate() - (Number(range) - 1))
+  return { from: utcDay(start), to: end }
+}
+
+export function rangeLabel(preset: Range | "custom", custom: DayWindow | null): string {
+  if (preset !== "custom")
+    return RANGES.find((range) => range.value === preset)?.label ?? "Last 7 days"
+  if (!custom) return "Custom range"
+  const format = (day: string) =>
+    new Date(`${day}T00:00:00Z`).toLocaleDateString(undefined, { month: "short", day: "numeric" })
+  return `${format(custom.from)} – ${format(custom.to)}`
+}
+
+export function isWindowWithinYear(from: string, to: string): boolean {
+  return Date.parse(`${to}T00:00:00Z`) - Date.parse(`${from}T00:00:00Z`) <= 366 * 86_400_000
+}
 
 /**
  * A range picker's state, plus the two spellings of its start the API takes: a
@@ -41,14 +66,15 @@ export type Range = (typeof RANGES)[number]["value"]
  * report means by it.
  */
 export function useRange(initial: Range = "7") {
-  const [range, setRange] = useState<Range>(initial)
-  const from = useMemo(() => {
-    if (range === "0") return undefined
-    const day = new Date()
-    day.setUTCDate(day.getUTCDate() - (Number(range) - 1))
-    return day.toISOString().slice(0, 10)
-  }, [range])
-  return { range, setRange, from, fromInstant: from && `${from}T00:00:00.000Z` }
+  const [preset, setPreset] = useState<Range | "custom">(initial)
+  const [custom, setCustom] = useState<DayWindow | null>(null)
+  // The clock is deliberately read inside this memo. A fresh date in an RTK
+  // Query arg on every render becomes an endless refetch loop.
+  const window = useMemo(
+    () => (preset === "custom" ? (custom ?? presetWindow(initial)) : presetWindow(preset)),
+    [preset, custom, initial],
+  )
+  return { preset, custom, setPreset, setCustom, ...window, label: rangeLabel(preset, custom) }
 }
 
 /** The literal six call sites spelled out by hand before `useRun` collapsed them. */

@@ -18,7 +18,6 @@ import { linkRoutes, tagRoutes } from "./api/links.ts"
 import { meRoutes } from "./api/me.ts"
 import { qrCodeRoutes } from "./api/qr-codes.ts"
 import { ruleRoutes } from "./api/rules.ts"
-import { domainStatsRoutes, globalStatsRoutes, linkStatsRoutes } from "./api/stats.ts"
 import { visitRoutes } from "./api/visits.ts"
 import type { Env } from "./env.ts"
 import { llmsHandler } from "./llms.ts"
@@ -90,12 +89,9 @@ export function createApp({
   v1.route("/analytics", analyticsRoutes)
   v1.route("/me", meRoutes)
   v1.route("/domains", domainRoutes)
-  v1.route("/domains", domainStatsRoutes)
   v1.route("/links", linkRoutes)
   v1.route("/links", ruleRoutes)
-  v1.route("/links", linkStatsRoutes)
   v1.route("/qr-codes", qrCodeRoutes)
-  v1.route("/stats", globalStatsRoutes)
   v1.route("/visits", visitRoutes)
   v1.route("/tags", tagRoutes)
   v1.route("/keys", keyRoutes)
