@@ -4,7 +4,7 @@ import { NOT_RECORDED, type StatsBucket } from "@linq/shared"
 import { skipToken } from "@reduxjs/toolkit/query/react"
 import { ChevronDown, Globe, Monitor, Smartphone, X } from "lucide-react"
 import { useRouter, useSearchParams } from "next/navigation"
-import { type ReactNode, useEffect, useMemo, useState } from "react"
+import { type ReactNode, useEffect, useId, useMemo, useState } from "react"
 import { RangePicker } from "@/components/common"
 import { LinkFilter } from "@/components/patterns"
 import {
@@ -352,8 +352,10 @@ export function chartPoints(days: StatsBucket[]) {
   const ys = totals.map((total) => plotBottom - (total / max) * (plotBottom - plotTop))
   const boundaries = [0, ...xs.slice(0, -1).map((x, index) => (x + xs[index + 1]) / 2), 100]
   const linePath = smoothPath(xs.map((x, index) => ({ x, y: ys[index] })))
+  const areaPath = `${linePath} L ${xs[xs.length - 1]} ${plotBottom} L ${xs[0]} ${plotBottom} Z`
   return {
     linePath,
+    areaPath,
     points: days.map((day, index) => ({
       ...day,
       total: totals[index],
@@ -383,6 +385,7 @@ function VisitsChart({
 }) {
   const days = useMemo(() => foldWeeks(fillDays(buckets, from)), [buckets, from])
   const chart = useMemo(() => chartPoints(days), [days])
+  const gradientId = useId()
   return (
     <div className="rounded-lg border bg-card p-4">
       <p className="mb-4 text-sm font-semibold">Visits over time</p>
@@ -399,6 +402,13 @@ function VisitsChart({
               preserveAspectRatio="none"
               aria-hidden
             >
+              <defs>
+                <linearGradient id={gradientId} x1="0" y1="0" x2="0" y2="1">
+                  <stop offset="0%" stopColor="var(--chart-1)" stopOpacity="0.35" />
+                  <stop offset="100%" stopColor="var(--chart-1)" stopOpacity="0" />
+                </linearGradient>
+              </defs>
+              <path d={chart.areaPath} fill={`url(#${gradientId})`} stroke="none" />
               <path
                 d={chart.linePath}
                 fill="none"
