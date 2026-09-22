@@ -216,12 +216,12 @@ function BreakdownCard({
               <button
                 key={row.key}
                 type="button"
-                className="flex w-full cursor-pointer items-center gap-2"
+                className="group flex w-full cursor-pointer items-center gap-2"
                 onClick={() => onClick(dimension, row.key)}
               >
-                <span className="relative flex h-8 min-w-0 flex-1 overflow-hidden rounded bg-muted text-left">
+                <span className="relative flex h-8 min-w-0 flex-1 overflow-hidden rounded text-left">
                   <span
-                    className="absolute inset-y-0 left-0 bg-primary/15"
+                    className="absolute inset-y-0 left-0 bg-muted group-hover:bg-border"
                     style={{ width: `${(count / max) * 100}%` }}
                   />
                   <span className="relative flex min-w-0 items-center gap-2 px-2">
