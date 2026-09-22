@@ -1,0 +1,46 @@
+# API and redirects only, no Client UI — bundled Postgres, no Redis, no
+# Caddy. Pairs with docker-compose.client.yml for a split deployment: the
+# API on LINQ_PORT, the standalone Client UI on its own LINQ_CLIENT_PORT,
+# talking to it across origins.
+#
+# Copy this file, set a real password and LINQ_DEFAULT_DOMAIN, then:
+#   docker compose -f docker-compose.backend.yml up
+services:
+  postgres:
+    image: postgres:17
+    environment:
+      POSTGRES_USER: linq
+      POSTGRES_PASSWORD: linq
+      POSTGRES_DB: linq
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U linq"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  linq:
+    build:
+      context: ..
+      dockerfile: dockerfile-examples/Dockerfile.backend
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      DATABASE_URL: postgres://linq:linq@postgres:5432/linq
+      LINQ_DEFAULT_DOMAIN: ${LINQ_DEFAULT_DOMAIN:-localhost:${LINQ_PORT:-3000}}
+      # An admin key is minted and printed on first boot; read it from
+      # `docker compose logs linq`. For another without restarting:
+      #   docker compose exec linq bun run key:create --name ops --role admin
+      # Logs go to stdout and to /data/logs/linq.log. Client IPs are never
+      # recorded in either; see docs/adr/0003.
+      LINQ_LOG_LEVEL: info
+    ports:
+      - "${LINQ_PORT:-3000}:3000"
+    volumes:
+      - linq-data:/data
+
+volumes:
+  postgres-data:
+  linq-data:

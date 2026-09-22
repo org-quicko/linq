@@ -28,19 +28,34 @@ domain through the UI as well: the default domain only seeds an empty database.
 | `docker-compose.external-postgres.with-caddy.yml` | external | – | yes |
 | `docker-compose.external-postgres.full.yml` | external | yes | yes |
 
-`docker-compose.client.yml` runs the standalone Client UI at `/`, with no
-API or database. Its host port is `${LINQ_CLIENT_PORT:-3001}`, read from
-your env file; its internal port stays 3000. To run it alongside one of
-the API examples from the repo root:
+All eight of the above build from the repo root's `Dockerfile` — the combined
+image, API plus Client UI at `/home`. `dockerfile-examples/` also has
+`Dockerfile.backend` (API only) and `Dockerfile.client` (Client UI only, as a
+standalone export); the two files below build from those instead, for a
+split deployment across separate containers and ports.
+
+`docker-compose.backend.yml` is `docker-compose.bundled-postgres.yml` built
+from `Dockerfile.backend` instead — bundled Postgres, no Client UI at all, not
+even at `/home`. Pair it with `docker-compose.client.yml`, which runs the
+standalone Client UI at `/`, with no API or database of its own. The client's
+host port is `${LINQ_CLIENT_PORT:-3001}`; the backend's is `${LINQ_PORT:-3000}`
+as usual; both containers keep listening on 3000 internally. From the repo
+root:
 
 ```sh
-docker compose --env-file .env -f docker-compose-examples/docker-compose.bundled-postgres.yml -f docker-compose-examples/docker-compose.client.yml up --build -d
+docker compose --env-file .env -f docker-compose-examples/docker-compose.backend.yml -f docker-compose-examples/docker-compose.client.yml up --build -d
 ```
 
 For example, `LINQ_PORT=8080` and `LINQ_CLIENT_PORT=8081` publish the API on
-8080 and the standalone UI on 8081, leaving host port 3000 free. Choose
-distinct, unused host ports. The combined API image already includes a UI
-at `/home/` on `LINQ_PORT`; the separate client is optional.
+8080 and the standalone UI on 8081. Open `http://localhost:8081/`, add a
+server pointing at `http://localhost:8080`, and the UI talks to it across
+origins — no `/home` involved on either side. Choose distinct, unused host
+ports.
+
+Pairing `docker-compose.client.yml` with one of the eight combined-image
+files above works too, but is redundant: the combined image already serves a
+UI at `/home` on `LINQ_PORT`, so the separate client only makes sense there
+if you specifically want the Client UI at `/` as well.
 
 "External" Postgres means no `postgres` service in the file — set
 `DATABASE_URL` on the `linq` service to point at your own instance instead.
