@@ -1,6 +1,6 @@
 "use client"
 
-import { CheckIcon, CopyIcon } from "lucide-react"
+import { CalendarDays, CheckIcon, CopyIcon } from "lucide-react"
 import { type ComponentProps, type ReactNode, useState } from "react"
 import { EmptyState } from "@/components/patterns/empty-state"
 import { Button } from "@/components/ui/button"
@@ -14,16 +14,9 @@ import {
   DialogTitle,
   DialogTrigger,
 } from "@/components/ui/dialog"
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuLabel,
-  DropdownMenuSeparator,
-  DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
 import {
   Select,
   SelectContent,
@@ -434,9 +427,8 @@ export function ConfirmButton({
 }
 
 /**
- * The UI half of `useRange` (@/lib/hooks) — that hook owns the state and the
- * two spellings of its start the API takes; this just wraps `Picker` over
- * `RANGES` the way ten other pickers would otherwise repeat by hand.
+ * The UI half of `useRange` (@/lib/hooks). The popover keeps editable custom
+ * dates out of menu semantics while the hook owns the API window.
  */
 export function RangePicker({
   preset,
@@ -455,40 +447,60 @@ export function RangePicker({
   const earliest = new Date(Date.now() - 365 * 86_400_000).toISOString().slice(0, 10)
   const [from, setFrom] = useState(custom?.from ?? "")
   const [to, setTo] = useState(custom?.to ?? "")
+  const [open, setOpen] = useState(false)
   const invalid = Boolean(from && to && (from > to || !isWindowWithinYear(from, to)))
 
   return (
-    <DropdownMenu>
-      <DropdownMenuTrigger asChild>
+    <Popover open={open} onOpenChange={setOpen}>
+      <PopoverTrigger asChild>
         <Button type="button" variant="outline" className="min-w-36 justify-between">
+          <CalendarDays className="size-4 text-muted-foreground" />
           {label}
         </Button>
-      </DropdownMenuTrigger>
-      <DropdownMenuContent align="end" className="w-64">
-        {RANGES.map((range) => (
-          <DropdownMenuItem key={range.value} onSelect={() => onPreset(range.value)}>
-            <span className="flex-1">{range.label}</span>
-            {preset === range.value ? <CheckIcon className="size-4" /> : null}
-          </DropdownMenuItem>
-        ))}
-        <DropdownMenuSeparator />
-        <DropdownMenuLabel>Custom range</DropdownMenuLabel>
-        <div className="space-y-2 px-2 pb-2">
+      </PopoverTrigger>
+      <PopoverContent align="end" className="w-72 gap-0 p-2">
+        <div className="space-y-1">
+          {RANGES.map((range) => (
+            <button
+              key={range.value}
+              type="button"
+              className="flex w-full cursor-pointer items-center rounded-md px-2 py-1.5 text-left text-sm hover:bg-accent hover:text-accent-foreground"
+              onClick={() => {
+                onPreset(range.value)
+                setOpen(false)
+              }}
+            >
+              <span className="flex-1">{range.label}</span>
+              {preset === range.value ? <CheckIcon className="size-4" /> : null}
+            </button>
+          ))}
+        </div>
+        <div className="mt-2 space-y-3 border-t px-2 pt-3 pb-1">
+          <div>
+            <p className="text-sm font-medium">Custom range</p>
+            <p className="text-xs text-muted-foreground">Choose up to one year of daily data.</p>
+          </div>
           <div className="grid grid-cols-2 gap-2">
-            <Input
-              type="date"
-              value={from}
-              min={earliest}
-              max={today}
-              onChange={(e) => setFrom(e.target.value)}
-            />
-            <Input
-              type="date"
-              value={to}
-              min={earliest}
-              max={today}
-              onChange={(e) => setTo(e.target.value)}
-            />
+            <Label className="gap-1 text-xs text-muted-foreground">
+              From
+              <Input
+                type="date"
+                value={from}
+                min={earliest}
+                max={today}
+                onChange={(e) => setFrom(e.target.value)}
+              />
+            </Label>
+            <Label className="gap-1 text-xs text-muted-foreground">
+              To
+              <Input
+                type="date"
+                value={to}
+                min={earliest}
+                max={today}
+                onChange={(e) => setTo(e.target.value)}
+              />
+            </Label>
           </div>
           {invalid ? (
             <p className="text-xs text-destructive">Pick a range of one year or less.</p>
@@ -498,13 +510,16 @@ export function RangePicker({
             size="sm"
             className="w-full"
             disabled={!from || !to || invalid}
-            onClick={() => onCustom({ from, to })}
+            onClick={() => {
+              onCustom({ from, to })
+              setOpen(false)
+            }}
           >
             Apply
           </Button>
         </div>
-      </DropdownMenuContent>
-    </DropdownMenu>
+      </PopoverContent>
+    </Popover>
   )
 }
 

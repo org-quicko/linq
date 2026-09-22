@@ -79,8 +79,9 @@ export function AnalyticsOverview() {
 
   return (
     <div className="flex flex-col gap-4">
-      <div className="flex flex-wrap items-center justify-between gap-2">
-        <div className="flex flex-wrap items-center gap-2">
+      <div className="flex flex-wrap items-center gap-2">
+        <h1 className="shrink-0 font-heading text-xl font-semibold">Analytics</h1>
+        <div className="flex min-w-0 flex-1 flex-wrap items-center gap-2">
           {segments.map((segment) => (
             <button
               key={`${segment.dim}:${segment.value}`}
@@ -93,7 +94,7 @@ export function AnalyticsOverview() {
             </button>
           ))}
         </div>
-        <div className="flex flex-wrap gap-2">
+        <div className="ml-auto flex shrink-0 flex-wrap items-center gap-2">
           <LinkFilter
             value={link_id}
             name={linked.data?.name ?? linked.data?.slug ?? ""}
@@ -319,6 +320,55 @@ export function foldWeeks(days: StatsBucket[]): StatsBucket[] {
 function utc(date: Date) {
   return date.toISOString().slice(0, 10)
 }
+
+function smoothPath(points: { x: number; y: number }[]): string {
+  if (points.length === 0) return ""
+  if (points.length === 1) return `M ${points[0].x} ${points[0].y}`
+  let path = `M ${points[0].x} ${points[0].y}`
+  for (let i = 0; i < points.length - 1; i++) {
+    const p0 = points[i - 1] ?? points[i]
+    const p1 = points[i]
+    const p2 = points[i + 1]
+    const p3 = points[i + 2] ?? p2
+    path += ` C ${p1.x + (p2.x - p0.x) / 6} ${p1.y + (p2.y - p0.y) / 6}, ${p2.x - (p3.x - p1.x) / 6} ${p2.y - (p3.y - p1.y) / 6}, ${p2.x} ${p2.y}`
+  }
+  return path
+}
+
+/** The line/area chart's geometry and per-point hover columns. */
+export function chartPoints(days: StatsBucket[]) {
+  if (!days.length) return null
+  const totals = days.map((day) => day.human + day.bot)
+  const max = Math.max(...totals, 1)
+  // Keep both the peak and a zero baseline inside the SVG viewport. A stroke
+  // centered at y=100 is clipped by the viewBox, making no-visit days vanish.
+  const plotTop = 4
+  const plotBottom = 96
+  const xs = days.map((_, index) => (days.length === 1 ? 50 : (index / (days.length - 1)) * 100))
+  const ys = totals.map((total) => plotBottom - (total / max) * (plotBottom - plotTop))
+  const boundaries = [0, ...xs.slice(0, -1).map((x, index) => (x + xs[index + 1]) / 2), 100]
+  const linePath = smoothPath(xs.map((x, index) => ({ x, y: ys[index] })))
+  return {
+    linePath,
+    areaPath: `${linePath} L ${xs[xs.length - 1]} ${plotBottom} L ${xs[0]} ${plotBottom} Z`,
+    points: days.map((day, index) => ({
+      ...day,
+      total: totals[index],
+      x: xs[index],
+      y: ys[index],
+      left: boundaries[index],
+      width: boundaries[index + 1] - boundaries[index],
+    })),
+  }
+}
+
+function formatDay(day: string) {
+  return new Date(`${day}T00:00:00Z`).toLocaleDateString(undefined, {
+    month: "short",
+    day: "numeric",
+  })
+}
+
 function VisitsChart({
   buckets,
   from,
@@ -329,33 +379,67 @@ function VisitsChart({
   loading: boolean
 }) {
   const days = useMemo(() => foldWeeks(fillDays(buckets, from)), [buckets, from])
-  const max = Math.max(...days.map((day) => day.human + day.bot), 1)
+  const chart = useMemo(() => chartPoints(days), [days])
   return (
     <div className="rounded-lg border bg-card p-4">
       <p className="mb-4 text-sm font-semibold">Visits over time</p>
       {loading ? (
         <div className="h-32 animate-pulse rounded bg-muted" />
-      ) : !days.length ? (
+      ) : !chart ? (
         <p className="py-10 text-center text-sm text-muted-foreground">No visits recorded yet.</p>
       ) : (
         <>
-          <div className="flex h-32 items-end gap-px">
-            {days.map((day) => (
+          <div className="relative h-32">
+            <svg
+              className="absolute inset-0 size-full"
+              viewBox="0 0 100 100"
+              preserveAspectRatio="none"
+              aria-hidden
+            >
+              <defs>
+                <linearGradient id="visitsAreaGradient" x1="0" y1="0" x2="0" y2="1">
+                  <stop offset="0%" stopColor="var(--chart-1)" stopOpacity={0.28} />
+                  <stop offset="100%" stopColor="var(--chart-1)" stopOpacity={0.02} />
+                </linearGradient>
+              </defs>
+              <path d={chart.areaPath} fill="url(#visitsAreaGradient)" />
+              <path
+                d={chart.linePath}
+                fill="none"
+                stroke="var(--chart-1)"
+                strokeWidth={1.5}
+                vectorEffect="non-scaling-stroke"
+                strokeLinejoin="round"
+                strokeLinecap="round"
+              />
+            </svg>
+            {chart.points.map((point) => (
               <div
-                key={day.key}
-                className="group relative h-full flex-1"
-                title={`${day.key}: ${day.human + day.bot} visits`}
+                key={point.key}
+                className="group absolute inset-y-0"
+                style={{ left: `${point.left}%`, width: `${point.width}%` }}
               >
                 <div
-                  className="absolute right-0 bottom-0 left-0 rounded-t bg-primary/35 group-hover:bg-primary"
-                  style={{ height: `${((day.human + day.bot) / max) * 100}%` }}
-                />
+                  className="pointer-events-none absolute -translate-x-1/2 -translate-y-1/2"
+                  style={{
+                    left: `${((point.x - point.left) / point.width) * 100}%`,
+                    top: `${point.y}%`,
+                  }}
+                >
+                  <div className="size-1.5 rounded-full bg-[var(--chart-1)] opacity-0 group-hover:opacity-100" />
+                  <div className="absolute bottom-3 left-1/2 -translate-x-1/2 whitespace-nowrap rounded-sm bg-foreground px-2 py-1 text-center text-[11px] text-background opacity-0 group-hover:opacity-100">
+                    <div>
+                      {days.length > 120 ? `week of ${formatDay(point.key)}` : formatDay(point.key)}
+                    </div>
+                    <div className="opacity-75">{point.total} visits</div>
+                  </div>
+                </div>
               </div>
             ))}
           </div>
           <div className="mt-2 flex justify-between text-xs text-muted-foreground">
-            <span>{days[0].key}</span>
-            <span>{days[days.length - 1].key}</span>
+            <span>{formatDay(days[0].key)}</span>
+            <span>{formatDay(days[days.length - 1].key)}</span>
           </div>
         </>
       )}

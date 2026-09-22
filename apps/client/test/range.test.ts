@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test"
-import { foldWeeks } from "../components/analytics-overview"
+import { chartPoints, foldWeeks } from "../components/analytics-overview"
 import { isWindowWithinYear, presetWindow, rangeLabel } from "../lib/hooks"
 
 describe("analytics ranges", () => {
@@ -28,5 +28,26 @@ describe("analytics ranges", () => {
     const weeks = foldWeeks(days)
     expect(weeks.length).toBeLessThan(days.length)
     expect(weeks[0]).toEqual({ key: "2025-12-29", human: 4, bot: 0 })
+  })
+
+  test("renders the trend as a continuous line with an area", () => {
+    const chart = chartPoints([
+      { key: "2026-09-01", human: 2, bot: 1 },
+      { key: "2026-09-02", human: 5, bot: 0 },
+    ])
+    expect(chart?.linePath).toStartWith("M ")
+    expect(chart?.areaPath).toContain(" Z")
+  })
+
+  test("keeps zero-visit days visible in a 90-day trend", () => {
+    const days = Array.from({ length: 90 }, (_, index) => ({
+      key: new Date(Date.UTC(2026, 5, index + 1)).toISOString().slice(0, 10),
+      human: index % 9 === 0 ? 4 : 0,
+      bot: 0,
+    }))
+    const chart = chartPoints(days)
+
+    expect(chart?.points).toHaveLength(90)
+    expect(chart?.points.every((point) => point.y < 100)).toBe(true)
   })
 })
