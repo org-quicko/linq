@@ -36,3 +36,9 @@ the UI is pointed at a linq server at runtime, in the browser. `Dockerfile.backe
 and `Dockerfile.full` need the same environment as `../docker-compose.example.yml`
 (`DATABASE_URL`, `LINQ_DEFAULT_DOMAIN`, etc.) — see the example compose files in
 `../docker-compose-examples/` for ready-made stacks around either.
+
+For the standalone client, use
+`../docker-compose-examples/docker-compose.client.yml`. It reads
+`LINQ_CLIENT_PORT` from your Compose env file to select the published host
+port (default 3001), while the container listens internally on 3000.
+This lets it share a host with other containers already publishing port 3000.

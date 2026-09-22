@@ -45,7 +45,7 @@ services:
       # Point this at your existing Postgres instance.
       DATABASE_URL: postgres://linq:linq@your-postgres-host:5432/linq
       LINQ_REDIS_URL: redis://redis:6379
-      LINQ_DEFAULT_DOMAIN: localhost:3000
+      LINQ_DEFAULT_DOMAIN: ${LINQ_DEFAULT_DOMAIN:-localhost:${LINQ_PORT:-3000}}
       LINQ_CADDY_ADMIN_URL: http://caddy:2019
       LINQ_CADDY_UPSTREAM: linq:3000
       # An admin key is minted and printed on first boot; read it from
@@ -55,7 +55,7 @@ services:
       # recorded in either; see docs/adr/0003.
       LINQ_LOG_LEVEL: info
     ports:
-      - "3000:3000"
+      - "${LINQ_PORT:-3000}:3000"
     volumes:
       - linq-data:/data
 

@@ -8,7 +8,7 @@
   ],
   "scripts": {
     "dev": "bun --watch apps/server/src/main.ts",
-    "dev:client": "bun --filter @linq/client dev",
+    "dev:client": "bun --env-file=.env --filter @linq/client dev",
     "start": "bun apps/server/src/main.ts",
     "build:client": "bun --filter @linq/client build",
     "build:client:standalone": "bun --filter @linq/client build:standalone",

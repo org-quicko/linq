@@ -10,7 +10,7 @@
 # issue it a certificate.
 #
 # Copy this file, set a real password and LINQ_DEFAULT_DOMAIN, then:
-#   docker compose -f docker-compose.with-caddy.yml up
+#   docker compose -f docker-compose.bundled-postgres.with-caddy.yml up
 services:
   postgres:
     image: postgres:17
@@ -51,7 +51,7 @@ services:
         condition: service_healthy
     environment:
       DATABASE_URL: postgres://linq:linq@postgres:5432/linq
-      LINQ_DEFAULT_DOMAIN: localhost:3000
+      LINQ_DEFAULT_DOMAIN: ${LINQ_DEFAULT_DOMAIN:-localhost:${LINQ_PORT:-3000}}
       LINQ_CADDY_ADMIN_URL: http://caddy:2019
       LINQ_CADDY_UPSTREAM: linq:3000
       # An admin key is minted and printed on first boot; read it from
@@ -61,7 +61,7 @@ services:
       # recorded in either; see docs/adr/0003.
       LINQ_LOG_LEVEL: info
     ports:
-      - "3000:3000"
+      - "${LINQ_PORT:-3000}:3000"
     volumes:
       - linq-data:/data
 

@@ -10,16 +10,37 @@ file's directory (`..` reaches the repo root), not your shell's directory.
 Run from here, or use `-f docker-compose-examples/<file>` from the repo root.
 If you copy a file elsewhere, fix those paths first.
 
+Set `LINQ_PORT` in the repo-root `.env` to change the published port from
+3000. Run from the repo root, or pass `--env-file ../.env` when running from
+this directory. The container and Caddy upstream stay on port 3000.
+`LINQ_DEFAULT_DOMAIN` can also be set in that env file; when absent, it
+defaults to `localhost:<LINQ_PORT>`. For an existing database, change the
+domain through the UI as well: the default domain only seeds an empty database.
+
 | File | Postgres | Redis | Caddy |
 | --- | --- | --- | --- |
-| `docker-compose.minimal.yml` | bundled | – | – |
-| `docker-compose.with-redis.yml` | bundled | yes | – |
-| `docker-compose.with-caddy.yml` | bundled | – | yes |
-| `docker-compose.full.yml` | bundled | yes | yes |
+| `docker-compose.bundled-postgres.yml` | bundled | – | – |
+| `docker-compose.bundled-postgres.with-redis.yml` | bundled | yes | – |
+| `docker-compose.bundled-postgres.with-caddy.yml` | bundled | – | yes |
+| `docker-compose.bundled-postgres.full.yml` | bundled | yes | yes |
 | `docker-compose.external-postgres.yml` | external | – | – |
 | `docker-compose.external-postgres.with-redis.yml` | external | yes | – |
 | `docker-compose.external-postgres.with-caddy.yml` | external | – | yes |
 | `docker-compose.external-postgres.full.yml` | external | yes | yes |
+
+`docker-compose.client.yml` runs the standalone Client UI at `/`, with no
+API or database. Its host port is `${LINQ_CLIENT_PORT:-3001}`, read from
+your env file; its internal port stays 3000. To run it alongside one of
+the API examples from the repo root:
+
+```sh
+docker compose --env-file .env -f docker-compose-examples/docker-compose.bundled-postgres.yml -f docker-compose-examples/docker-compose.client.yml up --build -d
+```
+
+For example, `LINQ_PORT=8080` and `LINQ_CLIENT_PORT=8081` publish the API on
+8080 and the standalone UI on 8081, leaving host port 3000 free. Choose
+distinct, unused host ports. The combined API image already includes a UI
+at `/home/` on `LINQ_PORT`; the separate client is optional.
 
 "External" Postgres means no `postgres` service in the file — set
 `DATABASE_URL` on the `linq` service to point at your own instance instead.
@@ -27,8 +48,8 @@ If you copy a file elsewhere, fix those paths first.
 For a local check from the repo root:
 
 ```sh
-docker compose -f docker-compose-examples/docker-compose.minimal.yml up --build -d
-docker compose -f docker-compose-examples/docker-compose.minimal.yml logs linq
+docker compose -f docker-compose-examples/docker-compose.bundled-postgres.yml up --build -d
+docker compose -f docker-compose-examples/docker-compose.bundled-postgres.yml logs linq
 curl http://localhost:3000/api/health
 ```
 

@@ -4,7 +4,7 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "dev": "NEXT_PUBLIC_BASE_PATH=/home next dev -p 3001",
+    "dev": "bun dev.ts",
     "build": "NEXT_PUBLIC_BASE_PATH=/home next build",
     "build:standalone": "rm -rf out-standalone && next build && mv out out-standalone"
   },

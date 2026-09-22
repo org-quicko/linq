@@ -48,6 +48,20 @@ is the only required value; everything else has a working default. The defaults
 put the server on port 3000, seed `localhost:3000` as the first domain, and
 cache redirect lookups in the process for five minutes.
 
+Both local ports are configurable in the repo-root `.env` (or `.env.local`):
+
+```dotenv
+LINQ_PORT=4000
+LINQ_CLIENT_PORT=4001
+LINQ_DEFAULT_DOMAIN=localhost:${LINQ_PORT}
+```
+
+`LINQ_PORT` controls the API/redirect server for `dev` and `start`;
+`LINQ_CLIENT_PORT` controls `dev:client`. They default to 3000 and 3001.
+Restart the relevant process after changing a port, and use that port in
+your browser and the UI's saved Server URL. `LINQ_DEFAULT_DOMAIN` only seeds
+an empty database; update an existing domain through the UI if its port changes.
+
 ### 4. Start the API server
 
 ```bash
@@ -130,6 +144,8 @@ The server you added is still in your browser, so the UI opens straight onto it.
 
 ## Ports
 
+The URLs below use the default ports. Substitute your configured values.
+
 | URL | What it is |
 |---|---|
 | http://localhost:3001/home/ | Client UI, in development |
@@ -200,6 +216,33 @@ the redirects and the Client UI from one process. Postgres stays external, and
 so does Redis if you opt into it. Copy
 the compose file, set a real password and `LINQ_DEFAULT_DOMAIN`, then
 `docker compose up`.
+
+Compose also reads `LINQ_PORT` from `.env` to choose the published host port.
+The container continues listening on 3000, so Caddy's internal upstream stays
+`linq:3000`. For example, `LINQ_PORT=4000` publishes `4000:3000`.
+The combined image serves the built UI on that same port. For a different env filename,
+use `docker compose --env-file <file> ...`.
+
+For a **separate client container**, `LINQ_CLIENT_PORT` sets its published
+host port. For example, save this in `.env.ports` on your EC2 host:
+
+```dotenv
+LINQ_PORT=8080
+LINQ_CLIENT_PORT=8081
+```
+
+Start the API and standalone client together from the repo root:
+
+```sh
+docker compose --env-file .env.ports -f docker-compose-examples/docker-compose.bundled-postgres.yml -f docker-compose-examples/docker-compose.client.yml up --build -d
+```
+
+The API and its bundled UI are available on port 8080 (`/api/v1` and
+`/home/`); the standalone client is on port 8081 (`/`). Add your API's
+browser-accessible URL, such as `http://<ec2-host>:8080`, in the client.
+Neither container publishes host port 3000. Both can listen internally on
+3000 because each has its own container network namespace. The standalone
+client Compose file also works by itself against an API you already run.
 
 If you deploy the UI separately, the image still works with the export left out —
 the server answers 404 on `/home/*` and carries on serving the API and the
