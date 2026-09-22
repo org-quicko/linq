@@ -36,5 +36,10 @@ export const apiSlice = createApi({
   reducerPath: "api",
   baseQuery,
   tagTypes: ["Link", "Domain", "User", "Key", "Stats", "Visit", "QrCode"],
+  // Visits land from redirect traffic, not from a client mutation, so no tag
+  // invalidation can catch a count/analytics query going stale. Refetch on
+  // every mount instead — otherwise navigating away and back re-renders
+  // whatever was cached from the last visit.
+  refetchOnMountOrArgChange: true,
   endpoints: () => ({}),
 })

@@ -132,8 +132,8 @@ function DomainRow({ domain, isAdmin }: { domain: Domain; isAdmin: boolean }) {
         ) : null
       }
     >
-      <span className="flex items-center gap-2 truncate font-medium">
-        {domain.host}
+      <span className="flex min-w-0 items-center gap-2 font-medium">
+        <span className="min-w-0 truncate">{domain.host}</span>
         {domain.status === "archived" ? <Badge variant="outline">Archived</Badge> : null}
       </span>
       <span className="truncate text-xs text-muted-foreground">

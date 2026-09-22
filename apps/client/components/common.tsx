@@ -448,7 +448,11 @@ export function RangePicker({
   const [from, setFrom] = useState(custom?.from ?? "")
   const [to, setTo] = useState(custom?.to ?? "")
   const [open, setOpen] = useState(false)
-  const validation = rangeValidation(from, to)
+  const [touched, setTouched] = useState({ from: false, to: false })
+  // Only surface a validation message once both fields are touched and dirty —
+  // picking just one side (the other still blank) isn't an error yet, it's
+  // the user halfway through.
+  const validation = touched.from && touched.to ? rangeValidation(from, to) : null
 
   return (
     <Popover open={open} onOpenChange={setOpen}>
@@ -486,9 +490,25 @@ export function RangePicker({
           </div>
           <div className="flex items-center gap-2 text-xs text-muted-foreground">
             <span>From</span>
-            <DateField value={from} min={earliest} max={to || today} onChange={setFrom} />
+            <DateField
+              value={from}
+              min={earliest}
+              max={to || today}
+              onChange={(value) => {
+                setFrom(value)
+                setTouched((t) => ({ ...t, from: true }))
+              }}
+            />
             <span>To</span>
-            <DateField value={to} min={from || earliest} max={today} onChange={setTo} />
+            <DateField
+              value={to}
+              min={from || earliest}
+              max={today}
+              onChange={(value) => {
+                setTo(value)
+                setTouched((t) => ({ ...t, to: true }))
+              }}
+            />
           </div>
           {validation ? (
             <p className="text-xs text-destructive" role="alert">

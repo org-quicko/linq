@@ -40,14 +40,14 @@ export function ShortLink({
         <NextLink
           href={href}
           className={cn(
-            "min-w-0 truncate font-medium underline-offset-2 hover:underline",
+            "block min-w-0 truncate font-medium underline-offset-2 hover:underline",
             className,
           )}
         >
           {text}
         </NextLink>
       ) : (
-        <span className={cn("truncate", className)}>{text}</span>
+        <span className={cn("block min-w-0 truncate", className)}>{text}</span>
       )}
       {copy ? <CopyButton value={link.short_url} /> : null}
     </span>
