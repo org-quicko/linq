@@ -2,7 +2,7 @@
 
 Context for any agent working in this repo. Full user-facing setup and
 deployment docs are in `README.md` — read that before touching
-`apps/server`, `Dockerfile`, or `docker-compose.example.yml`. This file only
+`apps/server`, `dockerfiles/`, or `docker-compose-examples/`. This file only
 covers what isn't obvious from the code.
 
 ## Running it
@@ -38,6 +38,8 @@ covers what isn't obvious from the code.
 
 - `README.md` — local setup, Docker, Redis/Caddy, deploying the Client UI.
 - `CONTEXT.md` — domain vocabulary.
+- `docs/architecture.md` — how the pieces fit together today.
+- `docs/repo-map.md` — where everything lives, in more detail than this list.
 - `docs/adr/` — decisions that are hard to reverse, and why.
 - `.agents/skills/` — step-by-step procedures for this repo (dev environment,
   DB migrations, ADRs, plans), for any agent.

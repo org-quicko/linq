@@ -6,7 +6,9 @@
 #   docker compose -f docker-compose.external-postgres.yml up
 services:
   linq:
-    build: ..
+    build:
+      context: ..
+      dockerfile: dockerfiles/Dockerfile.full
     environment:
       # Point this at your existing Postgres instance.
       DATABASE_URL: postgres://linq:linq@your-postgres-host:5432/linq

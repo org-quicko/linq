@@ -1,12 +1,11 @@
 # syntax=docker/dockerfile:1
 
 # Both: the API, the redirects and the Client UI (served at /home) from one
-# process. Identical to the repo root's Dockerfile — kept here too so the
-# three shapes (backend-only, client-only, both) sit side by side. If you
-# change one, change both.
+# process. One of three shapes in this folder (backend-only, client-only,
+# both); see dockerfiles/README.md.
 #
 # Build from the repo root, not this directory:
-#   docker build -f dockerfile-examples/Dockerfile.full -t linq .
+#   docker build -f dockerfiles/Dockerfile.full -t linq .
 #
 # Stage 1 builds the Client UI into a static export. Nothing from here ships
 # except apps/client/out.
@@ -24,7 +23,7 @@ COPY apps/client apps/client
 RUN bun --filter '@linq/client' build
 
 # Stage 2 is the runtime: Bun executes the server sources directly, so there is
-# no server bundle step. Postgres is always external; see docker-compose.example.yml.
+# no server bundle step. Postgres is always external; see docker-compose-examples/.
 FROM oven/bun:1.4 AS runtime
 WORKDIR /app
 

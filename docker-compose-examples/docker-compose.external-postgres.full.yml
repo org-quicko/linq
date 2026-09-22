@@ -35,7 +35,9 @@ services:
       retries: 10
 
   linq:
-    build: ..
+    build:
+      context: ..
+      dockerfile: dockerfiles/Dockerfile.full
     depends_on:
       redis:
         condition: service_healthy

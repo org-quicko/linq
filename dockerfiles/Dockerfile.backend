@@ -3,10 +3,10 @@
 # API-only image: no Client UI build stage, nothing copied into
 # apps/client/out. The server answers 404 on /home/* and otherwise behaves
 # exactly as the combined image — it still serves the API and the redirects.
-# Postgres is always external; see docker-compose.example.yml.
+# Postgres is always external; see docker-compose-examples/.
 #
 # Build from the repo root, not this directory:
-#   docker build -f dockerfile-examples/Dockerfile.backend -t linq-backend .
+#   docker build -f dockerfiles/Dockerfile.backend -t linq-backend .
 FROM oven/bun:1.4 AS runtime
 WORKDIR /app
 

@@ -211,11 +211,11 @@ writes to disk that is worth backing up.
 
 ## Docker
 
-`Dockerfile` and `docker-compose.example.yml` build an image that serves the API,
-the redirects and the Client UI from one process. Postgres stays external, and
-so does Redis if you opt into it. Copy
-the compose file, set a real password and `LINQ_DEFAULT_DOMAIN`, then
-`docker compose up`.
+`dockerfiles/Dockerfile.full` builds an image that serves the API, the
+redirects and the Client UI from one process. Postgres stays external, and
+so does Redis if you opt into it. Pick a matching file from
+`docker-compose-examples/`, copy it out, set a real password and
+`LINQ_DEFAULT_DOMAIN`, then `docker compose up`.
 
 Compose also reads `LINQ_PORT` from `.env` to choose the published host port.
 The container continues listening on 3000, so Caddy's internal upstream stays
@@ -244,15 +244,16 @@ Neither container publishes host port 3000. Both can listen internally on
 3000 because each has its own container network namespace. The standalone
 client Compose file also works by itself against an API you already run.
 
-If you deploy the UI separately, the image still works with the export left out —
-the server answers 404 on `/home/*` and carries on serving the API and the
-redirects. Dropping the first build stage and the `COPY --from=build` line gives
-you a smaller, API-only image.
+If you deploy the UI separately, `dockerfiles/Dockerfile.backend` is the same
+image with the Client UI build stage dropped — the server answers 404 on
+`/home/*` and carries on serving the API and the redirects. See
+`dockerfiles/README.md` for all three image shapes.
 
 ### Custom domains with automatic HTTPS
 
-Uncomment the `caddy` service and the three marked lines on `linq` in
-`docker-compose.example.yml`. Once `LINQ_CADDY_ADMIN_URL` is set, every domain
+Use one of the `*.with-caddy.yml` or `*.full.yml` files in
+`docker-compose-examples/` — they already wire up the `caddy` service and
+`LINQ_CADDY_ADMIN_URL` on `linq`. Once set, every domain
 create, archive, reactivate and purge is pushed to Caddy as its own route —
 adding a domain in linq is enough to make it resolve over HTTPS, with nothing
 edited in Caddy by hand. `:2019`, Caddy's admin API, is never published to the
@@ -263,5 +264,7 @@ issue it a certificate; see `docs/adr/0012`.
 ## Further reading
 
 - `CONTEXT.md` — the domain vocabulary. Worth reading before the code.
+- `docs/architecture.md` — how the pieces fit together today.
+- `docs/repo-map.md` — where everything lives.
 - `docs/adr/` — the decisions that are hard to reverse, and why.
 - `plans/` — the numbered plans each milestone was built from.

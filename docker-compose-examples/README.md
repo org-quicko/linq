@@ -28,22 +28,23 @@ domain through the UI as well: the default domain only seeds an empty database.
 | `docker-compose.external-postgres.with-caddy.yml` | external | – | yes |
 | `docker-compose.external-postgres.full.yml` | external | yes | yes |
 
-All eight of the above build from the repo root's `Dockerfile` — the combined
-image, API plus Client UI at `/home`. `dockerfile-examples/` also has
+All eight of the above build from `../dockerfiles/Dockerfile.full` — the
+combined image, API plus Client UI at `/home`. `../dockerfiles/` also has
 `Dockerfile.backend` (API only) and `Dockerfile.client` (Client UI only, as a
 standalone export); the two files below build from those instead, for a
 split deployment across separate containers and ports.
 
-`docker-compose.backend.yml` is `docker-compose.bundled-postgres.yml` built
-from `Dockerfile.backend` instead — bundled Postgres, no Client UI at all, not
-even at `/home`. Pair it with `docker-compose.client.yml`, which runs the
-standalone Client UI at `/`, with no API or database of its own. The client's
-host port is `${LINQ_CLIENT_PORT:-3001}`; the backend's is `${LINQ_PORT:-3000}`
-as usual; both containers keep listening on 3000 internally. From the repo
-root:
+`docker-compose.backend.yml` is not a stack on its own — it's a small override
+on `docker-compose.bundled-postgres.yml` that swaps in `Dockerfile.backend`,
+so there's no Client UI at all, not even at `/home`. Layer it on top with a
+second `-f`, and pair the result with `docker-compose.client.yml`, which runs
+the standalone Client UI at `/`, with no API or database of its own. The
+client's host port is `${LINQ_CLIENT_PORT:-3001}`; the backend's is
+`${LINQ_PORT:-3000}` as usual; both containers keep listening on 3000
+internally. From the repo root:
 
 ```sh
-docker compose --env-file .env -f docker-compose-examples/docker-compose.backend.yml -f docker-compose-examples/docker-compose.client.yml up --build -d
+docker compose --env-file .env -f docker-compose-examples/docker-compose.bundled-postgres.yml -f docker-compose-examples/docker-compose.backend.yml -f docker-compose-examples/docker-compose.client.yml up --build -d
 ```
 
 For example, `LINQ_PORT=8080` and `LINQ_CLIENT_PORT=8081` publish the API on
@@ -87,5 +88,4 @@ certificate issuance still requires a real domain, public DNS, and inbound
 ports 80/443, and cannot be validated by a localhost-only test.
 
 See `../README.md` (Docker section) for what each piece does, and
-`../docker-compose.example.yml` for the single annotated file these were
-split out of.
+`../dockerfiles/` for the Dockerfiles these all build from.

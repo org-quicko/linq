@@ -30,7 +30,9 @@ services:
       retries: 10
 
   linq:
-    build: ..
+    build:
+      context: ..
+      dockerfile: dockerfiles/Dockerfile.full
     depends_on:
       caddy:
         condition: service_healthy

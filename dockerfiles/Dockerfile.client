@@ -16,7 +16,7 @@
 # Build from the repo root, not this directory — the client imports
 # @linq/shared as TypeScript over a workspace link and its tsconfig reaches
 # the repo root, so the whole repository has to be present for the build:
-#   docker build -f dockerfile-examples/Dockerfile.client -t linq-client .
+#   docker build -f dockerfiles/Dockerfile.client -t linq-client .
 FROM oven/bun:1.4 AS build
 WORKDIR /app
 
@@ -36,7 +36,7 @@ WORKDIR /app
 ENV NODE_ENV=production
 ENV PORT=3000
 
-COPY dockerfile-examples/serve-static.ts ./
+COPY dockerfiles/serve-static.ts ./
 COPY --from=build /app/apps/client/out-standalone out-standalone
 
 EXPOSE 3000
