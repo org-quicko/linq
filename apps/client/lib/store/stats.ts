@@ -14,8 +14,13 @@ export const statsApi = apiSlice.injectEndpoints({
       providesTags: ["Stats"],
     }),
 
+    /** Derived from active links' own `tags` arrays, so it goes stale on the
+     *  same writes `listLinks`'s rows do — shares its "LIST" tag rather than
+     *  invalidating on its own, same as `countLinks`. Without this, a tag
+     *  added after the picker's first fetch would never show up in it. */
     listTags: build.query<TagCount[], void>({
       query: () => ({ path: "/v1/tags" }),
+      providesTags: [{ type: "Link", id: "LIST" }],
     }),
   }),
 })

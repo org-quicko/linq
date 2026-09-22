@@ -16,6 +16,7 @@ import {
 import { useRun } from "../../lib/hooks"
 import {
   useListLinksQuery,
+  usePurgeArchivedLinksMutation,
   usePurgeLinkMutation,
   useUpdateLinkMutation,
 } from "../../lib/store/links"
@@ -38,7 +39,7 @@ export default function ArchivesPage() {
 function Archives() {
   return (
     <div className="no-scrollbar flex h-full min-h-0 flex-col gap-4 overflow-y-auto px-7 py-6">
-      <PageHeader title="Archives" description="Archived links. Purging is permanent." />
+      <PageHeader title="Archives" description="Links removed from active use." />
       <ArchivedLinksTab />
     </div>
   )
@@ -49,6 +50,7 @@ function ArchivedLinksTab() {
   const rows = links.data?.data ?? []
   const [updateLink] = useUpdateLinkMutation()
   const [purgeLink] = usePurgeLinkMutation()
+  const [purgeArchivedLinks] = usePurgeArchivedLinksMutation()
   const { run } = useRun()
 
   function restore(link: Link) {
@@ -59,11 +61,11 @@ function ArchivedLinksTab() {
     return run(() => purgeLink(link.id).unwrap())
   }
 
-  /** Purges every row on this tab, one call per link — there is no bulk-purge
-   *  endpoint (a domain-scoped one is a named follow-up, not this plan's
-   *  scope), so this fans out over the same mutation the row action uses. */
+  /** One call, server-side: `DELETE /v1/links/purge` destroys every archived
+   *  link in one statement, not just the (at most 200) rows this tab has
+   *  loaded — the old per-row fan-out could never reach past that page. */
   function emptyArchive() {
-    return run(() => Promise.all(rows.map((link) => purgeLink(link.id).unwrap())), {
+    return run(() => purgeArchivedLinks().unwrap(), {
       success: "Emptied the archive.",
       fallback: "Could not empty the archive.",
     })
@@ -73,8 +75,8 @@ function ArchivedLinksTab() {
     <>
       <div className="flex items-center justify-between gap-2">
         <p className="text-sm text-muted-foreground">
-          Archived links stop appearing in your short links list but keep working until you delete
-          them for good.
+          Archived links stop redirecting and disappear from your short links list, but stay
+          recoverable until you delete them for good.
         </p>
         {rows.length > 0 ? (
           <ConfirmButton

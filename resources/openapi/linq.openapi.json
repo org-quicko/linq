@@ -674,6 +674,43 @@
         }
       }
     },
+    "/api/v1/links/purge": {
+      "delete": {
+        "tags": [
+          "Links"
+        ],
+        "operationId": "purgeArchivedLinks",
+        "summary": "Destroy every archived link",
+        "description": "Requires: **admin**. Bulk analogue of `DELETE /links/{id}/purge`: destroys every currently archived link in one call — \"Empty archive\" — instead of a client-side loop calling the single-link route once per row. Takes no filter: purging always means every archived link, the same invariant the single-link route already enforces one row at a time. Its rules go with each link (`ON DELETE CASCADE`). Irreversible.\n",
+        "responses": {
+          "200": {
+            "description": "How many links were destroyed.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "purged"
+                  ],
+                  "properties": {
+                    "purged": {
+                      "type": "integer",
+                      "minimum": 0
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          }
+        }
+      }
+    },
     "/api/v1/links/{id}": {
       "parameters": [
         {

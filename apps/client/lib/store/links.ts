@@ -1,4 +1,4 @@
-import type { Link, LinkCount, LinkCreate, LinkPatch, Page, Rule } from "@linq/shared"
+import type { Link, LinkCount, LinkCreate, LinkPatch, LinkPurgeResult, Page, Rule } from "@linq/shared"
 import { qs } from "../api"
 import { apiSlice } from "./api"
 
@@ -114,6 +114,17 @@ export const linksApi = apiSlice.injectEndpoints({
       ],
     }),
 
+    /** Bulk analogue of `purgeLink` above, same QR-list invalidation for the
+     *  same cascade-delete reason: "Empty archive" fires one call instead of
+     *  one `purgeLink` per row. */
+    purgeArchivedLinks: build.mutation<LinkPurgeResult, void>({
+      query: () => ({ path: "/v1/links/purge", method: "DELETE" }),
+      invalidatesTags: [
+        { type: "Link", id: "LIST" },
+        { type: "QrCode", id: "LIST" },
+      ],
+    }),
+
     updateLinkRules: build.mutation<void, { link_id: string; rules: unknown[] }>({
       query: ({ link_id, rules }) => ({
         path: `/v1/links/${link_id}/rules`,
@@ -135,5 +146,6 @@ export const {
   useUpdateLinkMutation,
   useArchiveLinkMutation,
   usePurgeLinkMutation,
+  usePurgeArchivedLinksMutation,
   useUpdateLinkRulesMutation,
 } = linksApi

@@ -381,6 +381,33 @@ export const linkRoutes = new Hono<Env>()
     return c.json(await fetchLink(c.var.db, id))
   })
 
+  /**
+   * Bulk analogue of `/:id/purge` below — "Empty archive" destroys every
+   * archived link in one call instead of the client firing one DELETE per
+   * row. Registered ahead of `/:id` for the same reason as `/count` above:
+   * both are literal segments a param route could otherwise swallow.
+   *
+   * No filters beyond `status = archived`: purging is only ever "every
+   * archived link", the same invariant `/:id/purge` already enforces one row
+   * at a time, so there is nothing else for a caller to scope this to.
+   */
+  .delete("/purge", async (c) => {
+    assertCanPurge(c.var.principal)
+
+    const rows = await span(
+      "link.purgeAll",
+      () =>
+        c.var.db
+          .delete(links)
+          .where(eq(links.status, "archived"))
+          .returning({ domain_id: links.domain_id, slug: links.slug }),
+      { out: (deleted) => ({ purged: deleted.length }) },
+    )
+
+    await c.var.cache.del(...rows.flatMap((r) => linkKeys(r.domain_id, r.slug)))
+    return c.json({ purged: rows.length })
+  })
+
   /** DELETE is an alias for archiving; links are never dropped. See docs/adr/0002. */
   .delete("/:id", idParam, async (c) => {
     const { id } = c.req.valid("param")

@@ -329,7 +329,11 @@ export function ConfirmButton({
   children,
 }: {
   title: string
-  description: string
+  /** A plain sentence renders the same as always; pass a `<ul>` (or any
+   *  other block content) when the confirmation has more than one point to
+   *  make — `asChild` below hands Radix's description slot to a `<div>`
+   *  instead of forcing everything through a `<p>`, which cannot contain one. */
+  description: ReactNode
   confirmLabel?: string
   confirmText?: string
   onConfirm: () => void
@@ -386,7 +390,9 @@ export function ConfirmButton({
       <DialogContent>
         <DialogHeader>
           <DialogTitle>{title}</DialogTitle>
-          <DialogDescription>{description}</DialogDescription>
+          <DialogDescription asChild>
+            <div>{description}</div>
+          </DialogDescription>
         </DialogHeader>
         {confirmText && (
           <Field label={`Type ${confirmText} to confirm`}>

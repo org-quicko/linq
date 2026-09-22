@@ -96,6 +96,9 @@ export const linkCountQuerySchema = z.object({
 
 export type LinkCount = { total: number }
 
+/** `DELETE /v1/links/purge`'s response: how many archived links it destroyed. */
+export type LinkPurgeResult = { purged: number }
+
 export type Link = {
   id: string
   domain_id: string

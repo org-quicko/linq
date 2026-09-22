@@ -46,6 +46,8 @@ import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
+  DropdownMenuRadioGroup,
+  DropdownMenuRadioItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
 import {
@@ -59,6 +61,14 @@ import { useArchiveLinkMutation, useLinksFeedInfiniteQuery } from "../../lib/sto
 
 type Filters = { domain_id: string; order: "asc" | "desc" }
 const EMPTY: Filters = { domain_id: "", order: "desc" }
+
+/** Date created only, either direction, in exactly this order — a flat
+ *  list, not search results, so there's no relevance score and no
+ *  alphabetical option, just the two chronological directions. */
+const SORT_OPTIONS: { value: "desc" | "asc"; label: string }[] = [
+  { value: "desc", label: "Newest to Oldest" },
+  { value: "asc", label: "Oldest to Newest" },
+]
 
 /** Create/Edit/Duplicate all go through one dialog; `null` means closed. */
 type DialogState = { mode: "create" | "edit"; link?: Link } | null
@@ -159,16 +169,28 @@ function LinksList({ actor }: { actor: Actor }) {
             />
           </div>
 
-          <Button
-            type="button"
-            variant="outline"
-            onClick={() =>
-              setFilters((f) => ({ ...f, order: f.order === "desc" ? "asc" : "desc" }))
-            }
-          >
-            {filters.order === "desc" ? "Newest to Oldest" : "Oldest to Newest"}
-            {filters.order === "desc" ? <ArrowDownIcon /> : <ArrowUpIcon />}
-          </Button>
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button type="button" variant="outline">
+                {filters.order === "desc" ? "Newest to Oldest" : "Oldest to Newest"}
+                {filters.order === "desc" ? <ArrowDownIcon /> : <ArrowUpIcon />}
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end" className="min-w-40">
+              <DropdownMenuRadioGroup
+                value={filters.order}
+                onValueChange={(order) =>
+                  setFilters((f) => ({ ...f, order: order as "asc" | "desc" }))
+                }
+              >
+                {SORT_OPTIONS.map((option) => (
+                  <DropdownMenuRadioItem key={option.value} value={option.value}>
+                    {option.label}
+                  </DropdownMenuRadioItem>
+                ))}
+              </DropdownMenuRadioGroup>
+            </DropdownMenuContent>
+          </DropdownMenu>
         </div>
       </div>
 

@@ -1,9 +1,9 @@
 "use client"
 
 import type { Link, QrCode } from "@linq/shared"
-import { Mail, Pencil, QrCode as QrCodeIcon, Share2 } from "lucide-react"
+import { Mail, Pencil, QrCode as QrCodeIcon, Share2, Trash2 } from "lucide-react"
 import { type ReactNode, useState } from "react"
-import { CopyButton } from "@/components/common"
+import { ConfirmButton, CopyButton } from "@/components/common"
 import { IconButton, shortLinkText } from "@/components/patterns"
 import { QrFormDialog } from "@/components/qr-form-dialog"
 import { Button } from "@/components/ui/button"
@@ -15,7 +15,8 @@ import {
   PopoverTrigger,
 } from "@/components/ui/popover"
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip"
-import { useListQrCodesQuery } from "../lib/store/qr-codes"
+import { useRun } from "../lib/hooks"
+import { useDeleteQrCodeMutation, useListQrCodesQuery } from "../lib/store/qr-codes"
 
 type Network = {
   name: string
@@ -72,6 +73,16 @@ export function ShareMenu({ link }: { link: Link }) {
   const qrCodes = useListQrCodesQuery({ link_id: link.id, limit: 5 })
   const shareText = link.name?.trim() || shortLinkText(link)
 
+  const [deleteQrCode] = useDeleteQrCodeMutation()
+  const { run } = useRun()
+
+  function removeQrCode(qrCode: QrCode) {
+    return run(() => deleteQrCode(qrCode.id).unwrap(), {
+      success: "QR code deleted.",
+      fallback: "Could not delete that QR code.",
+    })
+  }
+
   return (
     <>
       <Popover open={open} onOpenChange={setOpen}>
@@ -90,7 +101,7 @@ export function ShareMenu({ link }: { link: Link }) {
             <CopyButton value={link.short_url} label="Copy" />
           </div>
 
-          <div className="flex items-center gap-1.5">
+          <div className="flex items-center justify-between">
             {NETWORKS.map(({ name, Icon, href }) => (
               <Tooltip key={name}>
                 <TooltipTrigger asChild>
@@ -114,27 +125,52 @@ export function ShareMenu({ link }: { link: Link }) {
 
           <div className="flex flex-col gap-2">
             {(qrCodes.data?.data ?? []).map((qrCode) => (
-              <button
+              <div
                 key={qrCode.id}
-                type="button"
-                onClick={() => setQrDialog({ mode: "edit", qrCode })}
-                className="flex items-center gap-2.5 rounded-lg border px-2.5 py-2 text-left transition-colors hover:bg-muted"
+                className="flex items-center gap-1 rounded-lg border pr-1 transition-colors hover:bg-muted"
               >
-                {/* A colour swatch, not a live render — same call as the row it
-                    replaces (plans/Plan_31.md): a 32px QR is unreadable, and
-                    rendering one per row costs a library instance per row to
-                    convey nothing beyond what the swatch already shows. */}
-                <div
-                  className="flex size-8 shrink-0 items-center justify-center rounded-md"
-                  style={{ backgroundColor: qrCode.bg_color }}
+                <button
+                  type="button"
+                  onClick={() => setQrDialog({ mode: "edit", qrCode })}
+                  className="flex min-w-0 flex-1 items-center gap-2.5 px-2.5 py-2 text-left"
                 >
-                  <QrCodeIcon className="size-4" style={{ color: qrCode.dot_color }} />
-                </div>
-                <span className="min-w-0 flex-1 truncate text-xs font-medium">
-                  {qrCode.name?.trim() || "QR code"}
-                </span>
-                <Pencil className="size-3.5 shrink-0 text-muted-foreground" />
-              </button>
+                  {/* A colour swatch, not a live render — same call as the row it
+                      replaces (plans/Plan_31.md): a 32px QR is unreadable, and
+                      rendering one per row costs a library instance per row to
+                      convey nothing beyond what the swatch already shows. */}
+                  <div
+                    className="flex size-8 shrink-0 items-center justify-center rounded-md"
+                    style={{ backgroundColor: qrCode.bg_color }}
+                  >
+                    <QrCodeIcon className="size-4" style={{ color: qrCode.dot_color }} />
+                  </div>
+                  <span className="min-w-0 flex-1 truncate text-xs font-medium">
+                    {qrCode.name?.trim() || "QR code"}
+                  </span>
+                  <Pencil className="size-3.5 shrink-0 text-muted-foreground" />
+                </button>
+
+                <ConfirmButton
+                  size="icon-sm"
+                  className="shrink-0"
+                  ariaLabel="Delete QR code"
+                  title={`Delete ${qrCode.name?.trim() || "this QR code"}?`}
+                  description={
+                    <ul className="list-disc space-y-1 pl-4">
+                      <li>
+                        The link itself keeps working — this only removes the QR code's saved
+                        style from linq.
+                      </li>
+                      <li>Any copies you've already printed or shared keep scanning fine.</li>
+                      <li>This cannot be undone.</li>
+                    </ul>
+                  }
+                  confirmLabel="Delete"
+                  onConfirm={() => removeQrCode(qrCode)}
+                >
+                  <Trash2 />
+                </ConfirmButton>
+              </div>
             ))}
 
             <Button
