@@ -321,7 +321,7 @@ function utc(date: Date) {
   return date.toISOString().slice(0, 10)
 }
 
-function smoothPath(points: { x: number; y: number }[]): string {
+export function smoothPath(points: { x: number; y: number }[]): string {
   if (points.length === 0) return ""
   if (points.length === 1) return `M ${points[0].x} ${points[0].y}`
   let path = `M ${points[0].x} ${points[0].y}`
@@ -330,7 +330,11 @@ function smoothPath(points: { x: number; y: number }[]): string {
     const p1 = points[i]
     const p2 = points[i + 1]
     const p3 = points[i + 2] ?? p2
-    path += ` C ${p1.x + (p2.x - p0.x) / 6} ${p1.y + (p2.y - p0.y) / 6}, ${p2.x - (p3.x - p1.x) / 6} ${p2.y - (p3.y - p1.y) / 6}, ${p2.x} ${p2.y}`
+    const minY = Math.min(p1.y, p2.y)
+    const maxY = Math.max(p1.y, p2.y)
+    const control1Y = Math.min(maxY, Math.max(minY, p1.y + (p2.y - p0.y) / 6))
+    const control2Y = Math.min(maxY, Math.max(minY, p2.y - (p3.y - p1.y) / 6))
+    path += ` C ${p1.x + (p2.x - p0.x) / 6} ${control1Y}, ${p2.x - (p3.x - p1.x) / 6} ${control2Y}, ${p2.x} ${p2.y}`
   }
   return path
 }
@@ -340,17 +344,16 @@ export function chartPoints(days: StatsBucket[]) {
   if (!days.length) return null
   const totals = days.map((day) => day.human + day.bot)
   const max = Math.max(...totals, 1)
-  // Keep both the peak and a zero baseline inside the SVG viewport. A stroke
-  // centered at y=100 is clipped by the viewBox, making no-visit days vanish.
+  // A stroke centered at y=100 is clipped by the viewBox. 99 puts zero-count
+  // buckets on the visual baseline while retaining the full stroke.
   const plotTop = 4
-  const plotBottom = 96
+  const plotBottom = 99
   const xs = days.map((_, index) => (days.length === 1 ? 50 : (index / (days.length - 1)) * 100))
   const ys = totals.map((total) => plotBottom - (total / max) * (plotBottom - plotTop))
   const boundaries = [0, ...xs.slice(0, -1).map((x, index) => (x + xs[index + 1]) / 2), 100]
   const linePath = smoothPath(xs.map((x, index) => ({ x, y: ys[index] })))
   return {
     linePath,
-    areaPath: `${linePath} L ${xs[xs.length - 1]} ${plotBottom} L ${xs[0]} ${plotBottom} Z`,
     points: days.map((day, index) => ({
       ...day,
       total: totals[index],
@@ -396,13 +399,6 @@ function VisitsChart({
               preserveAspectRatio="none"
               aria-hidden
             >
-              <defs>
-                <linearGradient id="visitsAreaGradient" x1="0" y1="0" x2="0" y2="1">
-                  <stop offset="0%" stopColor="var(--chart-1)" stopOpacity={0.28} />
-                  <stop offset="100%" stopColor="var(--chart-1)" stopOpacity={0.02} />
-                </linearGradient>
-              </defs>
-              <path d={chart.areaPath} fill="url(#visitsAreaGradient)" />
               <path
                 d={chart.linePath}
                 fill="none"

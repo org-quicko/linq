@@ -1,6 +1,6 @@
 "use client"
 
-import { CalendarDays, CheckIcon, CopyIcon } from "lucide-react"
+import { CalendarDays, CheckIcon, ChevronLeft, ChevronRight, CopyIcon } from "lucide-react"
 import { type ComponentProps, type ReactNode, useState } from "react"
 import { EmptyState } from "@/components/patterns/empty-state"
 import { Button } from "@/components/ui/button"
@@ -480,27 +480,11 @@ export function RangePicker({
             <p className="text-sm font-medium">Custom range</p>
             <p className="text-xs text-muted-foreground">Choose up to one year of daily data.</p>
           </div>
-          <div className="grid grid-cols-2 gap-2">
-            <Label className="gap-1 text-xs text-muted-foreground">
-              From
-              <Input
-                type="date"
-                value={from}
-                min={earliest}
-                max={today}
-                onChange={(e) => setFrom(e.target.value)}
-              />
-            </Label>
-            <Label className="gap-1 text-xs text-muted-foreground">
-              To
-              <Input
-                type="date"
-                value={to}
-                min={earliest}
-                max={today}
-                onChange={(e) => setTo(e.target.value)}
-              />
-            </Label>
+          <div className="flex items-center gap-2 text-xs text-muted-foreground">
+            <span>From</span>
+            <DateField value={from} min={earliest} max={today} onChange={setFrom} />
+            <span>To</span>
+            <DateField value={to} min={earliest} max={today} onChange={setTo} />
           </div>
           {invalid ? (
             <p className="text-xs text-destructive">Pick a range of one year or less.</p>
@@ -521,6 +505,157 @@ export function RangePicker({
       </PopoverContent>
     </Popover>
   )
+}
+
+const WEEKDAYS = ["Su", "Mo", "Tu", "We", "Th", "Fr", "Sa"]
+
+/** An in-app calendar keeps date selection consistent across browsers. */
+function DateField({
+  value,
+  min,
+  max,
+  onChange,
+}: {
+  value: string
+  min: string
+  max: string
+  onChange: (value: string) => void
+}) {
+  const [open, setOpen] = useState(false)
+  const [month, setMonth] = useState(() => monthStart(value || max))
+  const days = calendarDays(month)
+  const canGoBack = monthKey(month) > monthKey(monthStart(min))
+  const canGoForward = monthKey(month) < monthKey(monthStart(max))
+
+  return (
+    <Popover
+      open={open}
+      onOpenChange={(next) => {
+        setOpen(next)
+        if (next) setMonth(monthStart(value || max))
+      }}
+    >
+      <PopoverTrigger asChild>
+        <button
+          type="button"
+          className="flex h-8 min-w-0 flex-1 items-center justify-between gap-1 rounded-md border bg-background px-2 text-left text-xs text-foreground shadow-xs hover:bg-muted"
+          aria-label={value ? `Change date, ${formatPickerDate(value)}` : "Choose date"}
+        >
+          <span className={value ? "truncate" : "truncate text-muted-foreground"}>
+            {value ? formatPickerDate(value) : "Select date"}
+          </span>
+          <CalendarDays className="size-3.5 shrink-0 text-muted-foreground" />
+        </button>
+      </PopoverTrigger>
+      <PopoverContent align="start" sideOffset={6} className="w-64 p-3">
+        <div className="flex items-center justify-between">
+          <p className="text-sm font-medium">{formatMonth(month)}</p>
+          <div className="flex gap-1">
+            <Button
+              type="button"
+              variant="ghost"
+              size="icon-xs"
+              aria-label="Previous month"
+              disabled={!canGoBack}
+              onClick={() => setMonth(addMonths(month, -1))}
+            >
+              <ChevronLeft />
+            </Button>
+            <Button
+              type="button"
+              variant="ghost"
+              size="icon-xs"
+              aria-label="Next month"
+              disabled={!canGoForward}
+              onClick={() => setMonth(addMonths(month, 1))}
+            >
+              <ChevronRight />
+            </Button>
+          </div>
+        </div>
+        <div className="mt-2 grid grid-cols-7 text-center text-[11px] text-muted-foreground">
+          {WEEKDAYS.map((day) => (
+            <span key={day} className="py-1">
+              {day}
+            </span>
+          ))}
+        </div>
+        <div className="grid grid-cols-7 gap-y-0.5">
+          {days.map((day) => {
+            const disabled = day.value < min || day.value > max
+            const selected = day.value === value
+            const currentMonth = day.date.getUTCMonth() === month.getUTCMonth()
+            return (
+              <button
+                key={day.value}
+                type="button"
+                aria-pressed={selected}
+                disabled={disabled}
+                className={`mx-auto flex size-7 items-center justify-center rounded-md text-xs tabular-nums ${
+                  selected
+                    ? "bg-primary text-primary-foreground"
+                    : day.value === max
+                      ? "border border-primary text-primary"
+                      : currentMonth
+                        ? "text-foreground hover:bg-muted"
+                        : "text-muted-foreground/50 hover:bg-muted"
+                }`}
+                onClick={() => {
+                  onChange(day.value)
+                  setOpen(false)
+                }}
+              >
+                {day.date.getUTCDate()}
+              </button>
+            )
+          })}
+        </div>
+        <div className="mt-2 flex justify-end border-t pt-2">
+          <button
+            type="button"
+            className="text-xs font-medium text-primary hover:underline"
+            onClick={() => {
+              onChange(max)
+              setOpen(false)
+            }}
+          >
+            Today
+          </button>
+        </div>
+      </PopoverContent>
+    </Popover>
+  )
+}
+
+function monthStart(value: string) {
+  const date = new Date(`${value}T00:00:00Z`)
+  return new Date(Date.UTC(date.getUTCFullYear(), date.getUTCMonth(), 1))
+}
+function monthKey(date: Date) {
+  return date.getUTCFullYear() * 12 + date.getUTCMonth()
+}
+function addMonths(month: Date, offset: number) {
+  return new Date(Date.UTC(month.getUTCFullYear(), month.getUTCMonth() + offset, 1))
+}
+function calendarDays(month: Date) {
+  const start = new Date(month)
+  start.setUTCDate(start.getUTCDate() - start.getUTCDay())
+  return Array.from({ length: 42 }, (_, index) => {
+    const date = new Date(start)
+    date.setUTCDate(start.getUTCDate() + index)
+    return { date, value: date.toISOString().slice(0, 10) }
+  })
+}
+function formatMonth(month: Date) {
+  return month.toLocaleDateString(undefined, { month: "long", year: "numeric", timeZone: "UTC" })
+}
+function formatPickerDate(value: string) {
+  return new Date(`${value}T00:00:00Z`).toLocaleDateString(undefined, {
+    month: "short",
+    day: "numeric",
+    year: "numeric",
+    timeZone: "UTC",
+  })
 }
 
 /**

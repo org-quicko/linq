@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test"
-import { chartPoints, foldWeeks } from "../components/analytics-overview"
+import { chartPoints, foldWeeks, smoothPath } from "../components/analytics-overview"
 import { isWindowWithinYear, presetWindow, rangeLabel } from "../lib/hooks"
 
 describe("analytics ranges", () => {
@@ -30,13 +30,12 @@ describe("analytics ranges", () => {
     expect(weeks[0]).toEqual({ key: "2025-12-29", human: 4, bot: 0 })
   })
 
-  test("renders the trend as a continuous line with an area", () => {
+  test("renders the trend as a continuous line", () => {
     const chart = chartPoints([
       { key: "2026-09-01", human: 2, bot: 1 },
       { key: "2026-09-02", human: 5, bot: 0 },
     ])
     expect(chart?.linePath).toStartWith("M ")
-    expect(chart?.areaPath).toContain(" Z")
   })
 
   test("keeps zero-visit days visible in a 90-day trend", () => {
@@ -46,8 +45,20 @@ describe("analytics ranges", () => {
       bot: 0,
     }))
     const chart = chartPoints(days)
+    const zeroVisitPoints = chart?.points.filter((point) => point.total === 0) ?? []
 
     expect(chart?.points).toHaveLength(90)
-    expect(chart?.points.every((point) => point.y < 100)).toBe(true)
+    expect(zeroVisitPoints.every((point) => point.y === 99)).toBe(true)
+  })
+
+  test("keeps consecutive zero-visit days flat at the baseline", () => {
+    const path = smoothPath([
+      { x: 0, y: 4 },
+      { x: 25, y: 99 },
+      { x: 50, y: 99 },
+      { x: 75, y: 4 },
+    ])
+
+    expect(path).toContain("C 33.333333333333336 99, 41.666666666666664 99, 50 99")
   })
 })
