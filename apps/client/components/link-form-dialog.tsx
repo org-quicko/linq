@@ -45,12 +45,12 @@ import {
 /**
  * The one form behind Create, Edit and Duplicate — extracted from
  * `app/links/new/page.tsx` and the settings half of `app/links/detail/page.tsx`
- * (plans/Plan_27.md Part C4). `mode` decides the verb and what gets sent;
+ * (docs/plans/Plan_27.md Part C4). `mode` decides the verb and what gets sent;
  * `link` seeds the fields either way — as the record being edited (`mode`
  * `"edit"`, slug and domain locked) or as the starting point for a duplicate
  * (`mode` `"create"`, slug blank so the server generates a fresh one).
  *
- * Rules are configured in the collapsible "Routing rules" section (plans/Plan_28.md):
+ * Rules are configured in the collapsible "Routing rules" section (docs/plans/Plan_28.md):
  * passed directly on create or patch.
  */
 export function LinkFormDialog({

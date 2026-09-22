@@ -16,7 +16,7 @@ import { useListLinksQuery } from "@/lib/store/links"
 
 /**
  * A single-select, search-as-you-type link combobox. Lifted out of
- * `analytics-overview.tsx` (plans/Plan_31.md §A4) so the QR create/edit
+ * `analytics-overview.tsx` (docs/plans/Plan_31.md §A4) so the QR create/edit
  * dialog's short-link picker doesn't reimplement it.
  */
 export function LinkFilter({

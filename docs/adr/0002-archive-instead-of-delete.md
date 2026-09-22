@@ -30,7 +30,7 @@ What this trades away:
 
 Purge is irreversible and leaves no audit trail beyond the request log line, which records the acting user, the route and the status. The typed confirmation in the Admin UI is a speed bump in the browser, never a permission.
 
-## Amendment · 2026-09-20 — Archive raised to match Purge (`plans/Plan_26.md`)
+## Amendment · 2026-09-20 — Archive raised to match Purge (`docs/plans/Plan_26.md`)
 
 The Decision above and the Amendment before this one both said a Domain may be **archived** while any of its Links are archived — only an **active** Link blocked archiving; a stricter bar applied only to purging. That asymmetry is removed: **archiving a Domain now refuses while any Link row points at it, archived included — the same bar purging already used.**
 
@@ -40,6 +40,6 @@ The cost, accepted knowingly: retiring a host that ever carried Links now means 
 
 `Domain.linkCount` in the API changes meaning with it: it now counts every Link, archived included, rather than active ones only. Same field, same type, a different number — any consumer reading it as "live links on this host" is silently wrong after this change.
 
-## Amendment · 2026-09-21 — QR codes are deleted, not archived (`plans/Plan_31.md`)
+## Amendment · 2026-09-21 — QR codes are deleted, not archived (`docs/plans/Plan_31.md`)
 
 QR codes are deleted, not archived, and have no purge. The decision above protects two things a QR code does not have: a reserved slug, and a visit history. Deleting one removes a saved appearance; it cannot hijack anything, and it loses no analytics — a scan is an ordinary visit on the link. `qr_codes.link_id` is `ON DELETE CASCADE` for the same reason. What a delete does *not* do is invalidate a printed code: the link is what resolves it, so archiving the link is still the only way to take one down.

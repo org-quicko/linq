@@ -147,7 +147,7 @@ export const domainRoutes = new Hono<Env>()
       // COMMITTED (it would not), but because FOR UPDATE conflicts with
       // POST /links's FOR SHARE on the same domain row. That is what
       // serialises the two requests; do not simplify this to a plain
-      // transaction. See plans/Plan_26.md §A2.
+      // transaction. See docs/plans/Plan_26.md §A2.
       await c.var.db.transaction(async (tx) => {
         await tx.select().from(domains).where(eq(domains.id, id)).for("update")
         await assertNoLinks(tx, id)

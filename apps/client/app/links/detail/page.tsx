@@ -6,7 +6,7 @@ import { Suspense, useEffect } from "react"
 /**
  * Backward compatibility: redirects legacy /links/detail/?id=... to the
  * analytics page filtered to that link. The summary view it used to point at
- * is gone (plans/Plan_31.md Part C).
+ * is gone (docs/plans/Plan_31.md Part C).
  */
 export default function LinkDetailPage() {
   return (

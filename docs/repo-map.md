@@ -14,8 +14,8 @@ feature-linq/
 │  └─ shared/     @linq/shared — zod schemas, types and permission rules both apps import
 ├─ resources/     generated artifacts kept in the repo: DBML and the OpenAPI spec
 ├─ docs/
-│  └─ adr/        decisions that are hard to reverse, and why
-├─ plans/         numbered design plans each milestone was built from
+│  ├─ adr/        decisions that are hard to reverse, and why
+│  └─ plans/      numbered design plans each milestone was built from
 ├─ docker-compose-examples/, dockerfiles/, caddy/   deployment shapes
 └─ .claude/, .agents/   skills: step-by-step procedures for agents working here
 ```
@@ -99,7 +99,7 @@ from a JSON body on the client). Nothing here imports from either app.
 | `repo-map.md` | This file |
 | `adr/000N-*.md` | One decision per file, numbered sequentially |
 
-## `plans/`
+## `docs/plans/`
 
 `Plan_N.md`, one per milestone of work, numbered sequentially — written and
 reviewed before the code that implements it, per `.claude/skills/linq-plan`.

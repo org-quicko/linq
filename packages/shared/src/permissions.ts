@@ -39,7 +39,7 @@ export const can = {
    * change it, and an unowned link matches no actor — `keyId` is never null,
    * so a null owner fails closed here rather than by a special case.
    *
-   * Also the rule for a QR code (plans/Plan_31.md): a QR code has no owner of
+   * Also the rule for a QR code (docs/plans/Plan_31.md): a QR code has no owner of
    * its own, so editing or deleting one is decided by its link's `owner_id`.
    */
   editLink: (actor: Actor, link: Owned): boolean =>

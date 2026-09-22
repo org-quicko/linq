@@ -53,7 +53,7 @@ function toQrCode(row: QrCodeRow): QrCode {
  * Inner joins only: `qr_codes.link_id` is NOT NULL behind a foreign key, and
  * `links.domain_id` the same, so neither join can ever drop a row. No
  * `leftJoin(apiKeys)` — that exists in `links.ts` only to resolve
- * `owner_name`, which a QR row does not carry (plans/Plan_31.md §A1).
+ * `owner_name`, which a QR row does not carry (docs/plans/Plan_31.md §A1).
  */
 function qrCodeQuery(db: Db) {
   return db
@@ -107,7 +107,7 @@ function loadQrCode(
 /**
  * Mounted top-level (`/v1/qr-codes`), because the list view spans every link.
  * Permissions delegate entirely to the parent link (`can.editLink`) — see
- * plans/Plan_31.md §A3b for why there is no `can.editQrCode`.
+ * docs/plans/Plan_31.md §A3b for why there is no `can.editQrCode`.
  */
 export const qrCodeRoutes = new Hono<Env>()
   .get("/", validate("query", qrCodeListQuerySchema), async (c) => {

@@ -258,7 +258,7 @@ export const linkRoutes = new Hono<Env>()
     // archive transactions) but not with itself, so concurrent creates on
     // one domain still run in parallel and only an in-flight archive blocks
     // them. Without this lock, a plain transaction would not close the race
-    // under READ COMMITTED. See plans/Plan_26.md §A2.
+    // under READ COMMITTED. See docs/plans/Plan_26.md §A2.
     const row = await c.var.db.transaction(async (tx) => {
       const [domain] = await tx
         .select()

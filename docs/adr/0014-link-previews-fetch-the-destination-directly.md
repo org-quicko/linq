@@ -4,7 +4,7 @@
 
 ## Context
 
-`plans/Plan_31.md` §B2 left the links list row with a generic glyph instead
+`docs/plans/Plan_31.md` §B2 left the links list row with a generic glyph instead
 of the destination's favicon, and flagged the alternative — `https://
 www.google.com/s2/favicons?domain={host}` — as needing its own ADR before
 adoption: it puts every destination hostname in a user's account on the wire

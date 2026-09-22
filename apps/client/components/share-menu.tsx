@@ -57,7 +57,7 @@ const NETWORKS: Network[] = [
 ]
 
 /**
- * Replaces the standalone QR-codes list page (plans/Plan_31.md's browse-all
+ * Replaces the standalone QR-codes list page (docs/plans/Plan_31.md's browse-all
  * view): sharing and QR generation both start from the link they're for, so
  * both live on the row's own `RowCard` actions instead of a second page a
  * click away. QR codes already saved against this link (`link_id` filter,
@@ -135,7 +135,7 @@ export function ShareMenu({ link }: { link: Link }) {
                   className="flex min-w-0 flex-1 items-center gap-2.5 px-2.5 py-2 text-left"
                 >
                   {/* A colour swatch, not a live render — same call as the row it
-                      replaces (plans/Plan_31.md): a 32px QR is unreadable, and
+                      replaces (docs/plans/Plan_31.md): a 32px QR is unreadable, and
                       rendering one per row costs a library instance per row to
                       convey nothing beyond what the swatch already shows. */}
                   <div

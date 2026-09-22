@@ -23,7 +23,7 @@ const ANY_DOMAIN = "__any__"
  * single `domain_id` into analytics and raw-visit requests).
  *
  * `multiple` switches it to a checkbox dropdown returning a comma-separated
- * id list, for the links list (plans/Plan_31.md §B3):
+ * id list, for the links list (docs/plans/Plan_31.md §B3):
  * `linkListQuerySchema.domain_id` accepts both a lone uuid and a
  * comma-separated list, so this is the only other caller that needs the
  * plural shape.

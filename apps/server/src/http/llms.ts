@@ -86,7 +86,7 @@ const factory = createFactory<Env>()
 /**
  * `GET|HEAD /llms.txt`. No auth, by design: the route sits outside `/api/v1`,
  * which is the whole point, and also the reason `listed` defaults to false.
- * See plans/Plan_25.md.
+ * See docs/plans/Plan_25.md.
  */
 export const llmsHandler = factory.createHandlers(async (c) => {
   const host = c.req.header("host") ?? new URL(c.req.url).host

@@ -15,5 +15,5 @@ one instead of improvising the same steps from scratch:
   the matching Drizzle migration.
 - `linq-adr` — writing a new ADR in `docs/adr/` for a hard-to-reverse
   decision.
-- `linq-plan` — writing a new design plan in `plans/` before implementing
+- `linq-plan` — writing a new design plan in `docs/plans/` before implementing
   non-trivial work.

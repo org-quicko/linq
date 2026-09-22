@@ -39,7 +39,7 @@ export const linksApi = apiSlice.injectEndpoints({
       providesTags: [{ type: "Link", id: "LIST" }],
     }),
 
-    /** The links list's infinite-scroll feed (plans/Plan_31.md §B4). Kept
+    /** The links list's infinite-scroll feed (docs/plans/Plan_31.md §B4). Kept
      *  separate from `listLinks` rather than replacing it: `analytics-overview.tsx`
      *  and `archives/page.tsx` both page-fetch a fixed set and neither wants
      *  the accumulating-pages shape this returns. */

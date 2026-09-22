@@ -32,7 +32,7 @@ const PATTERN_LABELS: Record<(typeof QR_PATTERNS)[number], string> = {
 }
 
 /**
- * Create and edit in one component, per plans/Plan_31.md §A4 — the call site
+ * Create and edit in one component, per docs/plans/Plan_31.md §A4 — the call site
  * keys it `${mode}-${id}` to force a remount, exactly as `link-form-dialog.tsx`.
  * The preview leads: it is the point of the dialog, so it sits above the
  * fields rather than beside them, staying in view as the form scrolls.

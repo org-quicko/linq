@@ -127,7 +127,7 @@ describe("GET /api/v1/analytics/timeseries", () => {
 
   test("the detail path includes the same last day, even late in it", async () => {
     // Forces the detail path; occurred_at up to 23:30 on the 2nd must still
-    // land in the window, not be cut at midnight (plans/Plan_33.md §F).
+    // land in the window, not be cut at midnight (docs/plans/Plan_33.md §F).
     const buckets: StatsBucket[] = await json("/timeseries?from=2026-02-01&to=2026-03-02&os=ios")
     expect(buckets).toEqual([{ key: "2026-03-02", human: 1, bot: 0 }])
   })

@@ -22,7 +22,7 @@ import {
 } from "../../lib/store/links"
 
 /**
- * Archived links — domains don't live here (plans/Plan_27.md Part C3 moved
+ * Archived links — domains don't live here (docs/plans/Plan_27.md Part C3 moved
  * domain archive/restore/purge onto Settings → Domains itself, which already
  * shows every domain, active or archived, with a Restore action; a second
  * copy of that flow here would just be a duplicate trash can for the same

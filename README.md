@@ -267,4 +267,4 @@ issue it a certificate; see `docs/adr/0012`.
 - `docs/architecture.md` — how the pieces fit together today.
 - `docs/repo-map.md` — where everything lives.
 - `docs/adr/` — the decisions that are hard to reverse, and why.
-- `plans/` — the numbered plans each milestone was built from.
+- `docs/plans/` — the numbered plans each milestone was built from.

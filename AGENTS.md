@@ -29,7 +29,7 @@ covers what isn't obvious from the code.
 
 ## Docs conventions
 
-- Design plans go in `plans/Plan_N.md`, numbered sequentially, reviewed
+- Design plans go in `docs/plans/Plan_N.md`, numbered sequentially, reviewed
   alongside code. Writing a plan is not implementing it — stop once the file
   is written unless told to build it.
 - `CONTEXT.md` is glossary only: terms, no implementation detail.

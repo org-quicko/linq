@@ -21,7 +21,7 @@ import { TableCell, TableRow } from "@/components/ui/table"
 /**
  * A gallery of `components/patterns`, in every state, with a theme switch at
  * the top — the fastest way to review the component set, and the surface
- * `plans/Plan_27.md` Part A3 uses for its dark-mode audit: everything visible
+ * `docs/plans/Plan_27.md` Part A3 uses for its dark-mode audit: everything visible
  * in dark at once, instead of hunting page by page.
  *
  * Fixture data only. Deliberately outside `AppShell` and never calls a

@@ -4,7 +4,7 @@ import { useRouter } from "next/navigation"
 import { useEffect } from "react"
 
 /**
- * Moved to /settings/domains/ — plans/Plan_27.md Part C3. Kept as a
+ * Moved to /settings/domains/ — docs/plans/Plan_27.md Part C3. Kept as a
  * redirect, not deleted, so an old bookmark or link does not silently
  * 404; a static export has no server-side rewrite to lean on instead.
  */

@@ -23,7 +23,7 @@ const ITEMS: SettingsItem[] = [
 /**
  * The mockup's 172px settings sub-nav — the one place this design uses a left
  * nav instead of tabs, since Settings is the section expected to grow
- * (plans/Plan_27.md Part C3). Unlike the sidebar's flat list, this one must
+ * (docs/plans/Plan_27.md Part C3). Unlike the sidebar's flat list, this one must
  * filter per item rather than show everything and gate on click: Domains is
  * readable by every role, Keys only by an admin, and a viewer must never see
  * a Keys entry that renders `NotPermitted`.

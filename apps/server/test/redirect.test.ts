@@ -62,7 +62,7 @@ describe("domain resolution", () => {
     const link = await h.createLink(author.key, closed, { slug: "live" })
     await h.request(`/api/v1/links/${link.id}`, { key: author.key, method: "DELETE" })
     // The domain cannot be archived while the link still points at it, even
-    // archived — purge it first. See plans/Plan_26.md §A1.
+    // archived — purge it first. See docs/plans/Plan_26.md §A1.
     await h.request(`/api/v1/links/${link.id}/purge`, { key: admin.key, method: "DELETE" })
     await h.request(`/api/v1/domains/${closed}`, { key: admin.key, method: "DELETE" })
 
@@ -212,7 +212,7 @@ describe("orphan visits", () => {
 })
 
 /**
- * `base_path_redirect` and `invalid_short_url_redirect` (plans/Plan_27.md Part D) —
+ * `base_path_redirect` and `invalid_short_url_redirect` (docs/plans/Plan_27.md Part D) —
  * the two fields added alongside the long-standing `fallback_url`, each
  * covering one of the three branches `redirect.ts`'s `if (!link)` case now
  * distinguishes. `createDomain` only sets `fallback_url`, so the other two are

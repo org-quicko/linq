@@ -5,7 +5,7 @@ import { useEffect } from "react"
 
 /**
  * Moved to Settings → Domains, which lists every domain — active or
- * archived — with its own restore/delete actions (plans/Plan_27.md Part C3;
+ * archived — with its own restore/delete actions (docs/plans/Plan_27.md Part C3;
  * Archives dropped its Domains tab as a result, so this no longer lands
  * there either). Kept as a redirect, not deleted, so an old bookmark or
  * link does not silently 404; a static export has no server-side rewrite to
