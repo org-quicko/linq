@@ -1,6 +1,6 @@
 import { describe, expect, test } from "bun:test"
 import { chartPoints, foldWeeks, smoothPath } from "../components/analytics-overview"
-import { isWindowWithinYear, presetWindow, rangeLabel } from "../lib/hooks"
+import { isWindowWithinYear, presetWindow, rangeLabel, rangeValidation } from "../lib/hooks"
 
 describe("analytics ranges", () => {
   test("preset windows include today", () => {
@@ -17,6 +17,15 @@ describe("analytics ranges", () => {
   test("caps custom windows at one year", () => {
     expect(isWindowWithinYear("2025-09-22", "2026-09-22")).toBe(true)
     expect(isWindowWithinYear("2025-09-20", "2026-09-22")).toBe(false)
+  })
+
+  test("requires both custom dates and orders them", () => {
+    expect(rangeValidation("2026-09-01", "")).toBe("Choose both a start and end date.")
+    expect(rangeValidation("", "2026-09-01")).toBe("Choose both a start and end date.")
+    expect(rangeValidation("2026-09-18", "2026-09-01")).toBe(
+      "Start date must be on or before end date.",
+    )
+    expect(rangeValidation("2026-09-01", "2026-09-18")).toBeNull()
   })
 
   test("folds dense days into Monday weeks", () => {

@@ -34,7 +34,7 @@ import {
   TableRow,
 } from "@/components/ui/table"
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip"
-import { isWindowWithinYear, RANGES, type Range } from "@/lib/hooks"
+import { RANGES, type Range, rangeValidation } from "@/lib/hooks"
 
 /**
  * The pieces every page shares that shadcn has no primitive for, plus two thin
@@ -448,12 +448,16 @@ export function RangePicker({
   const [from, setFrom] = useState(custom?.from ?? "")
   const [to, setTo] = useState(custom?.to ?? "")
   const [open, setOpen] = useState(false)
-  const invalid = Boolean(from && to && (from > to || !isWindowWithinYear(from, to)))
+  const validation = rangeValidation(from, to)
 
   return (
     <Popover open={open} onOpenChange={setOpen}>
       <PopoverTrigger asChild>
-        <Button type="button" variant="outline" className="min-w-36 justify-between">
+        <Button
+          type="button"
+          variant="outline"
+          className="h-9 min-w-36 justify-center gap-2.5 px-3"
+        >
           <CalendarDays className="size-4 text-muted-foreground" />
           {label}
         </Button>
@@ -482,18 +486,20 @@ export function RangePicker({
           </div>
           <div className="flex items-center gap-2 text-xs text-muted-foreground">
             <span>From</span>
-            <DateField value={from} min={earliest} max={today} onChange={setFrom} />
+            <DateField value={from} min={earliest} max={to || today} onChange={setFrom} />
             <span>To</span>
-            <DateField value={to} min={earliest} max={today} onChange={setTo} />
+            <DateField value={to} min={from || earliest} max={today} onChange={setTo} />
           </div>
-          {invalid ? (
-            <p className="text-xs text-destructive">Pick a range of one year or less.</p>
+          {validation ? (
+            <p className="text-xs text-destructive" role="alert">
+              {validation}
+            </p>
           ) : null}
           <Button
             type="button"
             size="sm"
             className="w-full"
-            disabled={!from || !to || invalid}
+            disabled={validation !== null || !from || !to}
             onClick={() => {
               onCustom({ from, to })
               setOpen(false)

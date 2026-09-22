@@ -53,6 +53,16 @@ export function isWindowWithinYear(from: string, to: string): boolean {
   return Date.parse(`${to}T00:00:00Z`) - Date.parse(`${from}T00:00:00Z`) <= 366 * 86_400_000
 }
 
+/** The custom picker explains every incomplete or invalid range before it can
+ * reach the analytics API. */
+export function rangeValidation(from: string, to: string): string | null {
+  if (Boolean(from) !== Boolean(to)) return "Choose both a start and end date."
+  if (!from || !to) return null
+  if (from > to) return "Start date must be on or before end date."
+  if (!isWindowWithinYear(from, to)) return "Pick a range of one year or less."
+  return null
+}
+
 /**
  * A range picker's state, plus the two spellings of its start the API takes: a
  * whole UTC day for the reports, and that day's first instant for the raw log.
