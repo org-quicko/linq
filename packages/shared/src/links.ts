@@ -1,5 +1,5 @@
 import { z } from "zod"
-import { paginationSchema, slugSchema, tagSchema, urlSchema, uuidSchema } from "./primitives.ts"
+import { csvList, paginationSchema, slugSchema, tagSchema, urlSchema, uuidSchema } from "./primitives.ts"
 import { resourceStatusSchema } from "./roles.ts"
 import { rulesPutSchema } from "./rules.ts"
 
@@ -56,31 +56,11 @@ export type LinkPatch = z.infer<typeof linkPatchSchema>
 export const linkListQuerySchema = paginationSchema.extend({
   search: z.string().trim().min(1).max(200).optional(),
   /** Comma-separated; a link matches when it carries any of them. */
-  tags: z
-    .string()
-    .optional()
-    .transform((v) =>
-      v
-        ? v
-            .split(",")
-            .map((t) => t.trim().toLowerCase())
-            .filter(Boolean)
-        : [],
-    ),
+  tags: csvList(tagSchema),
   /** Comma-separated; a link matches when its domain is any of them. Kept
    *  as `domain_id` rather than renamed to plural, so a caller passing a
    *  single uuid keeps working unchanged. */
-  domain_id: z
-    .string()
-    .optional()
-    .transform((v) =>
-      v
-        ? v
-            .split(",")
-            .map((s) => s.trim())
-            .filter((s) => uuidSchema.safeParse(s).success)
-        : [],
-    ),
+  domain_id: csvList(uuidSchema),
   owner_id: uuidSchema.optional(),
   status: z.enum(["active", "archived", "all"]).default("active"),
   sort: z.enum(["created_at", "updated_at", "visits"]).default("created_at"),

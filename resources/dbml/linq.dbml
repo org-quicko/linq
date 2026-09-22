@@ -162,7 +162,7 @@ Table qr_codes {
 
 Table visits {
   id             uuid        [pk, note: 'UUIDv7, so it breaks ties in the order visits happened']
-  link_id        uuid        [note: 'Null is an orphan visit. ON DELETE set null, so purging a link keeps its history and loses its attribution.']
+  link_id        uuid        [note: 'Null is an orphan visit. ON DELETE cascade, so purging a link destroys its visits.']
   domain_id      uuid        [not null]
   slug_requested text        [not null, note: 'What the caller asked for, empty for the root path']
   occurred_at    timestamptz [not null, default: `now()`]
@@ -172,6 +172,7 @@ Table visits {
   browser        text        [note: 'Open vocabulary (unlike platform), lowercased. Null when it could not be determined.']
   user_agent     text
   referer        text
+  referer_host   text        [note: 'Stored generated host extracted from referer; empty for an absent or relative URL.']
   destination    text        [note: 'The URL actually chosen, after rules and query merging']
   query          jsonb       [note: 'Record<string, string[]> of the incoming query, before any merging']
 
@@ -179,6 +180,7 @@ Table visits {
     (link_id, occurred_at)   [name: 'visits_link_occurred_idx', note: 'occurred_at DESC']
     (domain_id, occurred_at) [name: 'visits_domain_occurred_idx', note: 'occurred_at DESC']
     occurred_at              [name: 'visits_orphan_occurred_idx', note: 'DESC, partial: WHERE link_id IS NULL']
+    (occurred_at, is_bot, platform, link_id, domain_id, os, browser, referer_host, slug_requested) [name: 'visits_analytics_idx', note: 'occurred_at DESC. Covering index for filtered analytics.']
   }
 
   Note: '''
@@ -202,11 +204,13 @@ Table visit_days {
     (day, domain_id, link_id, dimension, value, is_bot) [unique, name: 'visit_days_key', note: 'NULLS NOT DISTINCT, so the orphan scope upserts onto one row']
     (link_id, dimension, day)                           [name: 'visit_days_link_idx']
     (domain_id, dimension, day)                         [name: 'visit_days_domain_idx']
+    (dimension, day)                                    [name: 'visit_days_dimension_day_idx']
   }
 
   Note: '''
     Pre-counted visits, one row per day, scope, dimension value and bot flag.
-    One table serves every grouping the stats API offers. See docs/adr/0007.
+    One table serves every grouping the stats API offers. Its referer dimension
+    holds a host, not the full referer URL. See docs/adr/0007.
 
     Derived data: only the triggers in 0005_visit_rollup_triggers.sql write
     here. An AFTER INSERT trigger on visits increments seven rows per visit.
@@ -249,7 +253,7 @@ Ref: links.owner_id > api_keys.id [delete: set null]
 Ref: rules.link_id > links.id [delete: cascade]
 Ref: qr_codes.link_id > links.id [delete: cascade]
 
-Ref: visits.link_id   > links.id   [delete: set null]
+Ref: visits.link_id   > links.id   [delete: cascade]
 Ref: visits.domain_id > domains.id [delete: cascade]
 
 Ref: visit_days.domain_id   > domains.id [delete: cascade]

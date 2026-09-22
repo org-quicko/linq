@@ -166,6 +166,14 @@ export const visits = pgTable(
     browser: text("browser"),
     user_agent: text("user_agent"),
     referer: text("referer"),
+    /** The referer header's host, '' when absent — what the rollup and every
+     *  referrer filter key on. A real stored column, not an index expression:
+     *  Postgres will not serve an index-only scan out of an index
+     *  expression, and this column exists to be in the covering index below.
+     *  Generated rather than parsed at ingest so it cannot drift from the
+     *  column it derives from, and so Postgres backfills existing rows
+     *  itself. See plans/Plan_33.md §A and docs/adr/0015. */
+    referer_host: text("referer_host").generatedAlwaysAs(sql`referer_host("referer")`),
     destination: text("destination"),
     query: jsonb("query").$type<Record<string, string[]>>(),
   },
@@ -173,6 +181,27 @@ export const visits = pgTable(
     index("visits_link_occurred_idx").on(t.link_id, t.occurred_at.desc()),
     index("visits_domain_occurred_idx").on(t.domain_id, t.occurred_at.desc()),
     index("visits_orphan_occurred_idx").on(t.occurred_at.desc()).where(sql`${t.link_id} is null`),
+    // Every column a filtered report reads, so the report can answer without
+    // touching the base table. Measured: 312 buffers and zero heap fetches,
+    // against 1,678 via a bitmap heap scan (plans/Plan_33.md §A).
+    // occurred_at leads because the window is the one predicate always
+    // present. The rest are there for coverage — after a range qual on the
+    // leading column their order barely matters, so they are narrowest-first.
+    // `id` is deliberately NOT here — see plans/Plan_33.md §B2.
+    // `destination` is absent for the same reason: a full URL with query
+    // string would roughly double the index to serve one breakdown, which
+    // falls back to a heap scan.
+    index("visits_analytics_idx").on(
+      t.occurred_at.desc(),
+      t.is_bot,
+      t.platform,
+      t.link_id,
+      t.domain_id,
+      t.os,
+      t.browser,
+      t.referer_host,
+      t.slug_requested,
+    ),
   ],
 )
 
@@ -225,6 +254,9 @@ export const visitDays = pgTable(
       .nullsNotDistinct(),
     index("visit_days_link_idx").on(t.link_id, t.dimension, t.day),
     index("visit_days_domain_idx").on(t.domain_id, t.dimension, t.day),
+    // The unscoped report — the page everyone lands on — leads with neither
+    // domain nor link, so neither index above can serve it.
+    index("visit_days_dimension_day_idx").on(t.dimension, t.day),
   ],
 )
 

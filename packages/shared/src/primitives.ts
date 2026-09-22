@@ -70,3 +70,16 @@ export type Page<T> = {
   limit: number
   offset: number
 }
+
+/** A comma-separated query parameter, as a list. A caller passing one
+ *  value keeps working unchanged, which is why these never get plural
+ *  names. Absent means an empty list, i.e. no predicate. */
+export function csvList<T extends z.ZodType>(item: T) {
+  return z.preprocess((v) => {
+    if (typeof v !== "string") return []
+    return v
+      .split(",")
+      .map((s) => s.trim())
+      .filter(Boolean)
+  }, z.array(item))
+}

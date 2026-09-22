@@ -1208,6 +1208,52 @@
         }
       }
     },
+    "/api/v1/analytics/summary": {
+      "get": {
+        "tags": ["Analytics"],
+        "operationId": "getAnalyticsSummary",
+        "summary": "Visit totals",
+        "description": "Unfiltered reports read the day rollup. A dimension filter reads the visit log and therefore requires `from` and a window no longer than 366 days. Values within one dimension are ORed; dimensions are ANDed.",
+        "parameters": [
+          { "$ref": "#/components/parameters/AnalyticsFrom" }, { "$ref": "#/components/parameters/AnalyticsTo" }, { "$ref": "#/components/parameters/AnalyticsLinkId" }, { "$ref": "#/components/parameters/AnalyticsDomainId" }, { "$ref": "#/components/parameters/Orphan" }, { "$ref": "#/components/parameters/AnalyticsBot" }, { "$ref": "#/components/parameters/AnalyticsReferer" }, { "$ref": "#/components/parameters/AnalyticsOs" }, { "$ref": "#/components/parameters/AnalyticsBrowser" }, { "$ref": "#/components/parameters/AnalyticsPlatform" }
+        ],
+        "responses": {
+          "200": { "description": "Totals for the selected scope.", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/AnalyticsSummary" } } } },
+          "400": { "$ref": "#/components/responses/ValidationFailed" },
+          "401": { "$ref": "#/components/responses/Unauthorized" }
+        }
+      }
+    },
+    "/api/v1/analytics/timeseries": {
+      "get": {
+        "tags": ["Analytics"],
+        "operationId": "getAnalyticsTimeseries",
+        "summary": "Daily visit totals",
+        "parameters": [
+          { "$ref": "#/components/parameters/AnalyticsFrom" }, { "$ref": "#/components/parameters/AnalyticsTo" }, { "$ref": "#/components/parameters/AnalyticsLinkId" }, { "$ref": "#/components/parameters/AnalyticsDomainId" }, { "$ref": "#/components/parameters/Orphan" }, { "$ref": "#/components/parameters/AnalyticsBot" }, { "$ref": "#/components/parameters/AnalyticsReferer" }, { "$ref": "#/components/parameters/AnalyticsOs" }, { "$ref": "#/components/parameters/AnalyticsBrowser" }, { "$ref": "#/components/parameters/AnalyticsPlatform" }
+        ],
+        "responses": {
+          "200": { "$ref": "#/components/responses/StatsBuckets" },
+          "400": { "$ref": "#/components/responses/ValidationFailed" },
+          "401": { "$ref": "#/components/responses/Unauthorized" }
+        }
+      }
+    },
+    "/api/v1/analytics/breakdown": {
+      "get": {
+        "tags": ["Analytics"],
+        "operationId": "getAnalyticsBreakdown",
+        "summary": "Visit totals grouped by dimension",
+        "parameters": [
+          { "$ref": "#/components/parameters/AnalyticsDimension" }, { "$ref": "#/components/parameters/AnalyticsFrom" }, { "$ref": "#/components/parameters/AnalyticsTo" }, { "$ref": "#/components/parameters/AnalyticsLinkId" }, { "$ref": "#/components/parameters/AnalyticsDomainId" }, { "$ref": "#/components/parameters/Orphan" }, { "$ref": "#/components/parameters/AnalyticsBot" }, { "$ref": "#/components/parameters/AnalyticsReferer" }, { "$ref": "#/components/parameters/AnalyticsOs" }, { "$ref": "#/components/parameters/AnalyticsBrowser" }, { "$ref": "#/components/parameters/AnalyticsPlatform" }
+        ],
+        "responses": {
+          "200": { "$ref": "#/components/responses/StatsBuckets" },
+          "400": { "$ref": "#/components/responses/ValidationFailed" },
+          "401": { "$ref": "#/components/responses/Unauthorized" }
+        }
+      }
+    },
     "/api/v1/stats": {
       "get": {
         "tags": [
@@ -1911,6 +1957,48 @@
           "type": "string",
           "format": "date"
         }
+      },
+      "AnalyticsFrom": {
+        "name": "from", "in": "query",
+        "description": "Inclusive first UTC day. Required when a dimension filter is present.",
+        "schema": { "type": "string", "format": "date" }
+      },
+      "AnalyticsTo": {
+        "name": "to", "in": "query",
+        "description": "Inclusive last UTC day. Defaults to today.",
+        "schema": { "type": "string", "format": "date" }
+      },
+      "AnalyticsLinkId": {
+        "name": "link_id", "in": "query", "description": "Comma-separated link UUIDs.",
+        "schema": { "type": "string" }
+      },
+      "AnalyticsDomainId": {
+        "name": "domain_id", "in": "query", "description": "Comma-separated domain UUIDs.",
+        "schema": { "type": "string" }
+      },
+      "AnalyticsBot": {
+        "name": "bot", "in": "query",
+        "schema": { "type": "string", "enum": ["true", "false", "any"], "default": "any" }
+      },
+      "AnalyticsReferer": {
+        "name": "referer", "in": "query", "description": "Comma-separated referer hosts. `(none)` selects visits without a recorded value.",
+        "schema": { "type": "string" }
+      },
+      "AnalyticsOs": {
+        "name": "os", "in": "query", "description": "Comma-separated operating systems. `(none)` selects visits without a recorded value.",
+        "schema": { "type": "string" }
+      },
+      "AnalyticsBrowser": {
+        "name": "browser", "in": "query", "description": "Comma-separated browsers. `(none)` selects visits without a recorded value.",
+        "schema": { "type": "string" }
+      },
+      "AnalyticsPlatform": {
+        "name": "platform", "in": "query", "description": "Comma-separated platforms.",
+        "schema": { "type": "string", "enum": ["android", "ios", "desktop", "(none)"] }
+      },
+      "AnalyticsDimension": {
+        "name": "dimension", "in": "query", "required": true,
+        "schema": { "type": "string", "enum": ["referer", "os", "browser", "platform", "slug", "destination"] }
       },
       "GroupBy": {
         "name": "group_by",
@@ -2922,6 +3010,16 @@
             "type": "integer",
             "minimum": 0
           }
+        }
+      },
+      "AnalyticsSummary": {
+        "type": "object",
+        "required": ["visits", "human", "bot", "orphans"],
+        "properties": {
+          "visits": { "type": "integer", "minimum": 0, "description": "Human plus bot visits." },
+          "human": { "type": "integer", "minimum": 0 },
+          "bot": { "type": "integer", "minimum": 0 },
+          "orphans": { "type": "integer", "minimum": 0, "description": "Visits that resolved to no link. Always zero under a link_id filter." }
         }
       },
       "KeyCreate": {

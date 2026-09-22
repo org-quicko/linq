@@ -14,7 +14,7 @@ const BOT = "Mozilla/5.0 (compatible; Googlebot/2.1; +http://www.google.com/bot.
 const DIMENSIONS = {
   total: sql`''`,
   platform: sql`${visits.platform}::text`,
-  referer: sql`coalesce(${visits.referer}, '')`,
+  referer: sql`coalesce(${visits.referer_host}, '')`,
   destination: sql`coalesce(${visits.destination}, '')`,
   slug: sql`${visits.slug_requested}`,
 } as const

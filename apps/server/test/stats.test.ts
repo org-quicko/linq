@@ -130,8 +130,9 @@ describe("GET /api/v1/links/:id/stats", () => {
   })
 
   test("a dimension that was never recorded buckets under an empty key", async () => {
+    // Referers roll up by host, not by full URL — plans/Plan_33.md §A/§B1.
     const referers = byKey(await stats(`/api/v1/links/${link_id}/stats?group_by=referer`))
-    expect(referers["https://news.test/"]).toEqual({ human: 2, bot: 0 })
+    expect(referers["news.test"]).toEqual({ human: 2, bot: 0 })
     expect(referers[""]).toEqual({ human: 1, bot: 1 })
   })
 

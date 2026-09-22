@@ -11,6 +11,7 @@ import type { Db } from "../db/client.ts"
 import { guarded as guardedMetadata, type MetadataFetcher, noMetadata } from "../link-metadata.ts"
 import { reqLog, withRequestLog } from "../log.ts"
 import { mountAdmin } from "./admin-static.ts"
+import { analyticsRoutes } from "./api/analytics.ts"
 import { domainRoutes } from "./api/domains.ts"
 import { keyRoutes } from "./api/keys.ts"
 import { linkRoutes, tagRoutes } from "./api/links.ts"
@@ -86,6 +87,7 @@ export function createApp({
 
   const v1 = new Hono<Env>()
   v1.use("*", authenticate)
+  v1.route("/analytics", analyticsRoutes)
   v1.route("/me", meRoutes)
   v1.route("/domains", domainRoutes)
   v1.route("/domains", domainStatsRoutes)
