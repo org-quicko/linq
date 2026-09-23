@@ -1,8 +1,9 @@
-import { type Condition, RESERVED_SLUGS, SLUG_PATTERN } from "@linq/shared"
+import { type Condition, SLUG_PATTERN } from "@linq/shared"
 import { and, eq, inArray } from "drizzle-orm"
 import type { Context } from "hono"
 import { createFactory } from "hono/factory"
 import { domainKey, targetKey } from "../cache.ts"
+import { isReservedSlug } from "../config.ts"
 import type { Db } from "../db/client.ts"
 import { domains, links } from "../db/schema.ts"
 import { reqLog, span } from "../log.ts"
@@ -121,7 +122,9 @@ function findActiveTarget(db: Db, domain_id: string, slug: string): Promise<Reso
       const [row] = await db
         .select()
         .from(links)
-        .where(and(eq(links.domain_id, domain_id), eq(links.slug, slug), eq(links.status, "active")))
+        .where(
+          and(eq(links.domain_id, domain_id), eq(links.slug, slug), eq(links.status, "active")),
+        )
         .limit(1)
       if (!row) return null
       // Rules ride inside the same entry: every hit that resolves reads them, so
@@ -208,10 +211,12 @@ export const redirectHandler = factory.createHandlers(async (c) => {
   const slug = url.pathname.slice(1)
 
   // 1. Reserved paths belong to the API, the Client UI and robots.txt. Matching on
-  //    the first segment covers /api/v1/typo and /home/whatever too, so an
+  //    the first segment covers API typos and unknown UI subpaths too, so an
   //    unclaimed one 404s instead of becoming an orphan visit on the fallback.
   const firstSegment = slug.split("/")[0]?.toLowerCase() ?? ""
-  if (RESERVED_SLUGS.has(firstSegment)) return c.text("Not Found", 404)
+  if (isReservedSlug(firstSegment, c.var.config.LINQ_CLIENT_BASE_PATH)) {
+    return c.text("Not Found", 404)
+  }
 
   // 2. An unknown or archived domain is not ours to report on — except at the
   //    root path of a host nobody ever registered at all, where the Client
@@ -324,7 +329,7 @@ function sendRedirect(c: Context<Env>, destination: string) {
  */
 function redirectToAdmin(c: Context<Env>) {
   c.header("cache-control", "no-store")
-  return c.redirect("/home/", 302)
+  return c.redirect(`${c.var.config.LINQ_CLIENT_BASE_PATH}/`, 302)
 }
 
 /**

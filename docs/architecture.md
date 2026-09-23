@@ -31,12 +31,13 @@ config ──► logger ──► db ──► migrations ──► bootstrap �
 ```
 
 `createApp` (`http/app.ts`) mounts routes in an order that matters: `/api/*`
-first, then `robots.txt`/`llms.txt`, then the exported Client UI at `/home`,
-and the catch-all redirect handler last — so a reserved path can never be
-shadowed by a slug of the same name, and `/home` is never read as one either.
+first, then `robots.txt`/`llms.txt`, then the exported Client UI at its configured
+base path, and the catch-all redirect handler last — so a reserved path can never
+be shadowed by a slug of the same name, and the UI's first segment is never read
+as one either.
 
 ```
-/api/*  ──►  robots.txt, llms.txt  ──►  /home (Client UI)  ──►  catch-all redirect
+/api/*  ──►  robots.txt, llms.txt  ──►  Client UI base path  ──►  catch-all redirect
 (reserved paths win — a slug can never shadow one of these)
 ```
 
@@ -103,8 +104,9 @@ one hit answers the whole redirect), through an optional cache
 the answer back, including a negative "no such thing" result, so a flood of
 404s costs one query per TTL rather than one per request). An expired link is
 treated as an orphan rather than filtered in SQL, because a cached entry can
-outlive its own expiry with nothing to invalidate it. Reserved paths
-(`/api`, `/home`, …) are checked before any of this, by first path segment.
+outlive its own expiry with nothing to invalidate it. Reserved paths (`/api`,
+the configured Client UI first segment, …) are checked before any of this, by
+first path segment.
 Rule matching (`rules/match.ts`) is synchronous and ANDs a rule's conditions;
 the first rule that matches wins, otherwise the link's own destination is
 used. If the link forwards its query, the caller's query merges in and the
@@ -124,7 +126,7 @@ network.
 request  (Host header + slug)
   │
   ▼
-reserved path? (/api, /home, robots.txt, llms.txt)  ──yes──►  routed there, never reaches this handler
+reserved path? (/api, Client UI, robots.txt, llms.txt)  ──yes──►  routed there, never reaches this handler
   │ no
   ▼
 cache lookup (through())  ──hit──►  cached target  ─────────────────────────────┐
@@ -196,11 +198,11 @@ one call site: it attaches the key, and treats "no server connected" and a
 401 identically, redirecting to the landing page without discarding the
 saved server record (only the key is bad, not the URL).
 
-Two builds come from one codebase: `build:client` targets the `/home`
+Two builds come from one codebase: `build:client` targets the configured
 sub-path the server serves at (`http/admin-static.ts` mounts it, path-
 traversal-checked, ahead of the redirect catch-all); `build:client:standalone`
-targets a domain root for hosting anywhere as plain static files. Neither
-needs build-time configuration — no API URL is compiled in.
+targets a domain root for hosting anywhere as plain static files. The combined
+build bakes in its base path; neither build bakes in an API URL.
 
 Server state is Redux Toolkit Query (`lib/store/`) — one `apiSlice` per
 resource, `configureStore` wiring it in. Client-only state (the saved

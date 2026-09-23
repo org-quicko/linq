@@ -87,6 +87,25 @@ describe("POST /api/v1/links", () => {
     }
   })
 
+  test("rejects the configured Client UI first segment", async () => {
+    const custom = await createHarness({ config: { LINQ_CLIENT_BASE_PATH: "/admin/example" } })
+    const customEditor = await custom.actor("editor")
+    const customDomain = await custom.createDomain("custom-client-path.test")
+    const res = await custom.post("/api/v1/links", customEditor.key, {
+      domain_id: customDomain,
+      destination: "https://example.com/",
+      slug: "admin",
+    })
+
+    expect(res.status).toBe(400)
+    expect(await res.json()).toMatchObject({
+      error: {
+        code: "validation_failed",
+        details: [{ path: ["slug"], message: "slug is reserved" }],
+      },
+    })
+  })
+
   test("rejects a malformed slug and a non-http destination", async () => {
     const badSlug = await h.post("/api/v1/links", editor.key, {
       domain_id: domain,
@@ -433,9 +452,8 @@ describe("GET /api/v1/links/count", () => {
     // `status`), so this asserts the delta a fresh archive makes rather than
     // an exact total that would depend on every other describe block's data.
     const total = async (query = "") =>
-      (
-        await (await h.request(`/api/v1/links/count${query}`, { key: editor.key })).json()
-      ).total as number
+      (await (await h.request(`/api/v1/links/count${query}`, { key: editor.key })).json())
+        .total as number
 
     const activeBefore = await total()
     const archivedBefore = await total("?status=archived")

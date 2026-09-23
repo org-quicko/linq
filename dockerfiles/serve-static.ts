@@ -3,7 +3,7 @@ import { isAbsolute, join, relative as relativePath, resolve } from "node:path"
 /**
  * Serves a Next.js static export built for a domain root (trailingSlash: true,
  * no basePath) at `/`. Mirrors apps/server/src/http/admin-static.ts, which
- * serves the same kind of export at `/home` inside the combined image — same
+ * serves the same kind of export at a configured path inside the combined image — same
  * trailing-slash resolution, same immutable caching for hashed
  * `_next/static` assets, same custom 404.html, same path-traversal guard.
  */

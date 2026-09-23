@@ -56,6 +56,13 @@ describe("domain resolution", () => {
     expect(await visitCount()).toBe(before)
   })
 
+  test("the unknown-host fallback follows the configured Client UI path", async () => {
+    const custom = await createHarness({ config: { LINQ_CLIENT_BASE_PATH: "/admin/example" } })
+    const res = await custom.request("/", { host: "never-registered.test" })
+    expect(res.status).toBe(302)
+    expect(res.headers.get("location")).toBe("/admin/example/")
+  })
+
   test("an archived domain is an untracked 404 for everything", async () => {
     const admin = await h.actor("admin")
     const closed = await h.createDomain("closed.test")
@@ -120,6 +127,18 @@ describe("reserved paths", () => {
     expect((await get("/API/v1/nope")).status).toBe(404)
 
     expect(await visitCount()).toBe(before)
+  })
+
+  test("includes the configured Client UI first segment", async () => {
+    const custom = await createHarness({ config: { LINQ_CLIENT_BASE_PATH: "/admin/example" } })
+    const customDomain = await custom.createDomain(
+      "custom-path.test",
+      "https://example.com/fallback",
+    )
+    expect(customDomain).toBeDefined()
+
+    const res = await custom.request("/admin/not-the-ui", { host: "custom-path.test" })
+    expect(res.status).toBe(404)
   })
 
   test("but a deep path that is not reserved is still an orphan", async () => {

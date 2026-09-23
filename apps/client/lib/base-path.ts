@@ -1,9 +1,9 @@
 /**
  * Where this build of the UI is mounted.
  *
- * Two shapes ship from one codebase: a linq server serves the UI at `/home`,
- * and a static host serves it at a domain root. `next.config.ts` reads the same
- * variable for `basePath`, so the two can never disagree.
+ * Two shapes ship from one codebase: a linq server serves the UI at a configured
+ * non-root path, and a static host serves it at a domain root. `next.config.ts`
+ * reads the same variable for `basePath`, so the two can never disagree.
  *
  * `next/link`, `router.push` and `usePathname` handle the prefix themselves —
  * this is only for `window.location`, which Next does not rewrite. Inlined at

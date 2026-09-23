@@ -1,7 +1,7 @@
 # syntax=docker/dockerfile:1
 
 # API-only image: no Client UI build stage, nothing copied into
-# apps/client/out. The server answers 404 on /home/* and otherwise behaves
+# apps/client/out. The server answers 404 on its configured Client UI path and otherwise behaves
 # exactly as the combined image — it still serves the API and the redirects.
 # Postgres is always external; see docker-compose-examples/.
 #

@@ -100,12 +100,12 @@ export function createApp({
   // `.on([...])`, not `.get()`: GET-only left HEAD falling through to the
   // catch-all's 404. Both text routes take the same fix.
   app.on(["GET", "HEAD"], "/robots.txt", (c) =>
-    c.text("User-agent: *\nDisallow: /api\nDisallow: /home\n"),
+    c.text(`User-agent: *\nDisallow: /api\nDisallow: ${config.LINQ_CLIENT_BASE_PATH}\n`),
   )
   app.on(["GET", "HEAD"], "/llms.txt", ...llmsHandler)
 
-  // The exported Client UI. Before the catch-all, or /home reads as a slug.
-  mountAdmin(app)
+  // The exported Client UI. Before the catch-all, or its first segment reads as a slug.
+  mountAdmin(app, { basePath: config.LINQ_CLIENT_BASE_PATH })
 
   // Last: the catch-all redirect, so every reserved path above wins the match.
   app.on(["GET", "HEAD"], "/*", ...redirectHandler)

@@ -26,7 +26,7 @@ export type Server = {
    *
    * Nothing depends on being hosted by the server it administers: being served
    * by one grants the UI no implicit address and no implicit credential. That is
-   * what lets the same build run from a linq server at `/home` and from a
+   * what lets the same build run from a linq server base path and from a
    * static host at a domain root.
    */
   apiUrl: string

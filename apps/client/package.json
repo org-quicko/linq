@@ -5,8 +5,8 @@
   "type": "module",
   "scripts": {
     "dev": "bun dev.ts",
-    "build": "NEXT_PUBLIC_BASE_PATH=/home next build",
-    "build:standalone": "rm -rf out-standalone && next build && mv out out-standalone"
+    "build": "bun run next build",
+    "build:standalone": "rm -rf out-standalone && NEXT_PUBLIC_BASE_PATH= bun run next build && mv out out-standalone"
   },
   "dependencies": {
     "@linq/shared": "workspace:*",

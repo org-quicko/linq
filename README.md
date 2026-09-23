@@ -53,11 +53,14 @@ Both local ports are configurable in the repo-root `.env` (or `.env.local`):
 ```dotenv
 LINQ_PORT=4000
 LINQ_CLIENT_PORT=4001
+LINQ_CLIENT_BASE_PATH=/home
 LINQ_DEFAULT_DOMAIN=localhost:${LINQ_PORT}
 ```
 
 `LINQ_PORT` controls the API/redirect server for `dev` and `start`;
 `LINQ_CLIENT_PORT` controls `dev:client`. They default to 3000 and 3001.
+`LINQ_CLIENT_BASE_PATH` controls where a combined deployment mounts the UI and
+defaults to `/home`.
 Restart the relevant process after changing a port, and use that port in
 your browser and the UI's saved Server URL. `LINQ_DEFAULT_DOMAIN` only seeds
 an empty database; update an existing domain through the UI if its port changes.
@@ -148,8 +151,8 @@ The URLs below use the default ports. Substitute your configured values.
 
 | URL | What it is |
 |---|---|
-| http://localhost:3001/home/ | Client UI, in development |
-| http://localhost:3000/home/ | Client UI, when the server serves the built export |
+| http://localhost:3001/home/ | Client UI, in development (default base path) |
+| http://localhost:3000/home/ | Client UI, when the server serves the built export (default base path) |
 | http://localhost:3000/api/v1 | REST API |
 | http://localhost:3000/`slug` | A short link, which redirects |
 
@@ -164,7 +167,7 @@ bun run test      # server and client suites, in that order
 bun run typecheck # tsc -b --force
 bun run lint      # biome check .
 bun run format    # biome check --write .
-bun run build:client             # the export the server serves at /home
+bun run build:client             # the export the server serves at LINQ_CLIENT_BASE_PATH
 bun run build:client:standalone  # the export for a static host, at a domain root
 bun run db:generate  # generate a migration after editing db/schema.ts
 ```
@@ -174,8 +177,9 @@ bun run db:generate  # generate a migration after editing db/schema.ts
 There are two supported shapes, from one codebase.
 
 **Served by linq**, the default. `bun run build:client` writes `apps/client/out`,
-built for the `/home` sub-path, and the server serves it from there. One process,
-one deployment, nothing to configure — this is what the Docker image does.
+built for `LINQ_CLIENT_BASE_PATH` (`/home` by default), and the server serves it
+from there. One process and one deployment — this is what the full Docker image
+does.
 
 **On its own**, anywhere that serves static files. `bun run build:client:standalone`
 writes `apps/client/out-standalone`, built for a domain root. Upload that directory
@@ -191,11 +195,12 @@ Two things to get right:
   index document configured.
 
 The two outputs are kept in separate directories on purpose: a root-path export
-sitting in `apps/client/out` would be served by the server at `/home` with every
-asset path wrong.
+sitting in `apps/client/out` would be served at the combined deployment's base
+path with every asset path wrong.
 
-The UI needs no build-time configuration either way — no API URL is compiled in.
-A server is added at runtime and stored in the browser, so one standalone
+No API URL is compiled into either UI shape. The combined shape does compile its
+base path into the static files; the standalone shape always uses `/`. A server
+is added at runtime and stored in the browser, so one standalone
 deployment serves any number of instances, and the people using it need no access
 to the deployment to point it somewhere new.
 
@@ -216,6 +221,26 @@ redirects and the Client UI from one process. Postgres stays external, and
 so does Redis if you opt into it. Pick a matching file from
 `docker-compose-examples/`, copy it out, set a real password and
 `LINQ_DEFAULT_DOMAIN`, then `docker compose up`.
+
+The full image serves the UI at `/home` by default. To use another path, rebuild
+the image with a build argument:
+
+```sh
+docker build --build-arg LINQ_CLIENT_BASE_PATH=/admin/example -f dockerfiles/Dockerfile.full -t linq .
+```
+
+The path is written into the static frontend during `docker build`; changing only
+the running container's environment would make the frontend and server disagree.
+For Compose, put the build argument under `linq.build.args` in your copied file,
+then run `docker compose up --build`:
+
+```yaml
+services:
+  linq:
+    build:
+      args:
+        LINQ_CLIENT_BASE_PATH: /admin/example
+```
 
 Compose also reads `LINQ_PORT` from `.env` to choose the published host port.
 The container continues listening on 3000, so Caddy's internal upstream stays
@@ -245,8 +270,8 @@ Neither container publishes host port 3000. Both can listen internally on
 client Compose file also works by itself against an API you already run.
 
 If you deploy the UI separately, `dockerfiles/Dockerfile.server` is the same
-image with the Client UI build stage dropped — the server answers 404 on
-`/home/*` and carries on serving the API and the redirects. See
+image with the Client UI build stage dropped — the server answers 404 on its
+configured Client UI path and carries on serving the API and the redirects. See
 `dockerfiles/README.md` for all three image shapes.
 
 ### Custom domains with automatic HTTPS

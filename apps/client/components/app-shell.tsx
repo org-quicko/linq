@@ -20,7 +20,7 @@ import { useCountLinksQuery } from "../lib/store/links"
  * still pinned below the spacer, but Short links / Analytics / Archives sit
  * as three plain rows above it rather than nested under group headings.
  *
- * Hrefs are basePath-free: `next/link` and `router` prepend `/home`
+ * Hrefs are basePath-free: `next/link` and `router` prepend the configured base path
  * themselves, and `usePathname` strips it back off, so writing it here would
  * both double it in the URL and stop the active-link comparison below from
  * ever matching. `lib/api.ts` is the one place that spells it out, because it

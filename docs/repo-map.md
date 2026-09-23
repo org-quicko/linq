@@ -12,7 +12,7 @@ feature-linq/
 │  └─ client/     @linq/client — the Next.js Client UI, exported static
 ├─ packages/
 │  └─ shared/     @linq/shared — zod schemas, types and permission rules both apps import
-├─ resources/     generated artifacts kept in the repo: DBML and the OpenAPI spec
+├─ resources/     DBML and OpenAPI spec, kept in sync with the code
 ├─ docs/
 │  └─ adr/        decisions that are hard to reverse, and why
 ├─ docker-compose-examples/, dockerfiles/, caddy/   deployment shapes
@@ -52,7 +52,7 @@ a separate Next.js project with its own config. `bun run typecheck` runs
 | `db/` | `schema.ts` (Drizzle tables — see architecture.md's data model), `client.ts` (`createDb`, the driver-agnostic `Db` type the test suite substitutes PGlite for), `migrate.ts` (runs migrations at boot) |
 | `http/app.ts` | `createApp` — mounts every route, in the order that keeps the redirect catch-all from shadowing anything reserved |
 | `http/redirect.ts` | The redirect handler: domain/link/rule resolution, the cache-through helper, query merging, and the link-preview OG page |
-| `http/admin-static.ts` | Serves the exported Client UI at `/home`, path-traversal-checked |
+| `http/admin-static.ts` | Serves the exported Client UI at `LINQ_CLIENT_BASE_PATH` (`/home` by default), path-traversal-checked |
 | `http/llms.ts` | `GET /llms.txt` — the per-domain catalogue of opted-in links, unauthenticated. See `docs/adr/0013` |
 | `http/env.ts` | The Hono `Env` type — what `c.var` and `c.get`/`c.set` carry (db, config, cache, caddy, metadata, principal) |
 | `http/validate.ts` | The zod-body/query/param validation middleware every route uses |
@@ -70,7 +70,7 @@ a separate Next.js project with its own config. `bun run typecheck` runs
 | `lib/api.ts` | The one fetch call site — attaches the active server's key, normalizes a 401 into "disconnect and redirect" |
 | `lib/servers.ts` | The saved-servers `localStorage` model: list, active, probe (health + `/me` check before saving), legacy single-key migration. See `docs/adr/0006` |
 | `lib/store/` | Redux Toolkit: `index.ts` wires the store, `api.ts` the RTK Query base, one file per resource (`domains.ts`, `links.ts`, `keys.ts`, `qr-codes.ts`, `stats.ts`) |
-| `lib/hooks.ts`, `lib/qr.ts`, `lib/base-path.ts`, `lib/utils.ts` | Shared client-only helpers — hooks, QR rendering, the `/home` base-path prefixer for `next/link`-bypassing redirects, misc |
+| `lib/hooks.ts`, `lib/qr.ts`, `lib/base-path.ts`, `lib/utils.ts` | Shared client-only helpers — hooks, QR rendering, the build-time base-path prefixer for `next/link`-bypassing redirects, misc |
 | `test/` | Client-side unit tests, mirroring `lib/` |
 
 ## `packages/shared/src/`
@@ -102,7 +102,7 @@ from a JSON body on the client). Nothing here imports from either app.
 
 | Path | What it is |
 |------|------------|
-| `dockerfiles/` | `Dockerfile.full` (server + built Client UI in one image), `Dockerfile.server` (server only, `/home` 404s), `Dockerfile.client` (standalone client build) |
+| `dockerfiles/` | `Dockerfile.full` (server + built Client UI in one image), `Dockerfile.server` (server only, configured UI path 404s), `Dockerfile.client` (standalone client build) |
 | `docker-compose-examples/` | One compose file per deployment shape — bundled or external Postgres, with or without Redis/Caddy, client served together or standalone |
 | `caddy/` | The Caddy config template used by the `*.with-caddy.yml`/`*.full.yml` compose files. See `docs/adr/0012` |
 

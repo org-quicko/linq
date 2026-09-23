@@ -26,8 +26,14 @@ import {
 } from "drizzle-orm"
 import { Hono } from "hono"
 import { z } from "zod"
-import { assertCanArchive, assertCanEdit, assertCanPurge, assertRole } from "../../auth/permissions.ts"
+import {
+  assertCanArchive,
+  assertCanEdit,
+  assertCanPurge,
+  assertRole,
+} from "../../auth/permissions.ts"
 import { linkKeys } from "../../cache.ts"
+import { isReservedSlug } from "../../config.ts"
 import type { Db } from "../../db/client.ts"
 import { domains, links, rules, visitCounts } from "../../db/schema.ts"
 import { span } from "../../log.ts"
@@ -144,19 +150,21 @@ export function loadLink(db: Db, id: string): Promise<typeof links.$inferSelect>
 function insertLink(
   db: Db,
   values: Omit<typeof links.$inferInsert, "id" | "slug">,
-  opts: { slug?: string; slugLength: number },
+  opts: { slug?: string; slugLength: number; clientBasePath: string },
 ): Promise<typeof links.$inferSelect> {
   return span(
     "link.insert",
     async () => {
       const attempts = opts.slug ? 1 : 5
       for (let i = 0; i < attempts; i++) {
+        const slug = opts.slug ?? randomSlug(opts.slugLength)
+        if (isReservedSlug(slug, opts.clientBasePath)) continue
         const [row] = await db
           .insert(links)
           .values({
             ...values,
             id: Bun.randomUUIDv7(),
-            slug: opts.slug ?? randomSlug(opts.slugLength),
+            slug,
           })
           .onConflictDoNothing({ target: [links.domain_id, links.slug] })
           .returning()
@@ -240,6 +248,11 @@ export const linkRoutes = new Hono<Env>()
   .post("/", validate("json", linkCreateSchema), async (c) => {
     assertRole(c.var.principal, "editor")
     const body = c.req.valid("json")
+    if (body.slug && isReservedSlug(body.slug, c.var.config.LINQ_CLIENT_BASE_PATH)) {
+      throw ApiError.validation("request validation failed", [
+        { code: "custom", path: ["slug"], message: "slug is reserved" },
+      ])
+    }
     const fetched = await c.var.metadata.fetch(body.destination)
 
     // FOR SHARE conflicts with the archiver's FOR UPDATE (domains.ts's
@@ -271,7 +284,11 @@ export const linkRoutes = new Hono<Env>()
           expires_at: body.expires_at ? new Date(body.expires_at) : null,
           listed: body.listed,
         },
-        { slug: body.slug, slugLength: c.var.config.LINQ_SLUG_LENGTH },
+        {
+          slug: body.slug,
+          slugLength: c.var.config.LINQ_SLUG_LENGTH,
+          clientBasePath: c.var.config.LINQ_CLIENT_BASE_PATH,
+        },
       )
 
       if (body.rules && body.rules.length > 0) {

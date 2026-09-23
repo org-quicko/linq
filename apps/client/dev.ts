@@ -15,7 +15,10 @@ const child = spawn(
   ],
   {
     cwd: fileURLToPath(new URL(".", import.meta.url)),
-    env: { ...process.env, NEXT_PUBLIC_BASE_PATH: "/home" },
+    env: {
+      ...process.env,
+      NEXT_PUBLIC_BASE_PATH: process.env.LINQ_CLIENT_BASE_PATH || "/home",
+    },
     stdio: "inherit",
     windowsHide: true,
   },

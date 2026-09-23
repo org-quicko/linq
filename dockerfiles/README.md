@@ -8,7 +8,7 @@ publishing images:
 | --- | --- | --- |
 | `Dockerfile.client` | Client UI only, as a standalone static export | `oven/bun:1.4` |
 | `Dockerfile.server` | API and redirects only, no Client UI | `oven/bun:1.4` |
-| `Dockerfile.full` | Both — the API and the Client UI at `/home`, one process | `oven/bun:1.4` |
+| `Dockerfile.full` | Both — the API and the Client UI at `/home` by default, one process | `oven/bun:1.4` |
 
 `Dockerfile.client` runs `serve-static.ts` under plain Bun rather than
 introducing nginx as a second base image. It mirrors
@@ -28,6 +28,14 @@ even when only one app is being built:
 docker build -f dockerfiles/Dockerfile.client  -t linq-client  .
 docker build -f dockerfiles/Dockerfile.server  -t linq-server  .
 docker build -f dockerfiles/Dockerfile.full     -t linq        .
+```
+
+`Dockerfile.full` accepts `LINQ_CLIENT_BASE_PATH` as a build argument. It feeds
+the same value to the static frontend build and runtime server. The default is
+`/home`; changing it requires rebuilding the image:
+
+```sh
+docker build --build-arg LINQ_CLIENT_BASE_PATH=/admin/example -f dockerfiles/Dockerfile.full -t linq .
 ```
 
 `Dockerfile.client` needs no environment or Postgres — it's static files, and

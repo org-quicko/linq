@@ -1,6 +1,30 @@
 import { join } from "node:path"
-import { hostSchema } from "@linq/shared"
+import { hostSchema, RESERVED_SLUGS } from "@linq/shared"
 import { z } from "zod"
+
+const clientBasePathSchema = z
+  .string()
+  .trim()
+  .max(256)
+  .regex(
+    /^\/(?:[a-z0-9_-]{1,64})(?:\/[a-z0-9_-]{1,64})*$/,
+    "must start with /, contain lowercase path segments, and have no trailing slash",
+  )
+  .refine((path) => {
+    const first = path.slice(1).split("/")[0]
+    return first === "home" || !RESERVED_SLUGS.has(first)
+  }, "first segment conflicts with a server route")
+
+/** The top-level slug claimed by the configured Client UI mount. */
+export function clientBaseSegment(basePath: string): string {
+  return basePath.slice(1).split("/")[0] ?? ""
+}
+
+/** Static server paths plus the deployment-specific Client UI mount. */
+export function isReservedSlug(slug: string, clientBasePath: string): boolean {
+  const normalised = slug.toLowerCase()
+  return RESERVED_SLUGS.has(normalised) || normalised === clientBaseSegment(clientBasePath)
+}
 
 const schema = z
   .object({
@@ -25,6 +49,8 @@ const schema = z
      */
     LINQ_CACHE_MAX_ENTRIES: z.coerce.number().int().min(1).max(1_000_000).default(10_000),
     LINQ_PORT: z.coerce.number().int().min(1).max(65535).default(3000),
+    /** Where a combined deployment mounts its pre-built Client UI. */
+    LINQ_CLIENT_BASE_PATH: clientBasePathSchema.default("/home"),
     // Same hostSchema an API-created domain goes through: a scheme snuck in
     // here (e.g. LINQ_DEFAULT_DOMAIN=https://example.com) would otherwise be
     // stored verbatim and doubled up by shortUrl()'s own "https://".

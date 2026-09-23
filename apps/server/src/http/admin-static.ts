@@ -21,21 +21,24 @@ function cacheControl(path: string): string {
 }
 
 /**
- * Serves the exported Client UI at /home.
+ * Serves the exported Client UI at its configured base path.
  *
- * `trailingSlash` is on in the export, so `/home/links/` maps to
+ * `trailingSlash` is on in the export, so `<basePath>/links/` maps to
  * `links/index.html`; a path without the slash is tried as a file first and then
- * as a directory, which is what makes `/home/links` work too.
+ * as a directory, which is what makes `<basePath>/links` work too.
  *
- * Must be mounted before the catch-all redirect, or `/home` would be read as a
- * slug. Returns 404 when no export is present, so a server running without a
- * built UI still serves redirects and the API.
+ * Must be mounted before the catch-all redirect, or the first path segment
+ * would be read as a slug. Returns 404 when no export is present, so a server
+ * running without a built UI still serves redirects and the API.
  */
-export function mountAdmin(app: Hono<Env>, root: string = adminRoot): void {
-  app.get("/home", (c) => c.redirect("/home/", 302))
+export function mountAdmin(
+  app: Hono<Env>,
+  { basePath, root = adminRoot }: { basePath: string; root?: string },
+): void {
+  app.get(basePath, (c) => c.redirect(`${basePath}/`, 302))
 
-  app.get("/home/*", async (c) => {
-    const relative = c.req.path.slice("/home".length) || "/"
+  app.get(`${basePath}/*`, async (c) => {
+    const relative = c.req.path.slice(basePath.length) || "/"
 
     // Trust boundary: resolve the path, then refuse anything that landed outside
     // the export directory, however it was encoded. `relative` handles the

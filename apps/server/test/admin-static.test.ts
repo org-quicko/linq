@@ -92,4 +92,12 @@ describe("mounting order", () => {
   test("the API still answers even though /home is mounted", async () => {
     expect((await h.request("/api/health")).status).toBe(200)
   })
+
+  test("mounts the Client UI at a configured multi-segment path", async () => {
+    const custom = await createHarness({ config: { LINQ_CLIENT_BASE_PATH: "/admin/example" } })
+    const res = await custom.request("/admin/example")
+    expect(res.status).toBe(302)
+    expect(res.headers.get("location")).toBe("/admin/example/")
+    expect((await custom.request("/admin/example/nope")).status).toBe(404)
+  })
 })
