@@ -223,16 +223,17 @@ so does Redis if you opt into it. Pick a matching file from
 `LINQ_DEFAULT_DOMAIN`, then `docker compose up`.
 
 The full image serves the UI at `/home` by default. To use another path, rebuild
-the image with a build argument:
+the image with an explicit build argument:
 
 ```sh
 docker build --build-arg LINQ_CLIENT_BASE_PATH=/admin/example -f dockerfiles/Dockerfile.full -t linq .
 ```
 
-The path is written into the static frontend during `docker build`; changing only
-the running container's environment would make the frontend and server disagree.
-For Compose, put the build argument under `linq.build.args` in your copied file,
-then run `docker compose up --build`:
+The Dockerfile does not read `.env`. The path is written into the static frontend
+during `docker build`; changing only the running container's environment would
+make the frontend and server disagree. For Compose, put the literal build
+argument under `linq.build.args` in your copied file, then run
+`docker compose up --build`:
 
 ```yaml
 services:

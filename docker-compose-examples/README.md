@@ -29,7 +29,20 @@ domain through the UI as well: the default domain only seeds an empty database.
 | 8 | `08-external-postgres-full.yml` | external | yes | yes |
 
 All eight of the above build from `../dockerfiles/Dockerfile.full` — the
-combined image, API plus Client UI at `/home`. `../dockerfiles/` also has
+combined image, API plus Client UI at `/home` by default. The UI path is a
+build-time option. To use another path, add a literal build argument to the
+`linq` service in the Compose file you deploy, then rebuild:
+
+```yaml
+services:
+  linq:
+    build:
+      args:
+        LINQ_CLIENT_BASE_PATH: /admin/example
+```
+
+The Dockerfile and these examples do not read that value from `.env`.
+`../dockerfiles/` also has
 `Dockerfile.server` (API only) and `Dockerfile.client` (Client UI only, as a
 standalone export); the two files below (9 and 10) build from those instead,
 for a split deployment across separate containers and ports.

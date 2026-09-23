@@ -38,6 +38,10 @@ the same value to the static frontend build and runtime server. The default is
 docker build --build-arg LINQ_CLIENT_BASE_PATH=/admin/example -f dockerfiles/Dockerfile.full -t linq .
 ```
 
+The Dockerfile does not read `.env`; pass the argument explicitly. With Compose,
+put the literal value under `services.linq.build.args` in the Compose file you
+deploy, then rebuild.
+
 `Dockerfile.client` needs no environment or Postgres — it's static files, and
 the UI is pointed at a linq server at runtime, in the browser. `Dockerfile.server`
 and `Dockerfile.full` need `DATABASE_URL`, `LINQ_DEFAULT_DOMAIN`, etc. at
