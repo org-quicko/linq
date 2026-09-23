@@ -62,14 +62,22 @@ export async function api<T>(path: string, init: RequestInit = {}): Promise<T> {
 }
 
 /**
- * Reads a message off whatever a catch block caught: an `Error`, or the
- * `{status, code, message}` object an RTK Query mutation's `.unwrap()` throws.
+ * Reads a message off whatever a catch block caught, for the one caller
+ * (the server connection form) that shows a client-crafted diagnostic
+ * (`new Error("...")`, no `code`) inline instead of a toast.
+ *
+ * Anything shaped like an API error — a `code` field, whether a raw
+ * `ApiError` or the `{status, code, message}` an RTK Query mutation's
+ * `.unwrap()` throws — always falls back to the caller's action-specific
+ * text instead: the server's wording (a zod issue, a raw SQL conflict) is
+ * meant for logs, not a toast.
  */
 export function errorMessage(err: unknown, fallback: string): string {
   if (
     err &&
     typeof err === "object" &&
-    typeof (err as { message?: unknown }).message === "string"
+    typeof (err as { message?: unknown }).message === "string" &&
+    !("code" in err)
   ) {
     return (err as { message: string }).message
   }

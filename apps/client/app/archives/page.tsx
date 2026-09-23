@@ -54,11 +54,13 @@ function ArchivedLinksTab() {
   const { run } = useRun()
 
   function restore(link: Link) {
-    return run(() => updateLink({ id: link.id, body: { status: "active" } }).unwrap())
+    return run(() => updateLink({ id: link.id, body: { status: "active" } }).unwrap(), {
+      fallback: "Could not restore that link.",
+    })
   }
 
   function purge(link: Link) {
-    return run(() => purgeLink(link.id).unwrap())
+    return run(() => purgeLink(link.id).unwrap(), { fallback: "Could not delete that link." })
   }
 
   /** One call, server-side: `DELETE /v1/links/purge` destroys every archived

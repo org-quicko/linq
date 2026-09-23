@@ -376,7 +376,7 @@ function LinkRow({
               variant="destructive"
               onClick={() => {
                 setConfirmArchive(false)
-                run(() => archiveLink(link.id).unwrap())
+                run(() => archiveLink(link.id).unwrap(), { fallback: "Could not archive that link." })
               }}
             >
               Archive
