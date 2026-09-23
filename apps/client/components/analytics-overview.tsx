@@ -343,15 +343,10 @@ export function smoothPath(points: { x: number; y: number }[]): string {
   if (points.length === 1) return `M ${points[0].x} ${points[0].y}`
   let path = `M ${points[0].x} ${points[0].y}`
   for (let i = 0; i < points.length - 1; i++) {
-    const p0 = points[i - 1] ?? points[i]
     const p1 = points[i]
     const p2 = points[i + 1]
-    const p3 = points[i + 2] ?? p2
-    const minY = Math.min(p1.y, p2.y)
-    const maxY = Math.max(p1.y, p2.y)
-    const control1Y = Math.min(maxY, Math.max(minY, p1.y + (p2.y - p0.y) / 6))
-    const control2Y = Math.min(maxY, Math.max(minY, p2.y - (p3.y - p1.y) / 6))
-    path += ` C ${p1.x + (p2.x - p0.x) / 6} ${control1Y}, ${p2.x - (p3.x - p1.x) / 6} ${control2Y}, ${p2.x} ${p2.y}`
+    const midX = (p1.x + p2.x) / 2
+    path += ` C ${midX} ${p1.y}, ${midX} ${p2.y}, ${p2.x} ${p2.y}`
   }
   return path
 }

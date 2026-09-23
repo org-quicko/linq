@@ -80,6 +80,6 @@ describe("analytics ranges", () => {
       { x: 75, y: 4 },
     ])
 
-    expect(path).toContain("C 33.333333333333336 99, 41.666666666666664 99, 50 99")
+    expect(path).toContain("C 37.5 99, 37.5 99, 50 99")
   })
 })
