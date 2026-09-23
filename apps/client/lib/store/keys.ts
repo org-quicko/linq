@@ -11,7 +11,7 @@ export const keysApi = apiSlice.injectEndpoints({
       query: () => ({ path: "/v1/me" }),
     }),
 
-    /** Below admin the server returns only `{ id, name, role }` — the owner column and the transfer-target filter. */
+    /** Below admin the server returns only `{ id, name, role }`. */
     listKeys: build.query<Page<ApiKey | ApiKeySummary>, { limit?: number }>({
       query: (params) => ({ path: `/v1/keys${qs(params)}` }),
       providesTags: (result) =>
@@ -43,19 +43,7 @@ export const keysApi = apiSlice.injectEndpoints({
       invalidatesTags: (_result, _error, id) => [
         { type: "Key", id },
         { type: "Key", id: "LIST" },
-        // A revoked key's links become unowned, so their owner column is stale.
-        { type: "Link", id: "LIST" },
       ],
-    }),
-
-    /** Moves every link `id` owns to `to`, or unassigns them when `to` is null. */
-    reassignKeyLinks: build.mutation<{ moved: number }, { id: string; to: string | null }>({
-      query: ({ id, to }) => ({
-        path: `/v1/keys/${id}/links/reassign`,
-        method: "POST",
-        body: { to },
-      }),
-      invalidatesTags: [{ type: "Link", id: "LIST" }],
     }),
   }),
 })
@@ -66,5 +54,4 @@ export const {
   useMintKeyMutation,
   useUpdateKeyMutation,
   useRevokeKeyMutation,
-  useReassignKeyLinksMutation,
 } = keysApi

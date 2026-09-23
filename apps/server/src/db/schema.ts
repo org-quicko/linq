@@ -16,7 +16,7 @@ import {
   uuid,
 } from "drizzle-orm/pg-core"
 
-export const roleEnum = pgEnum("role", ["viewer", "author", "manager", "admin"])
+export const roleEnum = pgEnum("role", ["viewer", "editor", "admin"])
 export const resourceStatusEnum = pgEnum("resource_status", ["active", "archived"])
 export const platformEnum = pgEnum("platform", ["android", "ios", "desktop"])
 export const qrPatternEnum = pgEnum("qr_pattern", ["squares", "rounded", "dots"])
@@ -86,12 +86,6 @@ export const links = pgTable(
     forward_query: boolean("forward_query").notNull().default(true),
     preset_params: jsonb("preset_params").$type<Record<string, string>>().notNull().default({}),
     status: resourceStatusEnum("status").notNull().default("active"),
-    /**
-     * The key that created it. Nullable: revoking a key must always succeed, so
-     * its links are left unowned rather than holding the revoke hostage. An
-     * unowned link is editable by a manager or admin. See docs/adr/0011.
-     */
-    owner_id: uuid("owner_id").references(() => apiKeys.id, { onDelete: "set null" }),
     /** Past this, the link resolves like an unknown slug. Null never expires. */
     expires_at: timestamp("expires_at", { withTimezone: true }),
     /** Opt-in: listed in this domain's public /llms.txt catalogue. Off by
@@ -103,7 +97,6 @@ export const links = pgTable(
   },
   (t) => [
     uniqueIndex("links_domain_slug_key").on(t.domain_id, t.slug),
-    index("links_owner_id_idx").on(t.owner_id),
     index("links_status_idx").on(t.status),
     index("links_tags_idx").using("gin", t.tags),
     index("links_listed_idx").on(t.domain_id).where(sql`${t.listed}`),

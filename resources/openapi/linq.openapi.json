@@ -431,14 +431,6 @@
             }
           },
           {
-            "name": "owner_id",
-            "in": "query",
-            "schema": {
-              "type": "string",
-              "format": "uuid"
-            }
-          },
-          {
             "name": "status",
             "in": "query",
             "schema": {
@@ -531,7 +523,7 @@
         ],
         "operationId": "createLink",
         "summary": "Create a link",
-        "description": "Requires: **author**. The caller becomes the owner.\n\nOmit `slug` for a generated one. A custom slug that is taken on that\ndomain — including by an archived link — is a 409.\n",
+        "description": "Requires: **editor**.\n\nOmit `slug` for a generated one. A custom slug that is taken on that\ndomain — including by an archived link — is a 409.\n",
         "requestBody": {
           "required": true,
           "content": {
@@ -711,7 +703,7 @@
         ],
         "operationId": "updateLink",
         "summary": "Update a link",
-        "description": "Requires: **author** for a link you own, **manager** for any link.\n\n`slug` and `domain_id` are immutable, and the body is strict, so sending\neither is a 400 rather than a silently ignored field. Changing\n`owner_id` additionally needs **admin**, unless you are transferring your\nown link.\n",
+        "description": "Requires: **editor**, except a `status` change (archiving or restoring), which requires **admin**.\n\n`slug` and `domain_id` are immutable, and the body is strict, so sending\neither is a 400 rather than a silently ignored field.\n",
         "requestBody": {
           "required": true,
           "content": {
@@ -744,16 +736,6 @@
           },
           "404": {
             "$ref": "#/components/responses/NotFound"
-          },
-          "409": {
-            "description": "The target of `owner_id` is a viewer key, which may not own a link.",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Error"
-                }
-              }
-            }
           }
         }
       },
@@ -763,7 +745,7 @@
         ],
         "operationId": "archiveLink",
         "summary": "Archive a link",
-        "description": "Requires: **author** for a link you own, **manager** for any link.\n\n`DELETE` archives; it never destroys. An archived link stops\nredirecting — its slug becomes an orphan visit — but keeps its row, its\nvisits and its reservation on that slug. Reversible by\n`PATCH { \"status\": \"active\" }`. See `docs/adr/0002`.\n",
+        "description": "Requires: **admin**.\n\n`DELETE` archives; it never destroys. An archived link stops\nredirecting — its slug becomes an orphan visit — but keeps its row, its\nvisits and its reservation on that slug. Reversible by\n`PATCH { \"status\": \"active\" }` (also admin only). See `docs/adr/0002` and\n`docs/adr/0016`.\n",
         "responses": {
           "200": {
             "description": "The archived link.",
@@ -867,7 +849,7 @@
         ],
         "operationId": "replaceLinkRules",
         "summary": "Replace a link's rules",
-        "description": "Requires: **author** for a link you own, **manager** for any link.\n\nReplaces the whole ordered set in one transaction; the server owns\n`position` and assigns it from the array order. Send `[]` to remove\nevery rule.\n",
+        "description": "Requires: **editor**.\n\nReplaces the whole ordered set in one transaction; the server owns\n`position` and assigns it from the array order. Send `[]` to remove\nevery rule.\n",
         "requestBody": {
           "required": true,
           "content": {
@@ -982,7 +964,7 @@
         ],
         "operationId": "createQrCode",
         "summary": "Create a QR code",
-        "description": "Requires: **author** on the target link's owner, **manager** for any link. A QR code is always attached to a link — `link_id` is required — and the link must be active: an archived link's short URL does not resolve, so a code for one would be born dead.\n",
+        "description": "Requires: **editor**. A QR code is always attached to a link — `link_id` is required — and the link must be active: an archived link's short URL does not resolve, so a code for one would be born dead.\n",
         "requestBody": {
           "required": true,
           "content": {
@@ -1073,7 +1055,7 @@
         ],
         "operationId": "updateQrCode",
         "summary": "Update a QR code",
-        "description": "Requires: **author** for the owner of the QR code's link, **manager** for any. `link_id` is immutable — re-pointing a QR code at a different link would invalidate every printed copy — and the body is strict, so sending it is a 400 rather than a silently ignored field.\n",
+        "description": "Requires: **editor**. `link_id` is immutable — re-pointing a QR code at a different link would invalidate every printed copy — and the body is strict, so sending it is a 400 rather than a silently ignored field.\n",
         "requestBody": {
           "required": true,
           "content": {
@@ -1115,7 +1097,7 @@
         ],
         "operationId": "deleteQrCode",
         "summary": "Delete a QR code",
-        "description": "Requires: **author** for the owner of the QR code's link, **manager** for any. Hard delete, not archive: a QR code has no slug and no redirect, so archiving one would be ceremony with no consequence. See `docs/adr/0002`'s 2026-09-21 amendment. There is no purge route for QR codes.\n",
+        "description": "Requires: **editor**. Hard delete, not archive: a QR code has no slug and no redirect, so archiving one would be ceremony with no consequence. See `docs/adr/0002`'s 2026-09-21 amendment. There is no purge route for QR codes.\n",
         "responses": {
           "204": {
             "description": "Deleted."
@@ -1473,7 +1455,7 @@
           "Keys"
         ],
         "summary": "List keys",
-        "description": "Every role may list keys, but only an admin sees more than `{ id, name }` — the Client UI needs the names to show a link's owner and to offer a transfer target.\n",
+        "description": "Every role may list keys, but only an admin sees more than `{ id, name, role }`.\n",
         "parameters": [
           {
             "$ref": "#/components/parameters/Limit"
@@ -1631,7 +1613,7 @@
         ],
         "operationId": "revokeKey",
         "summary": "Revoke a key",
-        "description": "Requires **admin**. A real delete, not an archive. Any link the key owned becomes unowned rather than blocking the revoke, so a leaked key is always revocable at once. Revoking the key you are calling with is a 403.\n",
+        "description": "Requires **admin**. A real delete, not an archive. Links carry no reference to the key that created them, so revoking is always unconditional. Revoking the key you are calling with is a 403.\n",
         "responses": {
           "204": {
             "description": "Revoked."
@@ -1644,98 +1626,6 @@
           },
           "404": {
             "$ref": "#/components/responses/NotFound"
-          }
-        }
-      }
-    },
-    "/api/v1/keys/{id}/links/reassign": {
-      "parameters": [
-        {
-          "$ref": "#/components/parameters/Id"
-        }
-      ],
-      "post": {
-        "tags": [
-          "Keys"
-        ],
-        "operationId": "reassignKeyLinks",
-        "summary": "Reassign a key's links",
-        "description": "Moves every link `id` owns to another key, or to nobody, in one call. The same move `DELETE /keys/{id}` already makes automatically for a revoked key's links — this is for doing it ahead of time, such as before demoting a key that owns links to viewer (which the role change alone would otherwise refuse with a 409).\n\nRequires: **admin** for any key, or the key's own owner (author or higher) reassigning its own.\n",
-        "requestBody": {
-          "required": true,
-          "content": {
-            "application/json": {
-              "schema": {
-                "type": "object",
-                "required": [
-                  "to"
-                ],
-                "properties": {
-                  "to": {
-                    "oneOf": [
-                      {
-                        "type": "string",
-                        "format": "uuid"
-                      },
-                      {
-                        "type": "null"
-                      }
-                    ],
-                    "description": "The key to move the links to. Null leaves them unassigned."
-                  }
-                }
-              }
-            }
-          }
-        },
-        "responses": {
-          "200": {
-            "description": "How many links moved.",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "type": "object",
-                  "required": [
-                    "moved"
-                  ],
-                  "properties": {
-                    "moved": {
-                      "type": "integer",
-                      "minimum": 0
-                    }
-                  }
-                }
-              }
-            }
-          },
-          "400": {
-            "$ref": "#/components/responses/ValidationFailed"
-          },
-          "401": {
-            "$ref": "#/components/responses/Unauthorized"
-          },
-          "403": {
-            "$ref": "#/components/responses/Forbidden"
-          },
-          "404": {
-            "description": "The target key (`to`) does not exist.",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Error"
-                }
-              }
-            }
-          },
-          "409": {
-            "description": "The target key is a viewer, which may not own a link.",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Error"
-                }
-              }
-            }
           }
         }
       }
@@ -2188,8 +2078,7 @@
         "description": "Ordered least to most privileged.",
         "enum": [
           "viewer",
-          "author",
-          "manager",
+          "editor",
           "admin"
         ]
       },
@@ -2380,8 +2269,6 @@
           "forward_query",
           "preset_params",
           "status",
-          "owner_id",
-          "owner_name",
           "human_visits",
           "bot_visits",
           "expires_at",
@@ -2463,20 +2350,6 @@
           },
           "status": {
             "$ref": "#/components/schemas/ResourceStatus"
-          },
-          "owner_id": {
-            "type": [
-              "string",
-              "null"
-            ],
-            "format": "uuid",
-            "description": "Null when the key that owned this link was revoked — a link outlives the key that created it."
-          },
-          "owner_name": {
-            "type": [
-              "string",
-              "null"
-            ]
           },
           "human_visits": {
             "type": "integer",
@@ -2628,11 +2501,6 @@
           "status": {
             "$ref": "#/components/schemas/ResourceStatus"
           },
-          "owner_id": {
-            "type": "string",
-            "format": "uuid",
-            "description": "Transferring ownership. Your own link, or any link as an admin. 409 if the target key is a viewer — a viewer may not own a link."
-          },
           "expires_at": {
             "type": [
               "string",
@@ -2764,7 +2632,6 @@
           "pattern",
           "link_name",
           "link_status",
-          "link_owner_id",
           "slug",
           "domain_host",
           "short_url",
@@ -2805,14 +2672,6 @@
           },
           "link_status": {
             "$ref": "#/components/schemas/ResourceStatus"
-          },
-          "link_owner_id": {
-            "type": [
-              "string",
-              "null"
-            ],
-            "format": "uuid",
-            "description": "The link's owner, not the QR code's own — a QR code has no owner of its own. A UI courtesy only; the server never trusts this field."
           },
           "slug": {
             "type": "string"
@@ -3092,7 +2951,7 @@
       },
       "ApiKey": {
         "type": "object",
-        "description": "An API key: the principal. Revoking one is a real delete, and leaves any link it owned unowned.\n",
+        "description": "An API key: the principal. Revoking one is a real delete. Links carry no reference to the key that created them.\n",
         "required": [
           "id",
           "name",
@@ -3160,7 +3019,7 @@
       },
       "ApiKeySummary": {
         "type": "object",
-        "description": "What every role below admin sees about another key. `role` lets the\nClient UI filter transfer targets with the same rule the server\nenforces, rather than offering one it will refuse.\n",
+        "description": "What every role below admin sees about another key.\n",
         "required": [
           "id",
           "name",

@@ -95,12 +95,12 @@ describe("matchRules", () => {
 
 describe("the rules API", () => {
   let h: Harness
-  let author: { keyId: string; key: string }
+  let editor: { keyId: string; key: string }
   let domain: string
 
   beforeAll(async () => {
     h = await createHarness()
-    author = await h.actor("author")
+    editor = await h.actor("editor")
     domain = await h.createDomain("rules.test")
   })
 
@@ -113,15 +113,15 @@ describe("the rules API", () => {
   }
 
   test("a link starts with no rules", async () => {
-    const link = await h.createLink(author.key, domain)
-    const res = await h.request(`/api/v1/links/${link.id}/rules`, { key: author.key })
+    const link = await h.createLink(editor.key, domain)
+    const res = await h.request(`/api/v1/links/${link.id}/rules`, { key: editor.key })
     expect(res.status).toBe(200)
     expect(await res.json()).toEqual([])
   })
 
   test("PUT assigns positions in body order and replaces the whole set", async () => {
-    const link = await h.createLink(author.key, domain)
-    const first = await put(link.id, author.key, [
+    const link = await h.createLink(editor.key, domain)
+    const first = await put(link.id, editor.key, [
       androidRule,
       { destination: "https://example.com/ios", conditions: [{ type: "platform", value: "ios" }] },
     ])
@@ -132,7 +132,7 @@ describe("the rules API", () => {
     ])
 
     // A second PUT is a full replacement, not a merge.
-    const second = await put(link.id, author.key, [
+    const second = await put(link.id, editor.key, [
       { destination: "https://example.com/only", conditions: [{ type: "query_param", key: "q" }] },
     ])
     const body = await second.json()
@@ -142,41 +142,41 @@ describe("the rules API", () => {
   })
 
   test("an empty array clears every rule", async () => {
-    const link = await h.createLink(author.key, domain)
-    await put(link.id, author.key, [androidRule])
-    expect(await (await put(link.id, author.key, [])).json()).toEqual([])
+    const link = await h.createLink(editor.key, domain)
+    await put(link.id, editor.key, [androidRule])
+    expect(await (await put(link.id, editor.key, [])).json()).toEqual([])
   })
 
   test("the link response's rule_count tracks the rule set", async () => {
-    const link = await h.createLink(author.key, domain)
+    const link = await h.createLink(editor.key, domain)
     expect(link.rule_count).toBe(0)
 
-    await put(link.id, author.key, [androidRule])
-    const one = await (await h.request(`/api/v1/links/${link.id}`, { key: author.key })).json()
+    await put(link.id, editor.key, [androidRule])
+    const one = await (await h.request(`/api/v1/links/${link.id}`, { key: editor.key })).json()
     expect(one.rule_count).toBe(1)
 
-    await put(link.id, author.key, [
+    await put(link.id, editor.key, [
       androidRule,
       { destination: "https://example.com/ios", conditions: [{ type: "platform", value: "ios" }] },
     ])
-    const two = await (await h.request(`/api/v1/links/${link.id}`, { key: author.key })).json()
+    const two = await (await h.request(`/api/v1/links/${link.id}`, { key: editor.key })).json()
     expect(two.rule_count).toBe(2)
 
-    await put(link.id, author.key, [])
-    const cleared = await (await h.request(`/api/v1/links/${link.id}`, { key: author.key })).json()
+    await put(link.id, editor.key, [])
+    const cleared = await (await h.request(`/api/v1/links/${link.id}`, { key: editor.key })).json()
     expect(cleared.rule_count).toBe(0)
   })
 
   test("rejects a rule with no conditions", async () => {
-    const link = await h.createLink(author.key, domain)
-    const res = await put(link.id, author.key, [
+    const link = await h.createLink(editor.key, domain)
+    const res = await put(link.id, editor.key, [
       { destination: "https://example.com/x", conditions: [] },
     ])
     expect(res.status).toBe(400)
   })
 
   test("rejects a bad destination and condition type", async () => {
-    const link = await h.createLink(author.key, domain)
+    const link = await h.createLink(editor.key, domain)
     const cases = [
       [{ destination: "/relative", conditions: [{ type: "platform", value: "android" }] }],
       // `country` was removed with geolocation; it is now just an unknown type.
@@ -185,15 +185,14 @@ describe("the rules API", () => {
       [{ destination: "https://e.test/", conditions: [{ type: "platform", value: "windows" }] }],
     ]
     for (const body of cases) {
-      expect((await put(link.id, author.key, body)).status).toBe(400)
+      expect((await put(link.id, editor.key, body)).status).toBe(400)
     }
   })
 
-  test("permissions follow the link, not the rules", async () => {
-    const link = await h.createLink(author.key, domain)
+  test("permissions follow role, not who created the link", async () => {
+    const link = await h.createLink(editor.key, domain)
     const viewer = await h.actor("viewer")
-    const stranger = await h.actor("author")
-    const manager = await h.actor("manager")
+    const otherEditor = await h.actor("editor")
 
     // Everyone may read.
     expect((await h.request(`/api/v1/links/${link.id}/rules`, { key: viewer.key })).status).toBe(
@@ -201,31 +200,32 @@ describe("the rules API", () => {
     )
 
     expect((await put(link.id, viewer.key, [androidRule])).status).toBe(403)
-    expect((await put(link.id, stranger.key, [androidRule])).status).toBe(403)
-    expect((await put(link.id, author.key, [androidRule])).status).toBe(200)
-    expect((await put(link.id, manager.key, [androidRule])).status).toBe(200)
+    expect((await put(link.id, editor.key, [androidRule])).status).toBe(200)
+    // Links have no owner (docs/adr/0016): any editor may edit any link.
+    expect((await put(link.id, otherEditor.key, [androidRule])).status).toBe(200)
   })
 
   test("an unknown link is a 404 on both verbs", async () => {
     const missing = "00000000-0000-7000-8000-000000000000"
-    expect((await h.request(`/api/v1/links/${missing}/rules`, { key: author.key })).status).toBe(
+    expect((await h.request(`/api/v1/links/${missing}/rules`, { key: editor.key })).status).toBe(
       404,
     )
-    expect((await put(missing, author.key, [])).status).toBe(404)
+    expect((await put(missing, editor.key, [])).status).toBe(404)
   })
 
   test("archiving a link leaves its rules alone", async () => {
-    const link = await h.createLink(author.key, domain)
-    await put(link.id, author.key, [androidRule])
-    await h.request(`/api/v1/links/${link.id}`, { key: author.key, method: "DELETE" })
+    const link = await h.createLink(editor.key, domain)
+    await put(link.id, editor.key, [androidRule])
+    const admin = await h.actor("admin")
+    await h.request(`/api/v1/links/${link.id}`, { key: admin.key, method: "DELETE" })
 
-    const res = await h.request(`/api/v1/links/${link.id}/rules`, { key: author.key })
+    const res = await h.request(`/api/v1/links/${link.id}/rules`, { key: editor.key })
     expect(await res.json()).toHaveLength(1)
   })
 
   test("creating a link with rules sets them atomically", async () => {
     const res = await h.request("/api/v1/links", {
-      key: author.key,
+      key: editor.key,
       method: "POST",
       body: JSON.stringify({
         domain_id: domain,
@@ -236,7 +236,7 @@ describe("the rules API", () => {
     expect(res.status).toBe(201)
     const link = await res.json()
 
-    const rulesRes = await h.request(`/api/v1/links/${link.id}/rules`, { key: author.key })
+    const rulesRes = await h.request(`/api/v1/links/${link.id}/rules`, { key: editor.key })
     expect(rulesRes.status).toBe(200)
     const rules = await rulesRes.json()
     expect(rules).toHaveLength(1)
@@ -247,9 +247,9 @@ describe("the rules API", () => {
   })
 
   test("patching a link with rules updates them atomically", async () => {
-    const link = await h.createLink(author.key, domain)
+    const link = await h.createLink(editor.key, domain)
     const patchRes = await h.request(`/api/v1/links/${link.id}`, {
-      key: author.key,
+      key: editor.key,
       method: "PATCH",
       body: JSON.stringify({
         rules: [
@@ -262,7 +262,7 @@ describe("the rules API", () => {
     })
     expect(patchRes.status).toBe(200)
 
-    const rulesRes = await h.request(`/api/v1/links/${link.id}/rules`, { key: author.key })
+    const rulesRes = await h.request(`/api/v1/links/${link.id}/rules`, { key: editor.key })
     expect(rulesRes.status).toBe(200)
     const rules = await rulesRes.json()
     expect(rules).toHaveLength(1)
@@ -275,13 +275,13 @@ describe("the rules API", () => {
 
 describe("rules in the redirect", () => {
   let h: Harness
-  let author: { keyId: string; key: string }
+  let editor: { keyId: string; key: string }
   let domain: string
   const HOST = "ruled.test"
 
   beforeAll(async () => {
     h = await createHarness()
-    author = await h.actor("author")
+    editor = await h.actor("editor")
     domain = await h.createDomain(HOST)
   })
 
@@ -292,12 +292,12 @@ describe("rules in the redirect", () => {
     (await get(path, user_agent)).headers.get("location")
 
   test("a platform rule wins over the default destination", async () => {
-    const link = await h.createLink(author.key, domain, {
+    const link = await h.createLink(editor.key, domain, {
       slug: "app",
       destination: "https://example.com/web",
     })
     await h.request(`/api/v1/links/${link.id}/rules`, {
-      key: author.key,
+      key: editor.key,
       method: "PUT",
       body: JSON.stringify([
         {
@@ -317,12 +317,12 @@ describe("rules in the redirect", () => {
   })
 
   test("the visit records the destination the rule chose, not the default", async () => {
-    const link = await h.createLink(author.key, domain, {
+    const link = await h.createLink(editor.key, domain, {
       slug: "tracked",
       destination: "https://example.com/web",
     })
     await h.request(`/api/v1/links/${link.id}/rules`, {
-      key: author.key,
+      key: editor.key,
       method: "PUT",
       body: JSON.stringify([
         {
@@ -347,7 +347,7 @@ describe("rules in the redirect", () => {
   })
 
   test("the first matching rule wins when several could", async () => {
-    const link = await h.createLink(author.key, domain, {
+    const link = await h.createLink(editor.key, domain, {
       slug: "ordered",
       destination: "https://example.com/default",
     })
@@ -359,7 +359,7 @@ describe("rules in the redirect", () => {
       },
     ]
     await h.request(`/api/v1/links/${link.id}/rules`, {
-      key: author.key,
+      key: editor.key,
       method: "PUT",
       body: JSON.stringify(body),
     })
@@ -369,12 +369,12 @@ describe("rules in the redirect", () => {
   })
 
   test("a matched destination still gets the incoming query merged into it", async () => {
-    const link = await h.createLink(author.key, domain, {
+    const link = await h.createLink(editor.key, domain, {
       slug: "merged",
       destination: "https://example.com/web",
     })
     await h.request(`/api/v1/links/${link.id}/rules`, {
-      key: author.key,
+      key: editor.key,
       method: "PUT",
       body: JSON.stringify([
         {

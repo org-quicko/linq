@@ -148,6 +148,13 @@
       "when": 1790063290719,
       "tag": "0020_tough_tinkerer",
       "breakpoints": true
+    },
+    {
+      "idx": 21,
+      "version": "7",
+      "when": 1790150050790,
+      "tag": "0021_futuristic_chronomancer",
+      "breakpoints": true
     }
   ]
 }

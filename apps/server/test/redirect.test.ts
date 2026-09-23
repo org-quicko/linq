@@ -12,7 +12,7 @@ const DESKTOP = "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537
 const BOT = "Mozilla/5.0 (compatible; Googlebot/2.1; +http://www.google.com/bot.html)"
 
 let h: Harness
-let author: { keyId: string; key: string }
+let editor: { keyId: string; key: string }
 let domain: string
 
 /** The redirect never awaits its insert, so tests drain it before asserting. */
@@ -30,7 +30,7 @@ async function visitCount() {
 
 beforeAll(async () => {
   h = await createHarness()
-  author = await h.actor("author")
+  editor = await h.actor("editor")
   domain = await h.createDomain(HOST, "https://example.com/fallback")
 })
 
@@ -59,8 +59,8 @@ describe("domain resolution", () => {
   test("an archived domain is an untracked 404 for everything", async () => {
     const admin = await h.actor("admin")
     const closed = await h.createDomain("closed.test")
-    const link = await h.createLink(author.key, closed, { slug: "live" })
-    await h.request(`/api/v1/links/${link.id}`, { key: author.key, method: "DELETE" })
+    const link = await h.createLink(editor.key, closed, { slug: "live" })
+    await h.request(`/api/v1/links/${link.id}`, { key: admin.key, method: "DELETE" })
     // The domain cannot be archived while the link still points at it, even
     // archived — purge it first.
     await h.request(`/api/v1/links/${link.id}/purge`, { key: admin.key, method: "DELETE" })
@@ -73,7 +73,7 @@ describe("domain resolution", () => {
   })
 
   test("a row without a port also answers a request carrying one", async () => {
-    const link = await h.createLink(author.key, domain, { slug: "ported" })
+    const link = await h.createLink(editor.key, domain, { slug: "ported" })
     const res = await get("/ported", { host: `${HOST}:8443` })
     expect(res.status).toBe(302)
     expect(res.headers.get("location")).toBe(link.destination)
@@ -81,7 +81,7 @@ describe("domain resolution", () => {
 
   test("a row that carries a port matches that host verbatim", async () => {
     const local = await h.createDomain("localhost:3000")
-    const link = await h.createLink(author.key, local, { slug: "dev" })
+    const link = await h.createLink(editor.key, local, { slug: "dev" })
     const res = await get("/dev", { host: "localhost:3000" })
     expect(res.status).toBe(302)
     expect(res.headers.get("location")).toBe(link.destination)
@@ -133,7 +133,7 @@ describe("reserved paths", () => {
 
 describe("redirecting an active link", () => {
   test("302s with no-store and records the visit", async () => {
-    const link = await h.createLink(author.key, domain, {
+    const link = await h.createLink(editor.key, domain, {
       slug: "hello",
       destination: "https://example.com/landing",
     })
@@ -160,8 +160,9 @@ describe("redirecting an active link", () => {
   })
 
   test("an archived link falls through to an orphan visit", async () => {
-    const link = await h.createLink(author.key, domain, { slug: "retired" })
-    await h.request(`/api/v1/links/${link.id}`, { key: author.key, method: "DELETE" })
+    const link = await h.createLink(editor.key, domain, { slug: "retired" })
+    const admin = await h.actor("admin")
+    await h.request(`/api/v1/links/${link.id}`, { key: admin.key, method: "DELETE" })
 
     const res = await get("/retired")
     expect(res.status).toBe(302)
@@ -285,7 +286,7 @@ describe("the three redirect fields", () => {
 
 describe("query forwarding", () => {
   test("incoming parameters are merged over the destination and win", async () => {
-    await h.createLink(author.key, domain, {
+    await h.createLink(editor.key, domain, {
       slug: "merge",
       destination: "https://example.com/?a=1&keep=yes",
     })
@@ -298,7 +299,7 @@ describe("query forwarding", () => {
   })
 
   test("the recorded destination is the link's own, never the merged one", async () => {
-    await h.createLink(author.key, domain, {
+    await h.createLink(editor.key, domain, {
       slug: "recorded",
       destination: "https://example.com/?a=1",
       preset_params: { utm_source: "qr" },
@@ -312,7 +313,7 @@ describe("query forwarding", () => {
   })
 
   test("a repeated incoming key replaces the destination copy entirely", async () => {
-    await h.createLink(author.key, domain, {
+    await h.createLink(editor.key, domain, {
       slug: "repeat",
       destination: "https://example.com/?tag=old",
     })
@@ -323,7 +324,7 @@ describe("query forwarding", () => {
   })
 
   test("forward_query false leaves the destination alone but still logs the query", async () => {
-    await h.createLink(author.key, domain, {
+    await h.createLink(editor.key, domain, {
       slug: "sealed",
       destination: "https://example.com/?a=1",
       forward_query: false,
@@ -335,7 +336,7 @@ describe("query forwarding", () => {
   })
 
   test("a link with no incoming query keeps its destination byte for byte", async () => {
-    await h.createLink(author.key, domain, {
+    await h.createLink(editor.key, domain, {
       slug: "plain",
       destination: "https://example.com/path?x=1#frag",
     })
@@ -347,7 +348,7 @@ describe("query forwarding", () => {
 
 describe("preset params", () => {
   test("a preset overrides a forwarded param of the same key", async () => {
-    await h.createLink(author.key, domain, {
+    await h.createLink(editor.key, domain, {
       slug: "preset-vs-caller",
       destination: "https://example.com/",
       preset_params: { a: "preset" },
@@ -359,7 +360,7 @@ describe("preset params", () => {
   })
 
   test("a preset overrides the destination's own param", async () => {
-    await h.createLink(author.key, domain, {
+    await h.createLink(editor.key, domain, {
       slug: "preset-vs-dest",
       destination: "https://example.com/?a=dest&keep=dest",
       preset_params: { a: "preset" },
@@ -372,7 +373,7 @@ describe("preset params", () => {
   })
 
   test("forward_query false leaves the destination untouched even with presets set", async () => {
-    await h.createLink(author.key, domain, {
+    await h.createLink(editor.key, domain, {
       slug: "preset-sealed",
       destination: "https://example.com/?a=dest&keep=dest",
       preset_params: { a: "preset", utm_source: "qr" },
@@ -384,7 +385,7 @@ describe("preset params", () => {
   })
 
   test("a link with no presets produces a byte-identical URL, fragment included", async () => {
-    await h.createLink(author.key, domain, {
+    await h.createLink(editor.key, domain, {
       slug: "no-presets",
       destination: "https://example.com/path?x=1#frag",
     })
@@ -393,13 +394,13 @@ describe("preset params", () => {
   })
 
   test("presets apply to a rule's destination, not just the default one", async () => {
-    const link = await h.createLink(author.key, domain, {
+    const link = await h.createLink(editor.key, domain, {
       slug: "preset-rule",
       destination: "https://example.com/default",
       preset_params: { a: "preset" },
     })
     await h.request(`/api/v1/links/${link.id}/rules`, {
-      key: author.key,
+      key: editor.key,
       method: "PUT",
       body: JSON.stringify([
         {
@@ -418,7 +419,7 @@ describe("preset params", () => {
 
 describe("visitor detection", () => {
   test("records the platform, os and browser each user agent implies", async () => {
-    await h.createLink(author.key, domain, { slug: "ua" })
+    await h.createLink(editor.key, domain, { slug: "ua" })
 
     for (const [user_agent, platform, os, browser] of [
       [ANDROID, "android", "android", "mobile chrome"],
@@ -431,7 +432,7 @@ describe("visitor detection", () => {
   })
 
   test("flags bots and a missing user agent", async () => {
-    await h.createLink(author.key, domain, { slug: "crawled" })
+    await h.createLink(editor.key, domain, { slug: "crawled" })
 
     await get("/crawled", { headers: { "user-agent": BOT } })
     expect(await lastVisit()).toMatchObject({ is_bot: true })
@@ -441,7 +442,7 @@ describe("visitor detection", () => {
   })
 
   test("a link-preview crawler gets the short link's own title, not the destination's", async () => {
-    const link = await h.createLink(author.key, domain, { slug: "shared", name: "Q3 report" })
+    const link = await h.createLink(editor.key, domain, { slug: "shared", name: "Q3 report" })
     const res = await get(`/${link.slug}`, {
       headers: { "user-agent": "Slackbot-LinkExpanding 1.0 (+https://api.slack.com/robots)" },
     })
@@ -454,7 +455,7 @@ describe("visitor detection", () => {
 
 describe("link expiry", () => {
   test("a past expires_at resolves like an unknown slug: fallback, orphan visit", async () => {
-    await h.createLink(author.key, domain, {
+    await h.createLink(editor.key, domain, {
       slug: "lapsed",
       expires_at: new Date(Date.now() - 1000).toISOString(),
     })
@@ -471,7 +472,7 @@ describe("link expiry", () => {
 
   test("expired with no fallback still 404s and still records the orphan", async () => {
     const bare = await h.createDomain("expiry-bare.test")
-    await h.createLink(author.key, bare, {
+    await h.createLink(editor.key, bare, {
       slug: "lapsed",
       expires_at: new Date(Date.now() - 1000).toISOString(),
     })
@@ -489,7 +490,7 @@ describe("link expiry", () => {
   })
 
   test("a future expires_at redirects normally with link_id set", async () => {
-    const link = await h.createLink(author.key, domain, {
+    const link = await h.createLink(editor.key, domain, {
       slug: "not-yet",
       expires_at: new Date(Date.now() + 60_000).toISOString(),
     })
@@ -499,7 +500,7 @@ describe("link expiry", () => {
   })
 
   test("a preview crawler on an expired link gets the orphan title, the host", async () => {
-    await h.createLink(author.key, domain, {
+    await h.createLink(editor.key, domain, {
       slug: "expired-preview",
       name: "Should not appear",
       expires_at: new Date(Date.now() - 1000).toISOString(),
@@ -516,7 +517,7 @@ describe("link expiry", () => {
 
 describe("HEAD", () => {
   test("is answered like GET but never tracked", async () => {
-    const link = await h.createLink(author.key, domain, { slug: "head" })
+    const link = await h.createLink(editor.key, domain, { slug: "head" })
 
     const before = await visitCount()
     const res = await get("/head", { method: "HEAD" })

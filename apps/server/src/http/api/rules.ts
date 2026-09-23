@@ -39,7 +39,7 @@ export const ruleRoutes = new Hono<Env>()
   .put("/:id/rules", idParam, validate("json", rulesPutSchema), async (c) => {
     const { id } = c.req.valid("param")
     const link = await loadLink(c.var.db, id)
-    assertCanEdit(c.var.principal, link.owner_id)
+    assertCanEdit(c.var.principal)
     const input = c.req.valid("json")
 
     // One transaction: a failed insert must never leave the link with its old

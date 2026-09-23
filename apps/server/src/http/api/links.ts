@@ -1,6 +1,5 @@
 import {
   ApiError,
-  can,
   type Link,
   linkCountQuerySchema,
   linkCreateSchema,
@@ -27,15 +26,10 @@ import {
 } from "drizzle-orm"
 import { Hono } from "hono"
 import { z } from "zod"
-import {
-  assertCanEdit,
-  assertCanPurge,
-  assertCanTransfer,
-  assertRole,
-} from "../../auth/permissions.ts"
+import { assertCanArchive, assertCanEdit, assertCanPurge, assertRole } from "../../auth/permissions.ts"
 import { linkKeys } from "../../cache.ts"
 import type { Db } from "../../db/client.ts"
-import { apiKeys, domains, links, rules, visitCounts } from "../../db/schema.ts"
+import { domains, links, rules, visitCounts } from "../../db/schema.ts"
 import { span } from "../../log.ts"
 import { randomSlug } from "../../slug.ts"
 import type { Env } from "../env.ts"
@@ -46,7 +40,6 @@ const idParam = validate("param", z.object({ id: uuidSchema }))
 type LinkRow = {
   link: typeof links.$inferSelect
   domain_host: string
-  owner_name: string | null
   human_visits: number
   bot_visits: number
   rule_count: number
@@ -75,8 +68,6 @@ function toLink(row: LinkRow): Link {
     forward_query: link.forward_query,
     preset_params: link.preset_params,
     status: link.status,
-    owner_id: link.owner_id,
-    owner_name: row.owner_name,
     human_visits: row.human_visits,
     bot_visits: row.bot_visits,
     expires_at: link.expires_at?.toISOString() ?? null,
@@ -100,7 +91,6 @@ function linkQuery(db: Db) {
     .select({
       link: links,
       domain_host: domains.host,
-      owner_name: apiKeys.name,
       human_visits: sql<number>`coalesce(${visitCounts.human}, 0)`.mapWith(Number),
       bot_visits: sql<number>`coalesce(${visitCounts.bot}, 0)`.mapWith(Number),
       // A correlated subquery, not a join: `rules` is 1:N and every other join
@@ -112,7 +102,6 @@ function linkQuery(db: Db) {
     })
     .from(links)
     .innerJoin(domains, eq(domains.id, links.domain_id))
-    .leftJoin(apiKeys, eq(apiKeys.id, links.owner_id))
     .leftJoin(visitCounts, eq(visitCounts.link_id, links.id))
 
   return {
@@ -143,7 +132,7 @@ export function loadLink(db: Db, id: string): Promise<typeof links.$inferSelect>
       if (!row) throw ApiError.notFound("link")
       return row
     },
-    { in: { link_id: id }, out: (link) => ({ owner_id: link.owner_id, status: link.status }) },
+    { in: { link_id: id }, out: (link) => ({ status: link.status }) },
   )
 }
 
@@ -192,7 +181,6 @@ export const linkRoutes = new Hono<Env>()
     const filters: SQL[] = []
     if (q.status !== "all") filters.push(eq(links.status, q.status))
     if (q.domain_id.length) filters.push(inArray(links.domain_id, q.domain_id))
-    if (q.owner_id) filters.push(eq(links.owner_id, q.owner_id))
     if (q.tags.length) filters.push(arrayOverlaps(links.tags, q.tags))
     if (q.search) {
       const term = `%${q.search}%`
@@ -250,7 +238,7 @@ export const linkRoutes = new Hono<Env>()
   })
 
   .post("/", validate("json", linkCreateSchema), async (c) => {
-    assertRole(c.var.principal, "author")
+    assertRole(c.var.principal, "editor")
     const body = c.req.valid("json")
     const fetched = await c.var.metadata.fetch(body.destination)
 
@@ -280,7 +268,6 @@ export const linkRoutes = new Hono<Env>()
           tags: body.tags,
           forward_query: body.forward_query,
           preset_params: body.preset_params,
-          owner_id: c.var.principal.keyId,
           expires_at: body.expires_at ? new Date(body.expires_at) : null,
           listed: body.listed,
         },
@@ -313,18 +300,12 @@ export const linkRoutes = new Hono<Env>()
     const { id } = c.req.valid("param")
     const patch = c.req.valid("json")
     const existing = await loadLink(c.var.db, id)
-    assertCanEdit(c.var.principal, existing.owner_id)
-
-    if (patch.owner_id !== undefined) {
-      assertCanTransfer(c.var.principal, existing.owner_id)
-      const [owner] = await c.var.db
-        .select({ id: apiKeys.id, role: apiKeys.role })
-        .from(apiKeys)
-        .where(eq(apiKeys.id, patch.owner_id))
-        .limit(1)
-      if (!owner) throw ApiError.notFound("key")
-      // Not 403: the caller is allowed, the *target* is not eligible.
-      if (!can.ownLink(owner)) throw ApiError.conflict("a viewer key cannot own a link")
+    // Archiving or restoring (a status change) is admin-only; every other
+    // field is an ordinary edit. See docs/adr/0016.
+    if (patch.status !== undefined) {
+      assertCanArchive(c.var.principal)
+    } else {
+      assertCanEdit(c.var.principal)
     }
 
     const fetched =
@@ -353,7 +334,6 @@ export const linkRoutes = new Hono<Env>()
           ...(patch.forward_query !== undefined ? { forward_query: patch.forward_query } : {}),
           ...(patch.preset_params !== undefined ? { preset_params: patch.preset_params } : {}),
           ...(patch.status !== undefined ? { status: patch.status } : {}),
-          ...(patch.owner_id !== undefined ? { owner_id: patch.owner_id } : {}),
           ...(patch.expires_at !== undefined
             ? { expires_at: patch.expires_at ? new Date(patch.expires_at) : null }
             : {}),
@@ -408,11 +388,12 @@ export const linkRoutes = new Hono<Env>()
     return c.json({ purged: rows.length })
   })
 
-  /** DELETE is an alias for archiving; links are never dropped. See docs/adr/0002. */
+  /** DELETE is an alias for archiving; links are never dropped. See docs/adr/0002.
+   *  Admin only, same as restoring one — see docs/adr/0016. */
   .delete("/:id", idParam, async (c) => {
     const { id } = c.req.valid("param")
     const existing = await loadLink(c.var.db, id)
-    assertCanEdit(c.var.principal, existing.owner_id)
+    assertCanArchive(c.var.principal)
 
     await c.var.db
       .update(links)

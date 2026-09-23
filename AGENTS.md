@@ -29,9 +29,6 @@ covers what isn't obvious from the code.
 
 ## Docs conventions
 
-- Design plans go in `docs/plans/Plan_N.md`, numbered sequentially, reviewed
-  alongside code. Writing a plan is not implementing it — stop once the file
-  is written unless told to build it.
 - `CONTEXT.md` is glossary only: terms, no implementation detail.
 
 ## Where things live
@@ -42,4 +39,4 @@ covers what isn't obvious from the code.
 - `docs/repo-map.md` — where everything lives, in more detail than this list.
 - `docs/adr/` — decisions that are hard to reverse, and why.
 - `.agents/skills/` — step-by-step procedures for this repo (dev environment,
-  DB migrations, ADRs, plans), for any agent.
+  DB migrations, ADRs), for any agent.

@@ -1,10 +1,10 @@
 "use client"
 
-import { type Actor, can, type Domain, type Link } from "@linq/shared"
+import type { Domain, Link } from "@linq/shared"
 import { skipToken } from "@reduxjs/toolkit/query/react"
 import { CalendarIcon, ChevronDown, Info, Route, TagIcon } from "lucide-react"
 import { type ReactNode, useEffect, useState } from "react"
-import { Field, Picker } from "@/components/common"
+import { Field } from "@/components/common"
 import {
   type PresetParamRow,
   PresetParamsEditor,
@@ -35,7 +35,6 @@ import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip
 import { fromDatetimeLocal, toDatetimeLocal, withScheme } from "../lib/api"
 import { useRun } from "../lib/hooks"
 import { useListDomainsQuery } from "../lib/store/domains"
-import { useListKeysQuery } from "../lib/store/keys"
 import {
   useCreateLinkMutation,
   useGetLinkRulesQuery,
@@ -56,24 +55,20 @@ import {
 export function LinkFormDialog({
   open,
   onOpenChange,
-  actor,
   mode,
   link,
 }: {
   open: boolean
   onOpenChange: (open: boolean) => void
-  actor: Actor
   mode: "create" | "edit"
   link?: Link
 }) {
   const domains = useListDomainsQuery({ limit: 200 })
-  const keys = useListKeysQuery({ limit: 200 })
   const [createLink] = useCreateLinkMutation()
   const [updateLink] = useUpdateLinkMutation()
   const { run, saving } = useRun()
 
   const activeDomains = (domains.data?.data ?? []).filter((domain) => domain.status === "active")
-  const canTransfer = mode === "edit" && !!link && can.transferLink(actor, link)
 
   const [domain_id, setDomainId] = useState(link?.domain_id ?? "")
   const [slug, setSlug] = useState(mode === "edit" ? (link?.slug ?? "") : "")
@@ -81,7 +76,6 @@ export function LinkFormDialog({
   const [name, setName] = useState(link?.name ?? "")
   const [description, setDescription] = useState(link?.description ?? "")
   const [tags, setTags] = useState<string[]>(link?.tags ?? [])
-  const [owner_id, setOwnerId] = useState(link?.owner_id ?? "")
   const [forward_query, setForwardQuery] = useState(link?.forward_query ?? true)
   const [listed, setListed] = useState(link?.listed ?? false)
   const [preset_params, setPresetParams] = useState<PresetParamRow[]>(() =>
@@ -152,7 +146,6 @@ export function LinkFormDialog({
             ...shared,
             name: name.trim() || null,
             description: description.trim() || null,
-            ...(owner_id !== current.owner_id ? { owner_id } : {}),
             ...(rulesDirty ? { rules: validRules } : {}),
           },
         }).unwrap(),
@@ -209,28 +202,6 @@ export function LinkFormDialog({
           <Field label="Tags">
             <TagPicker value={tags} onChange={setTags} creatable placeholder="No tags" />
           </Field>
-
-          {mode === "edit" ? (
-            <Field
-              label="Owner"
-              hint={
-                canTransfer
-                  ? "Handing this to another key gives up your own access unless your role covers it."
-                  : "Only an admin, or the owning key, may hand a link over."
-              }
-            >
-              <Picker
-                value={owner_id}
-                disabled={!canTransfer}
-                onChange={setOwnerId}
-                options={(keys.data?.data ?? [])
-                  // The server refuses a viewer as an owner; the current owner
-                  // still renders even if a demotion since made it one.
-                  .filter((key) => can.ownLink(key) || key.id === link?.owner_id)
-                  .map((key) => ({ value: key.id, label: key.name }))}
-              />
-            </Field>
-          ) : null}
 
           <div className="flex items-center gap-1.5">
             <Label className="font-normal">

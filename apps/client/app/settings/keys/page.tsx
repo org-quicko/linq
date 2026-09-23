@@ -1,13 +1,12 @@
 "use client"
 
 import { type Actor, type ApiKey, type ApiKeyCreated, can, ROLES, type Role } from "@linq/shared"
-import { ArrowLeftRight, KeyRound, Plus, Trash2 } from "lucide-react"
+import { KeyRound, Plus, Trash2 } from "lucide-react"
 import { useState } from "react"
 import { AppShell } from "@/components/app-shell"
 import { ConfirmButton, CopyButton, Field, Picker, When } from "@/components/common"
 import {
   Collection,
-  IconButton,
   PageHeader,
   RowCard,
   RowCardTile,
@@ -29,13 +28,9 @@ import { useRun } from "../../../lib/hooks"
 import {
   useListKeysQuery,
   useMintKeyMutation,
-  useReassignKeyLinksMutation,
   useRevokeKeyMutation,
   useUpdateKeyMutation,
 } from "../../../lib/store/keys"
-
-/** Radix refuses an item whose value is the empty string; this sentinel means "unassigned". */
-const UNASSIGNED = "__unassigned__"
 
 const ROLE_OPTIONS = ROLES.map((role) => ({ value: role, label: role }))
 
@@ -76,15 +71,13 @@ function Keys({ actor }: { actor: Actor }) {
         variant="list"
         emptyMessage="No keys. Nothing can reach the API."
       >
-        {(key) => (
-          <KeyRow key={key.id} apiKey={key as ApiKey} actor={actor} allKeys={rows as ApiKey[]} />
-        )}
+        {(key) => <KeyRow key={key.id} apiKey={key as ApiKey} actor={actor} />}
       </Collection>
     </div>
   )
 }
 
-function KeyRow({ apiKey, actor, allKeys }: { apiKey: ApiKey; actor: Actor; allKeys: ApiKey[] }) {
+function KeyRow({ apiKey, actor }: { apiKey: ApiKey; actor: Actor }) {
   const [updateKey] = useUpdateKeyMutation()
   const [revokeKey] = useRevokeKeyMutation()
   const { run, saving } = useRun()
@@ -119,7 +112,6 @@ function KeyRow({ apiKey, actor, allKeys }: { apiKey: ApiKey; actor: Actor; allK
               options={ROLE_OPTIONS}
             />
           )}
-          <ReassignLinksDialog apiKey={apiKey} allKeys={allKeys} />
           {/* Revoking the key in your own hand would lock you out with only the
               CLI left as a way back, so it is not offered rather than refused. */}
           {isMine ? null : (
@@ -127,7 +119,7 @@ function KeyRow({ apiKey, actor, allKeys }: { apiKey: ApiKey; actor: Actor; allK
               className="size-10"
               ariaLabel="Revoke key"
               title={`Revoke ${apiKey.name}?`}
-              description="This key stops working immediately, and any link it owns becomes unowned. Revoking is a real delete, not an archive."
+              description="This key stops working immediately. Revoking is a real delete, not an archive."
               confirmLabel="Revoke"
               onConfirm={() =>
                 run(() => revokeKey(apiKey.id).unwrap(), {
@@ -157,65 +149,6 @@ function KeyRow({ apiKey, actor, allKeys }: { apiKey: ApiKey; actor: Actor; allK
         ) : null}
       </span>
     </RowCard>
-  )
-}
-
-/**
- * The remedy for a demotion the server just refused (409, naming a link
- * count): move every link this key owns to another key, or leave them
- * unassigned, in one call. Offered on every row, not only after a refused
- * demotion, since reassigning ahead of time is the same operation.
- */
-function ReassignLinksDialog({ apiKey, allKeys }: { apiKey: ApiKey; allKeys: ApiKey[] }) {
-  const [reassign] = useReassignKeyLinksMutation()
-  const [open, setOpen] = useState(false)
-  const [to, setTo] = useState(UNASSIGNED)
-  const { run, saving } = useRun()
-
-  const options = [
-    { value: UNASSIGNED, label: "Leave unassigned" },
-    ...allKeys
-      // The server refuses a viewer as a target, same rule as a single
-      // link's transfer, so never offer one here either.
-      .filter((key) => key.id !== apiKey.id && can.ownLink(key))
-      .map((key) => ({ value: key.id, label: key.name })),
-  ]
-
-  const runReassign = () =>
-    run(() => reassign({ id: apiKey.id, to: to === UNASSIGNED ? null : to }).unwrap(), {
-      success: (result) => `Reassigned ${result.moved} link${result.moved === 1 ? "" : "s"}.`,
-      fallback: "Could not reassign those links.",
-      onSuccess: () => {
-        setOpen(false)
-        setTo(UNASSIGNED)
-      },
-    })
-
-  return (
-    <Dialog open={open} onOpenChange={setOpen}>
-      <DialogTrigger asChild>
-        <IconButton icon={ArrowLeftRight} label="Reassign links" />
-      </DialogTrigger>
-      <DialogContent>
-        <DialogHeader>
-          <DialogTitle>Reassign {apiKey.name}'s links</DialogTitle>
-          <DialogDescription>
-            Moves every link this key owns to another key, or leaves them unassigned. Revoking the
-            key does this automatically; use this to do it ahead of time, such as before demoting
-            the key to viewer.
-          </DialogDescription>
-        </DialogHeader>
-        <Picker value={to} onChange={setTo} options={options} />
-        <DialogFooter>
-          <Button type="button" variant="outline" onClick={() => setOpen(false)}>
-            Cancel
-          </Button>
-          <Button type="button" disabled={saving} onClick={runReassign}>
-            Reassign
-          </Button>
-        </DialogFooter>
-      </DialogContent>
-    </Dialog>
   )
 }
 

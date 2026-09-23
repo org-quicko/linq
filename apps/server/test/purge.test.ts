@@ -8,7 +8,7 @@ import { createHarness, type Harness } from "./helpers/app.ts"
 
 let h: Harness
 let admin: { keyId: string; key: string }
-let author: { keyId: string; key: string }
+let editor: { keyId: string; key: string }
 let domain: string
 
 const purge = (h: Harness, path: string, key: string) =>
@@ -26,13 +26,13 @@ async function totalVisits(h: Harness, query: string, key: string): Promise<numb
 beforeAll(async () => {
   h = await createHarness()
   admin = await h.actor("admin")
-  author = await h.actor("author")
+  editor = await h.actor("editor")
   domain = await h.createDomain("purge.test")
 })
 
 describe("DELETE /api/v1/links/:id/purge", () => {
   test("refuses a link that is still active", async () => {
-    const link = await h.createLink(author.key, domain, { slug: "live" })
+    const link = await h.createLink(editor.key, domain, { slug: "live" })
     const res = await purge(h, `links/${link.id}`, admin.key)
 
     expect(res.status).toBe(409)
@@ -45,24 +45,22 @@ describe("DELETE /api/v1/links/:id/purge", () => {
     expect((await purge(h, `links/${missing}`, admin.key)).status).toBe(404)
   })
 
-  test("only an admin may purge, even the owner may not", async () => {
-    const link = await h.createLink(author.key, domain, { slug: "mine" })
-    await archive(h, `links/${link.id}`, author.key)
+  test("only an admin may purge, not even an editor", async () => {
+    const link = await h.createLink(editor.key, domain, { slug: "mine" })
+    await archive(h, `links/${link.id}`, admin.key)
 
-    expect((await purge(h, `links/${link.id}`, author.key)).status).toBe(403)
-    const manager = await h.actor("manager")
-    expect((await purge(h, `links/${link.id}`, manager.key)).status).toBe(403)
-    // …and the row survived both refusals.
+    expect((await purge(h, `links/${link.id}`, editor.key)).status).toBe(403)
+    // …and the row survived the refusal.
     expect((await h.request(`/api/v1/links/${link.id}`, { key: admin.key })).status).toBe(200)
   })
 
   test("purging releases the slug, which archiving never does", async () => {
     // The deliberate inverse of links.test.ts, "refuses a slug already taken on
     // the domain, archived ones included".
-    const link = await h.createLink(author.key, domain, { slug: "reusable" })
-    await archive(h, `links/${link.id}`, author.key)
+    const link = await h.createLink(editor.key, domain, { slug: "reusable" })
+    await archive(h, `links/${link.id}`, admin.key)
 
-    const taken = await h.post("/api/v1/links", author.key, {
+    const taken = await h.post("/api/v1/links", editor.key, {
       domain_id: domain,
       destination: "https://example.com/",
       slug: "reusable",
@@ -72,7 +70,7 @@ describe("DELETE /api/v1/links/:id/purge", () => {
     expect((await purge(h, `links/${link.id}`, admin.key)).status).toBe(204)
     expect((await h.request(`/api/v1/links/${link.id}`, { key: admin.key })).status).toBe(404)
 
-    const reborn = await h.createLink(author.key, domain, { slug: "reusable" })
+    const reborn = await h.createLink(editor.key, domain, { slug: "reusable" })
     expect(reborn.slug).toBe("reusable")
     expect(reborn.id).not.toBe(link.id)
   })
@@ -96,19 +94,19 @@ describe("DELETE /api/v1/links/:id/purge", () => {
 
   test("its rules go with it", async () => {
     // The inverse of rules.test.ts, "archiving a link leaves its rules alone".
-    const link = await h.createLink(author.key, domain, { slug: "ruled" })
+    const link = await h.createLink(editor.key, domain, { slug: "ruled" })
     await h.request(`/api/v1/links/${link.id}/rules`, {
-      key: author.key,
+      key: editor.key,
       method: "PUT",
       body: JSON.stringify([
         { destination: "https://example.com/a", conditions: [{ type: "platform", value: "ios" }] },
       ]),
     })
     expect(
-      await (await h.request(`/api/v1/links/${link.id}/rules`, { key: author.key })).json(),
+      await (await h.request(`/api/v1/links/${link.id}/rules`, { key: editor.key })).json(),
     ).toHaveLength(1)
 
-    await archive(h, `links/${link.id}`, author.key)
+    await archive(h, `links/${link.id}`, admin.key)
     expect((await purge(h, `links/${link.id}`, admin.key)).status).toBe(204)
 
     expect((await h.request(`/api/v1/links/${link.id}/rules`, { key: admin.key })).status).toBe(404)
@@ -124,14 +122,14 @@ describe("DELETE /api/v1/domains/:id/purge", () => {
   test("only an admin may purge", async () => {
     const host = await h.createDomain("noadmin.test")
     await archive(h, `domains/${host}`, admin.key)
-    expect((await purge(h, `domains/${host}`, author.key)).status).toBe(403)
+    expect((await purge(h, `domains/${host}`, editor.key)).status).toBe(403)
   })
 
   test("refuses while any link remains, archived ones included", async () => {
     const host = await h.createDomain("occupied.test")
-    const link = await h.createLink(author.key, host, { slug: "squatter" })
+    const link = await h.createLink(editor.key, host, { slug: "squatter" })
 
-    await archive(h, `links/${link.id}`, author.key)
+    await archive(h, `links/${link.id}`, admin.key)
 
     // The domain itself cannot even be archived while the link — archived or
     // not — still points at it: the archive bar now matches the purge bar.

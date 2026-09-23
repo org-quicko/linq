@@ -24,10 +24,21 @@ fetcher → build the Hono app → reconcile Caddy's routes → listen. `SIGTERM
 `SIGINT` drain in-flight visit inserts and buffered log writes before exiting,
 so `docker stop` cannot silently drop the tail of either.
 
+```
+config ──► logger ──► db ──► migrations ──► bootstrap ──► cache/Caddy/metadata ──► Hono app ──► Caddy reconcile ──► listen
+  │                                            │
+  └─ exits on a bad value                      └─ admin key + default domain, only when their tables are empty
+```
+
 `createApp` (`http/app.ts`) mounts routes in an order that matters: `/api/*`
 first, then `robots.txt`/`llms.txt`, then the exported Client UI at `/home`,
 and the catch-all redirect handler last — so a reserved path can never be
 shadowed by a slug of the same name, and `/home` is never read as one either.
+
+```
+/api/*  ──►  robots.txt, llms.txt  ──►  /home (Client UI)  ──►  catch-all redirect
+(reserved paths win — a slug can never shadow one of these)
+```
 
 ## Auth: the key is the principal
 
@@ -38,22 +49,40 @@ and role directly, so authenticating is one indexed lookup and no join
 a missing, unknown or expired key is a 401. Only the key's sha256 is stored —
 a lost key cannot be recovered, only reissued.
 
-Roles are linear — `viewer < author < manager < admin` — and every check goes
-through `@linq/shared`'s `can`/`roleAtLeast`, wrapped on the server by
-`auth/permissions.ts`'s `assert*` functions. Revoking a key leaves its links
-owned by nobody rather than blocking the revoke; an unowned link is editable
-by a manager or admin.
+Roles are linear — `viewer < editor < admin` — and every check goes through
+`@linq/shared`'s `can`/`roleAtLeast`, wrapped on the server by
+`auth/permissions.ts`'s `assert*` functions. An editor creates and edits any
+link; archiving, restoring and purging a link are admin-only. Links carry no
+reference to the key that created them, so revoking a key never touches its
+links (`docs/adr/0016`).
+
+```
+request
+  │  Authorization: Bearer <key>  or  X-Api-Key
+  ▼
+authenticate (hash + look up api_keys) ──miss/expired──► 401
+  │ hit
+  ▼
+principal { keyId, role, name }
+  │
+  ▼
+route handler's assert*(principal, …) ──fails──► 403
+  │ passes
+  ▼
+handler runs
+```
 
 ## Data model
 
 Six tables, one migration tool (Drizzle, `apps/server/src/db/schema.ts` →
 `bun run db:generate`). A domain hosts links; a link belongs to a domain and
-optionally an owning key; a link may carry ordered rules (alternate
-destinations gated on platform or query-param conditions, first match wins —
-`rules/match.ts`) and styled QR codes. Archiving a link or domain is a status
-flip, never a delete: a slug is reserved for as long as its row exists, so an
-archived slug can never be hijacked by a new link (`docs/adr/0002`). Only a
-`Purge`, admin-only, destroys the row and its visits for good.
+carries no reference to the key that created it (`docs/adr/0016`); a link may
+carry ordered rules (alternate destinations gated on platform or query-param
+conditions, first match wins — `rules/match.ts`) and styled QR codes.
+Archiving a link or domain is a status flip, never a delete: a slug is
+reserved for as long as its row exists, so an archived slug can never be
+hijacked by a new link (`docs/adr/0002`). Only a `Purge`, admin-only, destroys
+the row and its visits for good.
 
 Visits are the one high-volume table, and the one place traffic ever touches
 the client. Recording is fire-and-forget (`visits/record.ts`) — a redirect
@@ -90,6 +119,34 @@ favicon in the background instead, fetched once and stored on the link
 (`link-metadata.ts`), with an SSRF guard that refuses private, loopback and
 link-local IPs so a destination can't be used to probe the server's own
 network.
+
+```
+request  (Host header + slug)
+  │
+  ▼
+reserved path? (/api, /home, robots.txt, llms.txt)  ──yes──►  routed there, never reaches this handler
+  │ no
+  ▼
+cache lookup (through())  ──hit──►  cached target  ─────────────────────────────┐
+  │ miss                                                                        │
+  ▼                                                                             │
+resolve domain (Host)  ──unknown / archived──►  untracked 404                   │
+  │ active                                                                      │
+  ▼                                                                             │
+resolve link (slug, rules bundled in)  ──unknown / archived / expired──►  orphan visit ──► domain's fallback_url or 404
+  │ active                                                                      │
+  ▼                                                                             │
+rule matching (rules/match.ts, first hold wins)  ──►  destination  ◄────────────┘
+  │
+  ▼
+forward_query?  ──yes──►  merge caller's query, link's preset params win on collision
+  │
+  ▼
+crawler user agent?  ──yes──►  OG preview HTML (link's own title, never fetched from the destination)
+  │ no
+  ▼
+302 redirect  +  fire-and-forget visit insert (never blocks the response)
+```
 
 ## Cache, Caddy, metadata: the same shape three times
 

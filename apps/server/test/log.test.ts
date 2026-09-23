@@ -107,7 +107,7 @@ describe("plumbing", () => {
     const out = await capture()
     const h = await createHarness()
     const domain_id = await h.createDomain("localhost")
-    const { key } = await h.actor("author")
+    const { key } = await h.actor("editor")
     const link = await h.createLink(key, domain_id, { slug: "traced" })
 
     out.lines.length = 0

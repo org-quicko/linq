@@ -55,3 +55,13 @@ A viewer can no longer *become* a link's owner — a transfer to a viewer key is
 **Revocation is untouched and stays the unconditional escape hatch.** `DELETE /keys/:id` still succeeds regardless of how many links a key owns, leaving them unowned via `ON DELETE SET NULL`, exactly as the Decision above requires. Demotion is housekeeping; revocation is incident response, and it remains one call.
 
 A key demoted before this amendment shipped may still own links — that pre-existing state is tolerated, not migrated, the same forward-only stance every amendment here has taken.
+
+## Amendment: links no longer have an owner (2026-09-23)
+
+**Supersedes every ownership claim above.** See
+[0016](./0016-links-are-unowned-editor-replaces-author-and-manager.md):
+`links.owner_id` is dropped, `author` and `manager` collapse into a single
+`editor` role, and transfer (per-link and bulk) is removed. This ADR's core
+claim — the key is the only principal, authenticated by one indexed lookup —
+still stands; only the relationship a key used to have with the links it
+created is gone.

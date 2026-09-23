@@ -21,10 +21,9 @@ Project linq {
 // ── Enums ────────────────────────────────────────────────────────────────────
 
 Enum role {
-  viewer  [note: 'Reads everything.']
-  author  [note: 'Also creates and manages its own links.']
-  manager [note: 'Also manages any link.']
-  admin   [note: 'Also manages domains and keys, and may purge.']
+  viewer [note: 'Reads everything.']
+  editor [note: 'Also creates and edits any link.']
+  admin  [note: 'Also archives, restores and purges links, and manages domains and keys.']
 }
 
 Enum resource_status {
@@ -70,8 +69,8 @@ Table api_keys {
     The principal. There are no user rows: a key carries its own name and role,
     so authentication is one row and no join. See docs/adr/0011.
 
-    Revoking a key deletes the row, and its links are left unowned rather than
-    blocking the delete. See docs/adr/0003 for what is logged.
+    Revoking a key deletes the row. Links carry no reference to the key that
+    created them, so revoking never touches them. See docs/adr/0016.
   '''
 }
 
@@ -100,7 +99,6 @@ Table links {
   forward_query boolean         [not null, default: true, note: 'Merge the incoming query string over the destination']
   preset_params jsonb           [not null, default: `'{}'::jsonb`, note: 'Record<string,string>: set on the destination when forward_query is true, overriding its own query and the forwarded one. At most 20.']
   status        resource_status [not null, default: 'active']
-  owner_id      uuid            [note: 'The key that created it. Null once that key is revoked.']
   expires_at    timestamptz     [note: 'Past this, the link resolves like an unknown slug. Null never expires.']
   listed        boolean         [not null, default: false, note: 'Opt-in: listed in the domain public /llms.txt catalogue.']
   created_at    timestamptz     [not null, default: `now()`]
@@ -108,14 +106,14 @@ Table links {
 
   Indexes {
     (domain_id, slug) [unique, name: 'links_domain_slug_key']
-    owner_id          [name: 'links_owner_id_idx']
     status            [name: 'links_status_idx']
     tags              [type: gin, name: 'links_tags_idx']
     domain_id         [name: 'links_listed_idx', note: 'Partial: where listed. Serves the unauthenticated /llms.txt route.']
   }
 
   Note: '''
-    One short link: a slug on a domain, owned by a user.
+    One short link: a slug on a domain. Carries no reference to the key that
+    created it — see docs/adr/0016.
 
     Archiving keeps the row so a dead link cannot be hijacked by a new one;
     only a purge releases the slug. See docs/adr/0002.
@@ -248,7 +246,6 @@ Table visit_counts {
 
 
 Ref: links.domain_id > domains.id [delete: restrict]
-Ref: links.owner_id > api_keys.id [delete: set null]
 
 Ref: rules.link_id > links.id [delete: cascade]
 Ref: qr_codes.link_id > links.id [delete: cascade]

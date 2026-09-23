@@ -1,7 +1,7 @@
 import { describe, expect, test } from "bun:test"
 import { type Actor, can, ROLES, type Role } from "@linq/shared"
 import type { Principal } from "../src/auth/middleware.ts"
-import { assertCanEdit, assertCanTransfer, assertRole } from "../src/auth/permissions.ts"
+import { assertCanArchive, assertCanEdit, assertRole } from "../src/auth/permissions.ts"
 
 const principal = (role: Role, keyId = "k1"): Principal => ({ role, keyId, name: "test" })
 /** True when `fn` does not throw, so a permission matrix reads as booleans. */
@@ -17,9 +17,8 @@ const allows = (fn: () => void) => {
 describe("assertRole", () => {
   test("admits exactly the roles at or above the minimum", () => {
     const matrix: Record<Role, Role[]> = {
-      viewer: ["viewer", "author", "manager", "admin"],
-      author: ["author", "manager", "admin"],
-      manager: ["manager", "admin"],
+      viewer: ["viewer", "editor", "admin"],
+      editor: ["editor", "admin"],
       admin: ["admin"],
     }
     for (const min of ROLES) {
@@ -31,29 +30,21 @@ describe("assertRole", () => {
 })
 
 describe("assertCanEdit", () => {
-  test("managers and admins act on anything", () => {
-    expect(allows(() => assertCanEdit(principal("manager"), "someone-else"))).toBe(true)
-    expect(allows(() => assertCanEdit(principal("admin"), "someone-else"))).toBe(true)
+  test("an editor or admin may create and edit any link", () => {
+    expect(allows(() => assertCanEdit(principal("editor")))).toBe(true)
+    expect(allows(() => assertCanEdit(principal("admin")))).toBe(true)
   })
 
-  test("an author acts only on what it owns", () => {
-    expect(allows(() => assertCanEdit(principal("author", "u1"), "u1"))).toBe(true)
-    expect(allows(() => assertCanEdit(principal("author", "u1"), "u2"))).toBe(false)
-  })
-
-  test("a viewer that owns something still cannot change it", () => {
-    expect(allows(() => assertCanEdit(principal("viewer", "u1"), "u1"))).toBe(false)
+  test("a viewer may not", () => {
+    expect(allows(() => assertCanEdit(principal("viewer")))).toBe(false)
   })
 })
 
-describe("assertCanTransfer", () => {
-  test("an manager hands over only its own", () => {
-    expect(allows(() => assertCanTransfer(principal("manager", "u1"), "u1"))).toBe(true)
-    expect(allows(() => assertCanTransfer(principal("manager", "u1"), "u2"))).toBe(false)
-  })
-
-  test("an admin hands over anyone's", () => {
-    expect(allows(() => assertCanTransfer(principal("admin", "u1"), "u2"))).toBe(true)
+describe("assertCanArchive", () => {
+  test("admin only", () => {
+    expect(allows(() => assertCanArchive(principal("admin")))).toBe(true)
+    expect(allows(() => assertCanArchive(principal("editor")))).toBe(false)
+    expect(allows(() => assertCanArchive(principal("viewer")))).toBe(false)
   })
 })
 
@@ -65,41 +56,17 @@ describe("assertCanTransfer", () => {
 const ME = "key-me"
 const OTHER = "key-other"
 const actor = (role: Role): Actor => ({ keyId: ME, role })
-const mine = { owner_id: ME }
-const theirs = { owner_id: OTHER }
 
 describe("can", () => {
-  test("ownLink needs author or better", () => {
-    expect(ROLES.filter((role) => can.ownLink({ role }))).toEqual(["author", "manager", "admin"])
+  test("createLink and editLink need editor or better", () => {
+    expect(ROLES.filter((role) => can.createLink(actor(role)))).toEqual(["editor", "admin"])
+    expect(ROLES.filter((role) => can.editLink(actor(role)))).toEqual(["editor", "admin"])
   })
 
-  test("createLink is exactly ownLink", () => {
-    for (const role of ROLES) expect(can.createLink(actor(role))).toBe(can.ownLink({ role }))
-  })
-
-  test("editLink: own from author upwards, anyone else's from manager upwards", () => {
-    expect(ROLES.filter((role) => can.editLink(actor(role), mine))).toEqual([
-      "author",
-      "manager",
-      "admin",
-    ])
-    expect(ROLES.filter((role) => can.editLink(actor(role), theirs))).toEqual(["manager", "admin"])
-  })
-
-  test("transferLink: own from author upwards, anyone else's admin only", () => {
-    expect(ROLES.filter((role) => can.transferLink(actor(role), mine))).toEqual([
-      "author",
-      "manager",
-      "admin",
-    ])
-    expect(ROLES.filter((role) => can.transferLink(actor(role), theirs))).toEqual(["admin"])
-  })
-
-  test("transferLink never permits what editLink refuses", () => {
+  test("archiveLink is admin only, strictly narrower than editLink", () => {
+    expect(ROLES.filter((role) => can.archiveLink(actor(role)))).toEqual(["admin"])
     for (const role of ROLES) {
-      for (const link of [mine, theirs]) {
-        if (can.transferLink(actor(role), link)) expect(can.editLink(actor(role), link)).toBe(true)
-      }
+      if (can.archiveLink(actor(role))) expect(can.editLink(actor(role))).toBe(true)
     }
   })
 
@@ -116,7 +83,7 @@ describe("can", () => {
   })
 
   test("a non-admin changes nobody", () => {
-    for (const role of ["viewer", "author", "manager"] as const) {
+    for (const role of ["viewer", "editor"] as const) {
       expect(can.changeRoleOf(actor(role), OTHER)).toBe(false)
       expect(can.revokeKey(actor(role), OTHER)).toBe(false)
     }

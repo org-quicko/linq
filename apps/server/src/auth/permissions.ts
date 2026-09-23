@@ -12,19 +12,19 @@ export function assertRole(principal: Principal, min: Role): void {
   if (!roleAtLeast(principal.role, min)) throw ApiError.forbidden()
 }
 
-/** Throws 403 unless the principal may change this link. See `can.editLink`. */
-export function assertCanEdit(principal: Principal, owner_id: string | null): void {
-  if (!can.editLink(principal, { owner_id })) throw ApiError.forbidden()
+/** Throws 403 unless the principal may create or edit a link. See `can.editLink`. */
+export function assertCanEdit(principal: Principal): void {
+  if (!can.editLink(principal)) throw ApiError.forbidden()
+}
+
+/** Throws 403 unless the principal may archive or restore a link. See `can.archiveLink`. */
+export function assertCanArchive(principal: Principal): void {
+  if (!can.archiveLink(principal)) {
+    throw ApiError.forbidden("only an admin archives or restores a link")
+  }
 }
 
 /** Throws 403 unless the principal may purge. See `can.purge`. */
 export function assertCanPurge(principal: Principal): void {
   if (!can.purge(principal)) throw ApiError.forbidden("only an admin purges")
-}
-
-/** Throws 403 unless the principal may hand this link to someone else. */
-export function assertCanTransfer(principal: Principal, owner_id: string | null): void {
-  if (!can.transferLink(principal, { owner_id })) {
-    throw ApiError.forbidden("only an admin transfers a link it does not own")
-  }
 }

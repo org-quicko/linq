@@ -45,7 +45,6 @@ export const linkPatchSchema = z
     forward_query: z.boolean(),
     preset_params: presetParamsSchema,
     status: resourceStatusSchema,
-    owner_id: uuidSchema,
     expires_at: z.iso.datetime().nullable(),
     listed: z.boolean(),
     rules: rulesPutSchema,
@@ -61,7 +60,6 @@ export const linkListQuerySchema = paginationSchema.extend({
    *  as `domain_id` rather than renamed to plural, so a caller passing a
    *  single uuid keeps working unchanged. */
   domain_id: csvList(uuidSchema),
-  owner_id: uuidSchema.optional(),
   status: z.enum(["active", "archived", "all"]).default("active"),
   sort: z.enum(["created_at", "updated_at", "visits"]).default("created_at"),
   order: z.enum(["asc", "desc"]).default("desc"),
@@ -93,8 +91,6 @@ export type Link = {
   forward_query: boolean
   preset_params: Record<string, string>
   status: "active" | "archived"
-  owner_id: string | null
-  owner_name: string | null
   human_visits: number
   bot_visits: number
   expires_at: string | null

@@ -23,7 +23,6 @@ type QrCodeRow = {
   qrCode: typeof qrCodes.$inferSelect
   link_name: string | null
   link_status: "active" | "archived"
-  link_owner_id: string | null
   slug: string
   domain_host: string
 }
@@ -40,7 +39,6 @@ function toQrCode(row: QrCodeRow): QrCode {
     pattern: qrCode.pattern,
     link_name: row.link_name,
     link_status: row.link_status,
-    link_owner_id: row.link_owner_id,
     slug: row.slug,
     domain_host: row.domain_host,
     short_url: shortUrl(row.domain_host, row.slug),
@@ -51,9 +49,7 @@ function toQrCode(row: QrCodeRow): QrCode {
 
 /**
  * Inner joins only: `qr_codes.link_id` is NOT NULL behind a foreign key, and
- * `links.domain_id` the same, so neither join can ever drop a row. No
- * `leftJoin(apiKeys)` — that exists in `links.ts` only to resolve
- * `owner_name`, which a QR row does not carry.
+ * `links.domain_id` the same, so neither join can ever drop a row.
  */
 function qrCodeQuery(db: Db) {
   return db
@@ -61,7 +57,6 @@ function qrCodeQuery(db: Db) {
       qrCode: qrCodes,
       link_name: links.name,
       link_status: links.status,
-      link_owner_id: links.owner_id,
       slug: links.slug,
       domain_host: domains.host,
     })
@@ -83,20 +78,12 @@ function fetchQrCode(db: Db, id: string): Promise<QrCode> {
   )
 }
 
-/** The raw row plus its link, for a permission check that needs the link's `owner_id`. */
-function loadQrCode(
-  db: Db,
-  id: string,
-): Promise<{ qrCode: typeof qrCodes.$inferSelect; link: typeof links.$inferSelect }> {
+/** Confirms a QR code exists, or throws 404. */
+function loadQrCode(db: Db, id: string): Promise<typeof qrCodes.$inferSelect> {
   return span(
     "qrCode.load",
     async () => {
-      const [row] = await db
-        .select({ qrCode: qrCodes, link: links })
-        .from(qrCodes)
-        .innerJoin(links, eq(links.id, qrCodes.link_id))
-        .where(eq(qrCodes.id, id))
-        .limit(1)
+      const [row] = await db.select().from(qrCodes).where(eq(qrCodes.id, id)).limit(1)
       if (!row) throw ApiError.notFound("QR code")
       return row
     },
@@ -106,8 +93,7 @@ function loadQrCode(
 
 /**
  * Mounted top-level (`/v1/qr-codes`), because the list view spans every link.
- * Permissions delegate entirely to the parent link (`can.editLink`) — there
- * is no `can.editQrCode`.
+ * Permissions are `can.editLink` — there is no `can.editQrCode`.
  */
 export const qrCodeRoutes = new Hono<Env>()
   .get("/", validate("query", qrCodeListQuerySchema), async (c) => {
@@ -146,7 +132,7 @@ export const qrCodeRoutes = new Hono<Env>()
     const body = c.req.valid("json")
     // Unknown link first: a missing link is a 404, not a permission question.
     const link = await loadLink(c.var.db, body.link_id)
-    assertCanEdit(c.var.principal, link.owner_id)
+    assertCanEdit(c.var.principal)
     if (link.status === "archived") {
       throw ApiError.conflict("cannot attach a QR code to an archived link")
     }
@@ -171,8 +157,8 @@ export const qrCodeRoutes = new Hono<Env>()
   .patch("/:id", idParam, validate("json", qrCodePatchSchema), async (c) => {
     const { id } = c.req.valid("param")
     const patch = c.req.valid("json")
-    const { link } = await loadQrCode(c.var.db, id)
-    assertCanEdit(c.var.principal, link.owner_id)
+    await loadQrCode(c.var.db, id)
+    assertCanEdit(c.var.principal)
 
     // A blanket spread is safe here, unlike `links.ts`: every patchable field
     // is a string the column takes as-is, and the schema is strict.
@@ -189,8 +175,8 @@ export const qrCodeRoutes = new Hono<Env>()
    *  amendment. */
   .delete("/:id", idParam, async (c) => {
     const { id } = c.req.valid("param")
-    const { link } = await loadQrCode(c.var.db, id)
-    assertCanEdit(c.var.principal, link.owner_id)
+    await loadQrCode(c.var.db, id)
+    assertCanEdit(c.var.principal)
 
     await c.var.db.delete(qrCodes).where(eq(qrCodes.id, id))
     return c.body(null, 204)

@@ -68,21 +68,21 @@ async function rolledCounts(db: Db) {
 }
 
 let h: Harness
-let author: { keyId: string; key: string }
+let editor: { keyId: string; key: string }
 let admin: { keyId: string; key: string }
 let domain: string
 
 beforeEach(async () => {
   h = await createHarness()
-  author = await h.actor("author")
+  editor = await h.actor("editor")
   admin = await h.actor("admin")
   domain = await h.createDomain(HOST, "https://example.com/fallback")
 })
 
 /** Drives real traffic through the redirect, so the triggers see real rows. */
 async function traffic() {
-  const one = await h.createLink(author.key, domain, { slug: "one" })
-  const two = await h.createLink(author.key, domain, { slug: "two" })
+  const one = await h.createLink(editor.key, domain, { slug: "one" })
+  const two = await h.createLink(editor.key, domain, { slug: "two" })
 
   for (const [slug, agent, referer] of [
     ["one", DESKTOP, "https://news.test/"],
@@ -121,7 +121,7 @@ describe("the day-wise rollup", () => {
   })
 
   test("a second visit increments the row rather than adding one", async () => {
-    await h.createLink(author.key, domain, { slug: "again" })
+    await h.createLink(editor.key, domain, { slug: "again" })
     const hit = () => h.request("/again", { host: HOST, headers: { "user-agent": DESKTOP } })
 
     await hit()
@@ -137,7 +137,7 @@ describe("the day-wise rollup", () => {
   })
 
   test("an unrecorded dimension is stored as an empty value, not a word", async () => {
-    await h.createLink(author.key, domain, { slug: "bare" })
+    await h.createLink(editor.key, domain, { slug: "bare" })
     await h.request("/bare", { host: HOST, headers: { "user-agent": DESKTOP } })
     await flushVisits()
 
@@ -153,7 +153,7 @@ describe("the summary counts", () => {
   })
 
   test("split human and bot, and remember the last visit", async () => {
-    const link = await h.createLink(author.key, domain, { slug: "split" })
+    const link = await h.createLink(editor.key, domain, { slug: "split" })
     for (const agent of [DESKTOP, DESKTOP, BOT]) {
       await h.request("/split", { host: HOST, headers: { "user-agent": agent } })
     }
@@ -187,7 +187,7 @@ describe("purge", () => {
       .from(visitCounts)
       .where(and(eq(visitCounts.domain_id, domain), isNull(visitCounts.link_id)))
 
-    await h.request(`/api/v1/links/${one.id}`, { key: author.key, method: "DELETE" })
+    await h.request(`/api/v1/links/${one.id}`, { key: admin.key, method: "DELETE" })
     await h.request(`/api/v1/links/${one.id}/purge`, { key: admin.key, method: "DELETE" })
 
     // `visits.link_id` is ON DELETE cascade, so the live aggregate has shrunk
@@ -211,7 +211,7 @@ describe("purge", () => {
 
   test("a purged domain takes its rollups with it", async () => {
     const spare = await h.createDomain("spare.test")
-    const link = await h.createLink(author.key, spare, { slug: "doomed" })
+    const link = await h.createLink(editor.key, spare, { slug: "doomed" })
     await h.request("/doomed", { host: "spare.test", headers: { "user-agent": DESKTOP } })
     // Genuine orphan traffic, so there's still an orphan-scoped rollup row on
     // `spare` after the link below is purged — proving domain purge, not link
@@ -222,7 +222,7 @@ describe("purge", () => {
       await h.db.select().from(visitDays).where(eq(visitDays.domain_id, spare)),
     ).not.toHaveLength(0)
 
-    await h.request(`/api/v1/links/${link.id}`, { key: author.key, method: "DELETE" })
+    await h.request(`/api/v1/links/${link.id}`, { key: admin.key, method: "DELETE" })
     await h.request(`/api/v1/links/${link.id}/purge`, { key: admin.key, method: "DELETE" })
 
     const orphanAfterLinkPurge = await h.db

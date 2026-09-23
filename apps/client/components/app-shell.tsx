@@ -26,9 +26,9 @@ import { useCountLinksQuery } from "../lib/store/links"
  * ever matching. `lib/api.ts` is the one place that spells it out, because it
  * navigates with `window.location`, which Next does not touch.
  *
- * TEMPORARY href remains on Settings: a real `/settings/` index does not
- * exist yet. It points at the nearest existing page until its real route
- * lands, so the app stays navigable across the intermediate commits.
+ * Settings links straight to its first real page. The `/settings/` index is
+ * retained only for old bookmarks; routing normal navigation through its
+ * client-side redirect can leave the user waiting on that intermediate page.
  */
 type NavItem = {
   href: string
@@ -50,7 +50,7 @@ const NAV: NavItem[] = [
  * standalone Domains page did before the move.
  */
 const SETTINGS: NavItem = {
-  href: "/settings/",
+  href: "/settings/domains/",
   label: "Settings",
   icon: Settings,
   visible: () => true,
@@ -68,6 +68,8 @@ const ALL_HREFS = [...NAV, SETTINGS].map((item) => item.href)
  * therefore the right one.
  */
 function activeHref(pathname: string): string | undefined {
+  if (pathname.startsWith("/settings/")) return SETTINGS.href
+
   return ALL_HREFS.filter((href) => pathname.startsWith(href)).sort(
     (a, b) => b.length - a.length,
   )[0]

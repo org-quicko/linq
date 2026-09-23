@@ -14,8 +14,8 @@ beforeAll(async () => {
 
 describe("POST /api/v1/domains", () => {
   test("only an admin creates domains", async () => {
-    const manager = await h.actor("manager")
-    const res = await h.post("/api/v1/domains", manager.key, { host: "nope.test" })
+    const nonAdmin = await h.actor("editor")
+    const res = await h.post("/api/v1/domains", nonAdmin.key, { host: "nope.test" })
     expect(res.status).toBe(403)
   })
 
@@ -64,16 +64,16 @@ describe("GET /api/v1/domains", () => {
 
   test("counts every link, archived included", async () => {
     const domain = await h.createDomain("counted.test")
-    const author = await h.actor("author")
-    const kept = await h.createLink(author.key, domain, { slug: "kept" })
-    await h.createLink(author.key, domain, { slug: "dropped" })
+    const editor = await h.actor("editor")
+    const kept = await h.createLink(editor.key, domain, { slug: "kept" })
+    await h.createLink(editor.key, domain, { slug: "dropped" })
 
     const before = await (await h.request(`/api/v1/domains/${domain}`, { key: admin.key })).json()
     expect(before.link_count).toBe(2)
 
     // The count is now "what must reach zero to archive or purge the
     // domain", so archiving a link no longer drops it out.
-    await h.request(`/api/v1/links/${kept.id}`, { key: author.key, method: "DELETE" })
+    await h.request(`/api/v1/links/${kept.id}`, { key: admin.key, method: "DELETE" })
     const after = await (await h.request(`/api/v1/domains/${domain}`, { key: admin.key })).json()
     expect(after.link_count).toBe(2)
   })
@@ -82,8 +82,8 @@ describe("GET /api/v1/domains", () => {
 describe("archiving a domain", () => {
   test("is refused with 409 while an active link exists", async () => {
     const domain = await h.createDomain("busy.test")
-    const author = await h.actor("author")
-    await h.createLink(author.key, domain, { slug: "busy" })
+    const editor = await h.actor("editor")
+    await h.createLink(editor.key, domain, { slug: "busy" })
 
     const viaDelete = await h.request(`/api/v1/domains/${domain}`, {
       key: admin.key,
@@ -97,11 +97,11 @@ describe("archiving a domain", () => {
 
   test("is refused with 409 while only an archived link exists", async () => {
     const domain = await h.createDomain("archived-link.test")
-    const author = await h.actor("author")
-    const link = await h.createLink(author.key, domain, { slug: "stale" })
+    const editor = await h.actor("editor")
+    const link = await h.createLink(editor.key, domain, { slug: "stale" })
     // Archiving the link does not clear the way any more: the archive bar
     // now matches the purge bar.
-    await h.request(`/api/v1/links/${link.id}`, { key: author.key, method: "DELETE" })
+    await h.request(`/api/v1/links/${link.id}`, { key: admin.key, method: "DELETE" })
 
     const res = await h.request(`/api/v1/domains/${domain}`, { key: admin.key, method: "DELETE" })
     expect(res.status).toBe(409)
@@ -110,9 +110,9 @@ describe("archiving a domain", () => {
 
   test("archives cleanly once its only link is purged", async () => {
     const domain = await h.createDomain("purge-first.test")
-    const author = await h.actor("author")
-    const link = await h.createLink(author.key, domain, { slug: "gone" })
-    await h.request(`/api/v1/links/${link.id}`, { key: author.key, method: "DELETE" })
+    const editor = await h.actor("editor")
+    const link = await h.createLink(editor.key, domain, { slug: "gone" })
+    await h.request(`/api/v1/links/${link.id}`, { key: admin.key, method: "DELETE" })
 
     const stillBlocked = await h.request(`/api/v1/domains/${domain}`, {
       key: admin.key,
@@ -142,8 +142,8 @@ describe("archiving a domain", () => {
     const domain = await h.createDomain("closed.test")
     await h.request(`/api/v1/domains/${domain}`, { key: admin.key, method: "DELETE" })
 
-    const author = await h.actor("author")
-    const res = await h.post("/api/v1/links", author.key, {
+    const editor = await h.actor("editor")
+    const res = await h.post("/api/v1/links", editor.key, {
       domain_id: domain,
       destination: "https://example.com",
     })
@@ -154,9 +154,9 @@ describe("archiving a domain", () => {
 describe("purging a domain", () => {
   test("is refused with 409, not 500, while an archived link exists", async () => {
     const domain = await h.createDomain("purge-archived-link.test")
-    const author = await h.actor("author")
-    const link = await h.createLink(author.key, domain, { slug: "leftover" })
-    await h.request(`/api/v1/links/${link.id}`, { key: author.key, method: "DELETE" })
+    const editor = await h.actor("editor")
+    const link = await h.createLink(editor.key, domain, { slug: "leftover" })
+    await h.request(`/api/v1/links/${link.id}`, { key: admin.key, method: "DELETE" })
 
     // The API can no longer put a domain in this state — A1 raised the
     // archive bar to match the purge bar, so archiving is itself refused
@@ -176,9 +176,9 @@ describe("purging a domain", () => {
 describe("PATCH /api/v1/domains/:id", () => {
   test("only an admin may change a fallback", async () => {
     const domain = await h.createDomain("fallback.test")
-    const manager = await h.actor("manager")
+    const nonAdmin = await h.actor("editor")
     expect(
-      (await h.patch(`/api/v1/domains/${domain}`, manager.key, { fallback_url: null })).status,
+      (await h.patch(`/api/v1/domains/${domain}`, nonAdmin.key, { fallback_url: null })).status,
     ).toBe(403)
 
     const ok = await h.patch(`/api/v1/domains/${domain}`, admin.key, {

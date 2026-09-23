@@ -238,7 +238,6 @@ function LinksList({ actor }: { actor: Actor }) {
           key={`${dialog.mode}-${dialog.link?.id ?? "new"}`}
           open
           onOpenChange={(next) => !next && setDialog(null)}
-          actor={actor}
           mode={dialog.mode}
           link={dialog.link}
         />
@@ -263,8 +262,9 @@ function LinkRow({
   const { run } = useRun()
   const [confirmArchive, setConfirmArchive] = useState(false)
 
-  const editable = can.editLink(actor, link)
+  const editable = can.editLink(actor)
   const duplicatable = can.createLink(actor)
+  const archivable = can.archiveLink(actor)
   // More than one rule reads as "this link routes dynamically" — a single
   // rule is still just one alternate destination, not a decision tree.
   const routesDynamically = link.rule_count > 1
@@ -303,7 +303,7 @@ function LinkRow({
               onClick={() => router.push(`/analytics/?link_id=${link.id}`)}
             />
             <ShareMenu link={link} />
-            {editable || duplicatable ? (
+            {editable || duplicatable || archivable ? (
               <DropdownMenu>
                 <DropdownMenuTrigger asChild>
                   <IconButton icon={MoreVertical} label="More options" />
@@ -321,7 +321,7 @@ function LinkRow({
                       Duplicate
                     </DropdownMenuItem>
                   ) : null}
-                  {editable ? (
+                  {archivable ? (
                     <DropdownMenuItem onClick={() => setConfirmArchive(true)}>
                       <Archive />
                       Archive

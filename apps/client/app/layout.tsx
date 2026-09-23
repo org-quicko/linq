@@ -36,7 +36,7 @@ const dmSans = localFont({
 })
 
 export const metadata: Metadata = {
-  title: "linq admin",
+  title: "Linq",
 }
 
 export default function RootLayout({ children }: { children: ReactNode }) {

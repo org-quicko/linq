@@ -28,13 +28,13 @@ describe("authentication", () => {
   })
 
   test("accepts a valid key and reports the principal", async () => {
-    const { keyId, key } = await h.actor("manager")
+    const { keyId, key } = await h.actor("editor")
     const res = await h.request("/api/v1/me", { key })
     expect(res.status).toBe(200)
     // /me is the key itself: there is no user behind it.
     expect(await res.json()).toMatchObject({
       id: keyId,
-      role: "manager",
+      role: "editor",
       prefix: key.slice(0, 12),
     })
   })

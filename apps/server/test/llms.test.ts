@@ -43,13 +43,13 @@ describe("renderLlms", () => {
 })
 
 let h: Harness
-let author: { keyId: string; key: string }
+let editor: { keyId: string; key: string }
 let domain: string
 const HOST = "llms.test"
 
 beforeAll(async () => {
   h = await createHarness()
-  author = await h.actor("author")
+  editor = await h.actor("editor")
   domain = await h.createDomain(HOST, "https://example.com/fallback")
 })
 
@@ -68,7 +68,7 @@ describe("GET /llms.txt", () => {
   })
 
   test("a listed active link renders with its short URL, not merely the destination", async () => {
-    const link = await h.createLink(author.key, domain, {
+    const link = await h.createLink(editor.key, domain, {
       slug: "public",
       name: "Public link",
       listed: true,
@@ -78,20 +78,21 @@ describe("GET /llms.txt", () => {
   })
 
   test("a link created without listed does not appear — the security property", async () => {
-    await h.createLink(author.key, domain, { slug: "private", listed: false })
+    await h.createLink(editor.key, domain, { slug: "private", listed: false })
     const body = await (await get("/llms.txt")).text()
     expect(body).not.toContain("/private)")
   })
 
   test("an archived listed link does not appear", async () => {
-    const link = await h.createLink(author.key, domain, { slug: "was-listed", listed: true })
-    await h.request(`/api/v1/links/${link.id}`, { key: author.key, method: "DELETE" })
+    const link = await h.createLink(editor.key, domain, { slug: "was-listed", listed: true })
+    const admin = await h.actor("admin")
+    await h.request(`/api/v1/links/${link.id}`, { key: admin.key, method: "DELETE" })
     const body = await (await get("/llms.txt")).text()
     expect(body).not.toContain(link.short_url)
   })
 
   test("an expired listed link does not appear", async () => {
-    const link = await h.createLink(author.key, domain, {
+    const link = await h.createLink(editor.key, domain, {
       slug: "expired-listed",
       listed: true,
       expires_at: new Date(Date.now() - 1000).toISOString(),
@@ -105,7 +106,7 @@ describe("invalidation", () => {
   test("a new listed link appears on the next request, not after the TTL", async () => {
     const cache = memoryCache(testConfig)
     const cached = await createHarness({ cache })
-    const owner = await cached.actor("author")
+    const owner = await cached.actor("editor")
     const domain_id = await cached.createDomain("llms-cache.test")
 
     const first = await cached.request("/llms.txt", { host: "llms-cache.test" })

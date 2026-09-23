@@ -3,7 +3,7 @@ import { ANALYTICS_FILTERS, type StatsBucket } from "@linq/shared"
 import { createHarness, type Harness } from "./helpers/app.ts"
 
 let h: Harness
-let author: { keyId: string; key: string }
+let editor: { keyId: string; key: string }
 let domain: string
 let linkOne: string
 let linkTwo: string
@@ -12,11 +12,11 @@ const at = (iso: string) => new Date(iso)
 
 beforeAll(async () => {
   h = await createHarness()
-  author = await h.actor("author")
+  editor = await h.actor("editor")
   domain = await h.createDomain("analytics.test", "https://example.com/fallback")
 
-  const one = await h.createLink(author.key, domain, { slug: "one" })
-  const two = await h.createLink(author.key, domain, { slug: "two" })
+  const one = await h.createLink(editor.key, domain, { slug: "one" })
+  const two = await h.createLink(editor.key, domain, { slug: "two" })
   linkOne = one.id
   linkTwo = two.id
 
@@ -82,12 +82,12 @@ beforeAll(async () => {
   )
 })
 
-const analytics = async (path: string, key = author.key) => {
+const analytics = async (path: string, key = editor.key) => {
   const res = await h.request(`/api/v1/analytics${path}`, { key })
   return res
 }
 
-const json = async (path: string, key = author.key) => {
+const json = async (path: string, key = editor.key) => {
   const res = await analytics(path, key)
   expect(res.status).toBe(200)
   return await res.json()

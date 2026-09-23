@@ -1,5 +1,4 @@
 import { z } from "zod"
-import { uuidSchema } from "./primitives.ts"
 import { type Role, roleSchema } from "./roles.ts"
 
 export const keyCreateSchema = z.object({
@@ -17,11 +16,6 @@ export const keyPatchSchema = z
   })
   .partial()
 
-/** `POST /keys/:id/links/reassign`. Null means unassign, mirroring a link's own `owner_id: null`. */
-export const keyLinksReassignSchema = z.object({
-  to: uuidSchema.nullable(),
-})
-
 /**
  * The principal. There are no user rows: a key holds its own name and role, and
  * revoking one is a real delete. See docs/adr/0011.
@@ -36,11 +30,7 @@ export type ApiKey = {
   updated_at: string
 }
 
-/**
- * What every role below admin may see about another key. `role` is included
- * so the UI can filter transfer targets with the same `can.ownLink` predicate
- * the server enforces, rather than offering one it will refuse.
- */
+/** What every role below admin may see about another key. */
 export type ApiKeySummary = { id: string; name: string; role: Role }
 
 /** The plaintext secret is returned exactly once, at creation. */

@@ -11,7 +11,7 @@ const UA = "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 C
 
 let h: Harness
 let cache: Cache
-let author: { keyId: string; key: string }
+let editor: { keyId: string; key: string }
 let admin: { keyId: string; key: string }
 let domain: string
 
@@ -26,7 +26,7 @@ let domain: string
 beforeEach(async () => {
   cache = memoryCache(testConfig)
   h = await createHarness({ cache })
-  author = await h.actor("author")
+  editor = await h.actor("editor")
   admin = await h.actor("admin")
   domain = await h.createDomain(HOST, "https://example.com/fallback")
 })
@@ -44,7 +44,7 @@ const dropRow = (id: string) => h.db.delete(links).where(eq(links.id, id))
 
 describe("reads", () => {
   test("a second hit is answered without the database", async () => {
-    const link = await h.createLink(author.key, domain, { slug: "warm" })
+    const link = await h.createLink(editor.key, domain, { slug: "warm" })
     expect((await get("/warm")).headers.get("location")).toBe("https://example.com/")
 
     await dropRow(link.id)
@@ -54,9 +54,9 @@ describe("reads", () => {
   })
 
   test("rules are cached with the link, not looked up again", async () => {
-    const link = await h.createLink(author.key, domain, { slug: "ruled" })
+    const link = await h.createLink(editor.key, domain, { slug: "ruled" })
     await h.request(`/api/v1/links/${link.id}/rules`, {
-      key: author.key,
+      key: editor.key,
       method: "PUT",
       body: JSON.stringify([
         {
@@ -87,7 +87,7 @@ describe("reads", () => {
   })
 
   test("HEAD reads through the same entry as GET", async () => {
-    const link = await h.createLink(author.key, domain, { slug: "peek" })
+    const link = await h.createLink(editor.key, domain, { slug: "peek" })
     await h.request("/peek", { host: HOST, method: "HEAD" })
     await dropRow(link.id)
     expect((await get("/peek")).headers.get("location")).toBe("https://example.com/")
@@ -97,24 +97,24 @@ describe("reads", () => {
 describe("invalidation", () => {
   test("creating a link clears the negative entry for its slug", async () => {
     expect((await get("/fresh")).headers.get("location")).toBe("https://example.com/fallback")
-    await h.createLink(author.key, domain, { slug: "fresh" })
+    await h.createLink(editor.key, domain, { slug: "fresh" })
     expect((await get("/fresh")).headers.get("location")).toBe("https://example.com/")
   })
 
   test("updating a link's destination clears its entry", async () => {
-    const link = await h.createLink(author.key, domain, { slug: "moved" })
+    const link = await h.createLink(editor.key, domain, { slug: "moved" })
     await get("/moved")
-    await h.patch(`/api/v1/links/${link.id}`, author.key, {
+    await h.patch(`/api/v1/links/${link.id}`, editor.key, {
       destination: "https://example.com/new",
     })
     expect((await get("/moved")).headers.get("location")).toBe("https://example.com/new")
   })
 
   test("replacing a link's rules clears its entry", async () => {
-    const link = await h.createLink(author.key, domain, { slug: "rules" })
+    const link = await h.createLink(editor.key, domain, { slug: "rules" })
     await get("/rules")
     await h.request(`/api/v1/links/${link.id}/rules`, {
-      key: author.key,
+      key: editor.key,
       method: "PUT",
       body: JSON.stringify([
         {
@@ -127,16 +127,16 @@ describe("invalidation", () => {
   })
 
   test("archiving a link clears its entry, so the slug falls through", async () => {
-    const link = await h.createLink(author.key, domain, { slug: "gone" })
+    const link = await h.createLink(editor.key, domain, { slug: "gone" })
     await get("/gone")
-    await h.request(`/api/v1/links/${link.id}`, { key: author.key, method: "DELETE" })
+    await h.request(`/api/v1/links/${link.id}`, { key: admin.key, method: "DELETE" })
     expect((await get("/gone")).headers.get("location")).toBe("https://example.com/fallback")
   })
 
   test("purging a link clears its entry", async () => {
-    const link = await h.createLink(author.key, domain, { slug: "purged" })
+    const link = await h.createLink(editor.key, domain, { slug: "purged" })
     await get("/purged")
-    await h.request(`/api/v1/links/${link.id}`, { key: author.key, method: "DELETE" })
+    await h.request(`/api/v1/links/${link.id}`, { key: admin.key, method: "DELETE" })
     await h.request(`/api/v1/links/${link.id}/purge`, { key: admin.key, method: "DELETE" })
     expect(await cache.get(targetKey(domain, "purged"))).toBeNull()
   })
@@ -284,7 +284,7 @@ describe("the memory backend", () => {
  */
 describe("expiry inside the cache", () => {
   test("a warm entry still expires on schedule, though the row is never touched", async () => {
-    const link = await h.createLink(author.key, domain, {
+    const link = await h.createLink(editor.key, domain, {
       slug: "ticking",
       expires_at: new Date(Date.now() + 50).toISOString(),
     })
@@ -296,12 +296,12 @@ describe("expiry inside the cache", () => {
   })
 
   test("clearing expires_at to null resolves immediately, proving the del reached the key", async () => {
-    const link = await h.createLink(author.key, domain, {
+    const link = await h.createLink(editor.key, domain, {
       slug: "reprieved",
       expires_at: new Date(Date.now() + 50).toISOString(),
     })
     await get("/reprieved")
-    await h.patch(`/api/v1/links/${link.id}`, author.key, { expires_at: null })
+    await h.patch(`/api/v1/links/${link.id}`, editor.key, { expires_at: null })
     expect((await get("/reprieved")).headers.get("location")).toBe(link.destination)
   })
 })
@@ -323,7 +323,7 @@ describe("degradation", () => {
 
   async function redirectsAnyway(cache: Cache) {
     const down = await createHarness({ cache })
-    const who = await down.actor("author")
+    const who = await down.actor("editor")
     const domain_id = await down.createDomain("down.test")
     const link = await down.createLink(who.key, domain_id, { slug: "still-works" })
 
