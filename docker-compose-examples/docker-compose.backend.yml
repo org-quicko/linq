@@ -1,9 +1,0 @@
-# Backend-only variant of docker-compose.bundled-postgres.yml: same bundled
-# Postgres stack, built from Dockerfile.backend instead of Dockerfile.full, so
-# there's no Client UI at all, not even at /home. An override, not a stack on
-# its own — use together with the file it overrides:
-#   docker compose -f docker-compose.bundled-postgres.yml -f docker-compose.backend.yml up
-services:
-  linq:
-    build:
-      dockerfile: dockerfiles/Dockerfile.backend

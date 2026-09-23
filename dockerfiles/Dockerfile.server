@@ -6,7 +6,7 @@
 # Postgres is always external; see docker-compose-examples/.
 #
 # Build from the repo root, not this directory:
-#   docker build -f dockerfiles/Dockerfile.backend -t linq-backend .
+#   docker build -f dockerfiles/Dockerfile.server -t linq-server .
 FROM oven/bun:1.4 AS runtime
 WORKDIR /app
 

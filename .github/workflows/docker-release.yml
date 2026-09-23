@@ -1,4 +1,4 @@
-# Builds and publishes the three linq container images — client, backend,
+# Builds and publishes the three linq container images — client, server,
 # full — to Docker Hub and GHCR.
 #
 # Triggers on:
@@ -46,8 +46,8 @@ jobs:
         include:
           - dockerfile: dockerfiles/Dockerfile.client
             image: linq-client
-          - dockerfile: dockerfiles/Dockerfile.backend
-            image: linq-backend
+          - dockerfile: dockerfiles/Dockerfile.server
+            image: linq-server
           - dockerfile: dockerfiles/Dockerfile.full
             image: linq
     runs-on: ubuntu-24.04

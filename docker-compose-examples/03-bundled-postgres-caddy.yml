@@ -1,5 +1,8 @@
-# Full stack: bundled Postgres, Redis for the redirect cache (docs/adr/0009),
-# and Caddy for automatic HTTPS on custom domains (docs/adr/0012).
+# Bundled Postgres plus Caddy for automatic HTTPS on custom domains. Once
+# LINQ_CADDY_ADMIN_URL is set, every domain create, archive, reactivate and
+# purge is pushed to Caddy as its own route — nothing in Caddy is edited by
+# hand. See docs/adr/0012 and caddy/caddy.json, the empty skeleton Caddy boots
+# from. No Redis here — the redirect cache stays in-process.
 #
 # :2019, Caddy's admin API, is deliberately not published to the host — only
 # linq, over the compose network, ever needs to reach it. A custom domain
@@ -7,7 +10,7 @@
 # issue it a certificate.
 #
 # Copy this file, set a real password and LINQ_DEFAULT_DOMAIN, then:
-#   docker compose -f docker-compose.bundled-postgres.full.yml up
+#   docker compose -f 03-bundled-postgres-caddy.yml up
 services:
   postgres:
     image: postgres:17
@@ -19,14 +22,6 @@ services:
       - postgres-data:/var/lib/postgresql/data
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U linq"]
-      interval: 5s
-      timeout: 5s
-      retries: 10
-
-  redis:
-    image: redis:8
-    healthcheck:
-      test: ["CMD", "redis-cli", "ping"]
       interval: 5s
       timeout: 5s
       retries: 10
@@ -54,13 +49,10 @@ services:
     depends_on:
       postgres:
         condition: service_healthy
-      redis:
-        condition: service_healthy
       caddy:
         condition: service_healthy
     environment:
       DATABASE_URL: postgres://linq:linq@postgres:5432/linq
-      LINQ_REDIS_URL: redis://redis:6379
       LINQ_DEFAULT_DOMAIN: ${LINQ_DEFAULT_DOMAIN:-localhost:${LINQ_PORT:-3000}}
       LINQ_CADDY_ADMIN_URL: http://caddy:2019
       LINQ_CADDY_UPSTREAM: linq:3000

@@ -3,7 +3,7 @@
 # reverse proxy, or run plain HTTP behind one you already have).
 #
 # Copy this file, set a real password and LINQ_DEFAULT_DOMAIN, then:
-#   docker compose -f docker-compose.bundled-postgres.yml up
+#   docker compose -f 01-bundled-postgres.yml up
 services:
   postgres:
     image: postgres:17

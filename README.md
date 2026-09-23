@@ -234,7 +234,7 @@ LINQ_CLIENT_PORT=8081
 Start the API and standalone client together from the repo root:
 
 ```sh
-docker compose --env-file .env.ports -f docker-compose-examples/docker-compose.bundled-postgres.yml -f docker-compose-examples/docker-compose.client.yml up --build -d
+docker compose --env-file .env.ports -f docker-compose-examples/01-bundled-postgres.yml -f docker-compose-examples/10-client-only.yml up --build -d
 ```
 
 The API and its bundled UI are available on port 8080 (`/api/v1` and
@@ -244,14 +244,14 @@ Neither container publishes host port 3000. Both can listen internally on
 3000 because each has its own container network namespace. The standalone
 client Compose file also works by itself against an API you already run.
 
-If you deploy the UI separately, `dockerfiles/Dockerfile.backend` is the same
+If you deploy the UI separately, `dockerfiles/Dockerfile.server` is the same
 image with the Client UI build stage dropped — the server answers 404 on
 `/home/*` and carries on serving the API and the redirects. See
 `dockerfiles/README.md` for all three image shapes.
 
 ### Custom domains with automatic HTTPS
 
-Use one of the `*.with-caddy.yml` or `*.full.yml` files in
+Use one of the `with-caddy` or `full` examples (3, 4, 7, 8) in
 `docker-compose-examples/` — they already wire up the `caddy` service and
 `LINQ_CADDY_ADMIN_URL` on `linq`. Once set, every domain
 create, archive, reactivate and purge is pushed to Caddy as its own route —

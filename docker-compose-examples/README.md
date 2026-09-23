@@ -17,34 +17,34 @@ this directory. The container and Caddy upstream stay on port 3000.
 defaults to `localhost:<LINQ_PORT>`. For an existing database, change the
 domain through the UI as well: the default domain only seeds an empty database.
 
-| File | Postgres | Redis | Caddy |
-| --- | --- | --- | --- |
-| `docker-compose.bundled-postgres.yml` | bundled | – | – |
-| `docker-compose.bundled-postgres.with-redis.yml` | bundled | yes | – |
-| `docker-compose.bundled-postgres.with-caddy.yml` | bundled | – | yes |
-| `docker-compose.bundled-postgres.full.yml` | bundled | yes | yes |
-| `docker-compose.external-postgres.yml` | external | – | – |
-| `docker-compose.external-postgres.with-redis.yml` | external | yes | – |
-| `docker-compose.external-postgres.with-caddy.yml` | external | – | yes |
-| `docker-compose.external-postgres.full.yml` | external | yes | yes |
+| # | File | Postgres | Redis | Caddy |
+| --- | --- | --- | --- | --- |
+| 1 | `01-bundled-postgres.yml` | bundled | – | – |
+| 2 | `02-bundled-postgres-redis.yml` | bundled | yes | – |
+| 3 | `03-bundled-postgres-caddy.yml` | bundled | – | yes |
+| 4 | `04-bundled-postgres-full.yml` | bundled | yes | yes |
+| 5 | `05-external-postgres.yml` | external | – | – |
+| 6 | `06-external-postgres-redis.yml` | external | yes | – |
+| 7 | `07-external-postgres-caddy.yml` | external | – | yes |
+| 8 | `08-external-postgres-full.yml` | external | yes | yes |
 
 All eight of the above build from `../dockerfiles/Dockerfile.full` — the
 combined image, API plus Client UI at `/home`. `../dockerfiles/` also has
-`Dockerfile.backend` (API only) and `Dockerfile.client` (Client UI only, as a
-standalone export); the two files below build from those instead, for a
-split deployment across separate containers and ports.
+`Dockerfile.server` (API only) and `Dockerfile.client` (Client UI only, as a
+standalone export); the two files below (9 and 10) build from those instead,
+for a split deployment across separate containers and ports.
 
-`docker-compose.backend.yml` is not a stack on its own — it's a small override
-on `docker-compose.bundled-postgres.yml` that swaps in `Dockerfile.backend`,
-so there's no Client UI at all, not even at `/home`. Layer it on top with a
-second `-f`, and pair the result with `docker-compose.client.yml`, which runs
-the standalone Client UI at `/`, with no API or database of its own. The
-client's host port is `${LINQ_CLIENT_PORT:-3001}`; the backend's is
-`${LINQ_PORT:-3000}` as usual; both containers keep listening on 3000
-internally. From the repo root:
+`09-server-only.yml` is not a stack on its own — it's a small override on
+`01-bundled-postgres.yml` that swaps in `Dockerfile.server`, so there's no
+Client UI at all, not even at `/home`. Layer it on top with a second `-f`,
+and pair the result with `10-client-only.yml`, which runs the standalone
+Client UI at `/`, with no API or database of its own. The client's host
+port is `${LINQ_CLIENT_PORT:-3001}`; the server's is `${LINQ_PORT:-3000}`
+as usual; both containers keep listening on 3000 internally. From the repo
+root:
 
 ```sh
-docker compose --env-file .env -f docker-compose-examples/docker-compose.bundled-postgres.yml -f docker-compose-examples/docker-compose.backend.yml -f docker-compose-examples/docker-compose.client.yml up --build -d
+docker compose --env-file .env -f docker-compose-examples/01-bundled-postgres.yml -f docker-compose-examples/09-server-only.yml -f docker-compose-examples/10-client-only.yml up --build -d
 ```
 
 For example, `LINQ_PORT=8080` and `LINQ_CLIENT_PORT=8081` publish the API on
@@ -53,7 +53,7 @@ server pointing at `http://localhost:8080`, and the UI talks to it across
 origins — no `/home` involved on either side. Choose distinct, unused host
 ports.
 
-Pairing `docker-compose.client.yml` with one of the eight combined-image
+Pairing `10-client-only.yml` with one of the eight combined-image
 files above works too, but is redundant: the combined image already serves a
 UI at `/home` on `LINQ_PORT`, so the separate client only makes sense there
 if you specifically want the Client UI at `/` as well.
@@ -64,8 +64,8 @@ if you specifically want the Client UI at `/` as well.
 For a local check from the repo root:
 
 ```sh
-docker compose -f docker-compose-examples/docker-compose.bundled-postgres.yml up --build -d
-docker compose -f docker-compose-examples/docker-compose.bundled-postgres.yml logs linq
+docker compose -f docker-compose-examples/01-bundled-postgres.yml up --build -d
+docker compose -f docker-compose-examples/01-bundled-postgres.yml logs linq
 curl http://localhost:3000/api/health
 ```
 

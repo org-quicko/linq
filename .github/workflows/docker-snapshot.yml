@@ -1,4 +1,4 @@
-# Builds and publishes the three linq container images — client, backend,
+# Builds and publishes the three linq container images — client, server,
 # full — to GHCR only. Not Docker Hub: these are unreleased builds, and
 # Docker Hub is where docker-release.yml's `:latest` lives.
 #
@@ -47,8 +47,8 @@ jobs:
         include:
           - dockerfile: dockerfiles/Dockerfile.client
             image: linq-client
-          - dockerfile: dockerfiles/Dockerfile.backend
-            image: linq-backend
+          - dockerfile: dockerfiles/Dockerfile.server
+            image: linq-server
           - dockerfile: dockerfiles/Dockerfile.full
             image: linq
     runs-on: ubuntu-24.04

@@ -108,7 +108,7 @@ reviewed before the code that implements it, per `.claude/skills/linq-plan`.
 
 | Path | What it is |
 |------|------------|
-| `dockerfiles/` | `Dockerfile.full` (server + built Client UI in one image), `Dockerfile.backend` (server only, `/home` 404s), `Dockerfile.client` (standalone client build) |
+| `dockerfiles/` | `Dockerfile.full` (server + built Client UI in one image), `Dockerfile.server` (server only, `/home` 404s), `Dockerfile.client` (standalone client build) |
 | `docker-compose-examples/` | One compose file per deployment shape — bundled or external Postgres, with or without Redis/Caddy, client served together or standalone |
 | `caddy/` | The Caddy config template used by the `*.with-caddy.yml`/`*.full.yml` compose files. See `docs/adr/0012` |
 

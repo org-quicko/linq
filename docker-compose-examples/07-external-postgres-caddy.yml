@@ -1,6 +1,9 @@
-# linq plus Redis (docs/adr/0009) and Caddy (docs/adr/0012), against an
-# existing Postgres instance you already run (managed, another host,
-# whatever).
+# linq plus Caddy for automatic HTTPS on custom domains, against an existing
+# Postgres instance you already run (managed, another host, whatever). Once
+# LINQ_CADDY_ADMIN_URL is set, every domain create, archive, reactivate and
+# purge is pushed to Caddy as its own route — nothing in Caddy is edited by
+# hand. See docs/adr/0012 and caddy/caddy.json, the empty skeleton Caddy boots
+# from.
 #
 # :2019, Caddy's admin API, is deliberately not published to the host — only
 # linq, over the compose network, ever needs to reach it. A custom domain
@@ -8,16 +11,8 @@
 # issue it a certificate.
 #
 # Set DATABASE_URL to that instance and LINQ_DEFAULT_DOMAIN, then:
-#   docker compose -f docker-compose.external-postgres.full.yml up
+#   docker compose -f 07-external-postgres-caddy.yml up
 services:
-  redis:
-    image: redis:8
-    healthcheck:
-      test: ["CMD", "redis-cli", "ping"]
-      interval: 5s
-      timeout: 5s
-      retries: 10
-
   caddy:
     image: caddy:2
     command: caddy run --config /etc/caddy/caddy.json --resume
@@ -39,14 +34,11 @@ services:
       context: ..
       dockerfile: dockerfiles/Dockerfile.full
     depends_on:
-      redis:
-        condition: service_healthy
       caddy:
         condition: service_healthy
     environment:
       # Point this at your existing Postgres instance.
       DATABASE_URL: postgres://linq:linq@your-postgres-host:5432/linq
-      LINQ_REDIS_URL: redis://redis:6379
       LINQ_DEFAULT_DOMAIN: ${LINQ_DEFAULT_DOMAIN:-localhost:${LINQ_PORT:-3000}}
       LINQ_CADDY_ADMIN_URL: http://caddy:2019
       LINQ_CADDY_UPSTREAM: linq:3000

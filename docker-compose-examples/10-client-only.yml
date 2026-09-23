@@ -1,6 +1,6 @@
 # Standalone Client UI, served at /. Point it at a linq API in the browser.
 # From the repo root, set LINQ_CLIENT_PORT in .env, then:
-#   docker compose --env-file .env -f docker-compose-examples/docker-compose.client.yml up --build -d
+#   docker compose --env-file .env -f docker-compose-examples/10-client-only.yml up --build -d
 services:
   client:
     build:

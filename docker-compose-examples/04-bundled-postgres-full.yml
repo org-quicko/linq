@@ -1,10 +1,13 @@
-# Bundled Postgres plus Redis for the redirect cache. Redis holds only cached
-# lookups, so it needs no volume: a cold Redis costs one Postgres query per
-# link until it warms back up. See docs/adr/0009 for what the two backends
-# differ in. No Caddy here — bring your own TLS / reverse proxy.
+# Full stack: bundled Postgres, Redis for the redirect cache (docs/adr/0009),
+# and Caddy for automatic HTTPS on custom domains (docs/adr/0012).
+#
+# :2019, Caddy's admin API, is deliberately not published to the host — only
+# linq, over the compose network, ever needs to reach it. A custom domain
+# still needs its DNS pointed at this host before Caddy's automatic HTTPS can
+# issue it a certificate.
 #
 # Copy this file, set a real password and LINQ_DEFAULT_DOMAIN, then:
-#   docker compose -f docker-compose.bundled-postgres.with-redis.yml up
+#   docker compose -f 04-bundled-postgres-full.yml up
 services:
   postgres:
     image: postgres:17
@@ -28,6 +31,22 @@ services:
       timeout: 5s
       retries: 10
 
+  caddy:
+    image: caddy:2
+    command: caddy run --config /etc/caddy/caddy.json --resume
+    volumes:
+      - ../caddy/caddy.json:/etc/caddy/caddy.json:ro
+      - caddy-data:/data      # issued certificates — must persist
+      - caddy-config:/config
+    ports:
+      - "80:80"
+      - "443:443"
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://localhost:2019/config/"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
   linq:
     build:
       context: ..
@@ -37,10 +56,14 @@ services:
         condition: service_healthy
       redis:
         condition: service_healthy
+      caddy:
+        condition: service_healthy
     environment:
       DATABASE_URL: postgres://linq:linq@postgres:5432/linq
       LINQ_REDIS_URL: redis://redis:6379
       LINQ_DEFAULT_DOMAIN: ${LINQ_DEFAULT_DOMAIN:-localhost:${LINQ_PORT:-3000}}
+      LINQ_CADDY_ADMIN_URL: http://caddy:2019
+      LINQ_CADDY_UPSTREAM: linq:3000
       # An admin key is minted and printed on first boot; read it from
       # `docker compose logs linq`. For another without restarting:
       #   docker compose exec linq bun run key:create --name ops --role admin
@@ -55,3 +78,5 @@ services:
 volumes:
   postgres-data:
   linq-data:
+  caddy-data:
+  caddy-config:

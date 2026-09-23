@@ -1,7 +1,7 @@
 # syntax=docker/dockerfile:1
 
 # Both: the API, the redirects and the Client UI (served at /home) from one
-# process. One of three shapes in this folder (backend-only, client-only,
+# process. One of three shapes in this folder (server-only, client-only,
 # both); see dockerfiles/README.md.
 #
 # Build from the repo root, not this directory:

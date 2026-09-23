@@ -7,7 +7,7 @@ publishing images:
 | File | Contains | Runtime base |
 | --- | --- | --- |
 | `Dockerfile.client` | Client UI only, as a standalone static export | `oven/bun:1.4` |
-| `Dockerfile.backend` | API and redirects only, no Client UI | `oven/bun:1.4` |
+| `Dockerfile.server` | API and redirects only, no Client UI | `oven/bun:1.4` |
 | `Dockerfile.full` | Both — the API and the Client UI at `/home`, one process | `oven/bun:1.4` |
 
 `Dockerfile.client` runs `serve-static.ts` under plain Bun rather than
@@ -26,18 +26,18 @@ even when only one app is being built:
 
 ```sh
 docker build -f dockerfiles/Dockerfile.client  -t linq-client  .
-docker build -f dockerfiles/Dockerfile.backend -t linq-backend .
+docker build -f dockerfiles/Dockerfile.server  -t linq-server  .
 docker build -f dockerfiles/Dockerfile.full     -t linq        .
 ```
 
 `Dockerfile.client` needs no environment or Postgres — it's static files, and
-the UI is pointed at a linq server at runtime, in the browser. `Dockerfile.backend`
+the UI is pointed at a linq server at runtime, in the browser. `Dockerfile.server`
 and `Dockerfile.full` need `DATABASE_URL`, `LINQ_DEFAULT_DOMAIN`, etc. at
 runtime — see `../docker-compose-examples/` for ready-made stacks around
 either.
 
 For the standalone client, use
-`../docker-compose-examples/docker-compose.client.yml`. It reads
+`../docker-compose-examples/10-client-only.yml`. It reads
 `LINQ_CLIENT_PORT` from your Compose env file to select the published host
 port (default 3001), while the container listens internally on 3000.
 This lets it share a host with other containers already publishing port 3000.

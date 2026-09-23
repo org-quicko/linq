@@ -3,7 +3,7 @@
 # want linq talking to it.
 #
 # Set DATABASE_URL to that instance and LINQ_DEFAULT_DOMAIN, then:
-#   docker compose -f docker-compose.external-postgres.yml up
+#   docker compose -f 05-external-postgres.yml up
 services:
   linq:
     build:
