@@ -144,7 +144,10 @@ export function LinkFormDialog({
           id: current.id,
           body: {
             ...shared,
-            name: name.trim() || null,
+            // An empty field means "use the destination-derived title", not
+            // an explicit request to erase it. Omitting it lets the API apply
+            // the same fallback used during creation.
+            ...(name.trim() ? { name: name.trim() } : {}),
             description: description.trim() || null,
             ...(rulesDirty ? { rules: validRules } : {}),
           },

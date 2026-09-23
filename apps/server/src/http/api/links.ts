@@ -1,5 +1,6 @@
 import {
   ApiError,
+  destinationTitle,
   type Link,
   linkCountQuerySchema,
   linkCreateSchema,
@@ -275,7 +276,10 @@ export const linkRoutes = new Hono<Env>()
         {
           domain_id: body.domain_id,
           destination: body.destination,
-          name: body.name ?? fetched.name ?? null,
+          // A link should always have a useful label even when metadata
+          // fetching is disabled (the secure default) or the page has no
+          // title. A caller-supplied name remains authoritative.
+          name: body.name ?? fetched.name ?? destinationTitle(body.destination),
           description: body.description ?? fetched.description ?? null,
           icon_url: fetched.icon_url,
           tags: body.tags,
@@ -339,7 +343,7 @@ export const linkRoutes = new Hono<Env>()
           ...(patch.name !== undefined
             ? { name: patch.name }
             : fetched
-              ? { name: fetched.name ?? existing.name }
+              ? { name: fetched.name ?? existing.name ?? destinationTitle(patch.destination!) }
               : {}),
           ...(patch.description !== undefined
             ? { description: patch.description }

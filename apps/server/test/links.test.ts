@@ -44,6 +44,7 @@ describe("POST /api/v1/links", () => {
       human_visits: 0,
       bot_visits: 0,
     })
+    expect(link.name).toBe("example.com")
   })
 
   test("accepts a custom slug", async () => {
@@ -527,11 +528,11 @@ describe("link preview metadata", () => {
     expect(link.icon_url).toBe("https://cdn.example/icon.png")
   })
 
-  test("create against a destination whose fetch finds nothing succeeds with null fields", async () => {
+  test("create against a destination whose fetch finds nothing falls back to its host", async () => {
     const link = await hMeta.createLink(metaAuthor.key, metaDomain, {
       destination: "https://example.com/blocked",
     })
-    expect(link.name).toBeNull()
+    expect(link.name).toBe("example.com")
     expect(link.description).toBeNull()
     expect(link.icon_url).toBeNull()
   })
@@ -540,7 +541,7 @@ describe("link preview metadata", () => {
     const link = await hMeta.createLink(metaAuthor.key, metaDomain, {
       destination: "https://example.com/blocked",
     })
-    expect(link.name).toBeNull()
+    expect(link.name).toBe("example.com")
     expect(link.description).toBeNull()
     expect(link.icon_url).toBeNull()
 
@@ -569,6 +570,21 @@ describe("link preview metadata", () => {
     expect(updated.name).toBeNull()
     expect(updated.description).toBe("Fetched description")
     expect(updated.icon_url).toBe("https://cdn.example/icon.png")
+  })
+
+  test("patch changing a titleless link to a destination with no metadata falls back to its host", async () => {
+    const link = await hMeta.createLink(metaAuthor.key, metaDomain, {
+      destination: "https://example.com/initial",
+      name: "Custom title",
+    })
+    const cleared = await hMeta.patch(`/api/v1/links/${link.id}`, metaAuthor.key, { name: null })
+    expect((await cleared.json()).name).toBeNull()
+
+    const res = await hMeta.patch(`/api/v1/links/${link.id}`, metaAuthor.key, {
+      destination: "https://blocked.example/path",
+    })
+    expect(res.status).toBe(200)
+    expect((await res.json()).name).toBe("blocked.example")
   })
 
   test("patch changing destination where fetch finds nothing keeps old name, description, icon_url", async () => {

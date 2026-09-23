@@ -1,7 +1,23 @@
 import { z } from "zod"
-import { csvList, paginationSchema, slugSchema, tagSchema, urlSchema, uuidSchema } from "./primitives.ts"
+import {
+  csvList,
+  paginationSchema,
+  slugSchema,
+  tagSchema,
+  urlSchema,
+  uuidSchema,
+} from "./primitives.ts"
 import { resourceStatusSchema } from "./roles.ts"
 import { rulesPutSchema } from "./rules.ts"
+
+/**
+ * A stable, no-network fallback for links whose creator did not provide a
+ * title and whose destination does not expose one. `destination` has already
+ * passed `urlSchema` at every call site, so parsing it here is safe.
+ */
+export function destinationTitle(destination: string): string {
+  return new URL(destination).host
+}
 
 /**
  * Set on the destination at redirect time, overriding both the destination's
@@ -17,6 +33,7 @@ export const linkCreateSchema = z.object({
   /** Omit for a generated slug. */
   slug: slugSchema.optional(),
   destination: urlSchema,
+  /** Omit to use the destination page's title, falling back to its host. */
   name: z.string().trim().max(200).optional(),
   /** Omit to have it filled from the destination's <head>. See docs/adr/0014. */
   description: z.string().trim().max(500).optional(),
