@@ -39,7 +39,7 @@ export function ServerSwitcher() {
   function switchTo(id: string) {
     if (id === current?.id) return
     setActiveServer(id)
-    window.location.href = appUrl("/analytics/")
+    window.location.href = appUrl("/links/")
   }
 
   return (
@@ -70,11 +70,11 @@ export function ServerSwitcher() {
         ))}
 
         <DropdownMenuSeparator />
-        <DropdownMenuItem onSelect={() => (window.location.href = appUrl("/?add=1"))}>
+        <DropdownMenuItem onSelect={() => (window.location.href = appUrl("/servers/add/"))}>
           <Plus size={14} />
           Add a server
         </DropdownMenuItem>
-        <DropdownMenuItem onSelect={() => (window.location.href = appUrl("/?manage=1"))}>
+        <DropdownMenuItem onSelect={() => (window.location.href = appUrl("/servers/manage/"))}>
           <Settings2 size={14} />
           Manage servers
         </DropdownMenuItem>
