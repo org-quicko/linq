@@ -1,8 +1,20 @@
 import { describe, expect, test } from "bun:test"
-import { chartPoints, foldWeeks, smoothPath } from "../components/analytics-overview"
+import {
+  analyticsEmptyMessage,
+  chartPoints,
+  foldWeeks,
+  smoothPath,
+} from "../components/analytics-overview"
 import { isWindowWithinYear, presetWindow, rangeLabel, rangeValidation } from "../lib/hooks"
 
 describe("analytics ranges", () => {
+  test("describes filtered empty analytics without implying there are no visits at all", () => {
+    expect(analyticsEmptyMessage(true, "No visits recorded yet.")).toBe(
+      "No visits match the applied filters.",
+    )
+    expect(analyticsEmptyMessage(false, "No visits recorded yet.")).toBe("No visits recorded yet.")
+  })
+
   test("preset windows include today", () => {
     expect(presetWindow("7", new Date("2026-09-22T12:00:00Z"))).toEqual({
       from: "2026-09-16",

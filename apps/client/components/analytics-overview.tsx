@@ -76,6 +76,7 @@ export function AnalyticsOverview() {
     setSegments((current) => current.filter((item) => item !== segment))
   const selected = (dim: Segment["dim"]) => segments.filter((segment) => segment.dim === dim)
   const totals = summary.data ?? { visits: 0, human: 0, bot: 0, orphans: 0 }
+  const hasAppliedFilters = Boolean(link_id || segments.length || preset !== "7")
 
   return (
     <div className="flex flex-col gap-4">
@@ -131,7 +132,12 @@ export function AnalyticsOverview() {
           <StatTile label="Orphan clicks" value={totals.orphans} loading={summary.isLoading} />
         ) : null}
       </div>
-      <VisitsChart buckets={timeseries.data ?? []} from={from} loading={timeseries.isLoading} />
+      <VisitsChart
+        buckets={timeseries.data ?? []}
+        from={from}
+        loading={timeseries.isLoading}
+        hasAppliedFilters={hasAppliedFilters}
+      />
       <div className="grid gap-3 sm:grid-cols-2">
         <BreakdownCard
           title="Referrers"
@@ -139,6 +145,7 @@ export function AnalyticsOverview() {
           rows={referrers.data ?? []}
           loading={referrers.isLoading}
           active={selected("referer")}
+          hasAppliedFilters={hasAppliedFilters}
           onClick={toggle}
         />
         <BreakdownCard
@@ -147,6 +154,7 @@ export function AnalyticsOverview() {
           rows={devices.data ?? []}
           loading={devices.isLoading}
           active={selected(deviceView)}
+          hasAppliedFilters={hasAppliedFilters}
           onClick={toggle}
           selector={<DeviceViewSelector value={deviceView} onChange={setDeviceView} />}
         />
@@ -185,6 +193,7 @@ function BreakdownCard({
   rows,
   loading,
   active,
+  hasAppliedFilters,
   onClick,
   selector,
 }: {
@@ -193,6 +202,7 @@ function BreakdownCard({
   rows: StatsBucket[]
   loading: boolean
   active: Segment[]
+  hasAppliedFilters: boolean
   onClick: (dim: Segment["dim"], key: string) => void
   selector?: ReactNode
 }) {
@@ -237,7 +247,9 @@ function BreakdownCard({
           })}
         </div>
       ) : (
-        <p className="py-4 text-center text-sm text-muted-foreground">No data yet.</p>
+        <p className="py-4 text-center text-sm text-muted-foreground">
+          {analyticsEmptyMessage(hasAppliedFilters, "No data yet.")}
+        </p>
       )}
     </div>
   )
@@ -258,6 +270,10 @@ function segmentLabel(segment: Segment) {
 }
 function pct(part: number, total: number) {
   return total ? Math.round((part / total) * 100) : 0
+}
+
+export function analyticsEmptyMessage(hasAppliedFilters: boolean, fallback: string): string {
+  return hasAppliedFilters ? "No visits match the applied filters." : fallback
 }
 
 function DeviceViewSelector({
@@ -379,10 +395,12 @@ function VisitsChart({
   buckets,
   from,
   loading,
+  hasAppliedFilters,
 }: {
   buckets: StatsBucket[]
   from: string
   loading: boolean
+  hasAppliedFilters: boolean
 }) {
   const days = useMemo(() => foldWeeks(fillDays(buckets, from)), [buckets, from])
   const chart = useMemo(() => chartPoints(days), [days])
@@ -393,7 +411,9 @@ function VisitsChart({
       {loading ? (
         <div className="h-32 animate-pulse rounded bg-muted" />
       ) : !chart ? (
-        <p className="py-10 text-center text-sm text-muted-foreground">No visits recorded yet.</p>
+        <p className="py-10 text-center text-sm text-muted-foreground">
+          {analyticsEmptyMessage(hasAppliedFilters, "No visits recorded yet.")}
+        </p>
       ) : (
         <>
           <div className="relative h-32">
