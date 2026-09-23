@@ -2,7 +2,7 @@
 
 import { NOT_RECORDED, type StatsBucket } from "@linq/shared"
 import { skipToken } from "@reduxjs/toolkit/query/react"
-import { ChevronDown, Globe, Monitor, Smartphone, X } from "lucide-react"
+import { Check, ChevronDown, Globe, Monitor, Smartphone, X } from "lucide-react"
 import { useRouter, useSearchParams } from "next/navigation"
 import { type ReactNode, useEffect, useId, useMemo, useState } from "react"
 import { RangePicker } from "@/components/common"
@@ -283,6 +283,7 @@ function DeviceViewSelector({
         {(Object.keys(labels) as DeviceView[]).map((key) => (
           <DropdownMenuItem key={key} onSelect={() => onChange(key)}>
             {labels[key]}
+            {key === value ? <Check className="ml-auto size-3.5" /> : null}
           </DropdownMenuItem>
         ))}
       </DropdownMenuContent>
