@@ -13,6 +13,7 @@ WORKDIR /app
 ENV NODE_ENV=production
 ENV LINQ_DATA_DIR=/data
 ENV LINQ_PORT=3000
+ENV LINQ_CACHE_SWEEP_INTERVAL=60
 # Logs go to stdout and to /data/logs/linq.log, rotated and capped.
 ENV LINQ_LOG_LEVEL=info
 

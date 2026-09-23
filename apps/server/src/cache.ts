@@ -136,9 +136,6 @@ async function redisCache(config: Config): Promise<Cache> {
   }
 }
 
-/** Never leave a lapsed entry holding a slot longer than this. */
-const SWEEP_CEILING_MS = 60_000
-
 /**
  * An in-process store, so nothing outside linq has to be running.
  *
@@ -151,6 +148,7 @@ export function memoryCache(config: Config): Cache & {
 } {
   const ttl = config.LINQ_CACHE_TTL
   const max = config.LINQ_CACHE_MAX_ENTRIES
+  const sweepMs = config.LINQ_CACHE_SWEEP_INTERVAL * 1000
 
   // The entry is stored as the `Hit` wrapper rather than the value itself, so a
   // cached `null` is still a real object: lru-cache refuses a nullish value, and
@@ -170,14 +168,13 @@ export function memoryCache(config: Config): Cache & {
   // Expiry is already checked on access, so this changes no answer — only how
   // long a dead entry occupies a slot.
   //
-  // Sweeping on the TTL bounds that: an entry outlives its expiry by at most one
-  // period. Capped at a minute so a long TTL still reclaims promptly. No floor is
-  // needed — LINQ_CACHE_TTL is min(1) second, so this cannot go below 1000 ms.
+  // The sweep interval is an independent operational setting: TTL decides when
+  // an entry stops answering, while this decides how long that dead entry may
+  // continue occupying a slot.
   //
   // One timer for the whole store, not `ttlAutopurge`: that arms a timeout per
   // cached entry, up to `max` of them, and pays a clearTimeout + setTimeout on
   // every write — which is the redirect's miss path.
-  const sweepMs = Math.min(ttl * 1000, SWEEP_CEILING_MS)
   const sweep = setInterval(() => store.purgeStale(), sweepMs)
   // The sweep must never be the reason the process stays alive.
   sweep.unref?.()

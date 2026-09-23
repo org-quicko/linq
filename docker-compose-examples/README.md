@@ -16,6 +16,8 @@ this directory. The container and Caddy upstream stay on port 3000.
 `LINQ_DEFAULT_DOMAIN` can also be set in that env file; when absent, it
 defaults to `localhost:<LINQ_PORT>`. For an existing database, change the
 domain through the UI as well: the default domain only seeds an empty database.
+The examples without Redis also pass through `LINQ_CACHE_SWEEP_INTERVAL`,
+accepting 1 to 3600 seconds and defaulting to 60, for the in-process cache.
 
 | # | File | Postgres | Redis | Caddy |
 | --- | --- | --- | --- | --- |

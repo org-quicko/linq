@@ -61,6 +61,9 @@ LINQ_DEFAULT_DOMAIN=localhost:${LINQ_PORT}
 `LINQ_CLIENT_PORT` controls `dev:client`. They default to 3000 and 3001.
 `LINQ_CLIENT_BASE_PATH` controls where a combined deployment mounts the UI and
 defaults to `/home`.
+`LINQ_CACHE_SWEEP_INTERVAL` controls how often the in-process cache physically
+reclaims expired entries, accepts 1 to 3600 seconds, and defaults to 60; it does
+not change when an entry expires, which remains controlled by `LINQ_CACHE_TTL`.
 Restart the relevant process after changing a port, and use that port in
 your browser and the UI's saved Server URL. `LINQ_DEFAULT_DOMAIN` only seeds
 an empty database; update an existing domain through the UI if its port changes.

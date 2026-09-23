@@ -23,6 +23,7 @@ export const testConfig: Config = {
   LINQ_CACHE_BACKEND: "memory",
   LINQ_REDIS_URL: undefined,
   LINQ_CACHE_TTL: 300,
+  LINQ_CACHE_SWEEP_INTERVAL: 60,
   LINQ_CACHE_MAX_ENTRIES: 10_000,
   LINQ_PORT: 3000,
   LINQ_CLIENT_BASE_PATH: "/home",

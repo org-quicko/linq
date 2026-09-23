@@ -13,6 +13,7 @@ services:
       # Point this at your existing Postgres instance.
       DATABASE_URL: postgres://linq:linq@your-postgres-host:5432/linq
       LINQ_DEFAULT_DOMAIN: ${LINQ_DEFAULT_DOMAIN:-localhost:${LINQ_PORT:-3000}}
+      LINQ_CACHE_SWEEP_INTERVAL: ${LINQ_CACHE_SWEEP_INTERVAL:-60}
       # An admin key is minted and printed on first boot; read it from
       # `docker compose logs linq`. For another without restarting:
       #   docker compose exec linq bun run key:create --name ops --role admin

@@ -175,8 +175,13 @@ describe("invalidation", () => {
  * either can break without the other noticing, so each gets its own case.
  */
 describe("the memory backend", () => {
-  const open = (ttl = 300, max = 10_000) =>
-    memoryCache({ ...testConfig, LINQ_CACHE_TTL: ttl, LINQ_CACHE_MAX_ENTRIES: max })
+  const open = (ttl = 300, max = 10_000, sweepInterval = 60) =>
+    memoryCache({
+      ...testConfig,
+      LINQ_CACHE_TTL: ttl,
+      LINQ_CACHE_MAX_ENTRIES: max,
+      LINQ_CACHE_SWEEP_INTERVAL: sweepInterval,
+    })
 
   test("a value round trips", async () => {
     const c = open()
@@ -228,16 +233,19 @@ describe("the memory backend", () => {
    * them, so with no sweep this would still read 2.
    *
    * Neither key is read: a read reclaims on access and would prove nothing. The
-   * sweep runs on the TTL, so the wait has to clear expiry *and* the sweep that
-   * follows it — hence 2.2 s against a 1 s TTL rather than something tighter.
+   * A two-second sweep proves reclamation follows its own setting rather than
+   * the one-second TTL.
    */
   test("the sweep reclaims lapsed entries nothing has touched", async () => {
-    const c = open(1)
+    const c = open(1, 10_000, 2)
     await c.set("a", 1)
     await c.set("b", 2)
     expect(c.size()).toBe(2)
 
-    await Bun.sleep(2200)
+    await Bun.sleep(1200)
+    expect(c.size()).toBe(2)
+
+    await Bun.sleep(1000)
     expect(c.size()).toBe(0)
     c.stop()
   })

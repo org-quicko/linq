@@ -46,7 +46,9 @@ deploy, then rebuild.
 the UI is pointed at a linq server at runtime, in the browser. `Dockerfile.server`
 and `Dockerfile.full` need `DATABASE_URL`, `LINQ_DEFAULT_DOMAIN`, etc. at
 runtime — see `../docker-compose-examples/` for ready-made stacks around
-either.
+either. Both server images default `LINQ_CACHE_SWEEP_INTERVAL` to 60 seconds;
+override it at runtime with a value from 1 to 3600 seconds to tune how often the
+in-memory cache reclaims expired entries.
 
 For the standalone client, use
 `../docker-compose-examples/10-client-only.yml`. It reads

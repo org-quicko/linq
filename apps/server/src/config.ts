@@ -43,6 +43,11 @@ const schema = z
      */
     LINQ_CACHE_TTL: z.coerce.number().int().min(1).default(300),
     /**
+     * How often the in-memory backend physically removes expired entries.
+     * Expiry itself remains exact on read; Redis ignores this setting.
+     */
+    LINQ_CACHE_SWEEP_INTERVAL: z.coerce.number().int().min(1).max(3600).default(60),
+    /**
      * Entries the in-memory backend holds before evicting the least recently
      * used. Redis cannot be capped by a client; use `maxmemory` in redis.conf.
      * Bounded above because lru-cache pre-allocates its index arrays to it.

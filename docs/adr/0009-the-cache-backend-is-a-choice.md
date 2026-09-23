@@ -50,11 +50,12 @@ is `maxmemory` in `redis.conf` instead.
 
 It also sweeps. `lru-cache` does not remove lapsed entries on its own: they keep
 their slot and keep counting toward the cap, so a store full of expired keys can
-evict live ones. One interval calls `purgeStale`, on the TTL and capped at a
-minute, so an entry outlives its expiry by at most one period. It is one timer
-for the store rather than `ttlAutopurge`, which arms a timeout per cached entry
-and pays a `clearTimeout`/`setTimeout` on every write — the redirect's miss path.
-This changes no answer: expiry was already checked on access.
+evict live ones. One interval calls `purgeStale`; its cadence is independently
+configured by `LINQ_CACHE_SWEEP_INTERVAL`, 60 seconds by default, rather than
+coupled to the entry TTL. It accepts 1 to 3600 seconds. It is one timer for the
+store rather than `ttlAutopurge`, which arms a timeout per cached entry and pays a
+`clearTimeout`/`setTimeout` on every write — the redirect's miss path. This
+changes no answer: expiry was already checked on access.
 
 ## Consequences
 
