@@ -1,5 +1,5 @@
 -- os/browser join platform as chartable dimensions, the same way platform
--- itself already is. See docs/plans/Plan_21.md.
+-- itself already is.
 ALTER TYPE "public"."visit_dimension" ADD VALUE 'os' BEFORE 'referer';--> statement-breakpoint
 ALTER TYPE "public"."visit_dimension" ADD VALUE 'browser' BEFORE 'referer';--> statement-breakpoint
 -- No backfill, same call 0011 made for the columns these dimensions roll up

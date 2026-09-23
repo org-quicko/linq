@@ -115,7 +115,7 @@ function LinksList({ actor }: { actor: Actor }) {
 
   return (
     <div className="flex h-full min-h-0 flex-col">
-      {/* Pinned: only the list below scrolls (docs/plans/Plan_31.md §B5). */}
+      {/* Pinned: only the list below scrolls. */}
       <div className="flex shrink-0 flex-col gap-4 px-7 pt-6 pb-4">
         <PageHeader
           title="Short links"
@@ -354,8 +354,8 @@ function LinkRow({
         ) : null}
       </RowCard>
 
-      {/* Adopts the detail page's confirm-before-archive behaviour here too
-          (docs/plans/Plan_27.md Part B3): the two used to disagree on the same action. */}
+      {/* Adopts the detail page's confirm-before-archive behaviour here too:
+          the two used to disagree on the same action. */}
       <Dialog open={confirmArchive} onOpenChange={setConfirmArchive}>
         <DialogContent>
           <DialogHeader>

@@ -4,7 +4,7 @@
 
 ## Context
 
-`docs/plans/Plan_31.md` §B2 left the links list row with a generic glyph instead
+An earlier design left the links list row with a generic glyph instead
 of the destination's favicon, and flagged the alternative — `https://
 www.google.com/s2/favicons?domain={host}` — as needing its own ADR before
 adoption: it puts every destination hostname in a user's account on the wire
@@ -28,7 +28,7 @@ point a link's destination is set** — on `POST /api/v1/links` and on
 `PATCH /api/v1/links/:id` when `destination` is part of the patch — rather
 than delegating to a third-party favicon or unfurl service.
 
-This is the opposite trade-off from the Plan_31 alternative: no destination
+This is the opposite trade-off from the third-party favicon alternative: no destination
 hostname is ever disclosed to anyone but linq's own server, which already
 knows every destination it stores. The cost is that linq's server now makes
 an outbound HTTP request to a URL an authenticated key supplied, which is

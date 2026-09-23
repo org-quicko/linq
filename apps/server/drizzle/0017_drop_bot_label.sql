@@ -1,4 +1,4 @@
--- Remove bot label capture and rollup dimension. See docs/plans/Plan_29.md.
+-- Remove bot label capture and rollup dimension.
 DELETE FROM "visit_days" WHERE "dimension" = 'botLabel';--> statement-breakpoint
 ALTER TABLE "visit_days" ALTER COLUMN "dimension" SET DATA TYPE text;--> statement-breakpoint
 DROP TYPE "public"."visit_dimension";--> statement-breakpoint

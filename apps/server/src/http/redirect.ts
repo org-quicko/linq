@@ -191,7 +191,7 @@ export function queryMap(params: URLSearchParams): Record<string, string[]> | nu
  * A link past its expiry is a stranger. Checked here rather than in
  * `findActiveTarget`'s WHERE clause because the cached entry outlives the moment it
  * lapses and no mutation ever arrives to invalidate it: `status` is safe in SQL only
- * because every status change also dels `targetKey`. See docs/plans/Plan_25.md.
+ * because every status change also dels `targetKey`.
  */
 function expired(target: ResolvedTarget): boolean {
   return typeof target.expires_at === "number" && target.expires_at <= Date.now()
@@ -201,7 +201,7 @@ const factory = createFactory<Env>()
 
 /**
  * `GET|HEAD /:slug` and `GET|HEAD /`. Mounted last so every path linq answers
- * itself has already been claimed. Steps follow docs/plans/Plan_1.md.
+ * itself has already been claimed.
  */
 export const redirectHandler = factory.createHandlers(async (c) => {
   const url = new URL(c.req.url)
@@ -298,7 +298,7 @@ export const redirectHandler = factory.createHandlers(async (c) => {
   //    sent, never what gets recorded: the visit's own `query` field already
   //    carries whatever the caller sent, so baking it into `destination` too
   //    would double-count it and fragment one real destination into one bucket
-  //    per distinct querystring. See docs/plans/Plan_22.md.
+  //    per distinct querystring.
   const sendTo = link.forward_query
     ? applyPresets(mergeQuery(chosen, url.searchParams), link.preset_params)
     : chosen

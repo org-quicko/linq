@@ -39,8 +39,9 @@ export type QrCode = {
   link_status: "active" | "archived"
   /** The `api_keys.id` that owns the *link* (ADR 0011: the key is the
    *  principal). A QR code has no owner of its own — this only gates the
-   *  client's row menu as a UI courtesy; the server never trusts it. See
-   *  docs/plans/Plan_31.md §A1 for why it is not spelled `owner_id` or `apiKeyId`. */
+   *  client's row menu as a UI courtesy; the server never trusts it. Named
+   *  `link_owner_id` rather than `owner_id` or `apiKeyId` to make clear it's
+   *  the link's owner, not the QR code's. */
   link_owner_id: string | null
   slug: string
   domain_host: string

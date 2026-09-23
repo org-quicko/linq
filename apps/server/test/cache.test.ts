@@ -280,7 +280,7 @@ describe("the memory backend", () => {
  * The test that justifies the whole expiry-in-cache design: nothing ever
  * mutates the row after the link is created, so the *only* way a second hit
  * can fall back after the row's `expires_at` passes is if the timestamp rode
- * inside the cached value and was compared at read time. See docs/plans/Plan_25.md.
+ * inside the cached value and was compared at read time.
  */
 describe("expiry inside the cache", () => {
   test("a warm entry still expires on schedule, though the row is never touched", async () => {

@@ -1,6 +1,5 @@
 -- Referrers roll up by host, not by full URL, and filtered reports read
--- the visit log through a covering index. docs/plans/Plan_33.md §A-§C,
--- docs/adr/0015.
+-- the visit log through a covering index. docs/adr/0015.
 -- '' when there was no referer, and also when it was relative (a same-site
 -- referer) — both read as "not recorded", which is what the rollup's ''
 -- already means. www. is deliberately not stripped: it is a different host.

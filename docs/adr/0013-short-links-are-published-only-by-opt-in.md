@@ -1,6 +1,6 @@
 # 0013 – Short links are published only by opt-in
 
-**Status**: accepted · 2026-09-20 · docs/plans/Plan_25.md
+**Status**: accepted · 2026-09-20
 
 ## Context
 

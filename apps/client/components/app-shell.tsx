@@ -26,10 +26,9 @@ import { useCountLinksQuery } from "../lib/store/links"
  * ever matching. `lib/api.ts` is the one place that spells it out, because it
  * navigates with `window.location`, which Next does not touch.
  *
- * TEMPORARY href remains on Settings, per docs/plans/Plan_27.md Part E: a real
- * `/settings/` index does not exist yet (Part C3). It points at the nearest
- * existing page until its real route lands, so the app stays navigable
- * across the intermediate commits.
+ * TEMPORARY href remains on Settings: a real `/settings/` index does not
+ * exist yet. It points at the nearest existing page until its real route
+ * lands, so the app stays navigable across the intermediate commits.
  */
 type NavItem = {
   href: string
@@ -138,7 +137,7 @@ export function AppShell({
  *
  * The backdrop (--muted) and the panel (--card, --shadow-panel,
  * --radius-xl) are what makes the content read as an island rather than a
- * page — see docs/plans/Plan_27.md Part B.
+ * page.
  */
 function Chrome({ actor, me, children }: { actor?: Actor; me?: Me; children: ReactNode }) {
   const active = activeHref(usePathname())

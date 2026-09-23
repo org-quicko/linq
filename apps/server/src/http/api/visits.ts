@@ -34,8 +34,8 @@ function toArray<T>(v: Many<T>): T[] {
  *  schema, unchanged) or a bare date (analytics.ts's window, always
  *  `YYYY-MM-DD`). A bare date can't just become `new Date(...)` for `to` —
  *  that lands on midnight and silently drops the day, the same bug the
- *  rollup's `day <= to` never had (docs/plans/Plan_33.md §F). Detected by the
- *  presence of a `T`, since neither shape is ever ambiguous with the other. */
+ *  rollup's `day <= to` never had. Detected by the presence of a `T`, since
+ *  neither shape is ever ambiguous with the other. */
 function toInstant(date: string): Date {
   return new Date(date.includes("T") ? date : `${date}T00:00:00Z`)
 }

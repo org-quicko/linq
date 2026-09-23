@@ -9,8 +9,8 @@ import type {
 
 /**
  * The only file that knows `qr-code-styling`'s option vocabulary. The
- * *stored* config (docs/plans/Plan_31.md §A0) stays linq's own three-pattern
- * vocabulary; this is where that maps onto the library's dots/corner-square/
+ * *stored* config stays linq's own three-pattern vocabulary; this is where
+ * that maps onto the library's dots/corner-square/
  * corner-dot triple, so swapping renderers later is a change to this one file.
  */
 const PATTERN_TYPES: Record<

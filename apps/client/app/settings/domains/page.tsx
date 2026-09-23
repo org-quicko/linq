@@ -35,7 +35,7 @@ import {
 } from "../../../lib/store/domains"
 
 /**
- * Domains, moved under Settings alongside Keys — docs/plans/Plan_27.md Part C3.
+ * Domains, moved under Settings alongside Keys.
  * Everyone may read this page; only an admin sees the write controls.
  * Deleting a domain here is a hard delete, not an archive: it chains the
  * existing archive and purge calls so an admin never leaves a domain sitting

@@ -130,7 +130,7 @@ export const rules = pgTable(
  * always the link's current `shortUrl`, derived at request time, so renaming
  * a domain re-points every printed code. Only the styling lives here.
  * `ON DELETE CASCADE` is the whole enforcement of "a QR code is always
- * associated with a short link". See docs/plans/Plan_31.md.
+ * associated with a short link".
  */
 export const qrCodes = pgTable(
   "qr_codes",
@@ -172,7 +172,7 @@ export const visits = pgTable(
      *  expression, and this column exists to be in the covering index below.
      *  Generated rather than parsed at ingest so it cannot drift from the
      *  column it derives from, and so Postgres backfills existing rows
-     *  itself. See docs/plans/Plan_33.md §A and docs/adr/0015. */
+     *  itself. See docs/adr/0015. */
     referer_host: text("referer_host").generatedAlwaysAs(sql`referer_host("referer")`),
     destination: text("destination"),
     query: jsonb("query").$type<Record<string, string[]>>(),
@@ -183,11 +183,11 @@ export const visits = pgTable(
     index("visits_orphan_occurred_idx").on(t.occurred_at.desc()).where(sql`${t.link_id} is null`),
     // Every column a filtered report reads, so the report can answer without
     // touching the base table. Measured: 312 buffers and zero heap fetches,
-    // against 1,678 via a bitmap heap scan (docs/plans/Plan_33.md §A).
+    // against 1,678 via a bitmap heap scan.
     // occurred_at leads because the window is the one predicate always
     // present. The rest are there for coverage — after a range qual on the
     // leading column their order barely matters, so they are narrowest-first.
-    // `id` is deliberately NOT here — see docs/plans/Plan_33.md §B2.
+    // `id` is deliberately NOT here.
     // `destination` is absent for the same reason: a full URL with query
     // string would roughly double the index to serve one breakdown, which
     // falls back to a heap scan.

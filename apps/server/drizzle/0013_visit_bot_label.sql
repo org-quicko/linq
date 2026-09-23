@@ -1,5 +1,5 @@
 -- What isbot's own pattern match actually was, given the same full
--- treatment os/browser already have. See docs/plans/Plan_24.md.
+-- treatment os/browser already have.
 ALTER TYPE "public"."visit_dimension" ADD VALUE 'botLabel' BEFORE 'referer';--> statement-breakpoint
 ALTER TABLE "visits" ADD COLUMN "bot_label" text;--> statement-breakpoint
 -- No backfill, same call 0011/0012 made: only a future visit is counted

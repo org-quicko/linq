@@ -1,6 +1,6 @@
 -- QR codes for short links. The encoded data is not stored: it is always the
 -- link's current short URL, so renaming a domain re-points every printed code.
--- Only the styling lives here. See docs/plans/Plan_31.md.
+-- Only the styling lives here.
 CREATE TYPE "public"."qr_pattern" AS ENUM('squares', 'rounded', 'dots');--> statement-breakpoint
 CREATE TABLE "qr_codes" (
 	"id" uuid PRIMARY KEY NOT NULL,

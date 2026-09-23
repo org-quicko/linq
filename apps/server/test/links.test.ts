@@ -318,8 +318,8 @@ describe("ownership transfer", () => {
 
 describe("bulk reassign (POST /api/v1/keys/:id/links/reassign)", () => {
   test("bumps updated_at on every link it moves", async () => {
-    // Guards the deliberate bump in docs/plans/Plan_26.md §B2 against a future
-    // "optimisation" that drops it, which would make the Updated sort lie.
+    // Guards the deliberate bump against a future "optimisation" that drops
+    // it, which would make the Updated sort lie.
     const owner = await h.createKey({ role: "author", name: "BulkOwner" })
     const link = await h.createLink(owner.key, domain)
     const before = link.updated_at

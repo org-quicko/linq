@@ -135,7 +135,6 @@ describe("DELETE /api/v1/domains/:id/purge", () => {
 
     // The domain itself cannot even be archived while the link — archived or
     // not — still points at it: the archive bar now matches the purge bar.
-    // See docs/plans/Plan_26.md §A1.
     expect((await archive(h, `domains/${host}`, admin.key)).status).toBe(409)
 
     expect((await purge(h, `links/${link.id}`, admin.key)).status).toBe(204)

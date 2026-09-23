@@ -7,8 +7,8 @@ import { type QrStyleConfig, qrOptions } from "@/lib/qr"
 /**
  * Drives the imperative `qr-code-styling` library from React: a ref for the
  * container React renders empty on purpose, one instance across renders,
- * `update()` after the first (docs/plans/Plan_31.md §A5) — constructing a new one
- * per keystroke would visibly flicker while someone is dragging a colour.
+ * `update()` after the first — constructing a new one per keystroke would
+ * visibly flicker while someone is dragging a colour.
  *
  * SVG here, always: crisp at any CSS size, no `devicePixelRatio` handling.
  * PNG/JPEG downloads go through `lib/qr.ts`'s own throwaway canvas instance.

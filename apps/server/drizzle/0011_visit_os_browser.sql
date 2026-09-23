@@ -1,6 +1,5 @@
 -- Captures what platform's three-way enum never could: the actual OS and
--- browser, parsed from the same user_agent already being stored. See
--- docs/plans/Plan_20.md.
+-- browser, parsed from the same user_agent already being stored.
 --
 -- No backfill: existing rows keep null for both, same call 0010 made for its
 -- own column change — only a future visit is affected. (Unlike a dropped
