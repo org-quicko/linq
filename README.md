@@ -64,6 +64,10 @@ defaults to `/home`.
 `LINQ_CACHE_SWEEP_INTERVAL` controls how often the in-process cache physically
 reclaims expired entries, accepts 1 to 3600 seconds, and defaults to 60; it does
 not change when an entry expires, which remains controlled by `LINQ_CACHE_TTL`.
+`LINQ_FETCH_LINK_METADATA` defaults to `false`: enabling it lets linq fetch a
+destination's title, description and icon. Enable it only with outbound network
+rules that block private/internal addresses. `LINQ_API_RATE_LIMIT_PER_MINUTE`
+and `LINQ_VISIT_MAX_PENDING` bound per-key API traffic and queued analytics work.
 Restart the relevant process after changing a port, and use that port in
 your browser and the UI's saved Server URL. `LINQ_DEFAULT_DOMAIN` only seeds
 an empty database; update an existing domain through the UI if its port changes.
@@ -246,7 +250,7 @@ services:
         LINQ_CLIENT_BASE_PATH: /admin/example
 ```
 
-Compose also reads `LINQ_PORT` from `.env` to choose the published host port.
+The Compose examples without Caddy read `LINQ_PORT` from `.env` to choose the published host port.
 The container continues listening on 3000, so Caddy's internal upstream stays
 `linq:3000`. For example, `LINQ_PORT=4000` publishes `4000:3000`.
 The combined image serves the built UI on that same port. For a different env filename,
@@ -289,6 +293,10 @@ edited in Caddy by hand. `:2019`, Caddy's admin API, is never published to the
 host — only linq ever talks to it, over the compose network. A custom domain
 still needs its DNS pointed at the host before Caddy's automatic HTTPS can
 issue it a certificate; see `docs/adr/0012`.
+
+Those Caddy examples intentionally do **not** publish linq's port 3000 to the
+host. Caddy reaches `linq:3000` inside the Compose network and is the only
+public entry point, so API keys never travel through a plaintext bypass.
 
 ## Further reading
 

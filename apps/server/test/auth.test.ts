@@ -52,3 +52,35 @@ describe("authentication", () => {
     expect((await res.json()).error.message).toContain("expired")
   })
 })
+
+describe("API request limits", () => {
+  test("limits a verified key and gives callers a retry time", async () => {
+    const limited = await createHarness({ config: { LINQ_API_RATE_LIMIT_PER_MINUTE: 2 } })
+    const key = (await limited.actor("viewer")).key
+
+    expect((await limited.request("/api/v1/me", { key })).status).toBe(200)
+    expect((await limited.request("/api/v1/me", { key })).status).toBe(200)
+    const blocked = await limited.request("/api/v1/me", { key })
+
+    expect(blocked.status).toBe(429)
+    expect(blocked.headers.get("retry-after")).toBeTruthy()
+    expect(await blocked.json()).toMatchObject({
+      error: { code: "rate_limited", message: "API rate limit exceeded" },
+    })
+  })
+
+  test("rejects oversized API bodies before parsing them", async () => {
+    const key = (await h.actor("editor")).key
+    const res = await h.request("/api/v1/links", {
+      key,
+      method: "POST",
+      body: "x".repeat(1_000_001),
+      headers: { "content-type": "application/json" },
+    })
+
+    expect(res.status).toBe(413)
+    expect(await res.json()).toMatchObject({
+      error: { code: "validation_failed", message: "request body exceeds 1 MB" },
+    })
+  })
+})

@@ -67,6 +67,11 @@ describe.skipIf(!built)("the exported Client UI at /home", () => {
 
     const html = await h.request("/home/")
     expect(html.headers.get("cache-control")).toBe("no-cache")
+    const csp = html.headers.get("content-security-policy") ?? ""
+    expect(csp).toContain("script-src 'self' 'sha256-")
+    expect(csp).not.toContain("script-src 'self' 'unsafe-inline'")
+    expect(html.headers.get("x-frame-options")).toBe("DENY")
+    expect(html.headers.get("x-content-type-options")).toBe("nosniff")
   })
 
   test("an unknown admin path is a 404, not the redirect handler", async () => {

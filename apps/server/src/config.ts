@@ -54,6 +54,10 @@ const schema = z
      */
     LINQ_CACHE_MAX_ENTRIES: z.coerce.number().int().min(1).max(1_000_000).default(10_000),
     LINQ_PORT: z.coerce.number().int().min(1).max(65535).default(3000),
+    /** Requests one authenticated key may make in one minute, per process. */
+    LINQ_API_RATE_LIMIT_PER_MINUTE: z.coerce.number().int().min(1).max(10_000).default(1_000),
+    /** Maximum visit inserts allowed to wait on the database before analytics drops excess events. */
+    LINQ_VISIT_MAX_PENDING: z.coerce.number().int().min(1).max(100_000).default(1_000),
     /** Where a combined deployment mounts its pre-built Client UI. */
     LINQ_CLIENT_BASE_PATH: clientBasePathSchema.default("/home"),
     // Same hostSchema an API-created domain goes through: a scheme snuck in
@@ -83,7 +87,8 @@ const schema = z
      * non-empty string "false" as truthy, which is exactly the footgun an
      * opt-out flag cannot afford. See docs/adr/0014.
      */
-    LINQ_FETCH_LINK_METADATA: z.enum(["true", "false"]).default("true"),
+    // Disabled by default: enabling this is an explicit trust in the deployment's egress policy.
+    LINQ_FETCH_LINK_METADATA: z.enum(["true", "false"]).default("false"),
   })
   // Naming redis without somewhere to reach it is the one combination that
   // cannot be resolved by a default, so it is rejected rather than guessed at.

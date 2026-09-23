@@ -105,6 +105,11 @@ client's row tile already degrades a broken image to the existing glyph
 
 ## Consequences
 
+**2026-09-23 security amendment.** Metadata fetching now defaults to `false`.
+An operator must set `LINQ_FETCH_LINK_METADATA=true` to enable it. This
+supersedes the earlier default stated above; the DNS-rebinding limitation and
+the recommendation to constrain egress remain unchanged.
+
 - A link's `name`, `description` and `icon_url` can now be populated without
   the caller supplying them, on both create and destination-changing
   updates. An explicitly supplied `name`/`description` — including an

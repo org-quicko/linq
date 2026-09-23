@@ -12,7 +12,7 @@
   "dependencies": {
     "@hono/zod-validator": "^0.7.4",
     "@linq/shared": "workspace:*",
-    "drizzle-orm": "^0.44.7",
+    "drizzle-orm": "^0.45.2",
     "hono": "^4.10.6",
     "isbot": "^5.1.32",
     "lru-cache": "^11.5.2",

@@ -18,6 +18,18 @@ describe("cache configuration", () => {
   })
 })
 
+describe("security configuration", () => {
+  test("keeps outbound metadata fetching opt-in", () => {
+    expect(loadConfig({ DATABASE_URL: "memory://pglite" }).LINQ_FETCH_LINK_METADATA).toBe("false")
+  })
+
+  test("bounds authenticated request and pending-visit pressure by default", () => {
+    const config = loadConfig({ DATABASE_URL: "memory://pglite" })
+    expect(config.LINQ_API_RATE_LIMIT_PER_MINUTE).toBe(1_000)
+    expect(config.LINQ_VISIT_MAX_PENDING).toBe(1_000)
+  })
+})
+
 describe("Client UI base path configuration", () => {
   test("defaults to /home", () => {
     expect(loadConfig({ DATABASE_URL: "memory://pglite" }).LINQ_CLIENT_BASE_PATH).toBe("/home")

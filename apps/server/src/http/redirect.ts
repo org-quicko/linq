@@ -277,7 +277,12 @@ export const redirectHandler = factory.createHandlers(async (c) => {
         : SLUG_PATTERN.test(slug)
           ? domain.fallback_url
           : (domain.invalid_short_url_redirect ?? domain.fallback_url)
-    if (tracked) recordVisit(c.var.db, { ...visit, link_id: null, destination })
+    if (tracked)
+      recordVisit(
+        c.var.db,
+        { ...visit, link_id: null, destination },
+        c.var.config.LINQ_VISIT_MAX_PENDING,
+      )
     if (!destination) return c.text("Not Found", 404)
     return isPreviewCrawler(user_agent)
       ? ogPreview(c, host, slug, null)
@@ -311,7 +316,12 @@ export const redirectHandler = factory.createHandlers(async (c) => {
   // 8. Insert after the response is built, and never await it. Recorded as
   //    `chosen` — the Destination the link or rule actually names — not
   //    `sendTo`, which is a different, effectively unique string per click.
-  if (tracked) recordVisit(c.var.db, { ...visit, link_id: link.link_id, destination: chosen })
+  if (tracked)
+    recordVisit(
+      c.var.db,
+      { ...visit, link_id: link.link_id, destination: chosen },
+      c.var.config.LINQ_VISIT_MAX_PENDING,
+    )
 
   return isPreviewCrawler(user_agent) ? ogPreview(c, host, slug, link) : sendRedirect(c, sendTo)
 })

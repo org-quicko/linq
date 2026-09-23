@@ -1,6 +1,7 @@
+import { createHash } from "node:crypto"
 import { dirname, isAbsolute, join, relative as relativePath, resolve } from "node:path"
 import { fileURLToPath } from "node:url"
-import type { Hono } from "hono"
+import type { Context, Hono } from "hono"
 import type { Env } from "./env.ts"
 
 /**
@@ -18,6 +19,48 @@ export const adminRoot = resolve(
  */
 function cacheControl(path: string): string {
   return path.includes("/_next/static/") ? "public, max-age=31536000, immutable" : "no-cache"
+}
+
+/** Hash the inline Next bootstrap blocks per exported document, so CSP can
+ * allow exactly the build's scripts without allowing arbitrary inline script. */
+function inlineScriptHashes(html: string): string[] {
+  const pattern = /<script(?:\s[^>]*)?>([\s\S]*?)<\/script>/gi
+  const hashes: string[] = []
+  for (const match of html.matchAll(pattern)) {
+    if (/\bsrc\s*=/i.test(match[0])) continue
+    hashes.push(
+      `'sha256-${createHash("sha256")
+        .update(match[1] ?? "")
+        .digest("base64")}'`,
+    )
+  }
+  return [...new Set(hashes)]
+}
+
+function setAdminSecurityHeaders(c: Context<Env>, html: string) {
+  const scriptHashes = inlineScriptHashes(html)
+  c.header(
+    "content-security-policy",
+    [
+      "default-src 'self'",
+      "base-uri 'self'",
+      "object-src 'none'",
+      "frame-ancestors 'none'",
+      "form-action 'self'",
+      `script-src 'self' ${scriptHashes.join(" ")}`,
+      // Next's static export uses inline style attributes. They are not a
+      // script-execution sink; preserving them keeps every exported route
+      // rendering while script execution remains hash-restricted.
+      "style-src 'self' 'unsafe-inline'",
+      "img-src 'self' data: https:",
+      "font-src 'self' data:",
+      "connect-src 'self' https: http:",
+    ].join("; "),
+  )
+  c.header("x-content-type-options", "nosniff")
+  c.header("x-frame-options", "DENY")
+  c.header("referrer-policy", "strict-origin-when-cross-origin")
+  c.header("permissions-policy", "camera=(), geolocation=(), microphone=()")
 }
 
 /**
@@ -58,13 +101,20 @@ export function mountAdmin(
       const file = Bun.file(candidate)
       if (await file.exists()) {
         c.header("cache-control", cacheControl(candidate.replaceAll("\\", "/")))
+        if (file.type.startsWith("text/html")) {
+          const html = await file.text()
+          setAdminSecurityHeaders(c, html)
+          return c.body(html, 200, { "content-type": file.type })
+        }
         return c.body(await file.bytes(), 200, { "content-type": file.type })
       }
     }
 
     const notFound = Bun.file(join(base, "404.html"))
     if (await notFound.exists()) {
-      return c.body(await notFound.bytes(), 404, { "content-type": "text/html; charset=utf-8" })
+      const html = await notFound.text()
+      setAdminSecurityHeaders(c, html)
+      return c.body(html, 404, { "content-type": "text/html; charset=utf-8" })
     }
     return c.text("Not Found", 404)
   })

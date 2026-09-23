@@ -4,6 +4,7 @@ export const ERROR_STATUS = {
   forbidden: 403,
   not_found: 404,
   conflict: 409,
+  rate_limited: 429,
   internal: 500,
 } as const
 
@@ -60,6 +61,10 @@ export class ApiError extends Error {
   /** 409: the request is well formed but fights the current state. */
   static conflict(message: string) {
     return new ApiError("conflict", message)
+  }
+  /** 429. The caller may retry after the response's Retry-After value. */
+  static rateLimited(message = "rate limit exceeded") {
+    return new ApiError("rate_limited", message)
   }
   /** 400, carrying the zod issues as `details`. */
   static validation(message: string, details?: unknown[]) {

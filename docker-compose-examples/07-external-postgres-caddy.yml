@@ -49,8 +49,6 @@ services:
       # Logs go to stdout and to /data/logs/linq.log. Client IPs are never
       # recorded in either; see docs/adr/0003.
       LINQ_LOG_LEVEL: info
-    ports:
-      - "${LINQ_PORT:-3000}:3000"
     volumes:
       - linq-data:/data
 

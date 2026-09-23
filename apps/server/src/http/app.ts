@@ -1,9 +1,11 @@
 import { ApiError } from "@linq/shared"
 import { Hono } from "hono"
+import { bodyLimit } from "hono/body-limit"
 import { cors } from "hono/cors"
 import type { ContentfulStatusCode } from "hono/utils/http-status"
 import pkg from "../../package.json" with { type: "json" }
 import { authenticate } from "../auth/middleware.ts"
+import { limitByKey } from "../auth/rate-limit.ts"
 import { type Cache, guarded, noCache } from "../cache.ts"
 import { type Caddy, guarded as guardedCaddy, noCaddy } from "../caddy.ts"
 import type { Config } from "../config.ts"
@@ -81,11 +83,20 @@ export function createApp({
   // a key is still required, and no cookie is ever sent, so there is no ambient
   // authority for another origin to borrow.
   app.use("/api/*", cors())
+  // API writes are small JSON documents; cap both declared and streamed bodies
+  // before a validator or JSON parser can buffer an arbitrary payload.
+  app.use(
+    "/api/*",
+    bodyLimit({
+      maxSize: 1_000_000,
+      onError: (c) => c.json(ApiError.validation("request body exceeds 1 MB").toBody(), 413),
+    }),
+  )
 
   app.get("/api/health", (c) => c.json({ status: "ok", version: pkg.version }))
 
   const v1 = new Hono<Env>()
-  v1.use("*", authenticate)
+  v1.use("*", authenticate, limitByKey(config.LINQ_API_RATE_LIMIT_PER_MINUTE))
   v1.route("/analytics", analyticsRoutes)
   v1.route("/me", meRoutes)
   v1.route("/domains", domainRoutes)

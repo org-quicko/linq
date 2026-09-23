@@ -96,7 +96,8 @@ the linq container). The example URL is a placeholder: edit the Compose
 environment entry itself, or supply a Compose override; exporting
 `DATABASE_URL` in your shell does not replace that literal entry.
 
-Caddy examples publish ports 80 and 443 in addition to 3000. With the
+Caddy examples publish only ports 80 and 443; linq stays reachable to Caddy at
+`linq:3000` over the Compose network. With the
 default localhost domain, `https://localhost/api/health` uses Caddy's local
 CA; trust that CA or use `curl -k` for this local smoke check. Public
 certificate issuance still requires a real domain, public DNS, and inbound
