@@ -15,3 +15,5 @@ one instead of improvising the same steps from scratch:
   the matching Drizzle migration.
 - `linq-adr` — writing a new ADR in `docs/adr/` for a hard-to-reverse
   decision.
+- `linq-backend` — adding or changing an HTTP API resource in `apps/server`.
+- `linq-frontend` — adding or changing a UI feature in `apps/client`.
