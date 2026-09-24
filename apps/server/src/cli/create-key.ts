@@ -28,7 +28,8 @@ if (expires_at && Number.isNaN(expires_at.getTime())) {
   console.error(`--expires is not a date: ${values.expires}`)
   process.exit(1)
 }
-const { secret } = await createApiKey(createDb(loadConfig().DATABASE_URL), {
+const config = loadConfig()
+const { secret } = await createApiKey(createDb(config.DATABASE_URL, config.LINQ_DB_SCHEMA), {
   name,
   claims: claimsForPreset[preset],
   expires_at,
