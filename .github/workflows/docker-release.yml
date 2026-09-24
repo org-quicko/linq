@@ -50,6 +50,10 @@ jobs:
             image: linq-server
           - dockerfile: dockerfiles/Dockerfile.full
             image: linq
+          # The Client UI at /, for a server run with LINQ_APP_HOST.
+          - dockerfile: dockerfiles/Dockerfile.full
+            image: linq-root
+            build-args: LINQ_CLIENT_BASE_PATH=/
     runs-on: ubuntu-24.04
     permissions:
       contents: read
@@ -90,6 +94,7 @@ jobs:
         with:
           context: .
           file: ${{ matrix.dockerfile }}
+          build-args: ${{ matrix.build-args }}
           push: true
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
