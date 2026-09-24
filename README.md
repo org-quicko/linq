@@ -226,8 +226,9 @@ writes to disk that is worth backing up.
 `dockerfiles/Dockerfile.full` builds an image that serves the API, the
 redirects and the Client UI from one process. Postgres stays external, and
 so does Redis if you opt into it. Pick a matching file from
-`docker-compose-examples/`, copy it out, set a real password and
-`LINQ_DEFAULT_DOMAIN`, then `docker compose up`.
+`docker-compose-examples/`, configure the repo-root `.env`, then run the
+matching `docker compose -f ... up` command. The examples load `.env` into the
+`linq` service at runtime.
 
 The full image serves the UI at `/home` by default. To use another path, rebuild
 the image with an explicit build argument:
@@ -236,21 +237,16 @@ the image with an explicit build argument:
 docker build --build-arg LINQ_CLIENT_BASE_PATH=/admin/example -f dockerfiles/Dockerfile.full -t linq .
 ```
 
-The Dockerfile does not read `.env`. The path is written into the static frontend
-during `docker build`; changing only the running container's environment would
-make the frontend and server disagree. For Compose, put the literal build
-argument under `linq.build.args` in your copied file, then run
-`docker compose up --build`:
+The path is written into the static frontend during `docker build`; changing
+only the running container's environment would make the frontend and server
+disagree. The Compose examples load the repo-root `.env` into `linq` and pass
+`LINQ_CLIENT_BASE_PATH` to the build as well. Change that variable there, then
+run `docker compose ... up --build`.
 
-```yaml
-services:
-  linq:
-    build:
-      args:
-        LINQ_CLIENT_BASE_PATH: /admin/example
-```
-
-The Compose examples without Caddy read `LINQ_PORT` from `.env` to choose the published host port.
+The Compose examples load `.env` into the `linq` service. Their bundled
+Postgres variants also read `POSTGRES_USER`, `POSTGRES_PASSWORD`, and
+`POSTGRES_DB` from it; replace the sample password before deploying. The
+examples without Caddy read `LINQ_PORT` from `.env` to choose the published host port.
 The container continues listening on 3000, so Caddy's internal upstream stays
 `linq:3000`. For example, `LINQ_PORT=4000` publishes `4000:3000`.
 The combined image serves the built UI on that same port. For a different env filename,

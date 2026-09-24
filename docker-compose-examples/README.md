@@ -2,17 +2,22 @@
 
 Every combination of linq's optional pieces — Postgres bundled vs. external,
 Redis on/off (docs/adr/0009), Caddy on/off (docs/adr/0012). Pick the file that
-matches your setup, copy it out, set a real password and `LINQ_DEFAULT_DOMAIN`,
-then `docker compose -f <file> up`.
+matches your setup, configure the repo-root `.env`, then
+`docker compose -f <file> up`. Each `linq` service loads that file with
+`env_file`, so it is its runtime configuration as well as Compose's source for
+port, build-argument, and bundled-Postgres substitutions.
 
-All `build:` and volume-mount paths are resolved relative to the Compose
-file's directory (`..` reaches the repo root), not your shell's directory.
-Run from here, or use `-f docker-compose-examples/<file>` from the repo root.
-If you copy a file elsewhere, fix those paths first.
+All `build:`, volume-mount, and `env_file` paths are resolved relative to the
+Compose file's directory (`..` reaches the repo root), not your shell's
+directory. Run from here, or use `-f docker-compose-examples/<file>` from the
+repo root. If you copy a file elsewhere, change `../.env` to the `.env` beside
+the copied file and fix the other relative paths first.
 
 Set `LINQ_PORT` in the repo-root `.env` to change the published port from
 3000. Run from the repo root, or pass `--env-file ../.env` when running from
-this directory. The container and Caddy upstream stay on port 3000.
+this directory so Compose can interpolate that value. The container and Caddy
+upstream stay on port 3000. `LINQ_DATA_DIR` is always `/data` in the container,
+so the Compose volume remains the persistent log location.
 `LINQ_DEFAULT_DOMAIN` can also be set in that env file; when absent, it
 defaults to `localhost:<LINQ_PORT>`. For an existing database, change the
 domain through the UI as well: the default domain only seeds an empty database.
@@ -32,18 +37,10 @@ accepting 1 to 3600 seconds and defaulting to 60, for the in-process cache.
 
 All eight of the above build from `../dockerfiles/Dockerfile.full` — the
 combined image, API plus Client UI at `/home` by default. The UI path is a
-build-time option. To use another path, add a literal build argument to the
-`linq` service in the Compose file you deploy, then rebuild:
-
-```yaml
-services:
-  linq:
-    build:
-      args:
-        LINQ_CLIENT_BASE_PATH: /admin/example
-```
-
-The Dockerfile and these examples do not read that value from `.env`.
+build-time option. Their build argument is wired to
+`LINQ_CLIENT_BASE_PATH` in `.env`; change that value and run
+`docker compose ... up --build`. It is baked into the frontend, so restarting
+without rebuilding is not enough.
 `../dockerfiles/` also has
 `Dockerfile.server` (API only) and `Dockerfile.client` (Client UI only, as a
 standalone export); the two files below (9 and 10) build from those instead,
@@ -74,7 +71,8 @@ UI at `/home` on `LINQ_PORT`, so the separate client only makes sense there
 if you specifically want the Client UI at `/` as well.
 
 "External" Postgres means no `postgres` service in the file — set
-`DATABASE_URL` on the `linq` service to point at your own instance instead.
+`DATABASE_URL` in `.env` to point at your own instance instead. It is loaded
+directly into the `linq` container through `env_file`.
 
 For a local check from the repo root:
 
@@ -91,10 +89,8 @@ default Compose project name. Use `down` with the same `-f` argument to stop
 it; add `--volumes` only when you intend to delete its stored data.
 
 For external Postgres on the Docker Desktop host, use
-`host.docker.internal` in `DATABASE_URL`, not `localhost` (which refers to
-the linq container). The example URL is a placeholder: edit the Compose
-environment entry itself, or supply a Compose override; exporting
-`DATABASE_URL` in your shell does not replace that literal entry.
+`host.docker.internal` in `.env`'s `DATABASE_URL`, not `localhost` (which
+refers to the linq container).
 
 Caddy examples publish only ports 80 and 443; linq stays reachable to Caddy at
 `linq:3000` over the Compose network. With the

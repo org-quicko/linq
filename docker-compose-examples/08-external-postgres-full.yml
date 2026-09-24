@@ -7,7 +7,7 @@
 # still needs its DNS pointed at this host before Caddy's automatic HTTPS can
 # issue it a certificate.
 #
-# Set DATABASE_URL to that instance and LINQ_DEFAULT_DOMAIN, then:
+# Set DATABASE_URL to that instance and LINQ_DEFAULT_DOMAIN in .env, then:
 #   docker compose -f 08-external-postgres-full.yml up
 services:
   redis:
@@ -35,17 +35,22 @@ services:
       retries: 10
 
   linq:
+    env_file:
+      # Change this path to use an environment file in another location.
+      - ../.env
     build:
       context: ..
       dockerfile: dockerfiles/Dockerfile.full
+      args:
+        LINQ_CLIENT_BASE_PATH: ${LINQ_CLIENT_BASE_PATH:-/home}
     depends_on:
       redis:
         condition: service_healthy
       caddy:
         condition: service_healthy
     environment:
-      # Point this at your existing Postgres instance.
-      DATABASE_URL: postgres://linq:linq@your-postgres-host:5432/linq
+      LINQ_PORT: 3000
+      LINQ_DATA_DIR: /data
       LINQ_REDIS_URL: redis://redis:6379
       LINQ_DEFAULT_DOMAIN: ${LINQ_DEFAULT_DOMAIN:-localhost:${LINQ_PORT:-3000}}
       LINQ_CADDY_ADMIN_URL: http://caddy:2019
@@ -55,7 +60,7 @@ services:
       #   docker compose exec linq bun run key:create --name ops --role admin
       # Logs go to stdout and to /data/logs/linq.log. Client IPs are never
       # recorded in either; see docs/adr/0003.
-      LINQ_LOG_LEVEL: info
+      LINQ_LOG_LEVEL: ${LINQ_LOG_LEVEL:-info}
     volumes:
       - linq-data:/data
 
