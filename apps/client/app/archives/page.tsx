@@ -1,7 +1,7 @@
 "use client"
 
 import { can, type Link } from "@linq/shared"
-import { Link2, RotateCcw, Trash2 } from "lucide-react"
+import { Archive, Link2, RotateCcw, Trash2 } from "lucide-react"
 import { AppShell } from "@/components/app-shell"
 import { ConfirmButton, When } from "@/components/common"
 import {
@@ -39,7 +39,6 @@ export default function ArchivesPage() {
 function Archives() {
   return (
     <div className="no-scrollbar flex h-full min-h-0 flex-col gap-4 overflow-y-auto px-7 py-6">
-      <PageHeader title="Archives" description="Links removed from active use." />
       <ArchivedLinksTab />
     </div>
   )
@@ -75,31 +74,32 @@ function ArchivedLinksTab() {
 
   return (
     <>
-      <div className="flex items-center justify-between gap-2">
-        <p className="text-sm text-muted-foreground">
-          Archived links stop redirecting and disappear from your short links list, but stay
-          recoverable until you delete them for good.
-        </p>
-        {rows.length > 0 ? (
-          <ConfirmButton
-            variant="outline"
-            className="shrink-0 border-destructive/30 text-destructive hover:bg-destructive/10 hover:text-destructive"
-            title="Empty the archive?"
-            description="Deletes every archived link for good, and every visit ever recorded on each of them. This cannot be undone."
-            confirmLabel="Empty archive"
-            onConfirm={emptyArchive}
-          >
-            <Trash2 />
-            Empty archive
-          </ConfirmButton>
-        ) : null}
-      </div>
+      <PageHeader
+        title="Archives"
+        description="Archived links stop redirecting and disappear from your short links list, but stay recoverable until you delete them for good."
+        actions={
+          rows.length > 0 ? (
+            <ConfirmButton
+              variant="outline"
+              className="shrink-0 border-destructive/30 text-destructive hover:bg-destructive/10 hover:text-destructive"
+              title="Empty the archive?"
+              description="Deletes every archived link for good, and every visit ever recorded on each of them. This cannot be undone."
+              confirmLabel="Empty archive"
+              onConfirm={emptyArchive}
+            >
+              <Trash2 />
+              Empty archive
+            </ConfirmButton>
+          ) : null
+        }
+      />
 
       <Collection
         query={links}
         rows={rows}
         variant="list"
         emptyMessage="No archived links. Links you archive will show up here."
+        emptyIcon={Archive}
       >
         {(link) => (
           <RowCard

@@ -1,5 +1,6 @@
 "use client"
 
+import type { LucideIcon } from "lucide-react"
 import type { ReactNode } from "react"
 import { DataTable, QueryState, TableSkeleton } from "@/components/common"
 import { RowCardSkeleton } from "./row-card"
@@ -29,6 +30,7 @@ export function Collection<T>({
   variant = "table",
   head,
   emptyMessage = "Nothing here yet.",
+  emptyIcon,
   children,
 }: {
   query: QueryLike
@@ -37,6 +39,7 @@ export function Collection<T>({
   /** Required when `variant` is `"table"`. */
   head?: ReactNode[]
   emptyMessage?: string
+  emptyIcon?: LucideIcon
   children: (row: T) => ReactNode
 }) {
   const asTable = variant === "table" && head
@@ -49,6 +52,7 @@ export function Collection<T>({
         error={query.error}
         empty={rows.length === 0}
         emptyMessage={emptyMessage}
+        emptyIcon={emptyIcon}
         skeleton={
           asTable ? (
             <TableSkeleton head={head} />

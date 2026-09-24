@@ -95,6 +95,7 @@ function LinksList({ actor }: { actor: Actor }) {
   })
 
   const rows = links.data?.pages.flatMap((page: Page<Link>) => page.data) ?? []
+  const filtering = Boolean(settledSearch || tags.length || filters.domain_id)
 
   // A bare sentinel div, observed natively — no library. Plus an explicit
   // "Load more" button behind it: the observer alone has no keyboard or
@@ -153,14 +154,7 @@ function LinksList({ actor }: { actor: Actor }) {
               ) : null}
             </InputGroup>
 
-            <TagPicker
-              value={tags}
-              onChange={setTags}
-              placeholder="Tag"
-              selectedLabel={(n) => `Tag (${n})`}
-              showChips={false}
-              className="w-auto"
-            />
+            <TagPicker value={tags} onChange={setTags} filter />
 
             <DomainPicker
               multiple
@@ -200,11 +194,8 @@ function LinksList({ actor }: { actor: Actor }) {
           query={links}
           rows={rows}
           variant="list"
-          emptyMessage={
-            settledSearch || tags.length || filters.domain_id
-              ? "No links match your search."
-              : "No links found."
-          }
+          emptyMessage={filtering ? "No links match your search." : "No links yet."}
+          emptyIcon={filtering ? Search : Link2}
         >
           {(link: Link) => (
             <LinkRow

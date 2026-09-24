@@ -32,7 +32,7 @@ export function SettingsNav({ actor, children }: { actor: Actor; children: React
   const pathname = usePathname()
 
   return (
-    <div className="flex gap-6">
+    <div className="flex flex-1 gap-6">
       <nav className="flex w-[172px] shrink-0 flex-col gap-0.5">
         {ITEMS.filter((item) => item.visible(actor)).map((item) => {
           const Icon = item.icon
@@ -54,7 +54,7 @@ export function SettingsNav({ actor, children }: { actor: Actor; children: React
           )
         })}
       </nav>
-      <div className="min-w-0 flex-1">{children}</div>
+      <div className="flex min-w-0 flex-1 flex-col">{children}</div>
     </div>
   )
 }

@@ -49,7 +49,7 @@ export default function SettingsDomainsPage() {
   return (
     <AppShell>
       {(actor) => (
-        <div className="no-scrollbar h-full min-h-0 overflow-y-auto px-7 py-6">
+        <div className="no-scrollbar flex h-full min-h-0 flex-col overflow-y-auto px-7 py-6">
           <SettingsNav actor={actor}>
             <Domains actor={actor} />
           </SettingsNav>
@@ -65,14 +65,16 @@ function Domains({ actor }: { actor: Actor }) {
   const isAdmin = can.manageDomains(actor)
 
   return (
-    <div className="flex flex-col gap-4">
+    <div className="flex flex-1 flex-col gap-4">
       <PageHeader
         title="Domains"
         description="Domains available when creating short links, with optional redirects."
         actions={isAdmin ? <AddDomainDialog /> : null}
       />
 
-      <Collection query={domains} rows={rows} variant="list" emptyMessage="No domains yet.">
+      <Collection query={domains} rows={rows} variant="list" emptyMessage="No domains yet."
+        emptyIcon={Globe}
+      >
         {(domain) => <DomainRow key={domain.id} domain={domain} isAdmin={isAdmin} />}
       </Collection>
     </div>
@@ -190,7 +192,7 @@ function EditRedirectsDialog({ domain }: { domain: Domain }) {
       <DialogTrigger asChild>
         <IconButton icon={CornerDownRight} label="Edit redirects" />
       </DialogTrigger>
-      <DialogContent className="sm:max-w-[480px]">
+      <DialogContent>
         <DialogHeader>
           <DialogTitle>Redirects — {domain.host}</DialogTitle>
           <DialogDescription>

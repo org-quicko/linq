@@ -1,11 +1,10 @@
 "use client"
 
-import { Link2, Pencil, Plus, Trash2 } from "lucide-react"
+import { Link2, Plus, Trash2, X } from "lucide-react"
 import { useEffect, useState } from "react"
 import { ConfirmButton } from "@/components/common"
-import { IconButton, RowCard, RowCardTile } from "@/components/patterns"
-import { ServerForm } from "@/components/server-form"
-import { Badge } from "@/components/ui/badge"
+import { RowCard, RowCardTile } from "@/components/patterns"
+import { AddServerDialog } from "@/components/server-form"
 import { Button } from "@/components/ui/button"
 import { appUrl } from "../lib/base-path"
 import {
@@ -16,17 +15,16 @@ import {
   removeServer,
   type Server,
   setActiveServer,
-  updateServer,
 } from "../lib/servers"
 
 /**
- * The servers this browser knows: connect, add, edit, or remove one.
+ * The servers this browser knows: switch to, add, or remove one.
  *
  * Shared by the landing page (`/`, before anything is connected) and the
  * deliberate `/servers/add/` and `/servers/manage/` routes (reached from the
- * sidebar once a server is already active). Restyled to the mockup's
- * plain-page treatment: a bordered 480px card on --background, its own top
- * bar with the wordmark, and no app shell.
+ * sidebar once a server is already active). A plain page outside the app
+ * shell: its own top bar with the wordmark, and one outlined 480px card.
+ * Adding happens in a dialog over this page.
  */
 export function ServerManager({
   initialAdding = false,
@@ -38,8 +36,7 @@ export function ServerManager({
   const [servers, setServers] = useState<Server[] | null>(null)
   const [activeId, setActiveId] = useState<string | null>(null)
   const [adding, setAdding] = useState(initialAdding)
-  const [editing, setEditing] = useState<string | null>(null)
-  const [connecting, setConnecting] = useState<string | null>(null)
+  const [switching, setSwitching] = useState<string | null>(null)
   const [errorForServer, setErrorForServer] = useState<{ id: string; message: string } | null>(null)
 
   useEffect(() => {
@@ -54,15 +51,16 @@ export function ServerManager({
     setActiveId(activeServer()?.id ?? null)
   }
 
-  async function connect(server: Server) {
-    if (server.id === activeId) {
+  async function switchTo(server: Server) {
+    if (server.id === activeId && !unauthorized) {
       window.location.href = appUrl("/links/")
       return
     }
-    setConnecting(server.id)
+    if (switching) return
+    setSwitching(server.id)
     setErrorForServer(null)
     const result = await probeServer(server.apiUrl, server.apiKey)
-    setConnecting(null)
+    setSwitching(null)
     if (!result.ok) {
       setErrorForServer({ id: server.id, message: result.message })
       return
@@ -71,29 +69,44 @@ export function ServerManager({
     window.location.href = appUrl("/links/")
   }
 
-  const showForm = adding || servers.length === 0
+  const hasServers = servers.length > 0
+  // A rejected key means the active server is the one that just failed, so
+  // there is nothing to go back to.
+  const canGoBack = activeId !== null && !unauthorized
 
   return (
     <div className="flex min-h-screen flex-col bg-background">
-      {/* Top bar with wordmark */}
-      <div className="flex h-14 items-center border-b px-6">
-        <div className="flex items-center gap-2">
+      <div className="flex shrink-0 items-center justify-between border-b px-7 py-3.5">
+        <div className="flex items-center gap-[7px]">
           <div className="flex size-[22px] shrink-0 items-center justify-center rounded-[6px] bg-primary text-primary-foreground">
-            <Link2 className="size-3.5" />
+            <Link2 className="size-[13px]" />
           </div>
-          <span className="font-heading text-[15px] font-semibold tracking-tight">Linq</span>
+          <span className="text-[15px] font-semibold tracking-[-0.02em]">Linq</span>
         </div>
+        {canGoBack ? (
+          <Button
+            type="button"
+            variant="ghost"
+            size="icon"
+            aria-label="Back"
+            className="size-10 text-muted-foreground"
+            onClick={() => {
+              window.location.href = appUrl("/links/")
+            }}
+          >
+            <X className="size-[15px]" />
+          </Button>
+        ) : null}
       </div>
 
-      {/* Centered card */}
-      <div className="flex flex-1 items-center justify-center p-4 sm:p-6">
-        <div className="w-full max-w-[480px] overflow-hidden rounded-[--radius-xl] border bg-card shadow-panel">
-          <div className="flex flex-col items-center px-7 pt-7 pb-4 text-center">
-            <h1 className="font-heading text-[17px] font-semibold tracking-tight">Servers</h1>
-            <p className="mt-1 text-[13px] text-muted-foreground">
-              {showForm && servers.length === 0
-                ? "Add the Linq server your workspace runs on to get started."
-                : "Switch between servers, or add another."}
+      <div className="flex flex-1 items-center justify-center p-5">
+        <div className="w-full max-w-[480px] overflow-hidden rounded-xl border bg-card">
+          <div className="flex flex-col items-center px-7 pt-7 pb-5 text-center">
+            <h1 className="mb-1 text-[17px] font-semibold tracking-[-0.01em]">Servers</h1>
+            <p className="text-[13px] text-muted-foreground">
+              {hasServers
+                ? "Switch between servers, or add another."
+                : "Add the Linq server your workspace runs on to get started."}
             </p>
             {unauthorized ? (
               <p className="mt-3 w-full rounded-md bg-destructive/10 px-3 py-2 text-xs text-destructive">
@@ -102,94 +115,58 @@ export function ServerManager({
             ) : null}
           </div>
 
-          <div className="px-7 pb-7 pt-2">
-            {editing ? (
-              (() => {
-                const server = servers.find((s) => s.id === editing)
-                if (!server) return null
-                return (
-                  <div className="rounded-lg border p-4">
-                    <ServerForm
-                      server={server}
-                      submitLabel="Save"
-                      onSaved={(values) => {
-                        updateServer(server.id, values)
-                        setEditing(null)
-                        setErrorForServer(null)
-                        refresh()
-                      }}
-                      onCancel={() => setEditing(null)}
-                    />
-                  </div>
-                )
-              })()
-            ) : showForm ? (
-              <div className={servers.length > 0 ? "rounded-lg border p-4" : undefined}>
-                <ServerForm
-                  submitLabel={servers.length === 0 ? "Connect" : "Add"}
-                  onSaved={(values) => {
-                    addServer(values)
-                    window.location.href = appUrl("/links/")
-                  }}
-                  onCancel={servers.length > 0 ? () => setAdding(false) : undefined}
-                />
-              </div>
-            ) : (
-              <div className="flex flex-col gap-4">
+          <div className="px-7 pt-5 pb-6">
+            {hasServers ? (
+              <>
                 <div className="no-scrollbar flex max-h-[320px] flex-col gap-2.5 overflow-y-auto">
                   {servers.map((server) => (
                     <div key={server.id} className="flex flex-col gap-1">
                       <RowCard
-                        onClick={() => connect(server)}
+                        onClick={() => switchTo(server)}
                         tile={
                           <RowCardTile>
                             <Link2 className="size-4" />
                           </RowCardTile>
                         }
                         actions={
-                          <div className="flex items-center gap-1.5">
+                          <>
                             {server.id !== activeId ? (
                               <Button
                                 type="button"
                                 variant="outline"
-                                size="sm"
-                                className="h-8 px-2.5 text-xs"
-                                disabled={connecting === server.id}
-                                onClick={() => connect(server)}
+                                className="h-8 px-2.5 text-[12.5px]"
+                                disabled={switching === server.id}
+                                onClick={() => switchTo(server)}
                               >
-                                {connecting === server.id ? "Connecting…" : "Connect"}
+                                {switching === server.id ? "Switching…" : "Switch"}
                               </Button>
                             ) : null}
-                            <IconButton
-                              icon={Pencil}
-                              label="Edit server"
-                              onClick={() => setEditing(server.id)}
-                            />
                             <ConfirmButton
-                              className="size-10"
-                              ariaLabel="Forget server"
-                              title={`Forget ${server.name}?`}
-                              description="This removes the server from this browser. Nothing on the server itself is changed, and re-entering its URL and key brings it back."
-                              confirmLabel="Forget"
+                              variant="destructive"
+                              className="size-10 bg-transparent text-muted-foreground hover:bg-muted hover:text-foreground dark:bg-transparent"
+                              title="Remove server?"
+                              description={`You'll be disconnected from "${server.name}" and it will be removed from your list of servers.`}
+                              confirmLabel="Remove server"
                               onConfirm={() => {
                                 removeServer(server.id)
                                 refresh()
                               }}
                             >
                               <Trash2 className="size-4" />
+                              <span className="sr-only">Remove server</span>
                             </ConfirmButton>
-                          </div>
+                          </>
                         }
                       >
-                        <div className="flex min-w-0 items-center gap-2">
+                        <div className="flex min-w-0 items-center gap-1.5">
                           <span className="truncate text-sm font-semibold">{server.name}</span>
                           {server.id === activeId ? (
-                            <Badge variant="outline" className="text-[11px] font-normal">
+                            <span className="inline-flex h-5 shrink-0 items-center rounded-sm border bg-background px-2 text-[11px] font-medium text-muted-foreground">
                               Active
-                            </Badge>
+                            </span>
                           ) : null}
                         </div>
-                        <span className="truncate text-xs text-muted-foreground">
+                        <span className="truncate text-[12.5px] text-muted-foreground">
                           {server.apiUrl}
                         </span>
                       </RowCard>
@@ -203,17 +180,43 @@ export function ServerManager({
                 <Button
                   type="button"
                   variant="outline"
-                  className="h-11 w-full justify-center"
+                  className="mt-4 h-11 w-full gap-[7px] text-[13.5px]"
                   onClick={() => setAdding(true)}
                 >
-                  <Plus className="size-4" />
+                  <Plus className="size-3.5" />
                   Add server
                 </Button>
-              </div>
+              </>
+            ) : (
+              <Button
+                type="button"
+                className="h-11 w-full gap-[7px] text-[13.5px] hover:bg-primary/90"
+                onClick={() => setAdding(true)}
+              >
+                <Plus className="size-3.5" />
+                Add server
+              </Button>
             )}
           </div>
         </div>
       </div>
+
+      <AddServerDialog
+        open={adding}
+        onOpenChange={setAdding}
+        onSaved={(values) => {
+          addServer(values)
+          // A first server goes straight into the app; another one keeps you
+          // here, so switching stays a deliberate choice.
+          if (!hasServers) {
+            window.location.href = appUrl("/links/")
+            return
+          }
+          setAdding(false)
+          setErrorForServer(null)
+          refresh()
+        }}
+      />
     </div>
   )
 }

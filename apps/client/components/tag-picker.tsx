@@ -1,7 +1,7 @@
 "use client"
 
 import { cn } from "cn"
-import { CheckIcon, ChevronsUpDownIcon, XIcon } from "lucide-react"
+import { ChevronDown, ChevronsUpDownIcon, XIcon } from "lucide-react"
 import { useState } from "react"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
@@ -22,7 +22,7 @@ function normalise(tag: string): string {
 }
 
 /**
- * Picks tags from the ones already in use, with their counts.
+ * Picks tags from the ones already in use.
  *
  * `GET /v1/tags` is derived from active links, so the list is whatever people
  * actually tagged — there is no tag table to keep in step. That is also why
@@ -38,8 +38,7 @@ export function TagPicker({
   creatable = false,
   disabled = false,
   placeholder = "Tags",
-  selectedLabel = (n) => `${n} selected`,
-  showChips = true,
+  filter = false,
   className,
 }: {
   value: string[]
@@ -47,12 +46,9 @@ export function TagPicker({
   creatable?: boolean
   disabled?: boolean
   placeholder?: string
-  /** How the trigger reads once something is picked. The links list toolbar
-   *  wants `Tag (n)` rather than the form field's `n selected`. */
-  selectedLabel?: (count: number) => string
-  /** The links list toolbar has no room for the removable-chip row the form
-   *  field shows below the control. */
-  showChips?: boolean
+  /** Toolbar filter look, matching `DomainPicker`: reads `Tag` / `Tag (n)`,
+   *  and drops the removable-chip row the form field shows below it. */
+  filter?: boolean
   className?: string
 }) {
   const { data: tags, isLoading: tagsLoading } = useListTagsQuery()
@@ -77,17 +73,24 @@ export function TagPicker({
     <div className="flex flex-col gap-2">
       <Popover open={open} onOpenChange={setOpen}>
         <PopoverTrigger asChild>
-          <Button
-            type="button"
-            variant="outline"
-            disabled={disabled}
-            className={cn("w-full justify-between font-normal", className)}
-          >
-            <span className={value.length ? undefined : "text-muted-foreground"}>
-              {value.length ? selectedLabel(value.length) : placeholder}
-            </span>
-            <ChevronsUpDownIcon className="opacity-50" />
-          </Button>
+          {filter ? (
+            <Button type="button" variant="outline" disabled={disabled} className={className}>
+              {value.length ? `Tag (${value.length})` : "Tag"}
+              <ChevronDown className="size-3.5 text-muted-foreground" />
+            </Button>
+          ) : (
+            <Button
+              type="button"
+              variant="outline"
+              disabled={disabled}
+              className={cn("w-full justify-between font-normal", className)}
+            >
+              <span className={value.length ? undefined : "text-muted-foreground"}>
+                {value.length ? `${value.length} selected` : placeholder}
+              </span>
+              <ChevronsUpDownIcon className="opacity-50" />
+            </Button>
+          )}
         </PopoverTrigger>
 
         <PopoverContent className="w-64 p-0" align="start">
@@ -116,10 +119,13 @@ export function TagPicker({
 
               <CommandGroup>
                 {known.map((row) => (
-                  <CommandItem key={row.tag} value={row.tag} onSelect={() => toggle(row.tag)}>
-                    <CheckIcon className={value.includes(row.tag) ? "opacity-100" : "opacity-0"} />
-                    <span className="flex-1">{row.tag}</span>
-                    <span className="text-xs tabular-nums text-muted-foreground">{row.count}</span>
+                  <CommandItem
+                    key={row.tag}
+                    value={row.tag}
+                    data-checked={value.includes(row.tag)}
+                    onSelect={() => toggle(row.tag)}
+                  >
+                    {row.tag}
                   </CommandItem>
                 ))}
               </CommandGroup>
@@ -128,7 +134,7 @@ export function TagPicker({
         </PopoverContent>
       </Popover>
 
-      {showChips && value.length ? (
+      {!filter && value.length ? (
         <div className="flex flex-wrap gap-1">
           {value.map((tag) => (
             <Badge key={tag} variant="secondary" className="gap-1 pr-1">

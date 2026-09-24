@@ -162,7 +162,7 @@ export function LinkFormDialog({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-lg">
+      <DialogContent>
         <DialogHeader>
           <DialogTitle>{mode === "create" ? "Create link" : "Edit link"}</DialogTitle>
         </DialogHeader>
@@ -389,10 +389,18 @@ function ShortLinkField({
               <ChevronDown className="size-3.5 shrink-0 text-muted-foreground" />
             </button>
           </DropdownMenuTrigger>
-          <DropdownMenuContent align="start">
+          <DropdownMenuContent
+            align="start"
+            className="w-max max-w-[min(20rem,calc(100vw-2rem))] min-w-(--radix-dropdown-menu-trigger-width)"
+          >
             {domains.map((domain) => (
-              <DropdownMenuItem key={domain.id} onSelect={() => onDomainChange(domain.id)}>
-                {domain.host}
+              <DropdownMenuItem
+                key={domain.id}
+                title={domain.host}
+                className="p-2"
+                onSelect={() => onDomainChange(domain.id)}
+              >
+                <span className="truncate">{domain.host}</span>
               </DropdownMenuItem>
             ))}
           </DropdownMenuContent>

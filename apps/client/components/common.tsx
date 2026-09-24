@@ -1,6 +1,15 @@
 "use client"
 
-import { CalendarDays, CheckIcon, ChevronLeft, ChevronRight, Clock, CopyIcon } from "lucide-react"
+import {
+  CalendarDays,
+  CheckIcon,
+  ChevronDown,
+  ChevronLeft,
+  ChevronRight,
+  Clock,
+  CopyIcon,
+  type LucideIcon,
+} from "lucide-react"
 import { type ComponentProps, type ReactNode, useState } from "react"
 import { EmptyState } from "@/components/patterns/empty-state"
 import { Button } from "@/components/ui/button"
@@ -118,6 +127,7 @@ export function QueryState({
   empty,
   skeleton,
   emptyMessage = "Nothing here yet.",
+  emptyIcon,
 }: {
   isLoading: boolean
   isFetching?: boolean
@@ -126,6 +136,7 @@ export function QueryState({
   empty?: boolean
   skeleton?: ReactNode
   emptyMessage?: string
+  emptyIcon?: LucideIcon
 }) {
   return (
     <>
@@ -138,7 +149,7 @@ export function QueryState({
           {error.message ?? "Something went wrong."}
         </p>
       ) : null}
-      {!isLoading && !error && empty ? <EmptyState message={emptyMessage} /> : null}
+      {!isLoading && !error && empty ? <EmptyState message={emptyMessage} icon={emptyIcon} /> : null}
     </>
   )
 }
@@ -289,10 +300,16 @@ export function Picker({
       <SelectTrigger className={className}>
         <SelectValue placeholder={placeholder} />
       </SelectTrigger>
-      <SelectContent>
+      <SelectContent className="max-w-[min(20rem,calc(100vw-2rem))]">
         {options.map((option) => (
-          <SelectItem key={option.value} value={option.value}>
-            {option.label}
+          <SelectItem
+            key={option.value}
+            value={option.value}
+            title={option.label}
+            // Lets a long label (a domain host) truncate instead of widening the menu.
+            className="*:[span]:last:min-w-0"
+          >
+            <span className="truncate">{option.label}</span>
           </SelectItem>
         ))}
       </SelectContent>
@@ -448,6 +465,7 @@ export function RangePicker({
   const [from, setFrom] = useState(custom?.from ?? "")
   const [to, setTo] = useState(custom?.to ?? "")
   const [open, setOpen] = useState(false)
+  const [showCustom, setShowCustom] = useState(false)
   const [touched, setTouched] = useState({ from: false, to: false })
   // Only surface a validation message once both fields are touched and dirty —
   // picking just one side (the other still blank) isn't an error yet, it's
@@ -455,7 +473,13 @@ export function RangePicker({
   const validation = touched.from && touched.to ? rangeValidation(from, to) : null
 
   return (
-    <Popover open={open} onOpenChange={setOpen}>
+    <Popover
+      open={open}
+      onOpenChange={(next) => {
+        if (next) setShowCustom(preset === "custom")
+        setOpen(next)
+      }}
+    >
       <PopoverTrigger asChild>
         <Button
           type="button"
@@ -464,6 +488,7 @@ export function RangePicker({
         >
           <CalendarDays className="size-4 text-muted-foreground" />
           {label}
+          <ChevronDown className="size-4 text-muted-foreground" />
         </Button>
       </PopoverTrigger>
       <PopoverContent align="end" className="w-72 gap-0 p-2">
@@ -479,15 +504,22 @@ export function RangePicker({
               }}
             >
               <span className="flex-1">{range.label}</span>
-              {preset === range.value ? <CheckIcon className="size-4" /> : null}
+              {!showCustom && preset === range.value ? <CheckIcon className="size-4" /> : null}
             </button>
           ))}
+          <button
+            type="button"
+            aria-expanded={showCustom}
+            className="flex w-full cursor-pointer items-center rounded-md px-2 py-1.5 text-left text-sm hover:bg-accent hover:text-accent-foreground"
+            onClick={() => setShowCustom((v) => !v)}
+          >
+            <span className="flex-1">Custom range</span>
+            {showCustom ? <CheckIcon className="size-4" /> : null}
+          </button>
         </div>
+        {showCustom ? (
         <div className="mt-2 space-y-3 border-t px-2 pt-3 pb-1">
-          <div>
-            <p className="text-sm font-medium">Custom range</p>
-            <p className="text-xs text-muted-foreground">Choose up to one year of daily data.</p>
-          </div>
+          <p className="text-xs text-muted-foreground">Choose up to one year of daily data.</p>
           <div className="flex items-center gap-2 text-xs text-muted-foreground">
             <span>From</span>
             <DateField
@@ -528,6 +560,7 @@ export function RangePicker({
             Apply
           </Button>
         </div>
+        ) : null}
       </PopoverContent>
     </Popover>
   )

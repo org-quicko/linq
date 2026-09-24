@@ -1,50 +1,61 @@
 "use client"
 
-import { Eye, EyeOff } from "lucide-react"
-import { type SyntheticEvent, useState } from "react"
-import { Field } from "@/components/common"
+import { Eye, EyeOff, X } from "lucide-react"
+import { type ReactNode, type SyntheticEvent, useState } from "react"
 import { Button } from "@/components/ui/button"
+import { Dialog, DialogClose, DialogContent, DialogTitle } from "@/components/ui/dialog"
 import { Input } from "@/components/ui/input"
+import { Label } from "@/components/ui/label"
 import { useRun } from "../lib/hooks"
-import { normalizeUrl, probeServer, type Server } from "../lib/servers"
+import { normalizeUrl, probeServer } from "../lib/servers"
 
 /**
- * Adds a server, or edits one that already exists.
+ * The Add server dialog, opened on top of the Servers page.
  *
- * Either way the details are verified before they are handed back: a record
- * that cannot answer is how a UI ends up unable to explain why nothing loads,
- * and the check costs one round trip at the only moment the user is looking.
+ * The details are verified before they are handed back: a record that cannot
+ * answer is how a UI ends up unable to explain why nothing loads, and the
+ * check costs one round trip at the only moment the user is looking.
  */
-export function ServerForm({
-  server,
-  submitLabel = "Connect",
+export function AddServerDialog({
+  open,
+  onOpenChange,
   onSaved,
-  onCancel,
 }: {
-  /** Omitted when adding. */
-  server?: Server
-  submitLabel?: string
+  open: boolean
+  onOpenChange: (open: boolean) => void
   onSaved: (values: { name: string; apiUrl: string; apiKey: string }) => void
-  onCancel?: () => void
 }) {
-  const [name, setName] = useState(server?.name ?? "")
-  const [url, setUrl] = useState(server?.apiUrl ?? "")
-  const [apiKey, setApiKey] = useState(server?.apiKey ?? "")
+  const [name, setName] = useState("")
+  const [url, setUrl] = useState("")
+  const [apiKey, setApiKey] = useState("")
   const [revealed, setRevealed] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const { run, saving: checking } = useRun()
 
+  // Closing clears the form, so the next open starts blank.
+  function reset() {
+    setName("")
+    setUrl("")
+    setApiKey("")
+    setRevealed(false)
+    setError(null)
+  }
+
+  function setOpen(next: boolean) {
+    if (!next) reset()
+    onOpenChange(next)
+  }
+
+  const trimmedName = name.trim()
+  const trimmedKey = apiKey.trim()
+  // The address is required even when this page was served by the server being
+  // added: nothing here assumes the origin it is hosted on.
+  const apiUrl = normalizeUrl(url)
+  const complete = !!(trimmedName && apiUrl && trimmedKey)
+
   function onSubmit(event: SyntheticEvent) {
     event.preventDefault()
-    const trimmedName = name.trim()
-    const trimmedKey = apiKey.trim()
-    // The address is required even when this page was served by the server being
-    // added: nothing here assumes the origin it is hosted on.
-    const apiUrl = normalizeUrl(url)
-    if (!trimmedName || !apiUrl || !trimmedKey) {
-      setError("A name, a server URL and an API key are all needed.")
-      return
-    }
+    if (!complete || checking) return
     setError(null)
 
     // probeServer returns a result rather than throwing, so the thunk below
@@ -60,78 +71,127 @@ export function ServerForm({
       {
         onError: setError,
         // Nothing is written until the server has answered for itself.
-        onSuccess: () => onSaved({ name: trimmedName, apiUrl, apiKey: trimmedKey }),
+        onSuccess: () => {
+          onSaved({ name: trimmedName, apiUrl, apiKey: trimmedKey })
+          reset()
+        },
       },
     )
   }
 
   return (
-    <form onSubmit={onSubmit} className="flex flex-col gap-1">
-      <Field label="Name" hint="Whatever you want to call it.">
-        <Input
-          value={name}
-          onChange={(event) => setName(event.target.value)}
-          placeholder="prod"
-          autoComplete="off"
-          spellCheck={false}
-        />
-      </Field>
-
-      <Field
-        label="Server URL"
-        hint="Where the linq server answers, e.g. https://linq.example.com."
+    <Dialog open={open} onOpenChange={setOpen}>
+      <DialogContent
+        showCloseButton={false}
+        aria-describedby={undefined}
+        className="gap-0 overflow-hidden p-0"
       >
-        <Input
-          value={url}
-          onChange={(event) => setUrl(event.target.value)}
-          placeholder="https://linq.example.com"
-          autoComplete="off"
-          spellCheck={false}
-          inputMode="url"
-        />
-      </Field>
+        <form onSubmit={onSubmit}>
+          <div className="flex items-center justify-between border-b px-5 py-4">
+            <DialogTitle className="text-[15px] leading-normal font-semibold">Add server</DialogTitle>
+            <DialogClose asChild>
+              <Button
+                type="button"
+                variant="ghost"
+                size="icon"
+                aria-label="Close"
+                className="size-10 text-muted-foreground"
+              >
+                <X className="size-[15px]" />
+              </Button>
+            </DialogClose>
+          </div>
 
-      <Field label="API key" hint="Stored in this browser only, and sent with every request.">
-        <div className="relative">
-          <Input
-            value={apiKey}
-            onChange={(event) => setApiKey(event.target.value)}
-            placeholder="linq_…"
-            type={revealed ? "text" : "password"}
-            autoComplete="off"
-            spellCheck={false}
-            className="pr-10"
-          />
-          <button
-            type="button"
-            onClick={() => setRevealed((shown) => !shown)}
-            className="absolute inset-y-0 right-0 flex items-center px-3 text-muted-foreground hover:text-foreground"
-            aria-label={revealed ? "Hide API key" : "Show API key"}
-          >
-            {revealed ? <EyeOff size={16} /> : <Eye size={16} />}
-          </button>
-        </div>
-      </Field>
+          <div className="flex flex-col gap-[22px] p-5">
+            <ServerField label="Name">
+              <Input
+                value={name}
+                onChange={(event) => setName(event.target.value)}
+                placeholder="e.g. prod"
+                autoComplete="off"
+                spellCheck={false}
+                className={inputClass}
+              />
+            </ServerField>
 
-      {error ? (
-        <p
-          className="mb-3 rounded-md bg-destructive/10 px-3 py-2 text-sm text-destructive"
-          role="alert"
-        >
-          {error}
-        </p>
-      ) : null}
+            <ServerField label="Server URL">
+              <Input
+                value={url}
+                onChange={(event) => setUrl(event.target.value)}
+                placeholder="https://linq.yourcompany.com"
+                autoComplete="off"
+                spellCheck={false}
+                inputMode="url"
+                className={inputClass}
+              />
+            </ServerField>
 
-      <div className="flex gap-2">
-        <Button type="submit" disabled={checking}>
-          {checking ? "Checking…" : submitLabel}
-        </Button>
-        {onCancel ? (
-          <Button type="button" variant="outline" onClick={onCancel} disabled={checking}>
-            Cancel
-          </Button>
-        ) : null}
-      </div>
-    </form>
+            <ServerField label="API key">
+              <div className="relative">
+                <Input
+                  value={apiKey}
+                  onChange={(event) => setApiKey(event.target.value)}
+                  placeholder="linq_..."
+                  type={revealed ? "text" : "password"}
+                  autoComplete="off"
+                  spellCheck={false}
+                  className={`${inputClass} pr-11`}
+                />
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="icon"
+                  onClick={() => setRevealed((shown) => !shown)}
+                  aria-label={revealed ? "Hide API key" : "Show API key"}
+                  className="absolute top-1.5 right-1.5 text-muted-foreground"
+                >
+                  {revealed ? <EyeOff className="size-3.5" /> : <Eye className="size-3.5" />}
+                </Button>
+              </div>
+            </ServerField>
+
+            {error ? (
+              <p
+                className="-mt-2 rounded-md bg-destructive/10 px-3 py-2 text-xs text-destructive"
+                role="alert"
+              >
+                {error}
+              </p>
+            ) : null}
+          </div>
+
+          <div className="flex items-center justify-end gap-2.5 border-t px-5 py-4">
+            <DialogClose asChild>
+              <Button
+                type="button"
+                variant="ghost"
+                className="h-9 px-4 text-[13.5px] text-muted-foreground"
+              >
+                Cancel
+              </Button>
+            </DialogClose>
+            <Button
+              type="submit"
+              disabled={!complete || checking}
+              className="h-9 px-4 text-[13.5px] hover:bg-primary/90 disabled:opacity-40"
+            >
+              {checking ? "Checking…" : "Add server"}
+            </Button>
+          </div>
+        </form>
+      </DialogContent>
+    </Dialog>
+  )
+}
+
+const inputClass = "h-11 bg-background px-3.5 md:text-sm"
+
+function ServerField({ label, children }: { label: string; children: ReactNode }) {
+  return (
+    // The control is the child, which the wrapping label associates implicitly.
+    <Label className="flex-col items-stretch gap-2 text-[13px] leading-normal font-semibold">
+      <span>{label}</span>
+      {children}
+    </Label>
   )
 }

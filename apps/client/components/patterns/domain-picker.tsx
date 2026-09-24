@@ -59,24 +59,21 @@ export function DomainPicker({
           </Button>
         </DropdownMenuTrigger>
         {/* Sized to its hosts, not the trigger: at least the trigger's width,
-            at most 500px (or the viewport). A longer host wraps anywhere,
-            since hosts have no spaces to break at. */}
+            at most 20rem (or the viewport). A longer host truncates; the
+            full one is in the item's tooltip. */}
         <DropdownMenuContent
           align="start"
-          className="w-max max-w-[min(500px,calc(100vw-2rem))] min-w-(--radix-dropdown-menu-trigger-width)"
+          className="w-max max-w-[min(20rem,calc(100vw-2rem))] min-w-(--radix-dropdown-menu-trigger-width)"
         >
           {rows.map((domain) => (
             <DropdownMenuCheckboxItem
               key={domain.id}
-              // Pins the checkmark to the first line (top padding plus half
-              // the gap between the 20px line and the 16px icon) instead of
-              // centring it on a host that wraps.
-              className="items-start *:data-[slot=dropdown-menu-checkbox-item-indicator]:top-1.5"
+              title={domain.host}
               checked={selected.includes(domain.id)}
               onSelect={(e) => e.preventDefault()}
               onCheckedChange={() => toggle(domain.id)}
             >
-              <span className="min-w-0 wrap-anywhere">{domain.host}</span>
+              <span className="truncate">{domain.host}</span>
             </DropdownMenuCheckboxItem>
           ))}
         </DropdownMenuContent>

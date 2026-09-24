@@ -50,7 +50,7 @@ export default function KeysPage() {
   return (
     <AppShell requires={can.manageKeys}>
       {(actor) => (
-        <div className="no-scrollbar h-full min-h-0 overflow-y-auto px-7 py-6">
+        <div className="no-scrollbar flex h-full min-h-0 flex-col overflow-y-auto px-7 py-6">
           <SettingsNav actor={actor}>
             <Keys actor={actor} />
           </SettingsNav>
@@ -146,7 +146,7 @@ function KeyRow({ apiKey, actor }: { apiKey: ApiKey; actor: Actor }) {
         {isMine ? <Tag>{apiKey.preset ?? "custom claims"}</Tag> : null}
         {isMine ? <Tag>This key</Tag> : null}
       </span>
-      <span className="truncate font-mono text-xs text-muted-foreground">
+      <span className="truncate text-xs text-muted-foreground">
         {apiKey.prefix} · Created <When iso={apiKey.created_at} relative />
         {apiKey.expires_at ? (
           <>

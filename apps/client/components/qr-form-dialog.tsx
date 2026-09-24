@@ -2,7 +2,7 @@
 
 import { QR_PATTERNS, type QrCode } from "@linq/shared"
 import { skipToken } from "@reduxjs/toolkit/query/react"
-import { Download, Trash2 } from "lucide-react"
+import { Download } from "lucide-react"
 import { useState } from "react"
 import { Field, Picker } from "@/components/common"
 import { LinkFilter, ShortLink } from "@/components/patterns"
@@ -21,7 +21,6 @@ import { downloadQr } from "../lib/qr"
 import { useGetLinkQuery } from "../lib/store/links"
 import {
   useCreateQrCodeMutation,
-  useDeleteQrCodeMutation,
   useUpdateQrCodeMutation,
 } from "../lib/store/qr-codes"
 
@@ -69,18 +68,8 @@ export function QrFormDialog({
 
   const [createQrCode] = useCreateQrCodeMutation()
   const [updateQrCode] = useUpdateQrCodeMutation()
-  const [deleteQrCode] = useDeleteQrCodeMutation()
   const { run, saving } = useRun()
 
-  function remove() {
-    if (!qrCode) return
-    if (!window.confirm("Permanently delete this QR code? This can't be undone.")) return
-    run(() => deleteQrCode(qrCode.id).unwrap(), {
-      success: "QR code deleted.",
-      fallback: "Could not delete that QR code.",
-      onSuccess: () => onOpenChange(false),
-    })
-  }
 
   function submit() {
     const body = { name: name.trim() || null, dot_color, bg_color, pattern }
@@ -104,7 +93,7 @@ export function QrFormDialog({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-[440px]">
+      <DialogContent>
         <DialogHeader>
           <DialogTitle>{mode === "create" ? "Create QR code" : "Edit QR code"}</DialogTitle>
         </DialogHeader>
@@ -179,18 +168,6 @@ export function QrFormDialog({
         </div>
 
         <DialogFooter>
-          {mode === "edit" ? (
-            <Button
-              type="button"
-              variant="outline"
-              className="mr-auto text-destructive hover:text-destructive"
-              disabled={saving}
-              onClick={remove}
-            >
-              <Trash2 />
-              Delete
-            </Button>
-          ) : null}
           <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>
             Cancel
           </Button>
