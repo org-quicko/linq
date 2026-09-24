@@ -1,6 +1,12 @@
 # linq
 
-Self-hosted SaaS including URL Shortener, Dynamic Link and Link Tree Creator
+A self-hosted platform for short links.
+
+- **URL Shortener**: branded short links on your own domains.
+- **Dynamic Links**: rules that send each visitor to the right destination.
+- **Link Tree** *(coming soon)*: a hosted page that lists several links. Short
+  links already support the `tree` type, and Tree pages will ship in a future
+  release.
 
 ## Running it locally
 
