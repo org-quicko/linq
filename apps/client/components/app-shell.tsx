@@ -1,6 +1,6 @@
 "use client"
 
-import { type Actor, can, type Role } from "@linq/shared"
+import { type Actor, can } from "@linq/shared"
 import { skipToken } from "@reduxjs/toolkit/query/react"
 import { cn } from "cn"
 import { Archive, LineChart, Link2, Settings } from "lucide-react"
@@ -117,13 +117,13 @@ export function AppShell({
     )
   }
 
-  const actor: Actor = { keyId: me.id, role: me.role }
+  const actor: Actor = { keyId: me.id, claims: me.claims }
 
   return (
     <Chrome actor={actor} me={me}>
       {requires && !requires(actor) ? (
         <div className="no-scrollbar h-full overflow-y-auto px-7 py-6">
-          <NotPermitted role={me.role} />
+          <NotPermitted />
         </div>
       ) : (
         children(actor)
@@ -200,7 +200,7 @@ function Chrome({ actor, me, children }: { actor?: Actor; me?: Me; children: Rea
                 {me.name.slice(0, 1).toUpperCase()}
               </span>
               <span className="min-w-0 flex-1 truncate text-xs text-muted-foreground">
-                {me.name} · {me.role}
+                {me.name} · {me.preset ?? "custom claims"}
               </span>
             </div>
             <div className="flex items-center justify-between px-2.5">
@@ -252,14 +252,13 @@ function NavLink({
 }
 
 /** What a page shows instead of its contents when the role is not enough. */
-function NotPermitted({ role }: { role: Role }) {
+function NotPermitted() {
   return (
     <div className="flex flex-col gap-4">
       <PageHeader title="Not available to you" />
       <div className="rounded-lg border p-6">
         <p className="text-sm text-muted-foreground">
-          This page needs a more privileged role than <strong>{role}</strong>. Ask an admin if you
-          need it.
+          Your key does not have the required claim. Ask an admin if you need it.
         </p>
         <Link href="/links/" className="mt-4 inline-block">
           <Button type="button" variant="outline">

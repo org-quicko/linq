@@ -1,4 +1,5 @@
 import { createApiKey } from "./auth/mint.ts"
+import { claimsForPreset } from "@linq/shared"
 import type { Config } from "./config.ts"
 import type { Db } from "./db/client.ts"
 import { apiKeys, domains } from "./db/schema.ts"
@@ -28,14 +29,17 @@ async function bootstrapKey(db: Db): Promise<void> {
     const [existing] = await db.select({ id: apiKeys.id }).from(apiKeys).limit(1)
     if (existing) return
 
-    const { row, secret } = await createApiKey(db, { name: "bootstrap", role: "admin" })
+    const { row, secret } = await createApiKey(db, {
+      name: "bootstrap",
+      claims: claimsForPreset.admin,
+    })
 
     // Stays on console: a plaintext admin key in a rotating file on a mounted
     // volume is strictly worse than one line in the operator's terminal.
     console.log(`
   linq admin API key: ${secret}
   Store it now; it is not recoverable.
-  Create more with: bun run key:create --name <name> --role <role>
+  Create more with: bun run key:create --name <name> --preset <preset>
 `)
     // The log records only that a key was minted, never the key.
     log.warn({ keyId: row.id }, "bootstrap: admin key minted, printed to stdout")

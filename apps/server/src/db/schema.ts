@@ -1,4 +1,4 @@
-import type { Condition } from "@linq/shared"
+import type { Claim, Condition } from "@linq/shared"
 import { sql } from "drizzle-orm"
 import {
   bigint,
@@ -16,9 +16,9 @@ import {
   uuid,
 } from "drizzle-orm/pg-core"
 
-export const roleEnum = pgEnum("role", ["viewer", "editor", "admin"])
 export const resourceStatusEnum = pgEnum("resource_status", ["active", "archived"])
 export const platformEnum = pgEnum("platform", ["android", "ios", "desktop"])
+export const legacyRoleEnum = pgEnum("role", ["viewer", "editor", "admin"])
 export const qrPatternEnum = pgEnum("qr_pattern", ["squares", "rounded", "dots"])
 
 const created_at = timestamp("created_at", { withTimezone: true }).notNull().defaultNow()
@@ -26,7 +26,7 @@ const updated_at = timestamp("updated_at", { withTimezone: true }).notNull().def
 
 /**
  * The principal. A key is the only thing that acts — there are no user rows, so
- * a key carries its own name and role. See docs/adr/0011.
+ * a key carries its own name and claims. See docs/adr/0011 and 0017.
  *
  * Only the sha256 of the secret is stored; `prefix` exists so a key is
  * recognisable in a list.
@@ -34,7 +34,7 @@ const updated_at = timestamp("updated_at", { withTimezone: true }).notNull().def
 export const apiKeys = pgTable("api_keys", {
   id: uuid("id").primaryKey(),
   name: text("name").notNull(),
-  role: roleEnum("role").notNull(),
+  claims: jsonb("claims").$type<Claim[]>().notNull(),
   key_hash: text("key_hash").notNull().unique(),
   prefix: text("prefix").notNull(),
   expires_at: timestamp("expires_at", { withTimezone: true }),

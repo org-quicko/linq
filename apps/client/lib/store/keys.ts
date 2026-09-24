@@ -1,4 +1,4 @@
-import type { ApiKey, ApiKeyCreated, ApiKeySummary, Page, Role } from "@linq/shared"
+import type { ApiKey, ApiKeyCreated, ApiKeySummary, KeyPreset, Page } from "@linq/shared"
 import { qs } from "../api"
 import { apiSlice } from "./api"
 
@@ -11,7 +11,7 @@ export const keysApi = apiSlice.injectEndpoints({
       query: () => ({ path: "/v1/me" }),
     }),
 
-    /** Below admin the server returns only `{ id, name, role }`. */
+    /** Keys without management claims receive the safe summary shape. */
     listKeys: build.query<Page<ApiKey | ApiKeySummary>, { limit?: number }>({
       query: (params) => ({ path: `/v1/keys${qs(params)}` }),
       providesTags: (result) =>
@@ -23,12 +23,13 @@ export const keysApi = apiSlice.injectEndpoints({
           : [{ type: "Key" as const, id: "LIST" }],
     }),
 
-    mintKey: build.mutation<ApiKeyCreated, { name: string; role: Role; expires_at?: string | null }>(
-      {
-        query: (body) => ({ path: "/v1/keys", method: "POST", body }),
-        invalidatesTags: [{ type: "Key", id: "LIST" }],
-      },
-    ),
+    mintKey: build.mutation<
+      ApiKeyCreated,
+      { name: string; preset: KeyPreset; expires_at?: string | null }
+    >({
+      query: (body) => ({ path: "/v1/keys", method: "POST", body }),
+      invalidatesTags: [{ type: "Key", id: "LIST" }],
+    }),
 
     updateKey: build.mutation<ApiKey, { id: string; body: Record<string, unknown> }>({
       query: ({ id, body }) => ({ path: `/v1/keys/${id}`, method: "PATCH", body }),

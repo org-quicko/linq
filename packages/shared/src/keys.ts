@@ -1,37 +1,44 @@
 import { z } from "zod"
-import { type Role, roleSchema } from "./roles.ts"
+import { claimsSchema, keyPresetSchema, type Claim, type KeyPreset } from "./abilities.ts"
 
-export const keyCreateSchema = z.object({
-  name: z.string().trim().min(1).max(100),
-  role: roleSchema,
-  /** ISO-8601. Absent means the key never expires. */
-  expires_at: z.iso.datetime().nullable().optional(),
-})
+export const keyCreateSchema = z
+  .object({
+    name: z.string().trim().min(1).max(100),
+    preset: keyPresetSchema.optional(),
+    claims: claimsSchema.optional(),
+    expires_at: z.iso.datetime().nullable().optional(),
+  })
+  .strict()
+  .refine(
+    (value) => (value.preset === undefined) !== (value.claims === undefined),
+    "provide exactly one of preset or claims",
+  )
 
 export const keyPatchSchema = z
   .object({
     name: z.string().trim().min(1).max(100),
-    role: roleSchema,
+    preset: keyPresetSchema.optional(),
+    claims: claimsSchema.optional(),
     expires_at: z.iso.datetime().nullable(),
   })
+  .strict()
   .partial()
+  .refine(
+    (value) => !(value.preset !== undefined && value.claims !== undefined),
+    "provide preset or claims, not both",
+  )
 
-/**
- * The principal. There are no user rows: a key holds its own name and role, and
- * revoking one is a real delete. See docs/adr/0011.
- */
+/** The principal. A key holds claims and is the only credential linq issues. */
 export type ApiKey = {
   id: string
   name: string
-  role: Role
+  claims: Claim[]
+  preset: KeyPreset | null
   prefix: string
   expires_at: string | null
   created_at: string
   updated_at: string
 }
 
-/** What every role below admin may see about another key. */
-export type ApiKeySummary = { id: string; name: string; role: Role }
-
-/** The plaintext secret is returned exactly once, at creation. */
+export type ApiKeySummary = Pick<ApiKey, "id" | "name" | "claims" | "preset">
 export type ApiKeyCreated = ApiKey & { secret: string }

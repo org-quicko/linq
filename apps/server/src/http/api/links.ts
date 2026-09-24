@@ -31,7 +31,7 @@ import {
   assertCanArchive,
   assertCanEdit,
   assertCanPurge,
-  assertRole,
+  assertCan,
 } from "../../auth/permissions.ts"
 import { linkKeys } from "../../cache.ts"
 import { isReservedSlug } from "../../config.ts"
@@ -247,7 +247,7 @@ export const linkRoutes = new Hono<Env>()
   })
 
   .post("/", validate("json", linkCreateSchema), async (c) => {
-    assertRole(c.var.principal, "editor")
+    assertCan(c.var.principal, "create", "Link")
     const body = c.req.valid("json")
     if (body.slug && isReservedSlug(body.slug, c.var.config.LINQ_CLIENT_BASE_PATH)) {
       throw ApiError.validation("request validation failed", [

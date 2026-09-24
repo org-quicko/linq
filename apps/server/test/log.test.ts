@@ -212,7 +212,7 @@ describe("secrets never reach the log", () => {
     const h = await createHarness()
     const admin = await h.actor("admin")
 
-    const res = await h.post("/api/v1/keys", admin.key, { name: "ci", role: "viewer" })
+    const res = await h.post("/api/v1/keys", admin.key, { name: "ci", preset: "viewer" })
     expect(res.status).toBe(201)
     const { secret } = await res.json()
 

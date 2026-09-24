@@ -182,7 +182,7 @@ export function migrateLegacyKey(): boolean {
 }
 
 export type ProbeResult =
-  | { ok: true; key: { name: string; role: string }; version: string }
+  | { ok: true; key: { name: string; preset: string | null }; version: string }
   | { ok: false; message: string }
 
 /**
@@ -215,14 +215,14 @@ export async function probeServer(apiUrl: string, apiKey: string): Promise<Probe
       return { ok: false, message: "The server answered, but it rejected that API key." }
     }
     if (!res.ok) return { ok: false, message: `The server answered with ${res.status}.` }
-    // `/me` is the key itself. `role` is the field that says this is linq
+    // `/me` is the key itself. `claims` is the field that says this is linq
     // answering rather than something else that happens to return 200.
-    const body = (await res.json()) as { name?: string; role?: string }
-    if (!body?.role) return { ok: false, message: reachedButNotLinq }
+    const body = (await res.json()) as { name?: string; preset?: string | null; claims?: unknown[] }
+    if (!Array.isArray(body?.claims)) return { ok: false, message: reachedButNotLinq }
     return {
       ok: true,
       version,
-      key: { name: body.name ?? "unknown", role: body.role },
+      key: { name: body.name ?? "unknown", preset: body.preset ?? null },
     }
   } catch {
     return { ok: false, message: unreachable }

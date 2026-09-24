@@ -1,5 +1,6 @@
 import { describe, expect, test } from "bun:test"
 import { bootstrap } from "../src/bootstrap.ts"
+import { claimsForPreset } from "@linq/shared"
 import { apiKeys, domains } from "../src/db/schema.ts"
 import { createTestDb, testConfig } from "./helpers/db.ts"
 
@@ -10,7 +11,11 @@ describe("bootstrap", () => {
 
     const keys = await db.select().from(apiKeys)
     expect(keys).toHaveLength(1)
-    expect(keys[0]).toMatchObject({ name: "bootstrap", role: "admin", expires_at: null })
+    expect(keys[0]).toMatchObject({
+      name: "bootstrap",
+      claims: [...claimsForPreset.admin],
+      expires_at: null,
+    })
     // Only the hash is kept, and the prefix is the readable half of the secret.
     expect(keys[0]?.key_hash).toHaveLength(64)
     expect(keys[0]?.prefix).toStartWith("linq_")

@@ -85,7 +85,7 @@ On an instance that has **no keys** it mints an admin key and prints it, once:
 ```
   linq admin API key: linq_xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
   Store it now; it is not recoverable.
-  Create more with: bun run key:create --name <name> --role <role>
+  Create more with: bun run key:create --name <name> --preset <preset>
 ```
 
 Copy it now — only its hash is stored, so it cannot be read back. Every later
@@ -99,10 +99,10 @@ next restart mints a fresh one rather than leaving the instance unreachable.
 <summary>Another key, without a restart</summary>
 
 ```bash
-bun run key:create --name ops --role admin
+bun run key:create --name ops --preset admin
 ```
 
-`--role` defaults to `admin`; `--expires <ISO date>` sets an expiry. This is the
+`--preset` defaults to `admin`; `--expires <ISO date>` sets an expiry. This is the
 same mint the API and the Keys page use, and it is the way in when you would
 rather not restart to get one. Day to day, keys come from the Keys page or
 `POST /api/v1/keys`.

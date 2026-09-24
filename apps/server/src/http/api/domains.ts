@@ -9,7 +9,7 @@ import {
 import { asc, count, eq, sql } from "drizzle-orm"
 import { Hono } from "hono"
 import { z } from "zod"
-import { assertCanPurge, assertRole } from "../../auth/permissions.ts"
+import { assertCan, assertCanPurge } from "../../auth/permissions.ts"
 import { domainKey } from "../../cache.ts"
 import type { Db } from "../../db/client.ts"
 import { domains, links } from "../../db/schema.ts"
@@ -110,7 +110,7 @@ export const domainRoutes = new Hono<Env>()
   })
 
   .post("/", validate("json", domainCreateSchema), async (c) => {
-    assertRole(c.var.principal, "admin")
+    assertCan(c.var.principal, "create", "Domain")
     const body = c.req.valid("json")
 
     const [row] = await c.var.db
@@ -135,7 +135,7 @@ export const domainRoutes = new Hono<Env>()
   .get("/:id", idParam, async (c) => c.json(await fetchDomain(c.var.db, c.req.valid("param").id)))
 
   .patch("/:id", idParam, validate("json", domainPatchSchema), async (c) => {
-    assertRole(c.var.principal, "admin")
+    assertCan(c.var.principal, "update", "Domain")
     const { id } = c.req.valid("param")
     const patch = c.req.valid("json")
 
@@ -175,7 +175,7 @@ export const domainRoutes = new Hono<Env>()
 
   /** DELETE is an alias for archiving; domains are never dropped. See docs/adr/0002. */
   .delete("/:id", idParam, async (c) => {
-    assertRole(c.var.principal, "admin")
+    assertCan(c.var.principal, "archive", "Domain")
     const { id } = c.req.valid("param")
 
     const before = await fetchDomain(c.var.db, id)

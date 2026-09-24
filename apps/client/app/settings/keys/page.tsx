@@ -1,6 +1,13 @@
 "use client"
 
-import { type Actor, type ApiKey, type ApiKeyCreated, can, ROLES, type Role } from "@linq/shared"
+import {
+  type Actor,
+  type ApiKey,
+  type ApiKeyCreated,
+  can,
+  PRESETS,
+  type KeyPreset,
+} from "@linq/shared"
 import { KeyRound, Plus, Trash2 } from "lucide-react"
 import { useState } from "react"
 import { AppShell } from "@/components/app-shell"
@@ -32,7 +39,7 @@ import {
   useUpdateKeyMutation,
 } from "../../../lib/store/keys"
 
-const ROLE_OPTIONS = ROLES.map((role) => ({ value: role, label: role }))
+const PRESET_OPTIONS = PRESETS.map((preset) => ({ value: preset, label: preset }))
 
 /**
  * Keys are the principals, so this page is the whole of access control: minting
@@ -106,10 +113,10 @@ function KeyRow({ apiKey, actor }: { apiKey: ApiKey; actor: Actor }) {
           {isMine ? null : (
             <Picker
               className="h-8 w-28"
-              value={apiKey.role}
+              value={apiKey.preset ?? "viewer"}
               disabled={saving}
-              onChange={(role) => save({ role: role as Role })}
-              options={ROLE_OPTIONS}
+              onChange={(preset) => save({ preset: preset as KeyPreset })}
+              options={PRESET_OPTIONS}
             />
           )}
           {/* Revoking the key in your own hand would lock you out with only the
@@ -136,7 +143,7 @@ function KeyRow({ apiKey, actor }: { apiKey: ApiKey; actor: Actor }) {
     >
       <span className="flex items-center gap-2">
         <span className="truncate font-medium">{apiKey.name}</span>
-        {isMine ? <Tag>{apiKey.role}</Tag> : null}
+        {isMine ? <Tag>{apiKey.preset ?? "custom claims"}</Tag> : null}
         {isMine ? <Tag>This key</Tag> : null}
       </span>
       <span className="truncate font-mono text-xs text-muted-foreground">
@@ -156,19 +163,19 @@ function MintKeyDialog() {
   const [mintKey] = useMintKeyMutation()
   const [open, setOpen] = useState(false)
   const [name, setName] = useState("")
-  const [role, setRole] = useState<Role>("viewer")
+  const [preset, setPreset] = useState<KeyPreset>("viewer")
   const [minted, setMinted] = useState<ApiKeyCreated | null>(null)
   const { run, saving } = useRun()
 
   const close = () => {
     setOpen(false)
     setName("")
-    setRole("viewer")
+    setPreset("viewer")
     setMinted(null)
   }
 
   const mint = () =>
-    run(() => mintKey({ name: name.trim(), role }).unwrap(), {
+    run(() => mintKey({ name: name.trim(), preset }).unwrap(), {
       fallback: "Could not mint that key.",
       onSuccess: setMinted,
     })
@@ -209,11 +216,11 @@ function MintKeyDialog() {
               <Field label="Name" hint="Who or what this key is for.">
                 <Input value={name} onChange={(event) => setName(event.target.value)} />
               </Field>
-              <Field label="Role" hint="What it may do.">
+              <Field label="Claim preset" hint="The initial claim set for this key.">
                 <Picker
-                  value={role}
-                  onChange={(value) => setRole(value as Role)}
-                  options={ROLE_OPTIONS}
+                  value={preset}
+                  onChange={(value) => setPreset(value as KeyPreset)}
+                  options={PRESET_OPTIONS}
                 />
               </Field>
             </div>
