@@ -1,5 +1,5 @@
-# Builds and publishes the three linq container images — client, server,
-# full — to GHCR only. Not Docker Hub: these are unreleased builds, and
+# Builds and publishes the four linq container images — client, server,
+# full, app-host — to GHCR only. Not Docker Hub: these are unreleased builds, and
 # Docker Hub is where docker-release.yml's `:latest` lives.
 #
 # Triggers on a pushed tag with "alpha" in it, e.g. v0.2.0-alpha.1 -> tags

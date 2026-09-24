@@ -4,12 +4,17 @@ The shapes of the linq image — the canonical Dockerfiles this repo builds
 from, whether that's a local `docker build`/`docker compose` or a CI workflow
 publishing images:
 
-| File | Contains | Runtime base |
-| --- | --- | --- |
-| `Dockerfile.client` | Client UI only, as a standalone static export | `oven/bun:1.4` |
-| `Dockerfile.server` | API and redirects only, no Client UI | `oven/bun:1.4` |
-| `Dockerfile.full` | Both — the API and the Client UI at `/home` by default, one process | `oven/bun:1.4` |
-| `Dockerfile.app-host` | Both, with the Client UI fixed at `/` on `LINQ_APP_HOST` | `oven/bun:1.4` |
+| File | Published as | Contains | Runtime base |
+| --- | --- | --- | --- |
+| `Dockerfile.client` | `linq-client` | Client UI only, as a standalone static export | `oven/bun:1.4` |
+| `Dockerfile.server` | `linq-server` | API and redirects only, no Client UI | `oven/bun:1.4` |
+| `Dockerfile.full` | `linq` | Both — the API and the Client UI at `/home` by default, one process | `oven/bun:1.4` |
+| `Dockerfile.app-host` | `linq-app-host` | Both, with the Client UI fixed at `/` on `LINQ_APP_HOST` | `oven/bun:1.4` |
+
+Not sure which one you need? The root `../README.md` has a "Which image?" table
+that picks one by where the UI should live. `app-host` is named after
+`LINQ_APP_HOST`, the setting that image requires: the one domain its UI answers
+on, while every other host keeps serving short links.
 
 `Dockerfile.client` runs `serve-static.ts` under plain Bun rather than
 introducing nginx as a second base image. It mirrors

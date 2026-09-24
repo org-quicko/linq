@@ -1,5 +1,5 @@
-# Builds and publishes the three linq container images — client, server,
-# full — to Docker Hub and GHCR.
+# Builds and publishes the four linq container images — client, server,
+# full, app-host — to Docker Hub and GHCR.
 #
 # Triggers on:
 #   - a push to main (a merge) -> tags each image `:latest`

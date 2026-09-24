@@ -230,6 +230,26 @@ writes to disk that is worth backing up.
 
 ## Docker
 
+### Which image?
+
+linq publishes four images, to `labsatquicko/<image>` on Docker Hub and
+`ghcr.io/org-quicko/<image>`. Pick by where the Client UI should live:
+
+| You want | Image | Client UI at | Must set |
+| --- | --- | --- | --- |
+| One container, UI next to the short links | `linq` | `/home` on every host | `DATABASE_URL`, `LINQ_DEFAULT_DOMAIN` |
+| One container, UI on its own domain | `linq-app-host` | `/` on `LINQ_APP_HOST` only | the above and `LINQ_APP_HOST` |
+| The API and short links, UI hosted elsewhere | `linq-server` | nowhere | `DATABASE_URL`, `LINQ_DEFAULT_DOMAIN` |
+| Only the UI, pointed at a linq server you run | `linq-client` | `/` | nothing |
+
+`linq-app-host` is named after `LINQ_APP_HOST`, the one setting it cannot
+start without: the domain the UI answers on, for example `linq.example.com`,
+while `link.example.com/<slug>` keeps serving short links. It is `linq` with
+the UI moved from `/home` to `/`; see
+[The UI and API on their own host](#the-ui-and-api-on-their-own-host).
+
+### Building and running
+
 `dockerfiles/Dockerfile.full` builds an image that serves the API, the
 redirects and the Client UI from one process. Postgres stays external, and
 so does Redis if you opt into it. Pick a matching file from
