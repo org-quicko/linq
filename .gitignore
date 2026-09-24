@@ -1,0 +1,11 @@
+node_modules/
+.env
+.env.local
+data/
+*.log
+dist/
+out/
+out-standalone/
+.next/
+*.tsbuildinfo
+claude/design/*

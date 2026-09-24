@@ -1,0 +1,32 @@
+{
+  "name": "@linq/server",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "bun --watch src/main.ts",
+    "start": "bun src/main.ts",
+    "db:codegen": "bun src/cli/codegen.ts",
+    "db:migrate": "bun src/cli/migrate.ts",
+    "key:create": "bun src/cli/create-key.ts"
+  },
+  "dependencies": {
+    "@hono/zod-validator": "^0.7.4",
+    "@linq/shared": "workspace:*",
+    "hono": "^4.10.6",
+    "isbot": "^5.1.32",
+    "kysely": "^0.29.6",
+    "lru-cache": "^11.5.2",
+    "pg": "^8.16.3",
+    "pino": "^10.3.1",
+    "pino-roll": "^4.0.0",
+    "ua-parser-js": "^2.0.10",
+    "zod": "^4.1.13"
+  },
+  "devDependencies": {
+    "@electric-sql/pglite": "^0.3.15",
+    "@types/bun": "^1.4.2",
+    "@types/pg": "^8.15.5",
+    "kysely-codegen": "^0.19.0"
+  }
+}

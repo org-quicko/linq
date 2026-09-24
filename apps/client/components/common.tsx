@@ -1,0 +1,847 @@
+"use client"
+
+import {
+  CalendarDays,
+  CheckIcon,
+  ChevronDown,
+  ChevronLeft,
+  ChevronRight,
+  Clock,
+  CopyIcon,
+  type LucideIcon,
+} from "lucide-react"
+import { type ComponentProps, type ReactNode, useState } from "react"
+import { EmptyState } from "@/components/patterns/empty-state"
+import { Button } from "@/components/ui/button"
+import { Card, CardContent } from "@/components/ui/card"
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
+} from "@/components/ui/dialog"
+import { Input } from "@/components/ui/input"
+import { Label } from "@/components/ui/label"
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select"
+import { Skeleton } from "@/components/ui/skeleton"
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table"
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip"
+import { RANGES, type Range, rangeValidation } from "@/lib/hooks"
+
+/**
+ * The pieces every page shares that shadcn has no primitive for, plus two thin
+ * wrappers over primitives that would otherwise be copied out ten times.
+ */
+
+/** A labelled form row. `hint` explains a rule the server enforces. */
+export function Field({
+  label,
+  hint,
+  children,
+}: {
+  label: string
+  hint?: string
+  children: ReactNode
+}) {
+  return (
+    <div className="flex flex-col gap-1.5">
+      {/* The control is the child, which the wrapping label associates implicitly. */}
+      <Label className="flex-col items-stretch gap-1.5">
+        <span className="text-foreground">{label}</span>
+        {children}
+      </Label>
+      {hint ? <span className="text-xs text-muted-foreground">{hint}</span> : null}
+    </div>
+  )
+}
+
+/**
+ * A table-shaped placeholder for a list's first load, matching `DataTable`'s
+ * own header so the skeleton is a complete, validly-nested table rather than
+ * bare rows dropped next to wherever `QueryState` renders it.
+ */
+export function TableSkeleton({ head, rows = 5 }: { head: ReactNode[]; rows?: number }) {
+  return (
+    <DataTable head={head}>
+      {Array.from({ length: rows }).map((_, r) => (
+        // biome-ignore lint/suspicious/noArrayIndexKey: static placeholder rows
+        <TableRow key={r}>
+          {head.map((_, c) => (
+            // biome-ignore lint/suspicious/noArrayIndexKey: static placeholder cells
+            <TableCell key={c}>
+              <Skeleton className="h-4 w-full" />
+            </TableCell>
+          ))}
+        </TableRow>
+      ))}
+    </DataTable>
+  )
+}
+
+/**
+ * `StatCard`'s (@/components/patterns) loading twin — same `Card`/
+ * `CardContent` wrapper as the real tile, so the skeleton and the thing it
+ * stands in for are the same size. It used to be a bare `div`, which the
+ * Plan 27 duplication audit flagged: a skeleton with a different box model
+ * than what it replaces jitters the layout the instant real data arrives.
+ */
+export function CardSkeleton() {
+  return (
+    <Card>
+      <CardContent className="flex flex-col gap-2">
+        <Skeleton className="h-4 w-24" />
+        <Skeleton className="h-7 w-16" />
+      </CardContent>
+    </Card>
+  )
+}
+
+/**
+ * The seam every page's data goes through: a skeleton while there is no data
+ * yet, a thin bar over the existing content while a background refetch is in
+ * flight, the error text, the empty text, or nothing — meaning the caller
+ * should render its real rows. Shaped to match what an RTK Query hook returns,
+ * so a call site passes its query result straight through.
+ */
+export function QueryState({
+  isLoading,
+  isFetching,
+  error,
+  empty,
+  skeleton,
+  emptyMessage = "Nothing here yet.",
+  emptyIcon,
+}: {
+  isLoading: boolean
+  isFetching?: boolean
+  /** The shape RTK Query hooks actually return: its own error, or a `SerializedError`. */
+  error?: { message?: string } | null
+  empty?: boolean
+  skeleton?: ReactNode
+  emptyMessage?: string
+  emptyIcon?: LucideIcon
+}) {
+  return (
+    <>
+      {isFetching && !isLoading ? <LinearProgress /> : null}
+      {isLoading
+        ? (skeleton ?? <p className="py-6 text-center text-sm text-muted-foreground">Loading…</p>)
+        : null}
+      {!isLoading && error ? (
+        <p className="rounded-md bg-destructive/10 px-3 py-2 text-sm text-destructive" role="alert">
+          {error.message ?? "Something went wrong."}
+        </p>
+      ) : null}
+      {!isLoading && !error && empty ? <EmptyState message={emptyMessage} icon={emptyIcon} /> : null}
+    </>
+  )
+}
+
+/** The sweep bar itself: indeterminate, non-blocking, sits above stale content. */
+function LinearProgress() {
+  return (
+    <div
+      className="relative mb-2 h-0.5 w-full overflow-hidden rounded-full bg-muted"
+      role="status"
+      aria-label="Refreshing"
+    >
+      <div className="absolute inset-y-0 w-1/3 animate-[linear-progress_1.1s_ease-in-out_infinite] rounded-full bg-primary" />
+    </div>
+  )
+}
+
+/** Copies text and briefly says so. Used for short URLs and new API keys. */
+export function CopyButton({ value, label }: { value: string; label?: string }) {
+  const [copied, setCopied] = useState(false)
+
+  const button = (
+    <Button
+      type="button"
+      variant="ghost"
+      size={label ? "xs" : "icon-xs"}
+      aria-label={label ?? "Copy"}
+      onClick={() => {
+        navigator.clipboard.writeText(value)
+        setCopied(true)
+        setTimeout(() => setCopied(false), 1200)
+      }}
+    >
+      {copied ? <CheckIcon /> : <CopyIcon />}
+      {label ? (copied ? "Copied" : label) : null}
+    </Button>
+  )
+
+  // Icon-only (no visible `label`) is the common case — e.g. the copy glyph
+  // next to every short link row — so it needs a hover tooltip to be
+  // identifiable. A button with its own visible text doesn't.
+  if (label) return button
+
+  return (
+    <Tooltip>
+      <TooltipTrigger asChild>{button}</TooltipTrigger>
+      <TooltipContent>{copied ? "Copied" : "Copy"}</TooltipContent>
+    </Tooltip>
+  )
+}
+
+/**
+ * "3d ago" / "in 2h" — compact, matching the design's style. Falls back to a
+ * plain date once something is roughly a month old, where a relative count
+ * stops being useful and a reader wants the actual date instead.
+ */
+function relativeTime(iso: string): string {
+  const ms = Date.now() - Date.parse(iso)
+  const abs = Math.abs(ms)
+  const future = ms < 0
+
+  const MINUTE = 60_000
+  const HOUR = 60 * MINUTE
+  const DAY = 24 * HOUR
+  const WEEK = 7 * DAY
+  const MONTH = 30 * DAY
+
+  if (abs < MINUTE) return "just now"
+  const span =
+    abs < HOUR
+      ? `${Math.floor(abs / MINUTE)}m`
+      : abs < DAY
+        ? `${Math.floor(abs / HOUR)}h`
+        : abs < WEEK
+          ? `${Math.floor(abs / DAY)}d`
+          : abs < MONTH
+            ? `${Math.floor(abs / WEEK)}w`
+            : null
+  if (span === null) return new Date(iso).toLocaleDateString()
+  return future ? `in ${span}` : `${span} ago`
+}
+
+/**
+ * A short, local rendering of an ISO timestamp. `relative` switches it to
+ * "3d ago" style; either way the element is the same `<time dateTime>`, with
+ * the exact value in `title` when relative, so it stays reachable on hover
+ * and to assistive tech regardless of which style is showing.
+ */
+export function When({ iso, relative }: { iso: string; relative?: boolean }) {
+  return (
+    <time
+      dateTime={iso}
+      className="whitespace-nowrap text-muted-foreground"
+      title={relative ? new Date(iso).toLocaleString() : undefined}
+    >
+      {relative ? relativeTime(iso) : new Date(iso).toLocaleString()}
+    </time>
+  )
+}
+
+/**
+ * A table with its header row built from labels. The body is written with the
+ * shadcn `TableRow`/`TableCell` primitives directly; only the header is wrapped,
+ * because that is the part that was identical in all five tables.
+ */
+export function DataTable({ head, children }: { head: ReactNode[]; children: ReactNode }) {
+  return (
+    <Table>
+      <TableHeader>
+        <TableRow>
+          {head.map((cell, i) => (
+            // biome-ignore lint/suspicious/noArrayIndexKey: a static header row
+            <TableHead key={i}>{cell}</TableHead>
+          ))}
+        </TableRow>
+      </TableHeader>
+      <TableBody>{children}</TableBody>
+    </Table>
+  )
+}
+
+export type PickerOption = { value: string; label: string }
+
+/**
+ * A single-choice dropdown.
+ *
+ * Wraps the four-part shadcn `Select` because ten call sites would otherwise
+ * repeat it verbatim. Note that Radix refuses an item whose value is the empty
+ * string, so an "all" choice needs a real sentinel value at the call site.
+ */
+export function Picker({
+  value,
+  onChange,
+  options,
+  placeholder,
+  disabled,
+  className,
+}: {
+  value: string
+  onChange: (value: string) => void
+  options: PickerOption[]
+  placeholder?: string
+  disabled?: boolean
+  className?: string
+}) {
+  return (
+    <Select value={value} onValueChange={onChange} disabled={disabled}>
+      <SelectTrigger className={className}>
+        <SelectValue placeholder={placeholder} />
+      </SelectTrigger>
+      <SelectContent className="max-w-[min(20rem,calc(100vw-2rem))]">
+        {options.map((option) => (
+          <SelectItem
+            key={option.value}
+            value={option.value}
+            title={option.label}
+            // Lets a long label (a domain host) truncate instead of widening the menu.
+            className="*:[span]:last:min-w-0"
+          >
+            <span className="truncate">{option.label}</span>
+          </SelectItem>
+        ))}
+      </SelectContent>
+    </Select>
+  )
+}
+
+/**
+ * A button that asks first. Used for the writes that are awkward to undo:
+ * archiving a domain, which stops it serving, and revoking a key, which is a
+ * real delete.
+ *
+ * `confirmText` raises the bar for the irreversible ones: the confirm button
+ * stays disabled until the operator types that exact word, which for a purge is
+ * the slug or the host. It is a speed bump in the browser, never a permission —
+ * the server checks the role and the archived status regardless.
+ *
+ * `ariaLabel` is for an icon-only trigger (Archives' row actions), where
+ * `children` carries no visible text of its own to name the button by — it
+ * also gets a hover tooltip on that trigger, same as `IconButton`
+ * (@/components/patterns), so the row reads the same on hover whichever of
+ * the two it's using.
+ */
+export function ConfirmButton({
+  title,
+  description,
+  confirmLabel = "Confirm",
+  confirmText,
+  onConfirm,
+  disabled,
+  variant = "destructive",
+  size,
+  className,
+  ariaLabel,
+  children,
+}: {
+  title: string
+  /** A plain sentence renders the same as always; pass a `<ul>` (or any
+   *  other block content) when the confirmation has more than one point to
+   *  make — `asChild` below hands Radix's description slot to a `<div>`
+   *  instead of forcing everything through a `<p>`, which cannot contain one. */
+  description: ReactNode
+  confirmLabel?: string
+  confirmText?: string
+  onConfirm: () => void
+  disabled?: boolean
+  variant?: ComponentProps<typeof Button>["variant"]
+  size?: ComponentProps<typeof Button>["size"]
+  className?: string
+  ariaLabel?: string
+  children: ReactNode
+}) {
+  const [open, setOpen] = useState(false)
+  const [typed, setTyped] = useState("")
+
+  // Clearing on every transition means a cancelled dialog cannot be reopened
+  // with the confirmation already typed in.
+  const setOpenState = (next: boolean) => {
+    setOpen(next)
+    setTyped("")
+  }
+
+  const trigger = (
+    <Button
+      type="button"
+      variant={variant}
+      size={size}
+      disabled={disabled}
+      aria-label={ariaLabel}
+      className={className}
+    >
+      {children}
+    </Button>
+  )
+
+  return (
+    <Dialog open={open} onOpenChange={setOpenState}>
+      {/* `ariaLabel` only gets set for an icon-only trigger (no visible text
+          of its own), so that's also exactly when it needs a hover tooltip.
+          `Tooltip` has to sit outside `DialogTrigger` here, not the other way
+          round — `Tooltip`'s Radix root renders no DOM of its own to clone
+          props onto, so a `DialogTrigger asChild` wrapping it would never see
+          the click that's supposed to open the dialog. `DialogTrigger` is a
+          real forwarding primitive, so nesting it inside `TooltipTrigger`
+          composes cleanly instead. */}
+      {ariaLabel ? (
+        <Tooltip>
+          <TooltipTrigger asChild>
+            <DialogTrigger asChild>{trigger}</DialogTrigger>
+          </TooltipTrigger>
+          <TooltipContent>{ariaLabel}</TooltipContent>
+        </Tooltip>
+      ) : (
+        <DialogTrigger asChild>{trigger}</DialogTrigger>
+      )}
+      <DialogContent>
+        <DialogHeader>
+          <DialogTitle>{title}</DialogTitle>
+          <DialogDescription asChild>
+            <div>{description}</div>
+          </DialogDescription>
+        </DialogHeader>
+        {confirmText && (
+          <Field label={`Type ${confirmText} to confirm`}>
+            <Input
+              value={typed}
+              autoComplete="off"
+              onChange={(e) => setTyped(e.target.value)}
+              placeholder={confirmText}
+            />
+          </Field>
+        )}
+        <DialogFooter>
+          <Button type="button" variant="outline" onClick={() => setOpenState(false)}>
+            Cancel
+          </Button>
+          <Button
+            type="button"
+            variant={variant}
+            disabled={confirmText !== undefined && typed !== confirmText}
+            onClick={() => {
+              setOpenState(false)
+              onConfirm()
+            }}
+          >
+            {confirmLabel}
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  )
+}
+
+/**
+ * The UI half of `useRange` (@/lib/hooks). The popover keeps editable custom
+ * dates out of menu semantics while the hook owns the API window.
+ */
+export function RangePicker({
+  preset,
+  custom,
+  label,
+  onPreset,
+  onCustom,
+}: {
+  preset: Range | "custom"
+  custom: { from: string; to: string } | null
+  label: string
+  onPreset: (range: Range) => void
+  onCustom: (range: { from: string; to: string }) => void
+}) {
+  const today = new Date().toISOString().slice(0, 10)
+  const earliest = new Date(Date.now() - 365 * 86_400_000).toISOString().slice(0, 10)
+  const [from, setFrom] = useState(custom?.from ?? "")
+  const [to, setTo] = useState(custom?.to ?? "")
+  const [open, setOpen] = useState(false)
+  const [showCustom, setShowCustom] = useState(false)
+  const [touched, setTouched] = useState({ from: false, to: false })
+  // Only surface a validation message once both fields are touched and dirty —
+  // picking just one side (the other still blank) isn't an error yet, it's
+  // the user halfway through.
+  const validation = touched.from && touched.to ? rangeValidation(from, to) : null
+
+  return (
+    <Popover
+      open={open}
+      onOpenChange={(next) => {
+        if (next) setShowCustom(preset === "custom")
+        setOpen(next)
+      }}
+    >
+      <PopoverTrigger asChild>
+        <Button
+          type="button"
+          variant="outline"
+          className="h-9 min-w-36 justify-center gap-2.5 px-3"
+        >
+          <CalendarDays className="size-4 text-muted-foreground" />
+          {label}
+          <ChevronDown className="size-4 text-muted-foreground" />
+        </Button>
+      </PopoverTrigger>
+      <PopoverContent align="end" className="w-72 gap-0 p-2">
+        <div className="space-y-1">
+          {RANGES.map((range) => (
+            <button
+              key={range.value}
+              type="button"
+              className="flex w-full cursor-pointer items-center rounded-md px-2 py-1.5 text-left text-sm hover:bg-accent hover:text-accent-foreground"
+              onClick={() => {
+                onPreset(range.value)
+                setOpen(false)
+              }}
+            >
+              <span className="flex-1">{range.label}</span>
+              {!showCustom && preset === range.value ? <CheckIcon className="size-4" /> : null}
+            </button>
+          ))}
+          <button
+            type="button"
+            aria-expanded={showCustom}
+            className="flex w-full cursor-pointer items-center rounded-md px-2 py-1.5 text-left text-sm hover:bg-accent hover:text-accent-foreground"
+            onClick={() => setShowCustom((v) => !v)}
+          >
+            <span className="flex-1">Custom range</span>
+            {showCustom ? <CheckIcon className="size-4" /> : null}
+          </button>
+        </div>
+        {showCustom ? (
+        <div className="mt-2 space-y-3 border-t px-2 pt-3 pb-1">
+          <p className="text-xs text-muted-foreground">Choose up to one year of daily data.</p>
+          <div className="flex items-center gap-2 text-xs text-muted-foreground">
+            <span>From</span>
+            <DateField
+              value={from}
+              min={earliest}
+              max={to || today}
+              onChange={(value) => {
+                setFrom(value)
+                setTouched((t) => ({ ...t, from: true }))
+              }}
+            />
+            <span>To</span>
+            <DateField
+              value={to}
+              min={from || earliest}
+              max={today}
+              onChange={(value) => {
+                setTo(value)
+                setTouched((t) => ({ ...t, to: true }))
+              }}
+            />
+          </div>
+          {validation ? (
+            <p className="text-xs text-destructive" role="alert">
+              {validation}
+            </p>
+          ) : null}
+          <Button
+            type="button"
+            size="sm"
+            className="w-full"
+            disabled={validation !== null || !from || !to}
+            onClick={() => {
+              onCustom({ from, to })
+              setOpen(false)
+            }}
+          >
+            Apply
+          </Button>
+        </div>
+        ) : null}
+      </PopoverContent>
+    </Popover>
+  )
+}
+
+const WEEKDAYS = ["Su", "Mo", "Tu", "We", "Th", "Fr", "Sa"]
+
+/**
+ * An in-app calendar keeps date selection consistent across browsers. Values
+ * are `YYYY-MM-DD`. `today` is the outlined day and what the Today button
+ * picks; it defaults to `max`, which is today for a past-only range. Omit
+ * `max` for an open-ended future.
+ */
+export function DateField({
+  value,
+  min,
+  max,
+  today = max ?? min,
+  onChange,
+}: {
+  value: string
+  min: string
+  max?: string
+  today?: string
+  onChange: (value: string) => void
+}) {
+  const [open, setOpen] = useState(false)
+  const [month, setMonth] = useState(() => monthStart(value || today))
+  const days = calendarDays(month)
+  const canGoBack = monthKey(month) > monthKey(monthStart(min))
+  const canGoForward = max === undefined || monthKey(month) < monthKey(monthStart(max))
+
+  return (
+    <Popover
+      open={open}
+      onOpenChange={(next) => {
+        setOpen(next)
+        if (next) setMonth(monthStart(value || today))
+      }}
+    >
+      <PopoverTrigger asChild>
+        <button
+          type="button"
+          className="flex h-8 min-w-0 flex-1 cursor-pointer items-center justify-between gap-1 rounded-md border bg-background px-2 text-left text-xs text-foreground shadow-xs hover:bg-muted"
+          aria-label={value ? `Change date, ${formatPickerDate(value)}` : "Choose date"}
+        >
+          <span className={value ? "truncate" : "truncate text-muted-foreground"}>
+            {value ? formatPickerDate(value) : "Select date"}
+          </span>
+          <CalendarDays className="size-3.5 shrink-0 text-muted-foreground" />
+        </button>
+      </PopoverTrigger>
+      <PopoverContent align="start" sideOffset={6} className="w-64 p-3">
+        <div className="flex items-center justify-between">
+          <p className="text-sm font-medium">{formatMonth(month)}</p>
+          <div className="flex gap-1">
+            <Button
+              type="button"
+              variant="ghost"
+              size="icon-xs"
+              aria-label="Previous month"
+              disabled={!canGoBack}
+              onClick={() => setMonth(addMonths(month, -1))}
+            >
+              <ChevronLeft />
+            </Button>
+            <Button
+              type="button"
+              variant="ghost"
+              size="icon-xs"
+              aria-label="Next month"
+              disabled={!canGoForward}
+              onClick={() => setMonth(addMonths(month, 1))}
+            >
+              <ChevronRight />
+            </Button>
+          </div>
+        </div>
+        <div className="mt-2 grid grid-cols-7 text-center text-[11px] text-muted-foreground">
+          {WEEKDAYS.map((day) => (
+            <span key={day} className="py-1">
+              {day}
+            </span>
+          ))}
+        </div>
+        <div className="grid grid-cols-7 gap-y-0.5">
+          {days.map((day) => {
+            const disabled = day.value < min || (max !== undefined && day.value > max)
+            const selected = day.value === value
+            const currentMonth = day.date.getUTCMonth() === month.getUTCMonth()
+            return (
+              <button
+                key={day.value}
+                type="button"
+                aria-pressed={selected}
+                disabled={disabled}
+                className={`mx-auto flex size-7 cursor-pointer items-center disabled:cursor-not-allowed disabled:opacity-40 justify-center rounded-md text-xs tabular-nums ${
+                  selected
+                    ? "bg-primary text-primary-foreground"
+                    : day.value === today
+                      ? "border border-primary text-primary"
+                      : currentMonth
+                        ? "text-foreground hover:bg-muted"
+                        : "text-muted-foreground/50 hover:bg-muted"
+                }`}
+                onClick={() => {
+                  onChange(day.value)
+                  setOpen(false)
+                }}
+              >
+                {day.date.getUTCDate()}
+              </button>
+            )
+          })}
+        </div>
+        <div className="mt-2 flex justify-end border-t pt-2">
+          <button
+            type="button"
+            className="cursor-pointer text-xs font-medium text-primary hover:underline"
+            onClick={() => {
+              onChange(today)
+              setOpen(false)
+            }}
+          >
+            Today
+          </button>
+        </div>
+      </PopoverContent>
+    </Popover>
+  )
+}
+
+const HOURS = Array.from({ length: 24 }, (_, n) => String(n).padStart(2, "0"))
+const MINUTES = Array.from({ length: 60 }, (_, n) => String(n).padStart(2, "0"))
+
+/**
+ * The time counterpart of `DateField`: `HH:mm`, 24-hour, picked from two
+ * scrolling columns in a popover instead of the browser's own time input.
+ */
+export function TimeField({
+  value,
+  disabled,
+  onChange,
+}: {
+  value: string
+  disabled?: boolean
+  onChange: (value: string) => void
+}) {
+  const [hour = "", minute = ""] = value.split(":")
+  const column = (
+    items: string[],
+    selected: string,
+    pick: (item: string) => void,
+    label: string,
+  ) => (
+    <div
+      role="listbox"
+      aria-label={label}
+      className="no-scrollbar h-56 flex-1 overflow-y-auto py-1"
+    >
+      {items.map((item) => (
+        <button
+          key={item}
+          type="button"
+          role="option"
+          aria-selected={item === selected}
+          // Keeps the current pick in view on open, without jumping on every click.
+          ref={item === selected ? (el) => el?.scrollIntoView({ block: "nearest" }) : undefined}
+          className={`flex h-8 w-full cursor-pointer items-center justify-center rounded-md text-xs tabular-nums ${
+            item === selected
+              ? "bg-primary text-primary-foreground"
+              : "text-foreground hover:bg-muted"
+          }`}
+          onClick={() => pick(item)}
+        >
+          {item}
+        </button>
+      ))}
+    </div>
+  )
+
+  return (
+    <Popover>
+      <PopoverTrigger asChild>
+        <button
+          type="button"
+          disabled={disabled}
+          className="flex h-8 min-w-0 flex-1 cursor-pointer items-center justify-between gap-1 rounded-md border bg-background px-2 text-left text-xs text-foreground shadow-xs hover:bg-muted disabled:cursor-not-allowed disabled:opacity-50"
+          aria-label={value ? `Change time, ${value}` : "Choose time"}
+        >
+          <span className={value ? "truncate tabular-nums" : "truncate text-muted-foreground"}>
+            {value || "Select time"}
+          </span>
+          <Clock className="size-3.5 shrink-0 text-muted-foreground" />
+        </button>
+      </PopoverTrigger>
+      <PopoverContent align="start" sideOffset={6} className="w-40 p-2">
+        <div className="grid grid-cols-2 pb-1 text-center text-[11px] text-muted-foreground">
+          <span>Hour</span>
+          <span>Minute</span>
+        </div>
+        <div className="flex gap-1 border-t pt-1">
+          {column(HOURS, hour, (h) => onChange(`${h}:${minute || "00"}`), "Hour")}
+          {column(MINUTES, minute, (m) => onChange(`${hour || "00"}:${m}`), "Minute")}
+        </div>
+      </PopoverContent>
+    </Popover>
+  )
+}
+
+function monthStart(value: string) {
+  const date = new Date(`${value}T00:00:00Z`)
+  return new Date(Date.UTC(date.getUTCFullYear(), date.getUTCMonth(), 1))
+}
+function monthKey(date: Date) {
+  return date.getUTCFullYear() * 12 + date.getUTCMonth()
+}
+function addMonths(month: Date, offset: number) {
+  return new Date(Date.UTC(month.getUTCFullYear(), month.getUTCMonth() + offset, 1))
+}
+function calendarDays(month: Date) {
+  const start = new Date(month)
+  start.setUTCDate(start.getUTCDate() - start.getUTCDay())
+  return Array.from({ length: 42 }, (_, index) => {
+    const date = new Date(start)
+    date.setUTCDate(start.getUTCDate() + index)
+    return { date, value: date.toISOString().slice(0, 10) }
+  })
+}
+function formatMonth(month: Date) {
+  return month.toLocaleDateString(undefined, { month: "long", year: "numeric", timeZone: "UTC" })
+}
+function formatPickerDate(value: string) {
+  return new Date(`${value}T00:00:00Z`).toLocaleDateString(undefined, {
+    month: "short",
+    day: "numeric",
+    year: "numeric",
+    timeZone: "UTC",
+  })
+}
+
+/**
+ * Offset pagination, shown only when there is more than one page of anything.
+ * The caller owns `offset` because it is also the thing a filter change has to
+ * reset.
+ */
+export function Pager({
+  total,
+  limit,
+  offset,
+  onChange,
+}: {
+  total: number
+  limit: number
+  offset: number
+  onChange: (offset: number) => void
+}) {
+  if (total <= limit) return null
+  return (
+    <div className="mt-4 flex items-center justify-between text-sm text-muted-foreground">
+      <span>
+        {offset + 1}–{Math.min(offset + limit, total)} of {total}
+      </span>
+      <div className="flex gap-2">
+        <Button
+          type="button"
+          variant="outline"
+          disabled={offset === 0}
+          onClick={() => onChange(Math.max(0, offset - limit))}
+        >
+          Previous
+        </Button>
+        <Button
+          type="button"
+          variant="outline"
+          disabled={offset + limit >= total}
+          onClick={() => onChange(offset + limit)}
+        >
+          Next
+        </Button>
+      </div>
+    </div>
+  )
+}

@@ -1,0 +1,77 @@
+name: Feature request
+description: Suggest something linq should do.
+labels: ["enhancement"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Describe the problem first. If a decision in
+        [docs/adr/](https://github.com/org-quicko/linq/tree/main/docs/adr)
+        already covers this, say which one and why it should change.
+
+  - type: checkboxes
+    id: checks
+    attributes:
+      label: Before you file
+      options:
+        - label: I searched the open and closed issues and found no request for this.
+          required: true
+
+  - type: textarea
+    id: problem
+    attributes:
+      label: The problem
+      description: What are you trying to do, and what stops you today? Describe the situation, not the solution.
+      placeholder: I want to redirect based on the visitor's country, and rules today only match query params and headers.
+    validations:
+      required: true
+
+  - type: textarea
+    id: solution
+    attributes:
+      label: What you want linq to do
+      description: The change you have in mind. A route, a flag, a field or a screen is more useful than a goal.
+    validations:
+      required: true
+
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: What you tried instead
+      description: Workarounds you use today, and why they are not enough.
+
+  - type: dropdown
+    id: feature
+    attributes:
+      label: Feature
+      description: The part of linq this touches.
+      options:
+        - Client UI (dashboard)
+        - Links
+        - Domains
+        - Rules
+        - QR codes
+        - Analytics / visits
+        - Redirect handling
+        - API keys / auth
+        - Redis cache
+        - Caddy / custom domains
+        - CLI
+        - Docker / deployment
+        - Documentation
+        - Not sure
+    validations:
+      required: true
+
+  - type: textarea
+    id: context
+    attributes:
+      label: Anything else
+      description: Links, screenshots, or how another link-shortener/CMS solves the same problem.
+
+  - type: checkboxes
+    id: contribution
+    attributes:
+      label: Contribution
+      options:
+        - label: I am willing to open a pull request for this.

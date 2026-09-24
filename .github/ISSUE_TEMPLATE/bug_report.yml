@@ -1,0 +1,132 @@
+name: Bug report
+description: Something in linq does not work the way it should.
+labels: ["bug"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for filing this. The more of the form you fill in, the sooner
+        someone can reproduce the bug and fix it.
+
+  - type: checkboxes
+    id: checks
+    attributes:
+      label: Before you file
+      options:
+        - label: I searched the open and closed issues and found no report of this.
+          required: true
+        - label: I can reproduce this on the latest version of linq.
+          required: true
+
+  - type: textarea
+    id: what-happened
+    attributes:
+      label: What happened
+      description: What linq did.
+      placeholder: Creating a rule with a query-param condition returns 500 instead of 201.
+    validations:
+      required: true
+
+  - type: textarea
+    id: what-expected
+    attributes:
+      label: What you expected
+      description: What linq should have done instead.
+    validations:
+      required: true
+
+  - type: textarea
+    id: steps
+    attributes:
+      label: Steps to reproduce
+      description: The shortest sequence that shows the bug. Commands and requests are better than prose.
+      placeholder: |
+        1. bun run dev
+        2. Create a domain and a link pointing at https://example.com
+        3. Add a rule with condition { "type": "query_param", ... }
+        4. curl http://localhost:3000/<slug>?utm_source=x
+        5. The response is 500, not a redirect.
+    validations:
+      required: true
+
+  - type: dropdown
+    id: feature
+    attributes:
+      label: Feature
+      description: The part of linq this affects.
+      options:
+        - Client UI (dashboard)
+        - Links
+        - Domains
+        - Rules
+        - QR codes
+        - Analytics / visits
+        - Redirect handling
+        - API keys / auth
+        - Redis cache
+        - Caddy / custom domains
+        - CLI
+        - Docker / deployment
+        - Documentation
+        - Not sure
+    validations:
+      required: true
+
+  - type: input
+    id: version
+    attributes:
+      label: Version
+      description: The linq image tag or commit you're running, e.g. from `docker inspect` or `git rev-parse HEAD`.
+      placeholder: ghcr.io/org-quicko/linq:0.2.0 or commit a8060a0
+    validations:
+      required: true
+
+  - type: dropdown
+    id: install
+    attributes:
+      label: How you're running linq
+      options:
+        - Docker (linq, the published image)
+        - docker/examples/ (Compose examples or example Dockerfiles)
+        - From source (bun run dev / start)
+        - Other
+    validations:
+      required: true
+
+  - type: input
+    id: platform
+    attributes:
+      label: Operating system and architecture
+      placeholder: macOS 15.3 arm64, Ubuntu 24.04 x64, Docker on Windows 11
+    validations:
+      required: true
+
+  - type: dropdown
+    id: cache
+    attributes:
+      label: Redirect cache
+      description: In-process LRU (default), or Redis via LINQ_REDIS_URL?
+      options:
+        - In-process LRU (default)
+        - Redis
+        - Not sure
+
+  - type: textarea
+    id: logs
+    attributes:
+      label: Logs and output
+      description: Server logs, the failing response, or the browser console for a Client UI bug.
+      render: shell
+
+  - type: textarea
+    id: config
+    attributes:
+      label: Relevant environment variables
+      description: Your LINQ_* / DATABASE_URL config, with secrets removed.
+      render: dotenv
+
+  - type: textarea
+    id: context
+    attributes:
+      label: Anything else
+      description: Screenshots, a link to a branch that reproduces it, or what you already ruled out.

@@ -1,0 +1,14 @@
+node_modules
+**/node_modules
+.git
+.env
+.env.local
+data
+**/dist
+**/out
+**/out-standalone
+**/.next
+**/*.tsbuildinfo
+apps/server/test
+plans
+docs

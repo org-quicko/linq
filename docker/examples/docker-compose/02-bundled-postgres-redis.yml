@@ -1,0 +1,65 @@
+# Bundled Postgres plus Redis for the redirect cache. Redis holds only cached
+# lookups, so it needs no volume: a cold Redis costs one Postgres query per
+# link until it warms back up. See docs/adr/0009 for what the two backends
+# differ in. No Caddy here — bring your own TLS / reverse proxy.
+#
+# Configure POSTGRES_PASSWORD and LINQ_DEFAULT_DOMAIN in .env, then:
+#   docker compose -f 02-bundled-postgres-redis.yml up
+services:
+  postgres:
+    image: postgres:17
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-linq}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-linq}
+      POSTGRES_DB: ${POSTGRES_DB:-linq}
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-linq} -d ${POSTGRES_DB:-linq}"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  redis:
+    image: redis:8
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  linq:
+    env_file:
+      # Change this path to use an environment file in another location.
+      - ../../../.env
+    build:
+      context: ../../..
+      dockerfile: docker/dockerfiles/Dockerfile
+      args:
+        LINQ_CLIENT_BASE_PATH: ${LINQ_CLIENT_BASE_PATH:-/home}
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    environment:
+      DATABASE_URL: postgres://${POSTGRES_USER:-linq}:${POSTGRES_PASSWORD:-linq}@postgres:5432/${POSTGRES_DB:-linq}
+      LINQ_PORT: 3000
+      LINQ_DB_SCHEMA: ${LINQ_DB_SCHEMA:-public}
+      LINQ_DATA_DIR: /data
+      LINQ_REDIS_URL: redis://redis:6379
+      LINQ_DEFAULT_DOMAIN: ${LINQ_DEFAULT_DOMAIN:-localhost:${LINQ_PORT:-3000}}
+      # An admin key is minted and printed on first boot; read it from
+      # `docker compose logs linq`. For another without restarting:
+      #   docker compose exec linq bun run key:create --name ops --role admin
+      # Logs go to stdout and to /data/logs/linq.log. Client IPs are never
+      # recorded in either; see docs/adr/0003.
+      LINQ_LOG_LEVEL: ${LINQ_LOG_LEVEL:-info}
+    ports:
+      - "${LINQ_PORT:-3000}:3000"
+    volumes:
+      - linq-data:/data
+
+volumes:
+  postgres-data:
+  linq-data:

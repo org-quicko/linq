@@ -1,0 +1,39 @@
+# The Client UI and the API on their own host, short links on the others
+# (docs/adr/0019), against an existing Postgres instance. Pulls linq, the
+# published docker/dockerfiles/Dockerfile, so nothing is built here.
+#
+#   LINQ_APP_HOST        UI at /, API at /api/*. Never a shortening domain.
+#   LINQ_DEFAULT_DOMAIN  the first shortening domain. Must differ from it.
+#
+# Point both hosts' DNS (or your reverse proxy) at this container; linq tells
+# them apart by the Host header. Set DATABASE_URL, LINQ_APP_HOST and
+# LINQ_DEFAULT_DOMAIN in .env, then:
+#   docker compose -f 11-app-host.yml up
+services:
+  linq:
+    image: ${LINQ_IMAGE_REPOSITORY:-ghcr.io/org-quicko/linq}:${LINQ_IMAGE_VERSION:-latest}
+    env_file:
+      # Change this path to use an environment file in another location.
+      - ../../../.env
+    environment:
+      LINQ_PORT: 3000
+      LINQ_DB_SCHEMA: ${LINQ_DB_SCHEMA:-public}
+      LINQ_DATA_DIR: /data
+      # Baked into the image; overriding it here would not move the UI.
+      LINQ_CLIENT_BASE_PATH: /
+      LINQ_APP_HOST: ${LINQ_APP_HOST:?set LINQ_APP_HOST to the UI host}
+      LINQ_DEFAULT_DOMAIN: ${LINQ_DEFAULT_DOMAIN:?set LINQ_DEFAULT_DOMAIN to the short-link host}
+      LINQ_CACHE_SWEEP_INTERVAL: ${LINQ_CACHE_SWEEP_INTERVAL:-60}
+      # An admin key is minted and printed on first boot; read it from
+      # `docker compose logs linq`. For another without restarting:
+      #   docker compose exec linq bun run key:create --name ops --role admin
+      # Logs go to stdout and to /data/logs/linq.log. Client IPs are never
+      # recorded in either; see docs/adr/0003.
+      LINQ_LOG_LEVEL: ${LINQ_LOG_LEVEL:-info}
+    ports:
+      - "${LINQ_PORT:-3000}:3000"
+    volumes:
+      - linq-data:/data
+
+volumes:
+  linq-data:

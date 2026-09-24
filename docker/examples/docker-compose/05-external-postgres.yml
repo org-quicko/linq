@@ -1,0 +1,35 @@
+# linq only — no bundled Postgres, no Redis, no Caddy. Use this when you
+# already have a Postgres instance (managed, another host, whatever) and just
+# want linq talking to it.
+#
+# Set DATABASE_URL to that instance and LINQ_DEFAULT_DOMAIN in .env, then:
+#   docker compose -f 05-external-postgres.yml up
+services:
+  linq:
+    env_file:
+      # Change this path to use an environment file in another location.
+      - ../../../.env
+    build:
+      context: ../../..
+      dockerfile: docker/dockerfiles/Dockerfile
+      args:
+        LINQ_CLIENT_BASE_PATH: ${LINQ_CLIENT_BASE_PATH:-/home}
+    environment:
+      LINQ_PORT: 3000
+      LINQ_DB_SCHEMA: ${LINQ_DB_SCHEMA:-public}
+      LINQ_DATA_DIR: /data
+      LINQ_DEFAULT_DOMAIN: ${LINQ_DEFAULT_DOMAIN:-localhost:${LINQ_PORT:-3000}}
+      LINQ_CACHE_SWEEP_INTERVAL: ${LINQ_CACHE_SWEEP_INTERVAL:-60}
+      # An admin key is minted and printed on first boot; read it from
+      # `docker compose logs linq`. For another without restarting:
+      #   docker compose exec linq bun run key:create --name ops --role admin
+      # Logs go to stdout and to /data/logs/linq.log. Client IPs are never
+      # recorded in either; see docs/adr/0003.
+      LINQ_LOG_LEVEL: ${LINQ_LOG_LEVEL:-info}
+    ports:
+      - "${LINQ_PORT:-3000}:3000"
+    volumes:
+      - linq-data:/data
+
+volumes:
+  linq-data:

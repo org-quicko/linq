@@ -1,0 +1,10 @@
+# Standalone Client UI, served at /. Point it at a linq API in the browser.
+# From the repo root, set LINQ_CLIENT_PORT in .env, then:
+#   docker compose --env-file .env -f docker/examples/docker-compose/10-client-only.yml up --build -d
+services:
+  client:
+    build:
+      context: ../../..
+      dockerfile: docker/examples/dockerfiles/Dockerfile.client
+    ports:
+      - "${LINQ_CLIENT_PORT:-3001}:3000"

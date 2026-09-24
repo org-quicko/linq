@@ -1,0 +1,43 @@
+# syntax=docker/dockerfile:1
+
+# Client UI only, as the standalone static export built for a domain root —
+# no linq server, no Postgres, no API. Serves the same static files you'd
+# otherwise upload to Vercel, Netlify, Cloudflare Pages or S3; this image is
+# just one more place to serve them from. The UI is pointed at a linq server
+# at runtime, in the browser, so this image needs no API URL baked in.
+#
+# serve-static.ts serves the export the same way
+# apps/server/src/http/admin-static.ts serves it at a configured path in the combined
+# image — trailing-slash resolution, immutable caching for hashed
+# _next/static assets, and the export's own 404.html — just mounted at / and
+# run under plain Bun instead of nginx, staying on the one base image the
+# rest of this repo already uses.
+#
+# Build from the repo root, not this directory — the client imports
+# @linq/shared as TypeScript over a workspace link and its tsconfig reaches
+# the repo root, so the whole repository has to be present for the build:
+#   docker build -f docker/examples/dockerfiles/Dockerfile.client -t linq-client .
+FROM oven/bun:1.4 AS build
+WORKDIR /app
+
+COPY package.json bun.lock tsconfig.base.json ./
+COPY apps/server/package.json apps/server/
+COPY apps/client/package.json apps/client/
+COPY packages/shared/package.json packages/shared/
+RUN bun install --frozen-lockfile
+
+COPY packages/shared/src packages/shared/src
+COPY apps/client apps/client
+RUN bun --filter '@linq/client' build:standalone
+
+FROM oven/bun:1.4 AS runtime
+WORKDIR /app
+
+ENV NODE_ENV=production
+ENV PORT=3000
+
+COPY docker/examples/dockerfiles/serve-static.ts ./
+COPY --from=build /app/apps/client/out-standalone out-standalone
+
+EXPOSE 3000
+CMD ["bun", "serve-static.ts"]

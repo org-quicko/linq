@@ -1,0 +1,34 @@
+# syntax=docker/dockerfile:1
+
+# API-only image: no Client UI build stage, nothing copied into
+# apps/client/out. The server answers 404 on its configured Client UI path and otherwise behaves
+# exactly as the combined image — it still serves the API and the redirects.
+# Postgres is always external; see docker/examples/docker-compose/.
+#
+# Build from the repo root, not this directory:
+#   docker build -f docker/examples/dockerfiles/Dockerfile.server -t linq-server .
+FROM oven/bun:1.4 AS runtime
+WORKDIR /app
+
+ENV NODE_ENV=production
+ENV LINQ_DATA_DIR=/data
+ENV LINQ_PORT=3000
+ENV LINQ_CACHE_SWEEP_INTERVAL=60
+# Logs go to stdout and to /data/logs/linq.log, rotated and capped.
+ENV LINQ_LOG_LEVEL=info
+
+COPY package.json bun.lock ./
+COPY apps/server/package.json apps/server/
+COPY apps/client/package.json apps/client/
+COPY packages/shared/package.json packages/shared/
+# apps/client/package.json is present only so the workspace lockfile resolves;
+# --filter keeps next, react and the rest of the Client UI's deps out of the
+# runtime image entirely.
+RUN bun install --frozen-lockfile --production --filter '@linq/server' --filter '@linq/shared'
+
+COPY tsconfig.base.json ./
+COPY packages/shared/src packages/shared/src
+COPY apps/server/src apps/server/src
+
+EXPOSE 3000
+CMD ["bun", "apps/server/src/main.ts"]

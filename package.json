@@ -1,0 +1,28 @@
+{
+  "name": "linq",
+  "private": true,
+  "type": "module",
+  "workspaces": [
+    "apps/*",
+    "packages/*"
+  ],
+  "scripts": {
+    "dev": "bun --watch apps/server/src/main.ts",
+    "dev:client": "bun --env-file=.env --filter @linq/client dev",
+    "start": "bun apps/server/src/main.ts",
+    "build:client": "bun --filter @linq/client build",
+    "build:client:standalone": "bun --filter @linq/client build:standalone",
+    "test": "bun test apps/server/test && bun test apps/client/test",
+    "typecheck": "tsc -b --force",
+    "lint": "biome check .",
+    "format": "biome check --write .",
+    "db:codegen": "bun --env-file=.env --filter @linq/server db:codegen",
+    "db:migrate": "bun --env-file=.env --filter @linq/server db:migrate",
+    "key:create": "bun --env-file=.env --filter @linq/server key:create"
+  },
+  "devDependencies": {
+    "@biomejs/biome": "^2.3.14",
+    "@types/bun": "^1.4.2",
+    "typescript": "^5.9.3"
+  }
+}

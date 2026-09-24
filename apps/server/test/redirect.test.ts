@@ -1,0 +1,555 @@
+import { beforeAll, describe, expect, test } from "bun:test"
+import { flushVisits } from "../src/visits/record.ts"
+import { createHarness, type Harness } from "./helpers/app.ts"
+
+const HOST = "links.test"
+const ANDROID = "Mozilla/5.0 (Linux; Android 14; Pixel 8) AppleWebKit/537.36 Chrome/120 Mobile"
+const IPHONE =
+  "Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.0 Mobile Safari/605.1.15"
+const DESKTOP = "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 Chrome/120"
+const BOT = "Mozilla/5.0 (compatible; Googlebot/2.1; +http://www.google.com/bot.html)"
+
+let h: Harness
+let editor: { keyId: string; key: string }
+let domain: string
+
+/** The redirect never awaits its insert, so tests drain it before asserting. */
+async function lastVisit() {
+  await flushVisits()
+  return await h.db
+    .selectFrom("visits")
+    .selectAll()
+    .orderBy("id", "desc")
+    .executeTakeFirstOrThrow()
+}
+
+/** Total rows in `visits`, drained first so nothing is still in flight. */
+async function visitCount() {
+  await flushVisits()
+  return (await h.db.selectFrom("visits").selectAll().execute()).length
+}
+
+beforeAll(async () => {
+  h = await createHarness()
+  editor = await h.actor("editor")
+  domain = await h.createDomain(HOST, "https://example.com/fallback")
+})
+
+const get = (path: string, init: RequestInit & { host?: string } = {}) =>
+  h.request(path, { host: HOST, headers: { "user-agent": DESKTOP }, ...init })
+
+describe("domain resolution", () => {
+  test("an unknown host is an untracked 404", async () => {
+    const before = await visitCount()
+    const res = await get("/anything", { host: "nobody.test" })
+    expect(res.status).toBe(404)
+    expect(await visitCount()).toBe(before)
+  })
+
+  test("the root path on a host nobody registered redirects to the admin UI", async () => {
+    const before = await visitCount()
+    const res = await get("/", { host: "never-registered.test" })
+    expect(res.status).toBe(302)
+    expect(res.headers.get("location")).toBe("/home/")
+    // Only the bare root gets the friendlier fallback — anything else on the
+    // same never-registered host is still a genuine, untracked 404.
+    expect((await get("/anything", { host: "never-registered.test" })).status).toBe(404)
+    expect(await visitCount()).toBe(before)
+  })
+
+  test("the unknown-host fallback follows the configured Client UI path", async () => {
+    const custom = await createHarness({ config: { LINQ_CLIENT_BASE_PATH: "/admin/example" } })
+    const res = await custom.request("/", { host: "never-registered.test" })
+    expect(res.status).toBe(302)
+    expect(res.headers.get("location")).toBe("/admin/example/")
+  })
+
+  test("an archived domain is an untracked 404 for everything", async () => {
+    const admin = await h.actor("admin")
+    const closed = await h.createDomain("closed.test")
+    const link = await h.createLink(editor.key, closed, { slug: "live" })
+    await h.request(`/api/v1/links/${link.id}`, { key: admin.key, method: "DELETE" })
+    // The domain cannot be archived while the link still points at it, even
+    // archived — purge it first.
+    await h.request(`/api/v1/links/${link.id}/purge`, { key: admin.key, method: "DELETE" })
+    await h.request(`/api/v1/domains/${closed}`, { key: admin.key, method: "DELETE" })
+
+    const before = await visitCount()
+    expect((await get("/live", { host: "closed.test" })).status).toBe(404)
+    expect((await get("/", { host: "closed.test" })).status).toBe(404)
+    expect(await visitCount()).toBe(before)
+  })
+
+  test("a row without a port also answers a request carrying one", async () => {
+    const link = await h.createLink(editor.key, domain, { slug: "ported" })
+    const res = await get("/ported", { host: `${HOST}:8443` })
+    expect(res.status).toBe(302)
+    expect(res.headers.get("location")).toBe(link.destination)
+  })
+
+  test("a row that carries a port matches that host verbatim", async () => {
+    const local = await h.createDomain("localhost:3000")
+    const link = await h.createLink(editor.key, local, { slug: "dev" })
+    const res = await get("/dev", { host: "localhost:3000" })
+    expect(res.status).toBe(302)
+    expect(res.headers.get("location")).toBe(link.destination)
+    expect(link.short_url).toBe("http://localhost:3000/dev")
+  })
+})
+
+describe("reserved paths", () => {
+  test("are answered by link itself and never tracked", async () => {
+    const before = await visitCount()
+
+    // robots.txt is served, /home normalises to its trailing-slash form, and the
+    // rest are simply unclaimed. None of them is a slug.
+    const expected: Record<string, number> = {
+      "/api": 404,
+      "/health": 404,
+      "/favicon.ico": 404,
+      "/robots.txt": 200,
+      "/home": 302,
+    }
+    for (const [path, status] of Object.entries(expected)) {
+      expect((await get(path)).status).toBe(status)
+    }
+
+    expect(await visitCount()).toBe(before)
+  })
+
+  test("cover their subpaths, so an API typo never becomes an orphan visit", async () => {
+    const before = await visitCount()
+
+    // /api/v1/* belongs to the authenticated router, which answers before routing
+    // and so does not leak which API paths exist.
+    expect((await get("/api/v1/nope")).status).toBe(401)
+    expect((await get("/home/not-a-page")).status).toBe(404)
+    // Routing is case-sensitive, so this one does reach the redirect handler.
+    expect((await get("/API/v1/nope")).status).toBe(404)
+
+    expect(await visitCount()).toBe(before)
+  })
+
+  test("includes the configured Client UI first segment", async () => {
+    const custom = await createHarness({ config: { LINQ_CLIENT_BASE_PATH: "/admin/example" } })
+    const customDomain = await custom.createDomain(
+      "custom-path.test",
+      "https://example.com/fallback",
+    )
+    expect(customDomain).toBeDefined()
+
+    const res = await custom.request("/admin/not-the-ui", { host: "custom-path.test" })
+    expect(res.status).toBe(404)
+  })
+
+  test("but a deep path that is not reserved is still an orphan", async () => {
+    const before = await visitCount()
+    const res = await get("/marketing/spring")
+    expect(res.status).toBe(302)
+    expect(await visitCount()).toBe(before + 1)
+    expect(await lastVisit()).toMatchObject({ link_id: null, slug_requested: "marketing/spring" })
+  })
+})
+
+describe("redirecting an active link", () => {
+  test("302s with no-store and records the visit", async () => {
+    const link = await h.createLink(editor.key, domain, {
+      slug: "hello",
+      destination: "https://example.com/landing",
+    })
+
+    const res = await get("/hello", {
+      headers: { "user-agent": DESKTOP, referer: "https://news.test/post" },
+    })
+    expect(res.status).toBe(302)
+    expect(res.headers.get("location")).toBe("https://example.com/landing")
+    expect(res.headers.get("cache-control")).toBe("no-store")
+
+    const visit = await lastVisit()
+    expect(visit).toMatchObject({
+      link_id: link.id,
+      domain_id: domain,
+      slug_requested: "hello",
+      destination: "https://example.com/landing",
+      is_bot: false,
+      platform: "desktop",
+      referer: "https://news.test/post",
+    })
+    // The address is never read and never stored. See docs/adr/0001.
+    expect(Object.keys(visit)).not.toContain("ip")
+  })
+
+  test("an archived link falls through to an orphan visit", async () => {
+    const link = await h.createLink(editor.key, domain, { slug: "retired" })
+    const admin = await h.actor("admin")
+    await h.request(`/api/v1/links/${link.id}`, { key: admin.key, method: "DELETE" })
+
+    const res = await get("/retired")
+    expect(res.status).toBe(302)
+    expect(res.headers.get("location")).toBe("https://example.com/fallback")
+    expect(await lastVisit()).toMatchObject({ link_id: null, slug_requested: "retired" })
+  })
+})
+
+describe("orphan visits", () => {
+  test("an unknown slug records the slug asked for and follows the fallback", async () => {
+    const res = await get("/never-existed")
+    expect(res.status).toBe(302)
+    expect(res.headers.get("location")).toBe("https://example.com/fallback")
+    expect(res.headers.get("cache-control")).toBe("no-store")
+    expect(await lastVisit()).toMatchObject({
+      link_id: null,
+      slug_requested: "never-existed",
+      destination: "https://example.com/fallback",
+    })
+  })
+
+  test("the root path is an orphan visit too", async () => {
+    const res = await get("/")
+    expect(res.status).toBe(302)
+    expect(await lastVisit()).toMatchObject({ link_id: null, slug_requested: "" })
+  })
+
+  test("a domain with no fallback 404s but still records the orphan", async () => {
+    const bare = await h.createDomain("bare.test")
+    const res = await get("/missing", { host: "bare.test" })
+    expect(res.status).toBe(404)
+
+    await flushVisits()
+    const row = await h.db
+      .selectFrom("visits")
+      .selectAll()
+      .where("domain_id", "=", bare)
+      .orderBy("id", "desc")
+      .executeTakeFirst()
+    expect(row).toMatchObject({ link_id: null, slug_requested: "missing", destination: null })
+  })
+
+  test("orphan visits are the rows with a null link", async () => {
+    await flushVisits()
+    const orphans = await h.db.selectFrom("visits").selectAll().where("link_id", "is", null).execute()
+    expect(orphans.length).toBeGreaterThan(0)
+  })
+})
+
+/**
+ * `base_path_redirect` and `invalid_short_url_redirect` —
+ * the two fields added alongside the long-standing `fallback_url`, each
+ * covering one of the three branches `redirect.ts`'s `if (!link)` case now
+ * distinguishes. `createDomain` only sets `fallback_url`, so the other two are
+ * written straight to the row, same as `domains.test.ts` does for state the
+ * API itself has no route to reach.
+ */
+describe("the three redirect fields", () => {
+  test("the root path prefers base_path_redirect over fallback_url", async () => {
+    const host = "base-path-redirect.test"
+    const id = await h.createDomain(host, "https://example.com/fallback")
+    await h.db
+      .updateTable("domains")
+      .set({ base_path_redirect: "https://example.com/home" })
+      .where("id", "=", id)
+      .execute()
+
+    const res = await get("/", { host })
+    expect(res.status).toBe(302)
+    expect(res.headers.get("location")).toBe("https://example.com/home")
+  })
+
+  test("a malformed slug prefers invalid_short_url_redirect over fallback_url", async () => {
+    const host = "invalid-slug-redirect.test"
+    const id = await h.createDomain(host, "https://example.com/fallback")
+    await h.db
+      .updateTable("domains")
+      .set({ invalid_short_url_redirect: "https://example.com/bad-slug" })
+      .where("id", "=", id)
+      .execute()
+
+    // Multiple segments and a too-long segment are both rejected by
+    // SLUG_PATTERN, so both count as malformed rather than merely unknown.
+    expect((await get("/a/b", { host })).headers.get("location")).toBe(
+      "https://example.com/bad-slug",
+    )
+    expect((await get(`/${"x".repeat(70)}`, { host })).headers.get("location")).toBe(
+      "https://example.com/bad-slug",
+    )
+  })
+
+  test("a well-formed but unknown slug still uses fallback_url, never invalid_short_url_redirect", async () => {
+    const host = "well-formed-unknown.test"
+    const id = await h.createDomain(host, "https://example.com/fallback")
+    await h.db
+      .updateTable("domains")
+      .set({ invalid_short_url_redirect: "https://example.com/bad-slug" })
+      .where("id", "=", id)
+      .execute()
+
+    const res = await get("/never-existed", { host })
+    expect(res.headers.get("location")).toBe("https://example.com/fallback")
+  })
+
+  test("each new field falls back to fallback_url when unset", async () => {
+    const host = "redirect-fields-unset.test"
+    await h.createDomain(host, "https://example.com/fallback")
+
+    expect((await get("/", { host })).headers.get("location")).toBe("https://example.com/fallback")
+    expect((await get("/a/b", { host })).headers.get("location")).toBe(
+      "https://example.com/fallback",
+    )
+  })
+
+  test("with all three unset, root and malformed 404 exactly like an unknown slug", async () => {
+    const host = "redirect-fields-all-null.test"
+    await h.createDomain(host)
+
+    expect((await get("/", { host })).status).toBe(404)
+    expect((await get("/a/b", { host })).status).toBe(404)
+    expect((await get("/never-existed", { host })).status).toBe(404)
+  })
+})
+
+describe("query forwarding", () => {
+  test("incoming parameters are merged over the destination and win", async () => {
+    await h.createLink(editor.key, domain, {
+      slug: "merge",
+      destination: "https://example.com/?a=1&keep=yes",
+    })
+
+    const res = await get("/merge?a=2&b=3")
+    const location = new URL(res.headers.get("location") as string)
+    expect(location.searchParams.get("a")).toBe("2")
+    expect(location.searchParams.get("b")).toBe("3")
+    expect(location.searchParams.get("keep")).toBe("yes")
+  })
+
+  test("the recorded destination is the link's own, never the merged one", async () => {
+    await h.createLink(editor.key, domain, {
+      slug: "recorded",
+      destination: "https://example.com/?a=1",
+      preset_params: { utm_source: "qr" },
+    })
+
+    await get("/recorded?ref=newsletter")
+    expect((await lastVisit()).destination).toBe("https://example.com/?a=1")
+
+    await get("/recorded?ref=email&utm_source=override")
+    expect((await lastVisit()).destination).toBe("https://example.com/?a=1")
+  })
+
+  test("a repeated incoming key replaces the destination copy entirely", async () => {
+    await h.createLink(editor.key, domain, {
+      slug: "repeat",
+      destination: "https://example.com/?tag=old",
+    })
+
+    const res = await get("/repeat?tag=new&tag=newer")
+    const location = new URL(res.headers.get("location") as string)
+    expect(location.searchParams.getAll("tag")).toEqual(["new", "newer"])
+  })
+
+  test("forward_query false leaves the destination alone but still logs the query", async () => {
+    await h.createLink(editor.key, domain, {
+      slug: "sealed",
+      destination: "https://example.com/?a=1",
+      forward_query: false,
+    })
+
+    const res = await get("/sealed?b=2")
+    expect(res.headers.get("location")).toBe("https://example.com/?a=1")
+    expect((await lastVisit()).query).toEqual({ b: ["2"] })
+  })
+
+  test("a link with no incoming query keeps its destination byte for byte", async () => {
+    await h.createLink(editor.key, domain, {
+      slug: "plain",
+      destination: "https://example.com/path?x=1#frag",
+    })
+    const res = await get("/plain")
+    expect(res.headers.get("location")).toBe("https://example.com/path?x=1#frag")
+    expect((await lastVisit()).query).toBeNull()
+  })
+})
+
+describe("preset params", () => {
+  test("a preset overrides a forwarded param of the same key", async () => {
+    await h.createLink(editor.key, domain, {
+      slug: "preset-vs-caller",
+      destination: "https://example.com/",
+      preset_params: { a: "preset" },
+    })
+
+    const res = await get("/preset-vs-caller?a=caller")
+    const location = new URL(res.headers.get("location") as string)
+    expect(location.searchParams.get("a")).toBe("preset")
+  })
+
+  test("a preset overrides the destination's own param", async () => {
+    await h.createLink(editor.key, domain, {
+      slug: "preset-vs-dest",
+      destination: "https://example.com/?a=dest&keep=dest",
+      preset_params: { a: "preset" },
+    })
+
+    const res = await get("/preset-vs-dest")
+    const location = new URL(res.headers.get("location") as string)
+    expect(location.searchParams.get("a")).toBe("preset")
+    expect(location.searchParams.get("keep")).toBe("dest")
+  })
+
+  test("forward_query false leaves the destination untouched even with presets set", async () => {
+    await h.createLink(editor.key, domain, {
+      slug: "preset-sealed",
+      destination: "https://example.com/?a=dest&keep=dest",
+      preset_params: { a: "preset", utm_source: "qr" },
+      forward_query: false,
+    })
+
+    const res = await get("/preset-sealed?a=caller&c=caller")
+    expect(res.headers.get("location")).toBe("https://example.com/?a=dest&keep=dest")
+  })
+
+  test("a link with no presets produces a byte-identical URL, fragment included", async () => {
+    await h.createLink(editor.key, domain, {
+      slug: "no-presets",
+      destination: "https://example.com/path?x=1#frag",
+    })
+    const res = await get("/no-presets")
+    expect(res.headers.get("location")).toBe("https://example.com/path?x=1#frag")
+  })
+
+  test("presets apply to a rule's destination, not just the default one", async () => {
+    const link = await h.createLink(editor.key, domain, {
+      slug: "preset-rule",
+      destination: "https://example.com/default",
+      preset_params: { a: "preset" },
+    })
+    await h.request(`/api/v1/links/${link.id}/rules`, {
+      key: editor.key,
+      method: "PUT",
+      body: JSON.stringify([
+        {
+          destination: "https://example.com/android?a=dest",
+          conditions: [{ type: "platform", value: "android" }],
+        },
+      ]),
+    })
+
+    const res = await get("/preset-rule", { headers: { "user-agent": ANDROID } })
+    const location = new URL(res.headers.get("location") as string)
+    expect(location.origin + location.pathname).toBe("https://example.com/android")
+    expect(location.searchParams.get("a")).toBe("preset")
+  })
+})
+
+describe("visitor detection", () => {
+  test("records the platform, os and browser each user agent implies", async () => {
+    await h.createLink(editor.key, domain, { slug: "ua" })
+
+    for (const [user_agent, platform, os, browser] of [
+      [ANDROID, "android", "android", "mobile chrome"],
+      [IPHONE, "ios", "ios", "mobile safari"],
+      [DESKTOP, "desktop", "macos", "chrome"],
+    ] as const) {
+      await get("/ua", { headers: { "user-agent": user_agent } })
+      expect(await lastVisit()).toMatchObject({ platform, os, browser, is_bot: false })
+    }
+  })
+
+  test("flags bots and a missing user agent", async () => {
+    await h.createLink(editor.key, domain, { slug: "crawled" })
+
+    await get("/crawled", { headers: { "user-agent": BOT } })
+    expect(await lastVisit()).toMatchObject({ is_bot: true })
+
+    await h.request("/crawled", { host: HOST })
+    expect(await lastVisit()).toMatchObject({ is_bot: true, user_agent: null })
+  })
+
+  test("a link-preview crawler gets the short link's own title, not the destination's", async () => {
+    const link = await h.createLink(editor.key, domain, { slug: "shared", name: "Q3 report" })
+    const res = await get(`/${link.slug}`, {
+      headers: { "user-agent": "Slackbot-LinkExpanding 1.0 (+https://api.slack.com/robots)" },
+    })
+    expect(res.status).toBe(200)
+    const body = await res.text()
+    expect(body).toContain("Q3 report")
+    expect(body).not.toContain("example.com")
+  })
+})
+
+describe("link expiry", () => {
+  test("a past expires_at resolves like an unknown slug: fallback, orphan visit", async () => {
+    await h.createLink(editor.key, domain, {
+      slug: "lapsed",
+      expires_at: new Date(Date.now() - 1000).toISOString(),
+    })
+
+    const res = await get("/lapsed")
+    expect(res.status).toBe(302)
+    expect(res.headers.get("location")).toBe("https://example.com/fallback")
+    expect(await lastVisit()).toMatchObject({
+      link_id: null,
+      slug_requested: "lapsed",
+      destination: "https://example.com/fallback",
+    })
+  })
+
+  test("expired with no fallback still 404s and still records the orphan", async () => {
+    const bare = await h.createDomain("expiry-bare.test")
+    await h.createLink(editor.key, bare, {
+      slug: "lapsed",
+      expires_at: new Date(Date.now() - 1000).toISOString(),
+    })
+
+    const res = await get("/lapsed", { host: "expiry-bare.test" })
+    expect(res.status).toBe(404)
+    await flushVisits()
+    const row = await h.db
+      .selectFrom("visits")
+      .selectAll()
+      .where("domain_id", "=", bare)
+      .orderBy("id", "desc")
+      .executeTakeFirst()
+    expect(row).toMatchObject({ link_id: null, slug_requested: "lapsed" })
+  })
+
+  test("a future expires_at redirects normally with link_id set", async () => {
+    const link = await h.createLink(editor.key, domain, {
+      slug: "not-yet",
+      expires_at: new Date(Date.now() + 60_000).toISOString(),
+    })
+    const res = await get("/not-yet")
+    expect(res.status).toBe(302)
+    expect(await lastVisit()).toMatchObject({ link_id: link.id })
+  })
+
+  test("a preview crawler on an expired link gets the orphan title, the host", async () => {
+    await h.createLink(editor.key, domain, {
+      slug: "expired-preview",
+      name: "Should not appear",
+      expires_at: new Date(Date.now() - 1000).toISOString(),
+    })
+    const res = await get("/expired-preview", {
+      headers: { "user-agent": "Slackbot-LinkExpanding 1.0 (+https://api.slack.com/robots)" },
+    })
+    expect(res.status).toBe(200)
+    const body = await res.text()
+    expect(body).toContain(HOST)
+    expect(body).not.toContain("Should not appear")
+  })
+})
+
+describe("HEAD", () => {
+  test("is answered like GET but never tracked", async () => {
+    const link = await h.createLink(editor.key, domain, { slug: "head" })
+
+    const before = await visitCount()
+    const res = await get("/head", { method: "HEAD" })
+    expect(res.status).toBe(302)
+    expect(res.headers.get("location")).toBe(link.destination)
+    expect(await visitCount()).toBe(before)
+
+    // An orphan HEAD is not tracked either.
+    await get("/head-missing", { method: "HEAD" })
+    expect(await visitCount()).toBe(before)
+  })
+})
