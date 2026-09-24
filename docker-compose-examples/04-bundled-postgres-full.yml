@@ -66,6 +66,7 @@ services:
     environment:
       DATABASE_URL: postgres://${POSTGRES_USER:-linq}:${POSTGRES_PASSWORD:-linq}@postgres:5432/${POSTGRES_DB:-linq}
       LINQ_PORT: 3000
+      LINQ_DB_SCHEMA: ${LINQ_DB_SCHEMA:-public}
       LINQ_DATA_DIR: /data
       LINQ_REDIS_URL: redis://redis:6379
       LINQ_DEFAULT_DOMAIN: ${LINQ_DEFAULT_DOMAIN:-localhost:${LINQ_PORT:-3000}}

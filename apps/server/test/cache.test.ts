@@ -1,8 +1,6 @@
 import { afterEach, beforeEach, describe, expect, test } from "bun:test"
-import { eq } from "drizzle-orm"
 import type { Cache } from "../src/cache.ts"
 import { domainKey, memoryCache, targetKey } from "../src/cache.ts"
-import { links } from "../src/db/schema.ts"
 import { createHarness, type Harness } from "./helpers/app.ts"
 import { testConfig } from "./helpers/db.ts"
 
@@ -40,7 +38,7 @@ const get = (path: string) => h.request(path, { host: HOST, headers: { "user-age
  * afterwards can only have been answered from the cache — which is a sharper
  * proof than counting queries, and needs no spy.
  */
-const dropRow = (id: string) => h.db.delete(links).where(eq(links.id, id))
+const dropRow = (id: string) => h.db.deleteFrom("links").where("id", "=", id).execute()
 
 describe("reads", () => {
   test("a second hit is answered without the database", async () => {

@@ -2,7 +2,6 @@ import { createApiKey } from "./auth/mint.ts"
 import { claimsForPreset } from "@linq/shared"
 import type { Config } from "./config.ts"
 import type { Db } from "./db/client.ts"
-import { apiKeys, domains } from "./db/schema.ts"
 import { log, span } from "./log.ts"
 
 /**
@@ -26,7 +25,7 @@ export async function bootstrap(db: Db, config: Config): Promise<void> {
  */
 async function bootstrapKey(db: Db): Promise<void> {
   await span("bootstrap.key", async () => {
-    const [existing] = await db.select({ id: apiKeys.id }).from(apiKeys).limit(1)
+    const existing = await db.selectFrom("api_keys").select("id").limit(1).executeTakeFirst()
     if (existing) return
 
     const { row, secret } = await createApiKey(db, {
@@ -54,11 +53,11 @@ async function bootstrapKey(db: Db): Promise<void> {
 async function seedDefaultDomain(db: Db, config: Config): Promise<void> {
   await span("bootstrap.defaultDomain", async () => {
     if (!config.LINQ_DEFAULT_DOMAIN) return
-    const [existing] = await db.select({ id: domains.id }).from(domains).limit(1)
+    const existing = await db.selectFrom("domains").select("id").limit(1).executeTakeFirst()
     if (existing) return
 
     const host = config.LINQ_DEFAULT_DOMAIN.replace(/^https?:\/\//i, "").toLowerCase()
-    await db.insert(domains).values({ id: Bun.randomUUIDv7(), host })
+    await db.insertInto("domains").values({ id: Bun.randomUUIDv7(), host, status: "active" }).execute()
     log.info({ host }, "bootstrap: seeded default domain")
   })
 }

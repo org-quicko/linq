@@ -1,34 +1,26 @@
 ---
 name: linq-db-migration
-description: Change linq's database schema and generate the matching migration. Use whenever apps/server/src/db/schema.ts is edited, or a Drizzle migration needs to be created or reviewed.
+description: Change linq's PostgreSQL schema or query types. Use when adding, reviewing, or applying a database migration.
 ---
 
 # Changing the database schema
 
-1. Edit `apps/server/src/db/schema.ts` — this is the one source of truth for
-   the schema. Never author or edit migration SQL by hand.
-2. Generate the migration:
+1. Add one reviewed, forward-only SQL file to `apps/server/drizzle/`, ordered
+   after the existing migrations. Kysely's migration runner executes it, so
+   PostgreSQL-specific DDL, triggers, and data changes stay explicit.
+2. Apply it to an empty verification database with `bun run db:migrate`.
+   Startup runs the same runner before bootstrap; the command is the explicit
+   operator path.
+3. With `DATABASE_URL` pointed at that migrated PostgreSQL database, run
+   `bun run db:codegen` and commit `apps/server/src/db/types.generated.ts`.
+   It describes query rows only; it never creates DDL.
+4. Run `bun run typecheck` and the focused server test, then `bun run test`.
+   The PGlite harness applies the same SQL migration sequence to a new database
+   for every suite.
 
-   ```bash
-   bun run db:generate
-   ```
+## Existing installations
 
-   This needs `.env` / `DATABASE_URL` set (it shells out to `drizzle-kit`).
-   It writes a new file under `apps/server/drizzle/` plus a `meta/` snapshot.
-3. Read the generated SQL before committing it. If it's wrong, fix
-   `schema.ts` and regenerate rather than patching the SQL directly — a
-   hand-edited migration will drift from what `drizzle-kit`'s snapshot
-   thinks the schema is, and later `db:generate` runs will produce diffs
-   against the wrong baseline.
-4. Don't run a separate "migrate" step yourself. Migrations apply
-   automatically at boot of `bun run dev` / `bun run start` — that's the only
-   place they run.
-
-## Testing schema changes
-
-`bun run test` never touches `DATABASE_URL`. Each suite spins up its own
-in-memory Postgres via PGlite (`apps/server/test/helpers/db.ts`) and runs the
-same generated migrations from `apps/server/drizzle/` against it — so a
-missing or stale migration (schema.ts edited, `db:generate` not run) shows up
-as a test failure, not just at deploy time. That's another reason never to
-hand-edit the generated SQL: it's the thing the tests actually apply.
+The runner adopts a complete `__drizzle_migrations` journal into its namespaced
+Kysely history table without replaying already-applied DDL. A partial or
+unexpected legacy journal stops startup. Resolve that database deliberately;
+do not reset or repair it from application code.

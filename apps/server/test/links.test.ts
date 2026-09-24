@@ -1,6 +1,4 @@
 import { beforeAll, describe, expect, test } from "bun:test"
-import { inArray } from "drizzle-orm"
-import { links } from "../src/db/schema.ts"
 import {
   httpMetadataFetcher,
   type MetadataFetcher,
@@ -420,14 +418,10 @@ describe("GET /api/v1/links", () => {
       ["a", "b", "c"].map((slug) => h.createLink(editor.key, scoped, { slug })),
     )
     await h.db
-      .update(links)
+      .updateTable("links")
       .set({ created_at: now })
-      .where(
-        inArray(
-          links.id,
-          rows.map((r) => r.id),
-        ),
-      )
+      .where("id", "in", rows.map((row) => row.id))
+      .execute()
 
     const pages = await Promise.all(
       [0, 1, 2].map((offset) =>

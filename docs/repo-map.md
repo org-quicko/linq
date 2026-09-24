@@ -28,7 +28,7 @@ a separate Next.js project with its own config. `bun run typecheck` runs
 
 | Path | What it is |
 |------|------------|
-| `package.json` | Workspace root. Delegates every script (`dev`, `test`, `db:generate`, …) to the member that owns it via `bun --filter` |
+| `package.json` | Workspace root. Delegates every script (`dev`, `test`, `db:migrate`, `db:codegen`, …) to the member that owns it via `bun --filter` |
 | `AGENTS.md` | What isn't obvious from the code: running it, Redis/Caddy's fail-loud behaviour, docs conventions |
 | `CLAUDE.md` | Points Claude at `AGENTS.md` and `.claude/skills/` |
 | `CONTEXT.md` | The domain glossary — terms only, no implementation |
@@ -49,7 +49,7 @@ a separate Next.js project with its own config. `bun run typecheck` runs
 | `log.ts` | The pino logger, per-request child logger via `AsyncLocalStorage`, the `span()` timing helper, and secret scrubbing |
 | `slug.ts` | `randomSlug` — uniform base62 generation for a link's slug |
 | `auth/` | `middleware.ts` (the `authenticate` Hono middleware), `keys.ts` (hash/prefix a key), `mint.ts` (`createApiKey`, shared by the HTTP route and the CLI), `permissions.ts` (the throwing `assert*` wrappers over `@linq/shared`'s `can`) |
-| `db/` | `schema.ts` (Drizzle tables — see architecture.md's data model), `client.ts` (`createDb`, the driver-agnostic `Db` type the test suite substitutes PGlite for), `migrate.ts` (runs migrations at boot) |
+| `db/` | `types.generated.ts` (Kysely query types), `client.ts` (the Postgres/PGlite `Db` boundary), `migrate.ts` (runs migrations in `LINQ_DB_SCHEMA` at boot) |
 | `http/app.ts` | `createApp` — mounts every route, in the order that keeps the redirect catch-all from shadowing anything reserved |
 | `http/redirect.ts` | The redirect handler: domain/link/rule resolution, the cache-through helper, query merging, and the link-preview OG page |
 | `http/admin-static.ts` | Serves the exported Client UI at `LINQ_CLIENT_BASE_PATH` (`/home` by default), path-traversal-checked |
@@ -109,7 +109,7 @@ from a JSON body on the client). Nothing here imports from either app.
 ## Agent tooling
 
 `.agents/skills/` and `.claude/skills/` hold the same set, mirrored for both
-tools: `linq-dev` (start the dev environment), `linq-db-migration` (edit
-`db/schema.ts` and generate the matching migration), `linq-adr` (write a new
+tools: `linq-dev` (start the dev environment), `linq-db-migration` (add and
+verify a Kysely-managed SQL migration), `linq-adr` (write a new
 ADR), `linq-backend` (add or change an `apps/server` API resource),
 `linq-frontend` (add or change an `apps/client` UI feature).

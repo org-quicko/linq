@@ -1,6 +1,4 @@
-import { asc, eq } from "drizzle-orm"
 import type { Db } from "../db/client.ts"
-import { rules } from "../db/schema.ts"
 import { span } from "../log.ts"
 
 /**
@@ -13,7 +11,7 @@ import { span } from "../log.ts"
 export function listRules(db: Db, link_id: string) {
   return span(
     "rules.list",
-    () => db.select().from(rules).where(eq(rules.link_id, link_id)).orderBy(asc(rules.position)),
+    () => db.selectFrom("rules").selectAll().where("link_id", "=", link_id).orderBy("position").execute(),
     { in: { link_id }, out: (rows) => ({ count: rows.length }) },
   )
 }

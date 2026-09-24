@@ -16,7 +16,8 @@
     "typecheck": "tsc -b --force",
     "lint": "biome check .",
     "format": "biome check --write .",
-    "db:generate": "bun --env-file=.env --filter @linq/server db:generate",
+    "db:codegen": "bun --env-file=.env --filter @linq/server db:codegen",
+    "db:migrate": "bun --env-file=.env --filter @linq/server db:migrate",
     "key:create": "bun --env-file=.env --filter @linq/server key:create"
   },
   "devDependencies": {

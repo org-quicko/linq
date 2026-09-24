@@ -8,23 +8,7 @@ import {
   linkPatchSchema,
   uuidSchema,
 } from "@linq/shared"
-import {
-  and,
-  arrayOverlaps,
-  asc,
-  count,
-  desc,
-  eq,
-  gt,
-  ilike,
-  inArray,
-  isNotNull,
-  isNull,
-  lte,
-  or,
-  type SQL,
-  sql,
-} from "drizzle-orm"
+import { sql, type Insertable, type Selectable, type SqlBool } from "kysely"
 import { Hono } from "hono"
 import { z } from "zod"
 import {
@@ -36,7 +20,7 @@ import {
 import { linkKeys } from "../../cache.ts"
 import { isReservedSlug } from "../../config.ts"
 import type { Db } from "../../db/client.ts"
-import { domains, links, rules, visitCounts } from "../../db/schema.ts"
+import type { DB } from "../../db/types.generated.ts"
 import { span } from "../../log.ts"
 import { randomSlug } from "../../slug.ts"
 import type { Env } from "../env.ts"
@@ -44,8 +28,7 @@ import { validate } from "../validate.ts"
 
 const idParam = validate("param", z.object({ id: uuidSchema }))
 
-type LinkRow = {
-  link: typeof links.$inferSelect
+type LinkRow = Selectable<DB["links"]> & {
   domain_host: string
   human_visits: number
   bot_visits: number
@@ -60,28 +43,27 @@ export function shortUrl(host: string, slug: string): string {
 
 /** Maps a joined link row to the JSON shape the API returns. */
 function toLink(row: LinkRow): Link {
-  const { link } = row
   return {
-    id: link.id,
-    domain_id: link.domain_id,
+    id: row.id,
+    domain_id: row.domain_id,
     domain_host: row.domain_host,
-    slug: link.slug,
-    short_url: shortUrl(row.domain_host, link.slug),
-    destination: link.destination,
-    name: link.name,
-    description: link.description,
-    icon_url: link.icon_url,
-    tags: link.tags,
-    forward_query: link.forward_query,
-    preset_params: link.preset_params,
-    status: link.status,
+    slug: row.slug,
+    short_url: shortUrl(row.domain_host, row.slug),
+    destination: row.destination,
+    name: row.name,
+    description: row.description,
+    icon_url: row.icon_url,
+    tags: row.tags,
+    forward_query: row.forward_query,
+    preset_params: row.preset_params,
+    status: row.status,
     human_visits: row.human_visits,
     bot_visits: row.bot_visits,
-    expires_at: link.expires_at?.toISOString() ?? null,
-    listed: link.listed,
+    expires_at: row.expires_at?.toISOString() ?? null,
+    listed: row.listed,
     rule_count: row.rule_count,
-    created_at: link.created_at.toISOString(),
-    updated_at: link.updated_at.toISOString(),
+    created_at: row.created_at.toISOString(),
+    updated_at: row.updated_at.toISOString(),
   }
 }
 
@@ -95,25 +77,22 @@ function toLink(row: LinkRow): Link {
  */
 function linkQuery(db: Db) {
   const query = db
-    .select({
-      link: links,
-      domain_host: domains.host,
-      human_visits: sql<number>`coalesce(${visitCounts.human}, 0)`.mapWith(Number),
-      bot_visits: sql<number>`coalesce(${visitCounts.bot}, 0)`.mapWith(Number),
+    .selectFrom("links")
+    .innerJoin("domains", "domains.id", "links.domain_id")
+    .leftJoin("visit_counts", "visit_counts.link_id", "links.id")
+    .selectAll("links")
+    .select([
+      "domains.host as domain_host",
+      sql<number>`coalesce(visit_counts.human, 0)`.as("human_visits"),
+      sql<number>`coalesce(visit_counts.bot, 0)`.as("bot_visits"),
       // A correlated subquery, not a join: `rules` is 1:N and every other join
       // here is 1:1, so joining it directly would multiply rows.
-      rule_count:
-        sql<number>`(select count(*) from ${rules} where ${rules.link_id} = ${links.id})`.mapWith(
-          Number,
-        ),
-    })
-    .from(links)
-    .innerJoin(domains, eq(domains.id, links.domain_id))
-    .leftJoin(visitCounts, eq(visitCounts.link_id, links.id))
+      sql<number>`(select count(*) from rules where rules.link_id = links.id)`.as("rule_count"),
+    ])
 
   return {
     query,
-    total: sql`coalesce(${visitCounts.human}, 0) + coalesce(${visitCounts.bot}, 0)`,
+    total: sql<number>`coalesce(visit_counts.human, 0) + coalesce(visit_counts.bot, 0)`,
   }
 }
 
@@ -122,7 +101,7 @@ function fetchLink(db: Db, id: string): Promise<Link> {
   return span(
     "link.fetch",
     async () => {
-      const [row] = await linkQuery(db).query.where(eq(links.id, id)).limit(1)
+      const row = await linkQuery(db).query.where("links.id", "=", id).limit(1).executeTakeFirst()
       if (!row) throw ApiError.notFound("link")
       return toLink(row)
     },
@@ -131,11 +110,11 @@ function fetchLink(db: Db, id: string): Promise<Link> {
 }
 
 /** The raw row, for permission checks that run before the response is built. */
-export function loadLink(db: Db, id: string): Promise<typeof links.$inferSelect> {
+export function loadLink(db: Db, id: string): Promise<Selectable<DB["links"]>> {
   return span(
     "link.load",
     async () => {
-      const [row] = await db.select().from(links).where(eq(links.id, id)).limit(1)
+      const row = await db.selectFrom("links").selectAll().where("id", "=", id).limit(1).executeTakeFirst()
       if (!row) throw ApiError.notFound("link")
       return row
     },
@@ -150,9 +129,9 @@ export function loadLink(db: Db, id: string): Promise<typeof links.$inferSelect>
  */
 function insertLink(
   db: Db,
-  values: Omit<typeof links.$inferInsert, "id" | "slug">,
+  values: Omit<Insertable<DB["links"]>, "id" | "slug">,
   opts: { slug?: string; slugLength: number; clientBasePath: string },
-): Promise<typeof links.$inferSelect> {
+): Promise<Selectable<DB["links"]>> {
   return span(
     "link.insert",
     async () => {
@@ -160,15 +139,16 @@ function insertLink(
       for (let i = 0; i < attempts; i++) {
         const slug = opts.slug ?? randomSlug(opts.slugLength)
         if (isReservedSlug(slug, opts.clientBasePath)) continue
-        const [row] = await db
-          .insert(links)
+        const row = await db
+          .insertInto("links")
           .values({
             ...values,
             id: Bun.randomUUIDv7(),
             slug,
           })
-          .onConflictDoNothing({ target: [links.domain_id, links.slug] })
-          .returning()
+          .onConflict((oc) => oc.columns(["domain_id", "slug"]).doNothing())
+          .returningAll()
+          .executeTakeFirst()
         // The attempt count is the signal that LINQ_SLUG_LENGTH is running out.
         if (row) return { row, attempts: i + 1 }
       }
@@ -187,14 +167,14 @@ export const linkRoutes = new Hono<Env>()
     const q = c.req.valid("query")
     const { query, total } = linkQuery(c.var.db)
 
-    const filters: SQL[] = []
-    if (q.status !== "all") filters.push(eq(links.status, q.status))
-    if (q.domain_id.length) filters.push(inArray(links.domain_id, q.domain_id))
-    if (q.tags.length) filters.push(arrayOverlaps(links.tags, q.tags))
+    let filtered = query
+    if (q.status !== "all") filtered = filtered.where("links.status", "=", q.status)
+    if (q.domain_id.length) filtered = filtered.where("links.domain_id", "in", q.domain_id)
+    if (q.tags.length) filtered = filtered.where(sql<SqlBool>`links.tags && ${sql.val(q.tags)}::text[]`)
     if (q.search) {
       const term = `%${q.search}%`
-      filters.push(
-        or(ilike(links.slug, term), ilike(links.name, term), ilike(links.destination, term)) as SQL,
+      filtered = filtered.where((eb) =>
+        eb.or([eb("links.slug", "ilike", term), eb("links.name", "ilike", term), eb("links.destination", "ilike", term)]),
       )
     }
     // The app clock, so the list agrees with the redirect on what "expired"
@@ -202,32 +182,45 @@ export const linkRoutes = new Hono<Env>()
     // nothing, so a filter touching a joined table would break it.
     if (q.expiry !== "any") {
       const now = new Date()
-      filters.push(
+      filtered =
         q.expiry === "expired"
-          ? (and(isNotNull(links.expires_at), lte(links.expires_at, now)) as SQL)
-          : (or(isNull(links.expires_at), gt(links.expires_at, now)) as SQL),
-      )
+          ? filtered.where("links.expires_at", "is not", null).where("links.expires_at", "<=", now)
+          : filtered.where((eb) => eb.or([eb("links.expires_at", "is", null), eb("links.expires_at", ">", now)]))
     }
-    const where = filters.length ? and(...filters) : undefined
 
     // Every sortable column in one place; `visits` is the joined expression
     // rather than a column, which is why this is a map and not a field name.
     const sortable = {
-      created_at: links.created_at,
-      updated_at: links.updated_at,
+      created_at: "links.created_at",
+      updated_at: "links.updated_at",
       visits: total,
     } as const
-    const direction = q.order === "asc" ? asc : desc
-    const rows = await query
-      .where(where)
+    const direction = q.order
+    const rows = await filtered
       // `links.id` is a UUIDv7, so the tiebreak is chronological rather than
       // arbitrary — and without it equal sort keys make paging
       // non-deterministic: a row can appear on two pages or on none.
-      .orderBy(direction(sortable[q.sort]), direction(links.id))
+      .orderBy(sortable[q.sort], direction)
+      .orderBy("links.id", direction)
       .limit(q.limit)
       .offset(q.offset)
+      .execute()
 
-    const [{ total: matched }] = await c.var.db.select({ total: count() }).from(links).where(where)
+    let countQuery = c.var.db.selectFrom("links").select((eb) => eb.fn.countAll<number>().as("total"))
+    if (q.status !== "all") countQuery = countQuery.where("status", "=", q.status)
+    if (q.domain_id.length) countQuery = countQuery.where("domain_id", "in", q.domain_id)
+    if (q.tags.length) countQuery = countQuery.where(sql<SqlBool>`tags && ${sql.val(q.tags)}::text[]`)
+    if (q.search) {
+      const term = `%${q.search}%`
+      countQuery = countQuery.where((eb) => eb.or([eb("slug", "ilike", term), eb("name", "ilike", term), eb("destination", "ilike", term)]))
+    }
+    if (q.expiry !== "any") {
+      const now = new Date()
+      countQuery = q.expiry === "expired"
+        ? countQuery.where("expires_at", "is not", null).where("expires_at", "<=", now)
+        : countQuery.where((eb) => eb.or([eb("expires_at", "is", null), eb("expires_at", ">", now)]))
+    }
+    const { total: matched = 0 } = (await countQuery.executeTakeFirst()) ?? {}
 
     return c.json({ data: rows.map(toLink), total: matched, limit: q.limit, offset: q.offset })
   })
@@ -241,8 +234,9 @@ export const linkRoutes = new Hono<Env>()
    */
   .get("/count", validate("query", linkCountQuerySchema), async (c) => {
     const q = c.req.valid("query")
-    const where = q.status !== "all" ? eq(links.status, q.status) : undefined
-    const [{ total }] = await c.var.db.select({ total: count() }).from(links).where(where)
+    let countQuery = c.var.db.selectFrom("links").select((eb) => eb.fn.countAll<number>().as("total"))
+    if (q.status !== "all") countQuery = countQuery.where("status", "=", q.status)
+    const { total = 0 } = (await countQuery.executeTakeFirst()) ?? {}
     return c.json({ total })
   })
 
@@ -261,13 +255,14 @@ export const linkRoutes = new Hono<Env>()
     // one domain still run in parallel and only an in-flight archive blocks
     // them. Without this lock, a plain transaction would not close the race
     // under READ COMMITTED.
-    const row = await c.var.db.transaction(async (tx) => {
-      const [domain] = await tx
-        .select()
-        .from(domains)
-        .where(eq(domains.id, body.domain_id))
-        .for("share")
+    const row = await c.var.db.transaction().execute(async (tx) => {
+      const domain = await tx
+        .selectFrom("domains")
+        .selectAll()
+        .where("id", "=", body.domain_id)
+        .forShare()
         .limit(1)
+        .executeTakeFirst()
       if (!domain) throw ApiError.notFound("domain")
       if (domain.status === "archived") throw ApiError.conflict("domain is archived")
 
@@ -296,7 +291,7 @@ export const linkRoutes = new Hono<Env>()
       )
 
       if (body.rules && body.rules.length > 0) {
-        await tx.insert(rules).values(
+        await tx.insertInto("rules").values(
           body.rules.map((rule, position) => ({
             id: Bun.randomUUIDv7(),
             link_id: linkRow.id,
@@ -304,7 +299,7 @@ export const linkRoutes = new Hono<Env>()
             destination: rule.destination,
             conditions: rule.conditions,
           })),
-        )
+        ).execute()
       }
 
       return linkRow
@@ -332,9 +327,9 @@ export const linkRoutes = new Hono<Env>()
     const fetched =
       patch.destination !== undefined ? await c.var.metadata.fetch(patch.destination) : null
 
-    await c.var.db.transaction(async (tx) => {
+    await c.var.db.transaction().execute(async (tx) => {
       await tx
-        .update(links)
+        .updateTable("links")
         .set({
           // Spelled out rather than a blanket `...patch` spread: `expires_at`
           // arrives as an ISO string and the column takes a Date, so the spread
@@ -361,12 +356,13 @@ export const linkRoutes = new Hono<Env>()
           ...(patch.listed !== undefined ? { listed: patch.listed } : {}),
           updated_at: new Date(),
         })
-        .where(eq(links.id, id))
+        .where("id", "=", id)
+        .execute()
 
       if (patch.rules !== undefined) {
-        await tx.delete(rules).where(eq(rules.link_id, id))
+        await tx.deleteFrom("rules").where("link_id", "=", id).execute()
         if (patch.rules.length > 0) {
-          await tx.insert(rules).values(
+          await tx.insertInto("rules").values(
             patch.rules.map((rule, position) => ({
               id: Bun.randomUUIDv7(),
               link_id: id,
@@ -374,7 +370,7 @@ export const linkRoutes = new Hono<Env>()
               destination: rule.destination,
               conditions: rule.conditions,
             })),
-          )
+          ).execute()
         }
       }
     })
@@ -399,9 +395,10 @@ export const linkRoutes = new Hono<Env>()
       "link.purgeAll",
       () =>
         c.var.db
-          .delete(links)
-          .where(eq(links.status, "archived"))
-          .returning({ domain_id: links.domain_id, slug: links.slug }),
+          .deleteFrom("links")
+          .where("status", "=", "archived")
+          .returning(["domain_id", "slug"])
+          .execute(),
       { out: (deleted) => ({ purged: deleted.length }) },
     )
 
@@ -417,9 +414,10 @@ export const linkRoutes = new Hono<Env>()
     assertCanArchive(c.var.principal)
 
     await c.var.db
-      .update(links)
+      .updateTable("links")
       .set({ status: "archived", updated_at: new Date() })
-      .where(eq(links.id, id))
+      .where("id", "=", id)
+      .execute()
     await c.var.cache.del(...linkKeys(existing.domain_id, existing.slug))
     return c.json(await fetchLink(c.var.db, id))
   })
@@ -441,7 +439,7 @@ export const linkRoutes = new Hono<Env>()
       throw ApiError.conflict("archive the link before purging it")
     }
 
-    await span("link.purge", async () => c.var.db.delete(links).where(eq(links.id, id)), {
+    await span("link.purge", async () => c.var.db.deleteFrom("links").where("id", "=", id).execute(), {
       in: { link_id: id, slug: existing.slug },
     })
     await c.var.cache.del(...linkKeys(existing.domain_id, existing.slug))
@@ -451,16 +449,18 @@ export const linkRoutes = new Hono<Env>()
 /** Tags are derived from active links; there is no tag table to keep in step. */
 export const tagRoutes = new Hono<Env>().get("/", async (c) => {
   const expanded = c.var.db
-    .select({ tag: sql<string>`unnest(${links.tags})`.as("tag") })
-    .from(links)
-    .where(eq(links.status, "active"))
+    .selectFrom("links")
+    .select(sql<string>`unnest(tags)`.as("tag"))
+    .where("status", "=", "active")
     .as("expanded")
 
   const rows = await c.var.db
-    .select({ tag: expanded.tag, count: count() })
-    .from(expanded)
-    .groupBy(expanded.tag)
-    .orderBy(desc(count()), asc(expanded.tag))
+    .selectFrom(expanded)
+    .select(["expanded.tag as tag", (eb) => eb.fn.countAll<number>().as("count")])
+    .groupBy("expanded.tag")
+    .orderBy("count", "desc")
+    .orderBy("expanded.tag")
+    .execute()
 
   return c.json(rows)
 })

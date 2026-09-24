@@ -13,8 +13,10 @@ covers what isn't obvious from the code.
 - `bun run test` needs nothing running. It uses an in-memory Postgres
   (PGlite, see `apps/server/test/helpers/db.ts`) per suite, never the real
   database or `DATABASE_URL`.
-- After editing `apps/server/src/db/schema.ts`, run `bun run db:generate` to
-  produce the migration. Don't hand-edit generated migration SQL.
+- Database DDL lives in ordered SQL files under `apps/server/drizzle/`, run by
+  Kysely at boot. Add and review a new migration there, then run
+  `bun run db:codegen` against a migrated PostgreSQL database to refresh query
+  types. `bun run db:migrate` runs the same migration runner explicitly.
 
 ## Redis and Caddy are optional, and fail loud
 

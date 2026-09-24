@@ -3,7 +3,7 @@ import { bootstrap } from "./bootstrap.ts"
 import { startCache } from "./cache.ts"
 import { guarded as guardedCaddy, reconcileCaddy, startCaddy } from "./caddy.ts"
 import { loadConfig } from "./config.ts"
-import { createDb } from "./db/client.ts"
+import { createDb, destroyDb } from "./db/client.ts"
 import { runMigrations } from "./db/migrate.ts"
 import { createApp } from "./http/app.ts"
 import { guarded as guardedMetadata, startMetadata } from "./link-metadata.ts"
@@ -14,9 +14,9 @@ const config = loadConfig()
 // Before anything else logs: the logger is silent until this runs.
 await initLogger(config)
 
-const db = createDb(config.DATABASE_URL)
+const db = createDb(config.DATABASE_URL, config.LINQ_DB_SCHEMA)
 
-await runMigrations(db)
+await runMigrations(db, { advisoryLock: true, schema: config.LINQ_DB_SCHEMA })
 await bootstrap(db, config)
 
 const cache = await startCache(config)
@@ -44,6 +44,7 @@ async function shutdown(signal: string): Promise<void> {
   await flushVisits()
   cache.stop()
   await flushLogs()
+  await destroyDb(db)
   process.exit(0)
 }
 

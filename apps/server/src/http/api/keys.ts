@@ -11,12 +11,12 @@ import {
   paginationSchema,
   uuidSchema,
 } from "@linq/shared"
-import { asc, count, eq } from "drizzle-orm"
 import { Hono } from "hono"
 import { z } from "zod"
 import { createApiKey } from "../../auth/mint.ts"
 import { assertCan } from "../../auth/permissions.ts"
-import { apiKeys } from "../../db/schema.ts"
+import type { Selectable } from "kysely"
+import type { DB } from "../../db/types.generated.ts"
 import type { Env } from "../env.ts"
 import { validate } from "../validate.ts"
 
@@ -24,7 +24,7 @@ const idParam = validate("param", z.object({ id: uuidSchema }))
 const resolvedClaims = (value: { preset?: keyof typeof claimsForPreset; claims?: unknown }) =>
   value.preset ? [...claimsForPreset[value.preset]] : claimsSchema.parse(value.claims)
 
-export function toApiKey(row: typeof apiKeys.$inferSelect): ApiKey {
+export function toApiKey(row: Selectable<DB["api_keys"]>): ApiKey {
   const claims = claimsSchema.parse(row.claims)
   return {
     id: row.id,
@@ -43,12 +43,13 @@ export const keyRoutes = new Hono<Env>()
     assertCan(c.var.principal, "read", "Key")
     const { limit, offset } = c.req.valid("query")
     const rows = await c.var.db
-      .select()
-      .from(apiKeys)
-      .orderBy(asc(apiKeys.name))
+      .selectFrom("api_keys")
+      .selectAll()
+      .orderBy("name")
       .limit(limit)
       .offset(offset)
-    const [total] = await c.var.db.select({ value: count() }).from(apiKeys)
+      .execute()
+    const total = await c.var.db.selectFrom("api_keys").select((eb) => eb.fn.countAll<number>().as("value")).executeTakeFirst()
     const canManage = c.var.principal.ability.can("create", "Key")
     const data: (ApiKey | ApiKeySummary)[] = rows.map((row) => {
       const key = toApiKey(row)
@@ -70,11 +71,12 @@ export const keyRoutes = new Hono<Env>()
   })
   .get("/:id", idParam, async (c) => {
     assertCan(c.var.principal, "read", "Key")
-    const [row] = await c.var.db
-      .select()
-      .from(apiKeys)
-      .where(eq(apiKeys.id, c.req.valid("param").id))
+    const row = await c.var.db
+      .selectFrom("api_keys")
+      .selectAll()
+      .where("id", "=", c.req.valid("param").id)
       .limit(1)
+      .executeTakeFirst()
     if (!row) throw ApiError.notFound("key")
     return c.json(toApiKey(row))
   })
@@ -84,8 +86,8 @@ export const keyRoutes = new Hono<Env>()
     const patch = c.req.valid("json")
     if ((patch.claims !== undefined || patch.preset !== undefined) && id === c.var.principal.keyId)
       throw ApiError.forbidden("you cannot change the claims of the key you are using")
-    const [row] = await c.var.db
-      .update(apiKeys)
+    const row = await c.var.db
+      .updateTable("api_keys")
       .set({
         ...(patch.name !== undefined ? { name: patch.name } : {}),
         ...(patch.claims !== undefined || patch.preset !== undefined
@@ -96,8 +98,9 @@ export const keyRoutes = new Hono<Env>()
           : {}),
         updated_at: new Date(),
       })
-      .where(eq(apiKeys.id, id))
-      .returning()
+      .where("id", "=", id)
+      .returningAll()
+      .executeTakeFirst()
     if (!row) throw ApiError.notFound("key")
     return c.json(toApiKey(row))
   })
@@ -106,10 +109,11 @@ export const keyRoutes = new Hono<Env>()
     const { id } = c.req.valid("param")
     if (id === c.var.principal.keyId)
       throw ApiError.forbidden("you cannot revoke the key you are using")
-    const [row] = await c.var.db
-      .delete(apiKeys)
-      .where(eq(apiKeys.id, id))
-      .returning({ id: apiKeys.id })
+    const row = await c.var.db
+      .deleteFrom("api_keys")
+      .where("id", "=", id)
+      .returning("id")
+      .executeTakeFirst()
     if (!row) throw ApiError.notFound("key")
     return c.body(null, 204)
   })

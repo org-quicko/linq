@@ -1,6 +1,5 @@
 import type { Claim } from "@linq/shared"
 import type { Db } from "../db/client.ts"
-import { apiKeys } from "../db/schema.ts"
 import { generateKey, hashKey, keyPrefix } from "./keys.ts"
 
 export async function createApiKey(
@@ -8,8 +7,8 @@ export async function createApiKey(
   opts: { name: string; claims: readonly Claim[]; expires_at?: Date | null },
 ) {
   const secret = generateKey()
-  const [row] = await db
-    .insert(apiKeys)
+  const row = await db
+    .insertInto("api_keys")
     .values({
       id: Bun.randomUUIDv7(),
       name: opts.name,
@@ -18,7 +17,8 @@ export async function createApiKey(
       prefix: keyPrefix(secret),
       expires_at: opts.expires_at ?? null,
     })
-    .returning()
+    .returningAll()
+    .executeTakeFirst()
   if (!row) throw new Error("insert returned no row")
   return { row, secret }
 }

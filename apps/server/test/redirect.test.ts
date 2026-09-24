@@ -1,6 +1,4 @@
 import { beforeAll, describe, expect, test } from "bun:test"
-import { desc, eq, isNull } from "drizzle-orm"
-import { domains, visits } from "../src/db/schema.ts"
 import { flushVisits } from "../src/visits/record.ts"
 import { createHarness, type Harness } from "./helpers/app.ts"
 
@@ -18,14 +16,17 @@ let domain: string
 /** The redirect never awaits its insert, so tests drain it before asserting. */
 async function lastVisit() {
   await flushVisits()
-  const [row] = await h.db.select().from(visits).orderBy(desc(visits.id)).limit(1)
-  return row
+  return await h.db
+    .selectFrom("visits")
+    .selectAll()
+    .orderBy("id", "desc")
+    .executeTakeFirstOrThrow()
 }
 
 /** Total rows in `visits`, drained first so nothing is still in flight. */
 async function visitCount() {
   await flushVisits()
-  return (await h.db.select().from(visits)).length
+  return (await h.db.selectFrom("visits").selectAll().execute()).length
 }
 
 beforeAll(async () => {
@@ -215,18 +216,18 @@ describe("orphan visits", () => {
     expect(res.status).toBe(404)
 
     await flushVisits()
-    const [row] = await h.db
-      .select()
-      .from(visits)
-      .where(eq(visits.domain_id, bare))
-      .orderBy(desc(visits.id))
-      .limit(1)
+    const row = await h.db
+      .selectFrom("visits")
+      .selectAll()
+      .where("domain_id", "=", bare)
+      .orderBy("id", "desc")
+      .executeTakeFirst()
     expect(row).toMatchObject({ link_id: null, slug_requested: "missing", destination: null })
   })
 
   test("orphan visits are the rows with a null link", async () => {
     await flushVisits()
-    const orphans = await h.db.select().from(visits).where(isNull(visits.link_id))
+    const orphans = await h.db.selectFrom("visits").selectAll().where("link_id", "is", null).execute()
     expect(orphans.length).toBeGreaterThan(0)
   })
 })
@@ -244,9 +245,10 @@ describe("the three redirect fields", () => {
     const host = "base-path-redirect.test"
     const id = await h.createDomain(host, "https://example.com/fallback")
     await h.db
-      .update(domains)
+      .updateTable("domains")
       .set({ base_path_redirect: "https://example.com/home" })
-      .where(eq(domains.id, id))
+      .where("id", "=", id)
+      .execute()
 
     const res = await get("/", { host })
     expect(res.status).toBe(302)
@@ -257,9 +259,10 @@ describe("the three redirect fields", () => {
     const host = "invalid-slug-redirect.test"
     const id = await h.createDomain(host, "https://example.com/fallback")
     await h.db
-      .update(domains)
+      .updateTable("domains")
       .set({ invalid_short_url_redirect: "https://example.com/bad-slug" })
-      .where(eq(domains.id, id))
+      .where("id", "=", id)
+      .execute()
 
     // Multiple segments and a too-long segment are both rejected by
     // SLUG_PATTERN, so both count as malformed rather than merely unknown.
@@ -275,9 +278,10 @@ describe("the three redirect fields", () => {
     const host = "well-formed-unknown.test"
     const id = await h.createDomain(host, "https://example.com/fallback")
     await h.db
-      .update(domains)
+      .updateTable("domains")
       .set({ invalid_short_url_redirect: "https://example.com/bad-slug" })
-      .where(eq(domains.id, id))
+      .where("id", "=", id)
+      .execute()
 
     const res = await get("/never-existed", { host })
     expect(res.headers.get("location")).toBe("https://example.com/fallback")
@@ -499,12 +503,12 @@ describe("link expiry", () => {
     const res = await get("/lapsed", { host: "expiry-bare.test" })
     expect(res.status).toBe(404)
     await flushVisits()
-    const [row] = await h.db
-      .select()
-      .from(visits)
-      .where(eq(visits.domain_id, bare))
-      .orderBy(desc(visits.id))
-      .limit(1)
+    const row = await h.db
+      .selectFrom("visits")
+      .selectAll()
+      .where("domain_id", "=", bare)
+      .orderBy("id", "desc")
+      .executeTakeFirst()
     expect(row).toMatchObject({ link_id: null, slug_requested: "lapsed" })
   })
 

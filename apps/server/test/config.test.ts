@@ -18,6 +18,19 @@ describe("cache configuration", () => {
   })
 })
 
+describe("database schema configuration", () => {
+  test("defaults to the public schema", () => {
+    expect(loadConfig({ DATABASE_URL: "memory://pglite" }).LINQ_DB_SCHEMA).toBe("public")
+  })
+
+  test("accepts a non-public PostgreSQL schema name", () => {
+    expect(
+      loadConfig({ DATABASE_URL: "memory://pglite", LINQ_DB_SCHEMA: "shortener_data" })
+        .LINQ_DB_SCHEMA,
+    ).toBe("shortener_data")
+  })
+})
+
 describe("security configuration", () => {
   test("keeps outbound metadata fetching opt-in", () => {
     expect(loadConfig({ DATABASE_URL: "memory://pglite" }).LINQ_FETCH_LINK_METADATA).toBe("false")

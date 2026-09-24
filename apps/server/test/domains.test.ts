@@ -1,7 +1,5 @@
 import { beforeAll, describe, expect, test } from "bun:test"
-import { eq } from "drizzle-orm"
 import type { Caddy } from "../src/caddy.ts"
-import { domains } from "../src/db/schema.ts"
 import { createHarness, type Harness } from "./helpers/app.ts"
 
 let h: Harness
@@ -163,7 +161,7 @@ describe("purging a domain", () => {
     // while this link exists. Written directly to reproduce exactly what
     // A2's race would otherwise leave behind, and to prove the purge
     // handler's own guard (A3) holds regardless of how the domain got here.
-    await h.db.update(domains).set({ status: "archived" }).where(eq(domains.id, domain))
+    await h.db.updateTable("domains").set({ status: "archived" }).where("id", "=", domain).execute()
 
     const res = await h.request(`/api/v1/domains/${domain}/purge`, {
       key: admin.key,

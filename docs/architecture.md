@@ -75,8 +75,8 @@ handler runs
 
 ## Data model
 
-Six tables, one migration tool (Drizzle, `apps/server/src/db/schema.ts` →
-`bun run db:generate`). A domain hosts links; a link belongs to a domain and
+Six tables, one migration tool (Kysely runs ordered SQL in
+`apps/server/drizzle/`; `kysely-codegen` writes `src/db/types.generated.ts`). A domain hosts links; a link belongs to a domain and
 carries no reference to the key that created it (`docs/adr/0016`); a link may
 carry ordered rules (alternate destinations gated on platform or query-param
 conditions, first match wins — `rules/match.ts`) and styled QR codes.

@@ -1,7 +1,6 @@
 import { beforeEach, describe, expect, test } from "bun:test"
-import { and, eq, isNull, sql } from "drizzle-orm"
+import { sql } from "kysely"
 import type { Db } from "../src/db/client.ts"
-import { visitCounts, visitDays, visits } from "../src/db/schema.ts"
 import { flushVisits } from "../src/visits/record.ts"
 import { createHarness, type Harness } from "./helpers/app.ts"
 
@@ -10,61 +9,66 @@ const DESKTOP = "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537
 const ANDROID = "Mozilla/5.0 (Linux; Android 14; Pixel 8) AppleWebKit/537.36 Chrome/120 Mobile"
 const BOT = "Mozilla/5.0 (compatible; Googlebot/2.1; +http://www.google.com/bot.html)"
 
-/** The five dimensions the trigger writes, and the visit column each one reads. */
 const DIMENSIONS = {
-  total: sql`''`,
-  platform: sql`${visits.platform}::text`,
-  referer: sql`coalesce(${visits.referer_host}, '')`,
-  destination: sql`coalesce(${visits.destination}, '')`,
-  slug: sql`${visits.slug_requested}`,
+  total: sql<string>`''`,
+  platform: sql<string>`platform::text`,
+  referer: sql<string>`coalesce(referer_host, '')`,
+  destination: sql<string>`coalesce(destination, '')`,
+  slug: sql<string>`slug_requested`,
 } as const
 
-/**
- * The same numbers computed the old way: a live aggregate over `visits`. Every
- * assertion below compares the rollup against this rather than against a
- * hand-counted literal, so a drifting increment cannot pass by agreeing with a
- * stale expectation.
- */
 async function liveDays(db: Db, dimension: keyof typeof DIMENSIONS) {
   const rows = await db
-    .select({
-      day: sql<string>`to_char(${visits.occurred_at} at time zone 'UTC', 'YYYY-MM-DD')`.as("day"),
-      domain_id: visits.domain_id,
-      link_id: visits.link_id,
-      value: sql<string>`${DIMENSIONS[dimension]}`.as("value"),
-      is_bot: visits.is_bot,
-      count: sql<number>`count(*)`.mapWith(Number),
-    })
-    .from(visits)
+    .selectFrom("visits")
+    .select([
+      sql<string>`to_char(occurred_at at time zone 'UTC', 'YYYY-MM-DD')`.as("day"),
+      "domain_id",
+      "link_id",
+      DIMENSIONS[dimension].as("value"),
+      "is_bot",
+      sql<number>`count(*)`.as("count"),
+    ])
     .groupBy(sql`1, 2, 3, 4, 5`)
+    .execute()
   return rows
-    .map((r) => `${r.day}|${r.domain_id}|${r.link_id ?? "-"}|${r.value}|${r.is_bot}|${r.count}`)
+    .map(
+      (row) =>
+        `${row.day}|${row.domain_id}|${row.link_id ?? "-"}|${row.value}|${row.is_bot}|${row.count}`,
+    )
     .sort()
 }
 
 async function rolledDays(db: Db, dimension: keyof typeof DIMENSIONS) {
-  const rows = await db.select().from(visitDays).where(eq(visitDays.dimension, dimension))
+  const rows = await db
+    .selectFrom("visit_days")
+    .selectAll()
+    .where("dimension", "=", dimension)
+    .execute()
   return rows
-    .map((r) => `${r.day}|${r.domain_id}|${r.link_id ?? "-"}|${r.value}|${r.is_bot}|${r.count}`)
+    .map(
+      (row) =>
+        `${row.day.toISOString().slice(0, 10)}|${row.domain_id}|${row.link_id ?? "-"}|${row.value}|${row.is_bot}|${row.count}`,
+    )
     .sort()
 }
 
 async function liveCounts(db: Db) {
   const rows = await db
-    .select({
-      domain_id: visits.domain_id,
-      link_id: visits.link_id,
-      human: sql<number>`count(*) filter (where not ${visits.is_bot})`.mapWith(Number),
-      bot: sql<number>`count(*) filter (where ${visits.is_bot})`.mapWith(Number),
-    })
-    .from(visits)
-    .groupBy(visits.domain_id, visits.link_id)
-  return rows.map((r) => `${r.domain_id}|${r.link_id ?? "-"}|${r.human}|${r.bot}`).sort()
+    .selectFrom("visits")
+    .select([
+      "domain_id",
+      "link_id",
+      sql<number>`count(*) filter (where not is_bot)`.as("human"),
+      sql<number>`count(*) filter (where is_bot)`.as("bot"),
+    ])
+    .groupBy(["domain_id", "link_id"])
+    .execute()
+  return rows.map((row) => `${row.domain_id}|${row.link_id ?? "-"}|${row.human}|${row.bot}`).sort()
 }
 
 async function rolledCounts(db: Db) {
-  const rows = await db.select().from(visitCounts)
-  return rows.map((r) => `${r.domain_id}|${r.link_id ?? "-"}|${r.human}|${r.bot}`).sort()
+  const rows = await db.selectFrom("visit_counts").selectAll().execute()
+  return rows.map((row) => `${row.domain_id}|${row.link_id ?? "-"}|${row.human}|${row.bot}`).sort()
 }
 
 let h: Harness
@@ -79,11 +83,9 @@ beforeEach(async () => {
   domain = await h.createDomain(HOST, "https://example.com/fallback")
 })
 
-/** Drives real traffic through the redirect, so the triggers see real rows. */
 async function traffic() {
   const one = await h.createLink(editor.key, domain, { slug: "one" })
   const two = await h.createLink(editor.key, domain, { slug: "two" })
-
   for (const [slug, agent, referer] of [
     ["one", DESKTOP, "https://news.test/"],
     ["one", DESKTOP, "https://news.test/"],
@@ -91,7 +93,6 @@ async function traffic() {
     ["one", BOT, null],
     ["two", DESKTOP, null],
     ["two", BOT, "https://crawler.test/"],
-    // Two orphans: an unknown slug and the root path.
     ["ghost", DESKTOP, null],
     ["", DESKTOP, null],
   ] as const) {
@@ -106,42 +107,43 @@ async function traffic() {
 describe("the day-wise rollup", () => {
   test("agrees with a live aggregate on every dimension", async () => {
     await traffic()
-    for (const dimension of Object.keys(DIMENSIONS) as (keyof typeof DIMENSIONS)[]) {
+    for (const dimension of Object.keys(DIMENSIONS) as (keyof typeof DIMENSIONS)[])
       expect(await rolledDays(h.db, dimension)).toEqual(await liveDays(h.db, dimension))
-    }
   })
 
   test("counts the day's whole traffic under `total`", async () => {
     await traffic()
-    const [{ rolled }] = await h.db
-      .select({ rolled: sql<number>`coalesce(sum(${visitDays.count}), 0)`.mapWith(Number) })
-      .from(visitDays)
-      .where(eq(visitDays.dimension, "total"))
-    expect(rolled).toBe((await h.db.select().from(visits)).length)
+    const rolled = await h.db
+      .selectFrom("visit_days")
+      .select(sql<number>`coalesce(sum(count), 0)`.as("rolled"))
+      .where("dimension", "=", "total")
+      .executeTakeFirstOrThrow()
+    expect(Number(rolled.rolled)).toBe((await h.db.selectFrom("visits").selectAll().execute()).length)
   })
 
   test("a second visit increments the row rather than adding one", async () => {
     await h.createLink(editor.key, domain, { slug: "again" })
     const hit = () => h.request("/again", { host: HOST, headers: { "user-agent": DESKTOP } })
-
     await hit()
     await flushVisits()
-    const after1 = await h.db.select().from(visitDays).where(eq(visitDays.dimension, "total"))
+    const after1 = await h.db.selectFrom("visit_days").selectAll().where("dimension", "=", "total").execute()
     await hit()
     await flushVisits()
-    const after2 = await h.db.select().from(visitDays).where(eq(visitDays.dimension, "total"))
-
+    const after2 = await h.db.selectFrom("visit_days").selectAll().where("dimension", "=", "total").execute()
     expect(after1).toHaveLength(1)
     expect(after2).toHaveLength(1)
-    expect(after2[0].count).toBe(2)
+    expect(after2[0]?.count).toBe(2)
   })
 
   test("an unrecorded dimension is stored as an empty value, not a word", async () => {
     await h.createLink(editor.key, domain, { slug: "bare" })
     await h.request("/bare", { host: HOST, headers: { "user-agent": DESKTOP } })
     await flushVisits()
-
-    const [row] = await h.db.select().from(visitDays).where(eq(visitDays.dimension, "referer"))
+    const row = await h.db
+      .selectFrom("visit_days")
+      .selectAll()
+      .where("dimension", "=", "referer")
+      .executeTakeFirstOrThrow()
     expect(row.value).toBe("")
   })
 })
@@ -154,12 +156,14 @@ describe("the summary counts", () => {
 
   test("split human and bot, and remember the last visit", async () => {
     const link = await h.createLink(editor.key, domain, { slug: "split" })
-    for (const agent of [DESKTOP, DESKTOP, BOT]) {
+    for (const agent of [DESKTOP, DESKTOP, BOT])
       await h.request("/split", { host: HOST, headers: { "user-agent": agent } })
-    }
     await flushVisits()
-
-    const [row] = await h.db.select().from(visitCounts).where(eq(visitCounts.link_id, link.id))
+    const row = await h.db
+      .selectFrom("visit_counts")
+      .selectAll()
+      .where("link_id", "=", link.id)
+      .executeTakeFirstOrThrow()
     expect({ human: row.human, bot: row.bot }).toEqual({ human: 2, bot: 1 })
     expect(row.last_visit_at).not.toBeNull()
   })
@@ -168,44 +172,35 @@ describe("the summary counts", () => {
     await h.request("/nowhere", { host: HOST, headers: { "user-agent": DESKTOP } })
     await h.request("/elsewhere", { host: HOST, headers: { "user-agent": DESKTOP } })
     await flushVisits()
-
-    const rows = await h.db.select().from(visitCounts).where(isNull(visitCounts.link_id))
+    const rows = await h.db.selectFrom("visit_counts").selectAll().where("link_id", "is", null).execute()
     expect(rows).toHaveLength(1)
-    expect(rows[0].human).toBe(2)
+    expect(rows[0]?.human).toBe(2)
   })
 })
 
 describe("purge", () => {
-  /** Purging a link destroys its rollups; existing orphan rollups are untouched. */
   test("a purged link's rollups are destroyed, not orphaned", async () => {
     const { one } = await traffic()
     const before = { days: await liveDays(h.db, "total"), counts: await liveCounts(h.db) }
     expect(before.days.length).toBeGreaterThan(1)
-
     const orphanBefore = await h.db
-      .select()
-      .from(visitCounts)
-      .where(and(eq(visitCounts.domain_id, domain), isNull(visitCounts.link_id)))
-
+      .selectFrom("visit_counts")
+      .selectAll()
+      .where("domain_id", "=", domain)
+      .where("link_id", "is", null)
+      .execute()
     await h.request(`/api/v1/links/${one.id}`, { key: admin.key, method: "DELETE" })
     await h.request(`/api/v1/links/${one.id}/purge`, { key: admin.key, method: "DELETE" })
-
-    // `visits.link_id` is ON DELETE cascade, so the live aggregate has shrunk
-    // with it — the rollup must shrink the same way, not merge into orphan.
-    for (const dimension of Object.keys(DIMENSIONS) as (keyof typeof DIMENSIONS)[]) {
+    for (const dimension of Object.keys(DIMENSIONS) as (keyof typeof DIMENSIONS)[])
       expect(await rolledDays(h.db, dimension)).toEqual(await liveDays(h.db, dimension))
-    }
     expect(await rolledCounts(h.db)).toEqual(await liveCounts(h.db))
-
-    const leftBehind = await h.db.select().from(visitDays).where(eq(visitDays.link_id, one.id))
-    expect(leftBehind).toHaveLength(0)
-
-    // The domain's genuine orphan traffic (from `traffic()`'s unknown slug and
-    // root path) is exactly as it was — this link's counts were never merged in.
+    expect(await h.db.selectFrom("visit_days").selectAll().where("link_id", "=", one.id).execute()).toHaveLength(0)
     const orphanAfter = await h.db
-      .select()
-      .from(visitCounts)
-      .where(and(eq(visitCounts.domain_id, domain), isNull(visitCounts.link_id)))
+      .selectFrom("visit_counts")
+      .selectAll()
+      .where("domain_id", "=", domain)
+      .where("link_id", "is", null)
+      .execute()
     expect(orphanAfter).toEqual(orphanBefore)
   })
 
@@ -213,33 +208,28 @@ describe("purge", () => {
     const spare = await h.createDomain("spare.test")
     const link = await h.createLink(editor.key, spare, { slug: "doomed" })
     await h.request("/doomed", { host: "spare.test", headers: { "user-agent": DESKTOP } })
-    // Genuine orphan traffic, so there's still an orphan-scoped rollup row on
-    // `spare` after the link below is purged — proving domain purge, not link
-    // purge, is what removes it.
     await h.recordVisits(null, spare, { human: 1 })
     await flushVisits()
-    expect(
-      await h.db.select().from(visitDays).where(eq(visitDays.domain_id, spare)),
-    ).not.toHaveLength(0)
-
+    expect(await h.db.selectFrom("visit_days").selectAll().where("domain_id", "=", spare).execute()).not.toHaveLength(0)
     await h.request(`/api/v1/links/${link.id}`, { key: admin.key, method: "DELETE" })
     await h.request(`/api/v1/links/${link.id}/purge`, { key: admin.key, method: "DELETE" })
-
     const orphanAfterLinkPurge = await h.db
-      .select()
-      .from(visitCounts)
-      .where(and(eq(visitCounts.domain_id, spare), isNull(visitCounts.link_id)))
+      .selectFrom("visit_counts")
+      .selectAll()
+      .where("domain_id", "=", spare)
+      .where("link_id", "is", null)
+      .execute()
     expect(orphanAfterLinkPurge).not.toHaveLength(0)
-
     await h.request(`/api/v1/domains/${spare}`, { key: admin.key, method: "DELETE" })
     await h.request(`/api/v1/domains/${spare}/purge`, { key: admin.key, method: "DELETE" })
-
-    expect(await h.db.select().from(visitDays).where(eq(visitDays.domain_id, spare))).toHaveLength(0)
+    expect(await h.db.selectFrom("visit_days").selectAll().where("domain_id", "=", spare).execute()).toHaveLength(0)
     expect(
       await h.db
-        .select()
-        .from(visitCounts)
-        .where(and(eq(visitCounts.domain_id, spare), isNull(visitCounts.link_id))),
+        .selectFrom("visit_counts")
+        .selectAll()
+        .where("domain_id", "=", spare)
+        .where("link_id", "is", null)
+        .execute(),
     ).toHaveLength(0)
   })
 })

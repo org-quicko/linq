@@ -1,11 +1,9 @@
 import { type Condition, SLUG_PATTERN } from "@linq/shared"
-import { and, eq, inArray } from "drizzle-orm"
 import type { Context } from "hono"
 import { createFactory } from "hono/factory"
 import { domainKey, targetKey } from "../cache.ts"
 import { isReservedSlug } from "../config.ts"
 import type { Db } from "../db/client.ts"
-import { domains, links } from "../db/schema.ts"
 import { reqLog, span } from "../log.ts"
 import { matchRules } from "../rules/match.ts"
 import { listRules } from "../rules/store.ts"
@@ -62,15 +60,11 @@ export function findActiveDomain(db: Db, hostHeader: string): Promise<ResolvedDo
       const candidates = candidateHosts(hostHeader)
 
       const rows = await db
-        .select({
-          id: domains.id,
-          host: domains.host,
-          fallback_url: domains.fallback_url,
-          base_path_redirect: domains.base_path_redirect,
-          invalid_short_url_redirect: domains.invalid_short_url_redirect,
-        })
-        .from(domains)
-        .where(and(inArray(domains.host, candidates), eq(domains.status, "active")))
+        .selectFrom("domains")
+        .select(["id", "host", "fallback_url", "base_path_redirect", "invalid_short_url_redirect"])
+        .where("host", "in", candidates)
+        .where("status", "=", "active")
+        .execute()
 
       const row = rows.find((r) => r.host === host) ?? rows[0] ?? null
       return row
@@ -101,10 +95,11 @@ function hostHasAnyDomain(db: Db, hostHeader: string): Promise<boolean> {
     "domain.hostHasAny",
     async () => {
       const rows = await db
-        .select({ id: domains.id })
-        .from(domains)
-        .where(inArray(domains.host, candidateHosts(hostHeader)))
+        .selectFrom("domains")
+        .select("id")
+        .where("host", "in", candidateHosts(hostHeader))
         .limit(1)
+        .execute()
       return rows.length > 0
     },
     { in: { host: hostHeader } },
@@ -119,13 +114,14 @@ function findActiveTarget(db: Db, domain_id: string, slug: string): Promise<Reso
   return span(
     "link.findActive",
     async () => {
-      const [row] = await db
-        .select()
-        .from(links)
-        .where(
-          and(eq(links.domain_id, domain_id), eq(links.slug, slug), eq(links.status, "active")),
-        )
+      const row = await db
+        .selectFrom("links")
+        .selectAll()
+        .where("domain_id", "=", domain_id)
+        .where("slug", "=", slug)
+        .where("status", "=", "active")
         .limit(1)
+        .executeTakeFirst()
       if (!row) return null
       // Rules ride inside the same entry: every hit that resolves reads them, so
       // caching the link without them would leave a query behind on the hot path.

@@ -6,23 +6,23 @@ import {
   paginationSchema,
   uuidSchema,
 } from "@linq/shared"
-import { asc, count, eq, sql } from "drizzle-orm"
+import { sql, type Selectable } from "kysely"
 import { Hono } from "hono"
 import { z } from "zod"
 import { assertCan, assertCanPurge } from "../../auth/permissions.ts"
 import { domainKey } from "../../cache.ts"
 import type { Db } from "../../db/client.ts"
-import { domains, links } from "../../db/schema.ts"
+import type { DB } from "../../db/types.generated.ts"
 import { span } from "../../log.ts"
 import type { Env } from "../env.ts"
 import { validate } from "../validate.ts"
 
 const idParam = validate("param", z.object({ id: uuidSchema }))
 
-type DomainRow = { domain: typeof domains.$inferSelect; link_count: number }
+type DomainRow = Selectable<DB["domains"]> & { link_count: number }
 
 /** Maps a domain row and its link count to the JSON shape the API returns. */
-function toDomain({ domain, link_count }: DomainRow): Domain {
+function toDomain({ link_count, ...domain }: DomainRow): Domain {
   return {
     id: domain.id,
     host: domain.host,
@@ -42,18 +42,16 @@ function toDomain({ domain, link_count }: DomainRow): Domain {
  */
 function domainQuery(db: Db) {
   const counts = db
-    .select({ domain_id: links.domain_id, n: sql<number>`count(*)`.as("n") })
-    .from(links)
-    .groupBy(links.domain_id)
+    .selectFrom("links")
+    .select(["domain_id", sql<number>`count(*)`.as("n")])
+    .groupBy("domain_id")
     .as("link_counts")
 
   return db
-    .select({
-      domain: domains,
-      link_count: sql<number>`coalesce(${counts.n}, 0)`.mapWith(Number),
-    })
-    .from(domains)
-    .leftJoin(counts, eq(counts.domain_id, domains.id))
+    .selectFrom("domains")
+    .leftJoin(counts, "link_counts.domain_id", "domains.id")
+    .selectAll("domains")
+    .select(sql<number>`coalesce(link_counts.n, 0)`.as("link_count"))
 }
 
 /** Loads one domain as a complete API response, or throws 404. */
@@ -61,7 +59,7 @@ function fetchDomain(db: Db, id: string): Promise<Domain> {
   return span(
     "domain.fetch",
     async () => {
-      const [row] = await domainQuery(db).where(eq(domains.id, id)).limit(1)
+      const row = await domainQuery(db).where("domains.id", "=", id).limit(1).executeTakeFirst()
       if (!row) throw ApiError.notFound("domain")
       return toDomain(row)
     },
@@ -80,10 +78,12 @@ function assertNoLinks(db: Db, domain_id: string): Promise<void> {
   return span(
     "domain.assertNoLinks",
     async () => {
-      const [{ n }] = await db
-        .select({ n: count() })
-        .from(links)
-        .where(eq(links.domain_id, domain_id))
+      const { n = 0 } =
+        (await db
+          .selectFrom("links")
+          .select((eb) => eb.fn.countAll<number>().as("n"))
+          .where("domain_id", "=", domain_id)
+          .executeTakeFirst()) ?? {}
       if (n > 0) {
         throw ApiError.conflict(`domain still has ${n} link${n === 1 ? "" : "s"}; purge them first`)
       }
@@ -104,8 +104,9 @@ function isForeignKeyViolation(err: unknown): boolean {
 export const domainRoutes = new Hono<Env>()
   .get("/", validate("query", paginationSchema), async (c) => {
     const { limit, offset } = c.req.valid("query")
-    const rows = await domainQuery(c.var.db).orderBy(asc(domains.host)).limit(limit).offset(offset)
-    const [{ total }] = await c.var.db.select({ total: count() }).from(domains)
+    const rows = await domainQuery(c.var.db).orderBy("domains.host").limit(limit).offset(offset).execute()
+    const { total = 0 } =
+      (await c.var.db.selectFrom("domains").select((eb) => eb.fn.countAll<number>().as("total")).executeTakeFirst()) ?? {}
     return c.json({ data: rows.map(toDomain), total, limit, offset })
   })
 
@@ -113,8 +114,8 @@ export const domainRoutes = new Hono<Env>()
     assertCan(c.var.principal, "create", "Domain")
     const body = c.req.valid("json")
 
-    const [row] = await c.var.db
-      .insert(domains)
+    const row = await c.var.db
+      .insertInto("domains")
       .values({
         id: Bun.randomUUIDv7(),
         host: body.host,
@@ -122,14 +123,15 @@ export const domainRoutes = new Hono<Env>()
         base_path_redirect: body.base_path_redirect ?? null,
         invalid_short_url_redirect: body.invalid_short_url_redirect ?? null,
       })
-      .onConflictDoNothing({ target: domains.host })
-      .returning()
+      .onConflict((oc) => oc.column("host").doNothing())
+      .returningAll()
+      .executeTakeFirst()
     if (!row) throw ApiError.conflict(`domain ${body.host} already exists`)
 
     // Clears the negative entry a request to this host left behind while it 404'd.
     await c.var.cache.del(domainKey(row.host))
     await c.var.caddy.upsert(row.id, row.host)
-    return c.json(toDomain({ domain: row, link_count: 0 }), 201)
+    return c.json(toDomain({ ...row, link_count: 0 }), 201)
   })
 
   .get("/:id", idParam, async (c) => c.json(await fetchDomain(c.var.db, c.req.valid("param").id)))
@@ -148,19 +150,21 @@ export const domainRoutes = new Hono<Env>()
       // POST /links's FOR SHARE on the same domain row. That is what
       // serialises the two requests; do not simplify this to a plain
       // transaction.
-      await c.var.db.transaction(async (tx) => {
-        await tx.select().from(domains).where(eq(domains.id, id)).for("update")
+      await c.var.db.transaction().execute(async (tx) => {
+        await tx.selectFrom("domains").select("id").where("id", "=", id).forUpdate().execute()
         await assertNoLinks(tx, id)
         await tx
-          .update(domains)
+          .updateTable("domains")
           .set({ ...patch, updated_at: new Date() })
-          .where(eq(domains.id, id))
+          .where("id", "=", id)
+          .execute()
       })
     } else {
       await c.var.db
-        .update(domains)
+        .updateTable("domains")
         .set({ ...patch, updated_at: new Date() })
-        .where(eq(domains.id, id))
+        .where("id", "=", id)
+        .execute()
     }
     // Every patchable field except the status itself — the three redirect
     // URLs — is what the redirect handler reads out of the cached entry.
@@ -181,13 +185,14 @@ export const domainRoutes = new Hono<Env>()
     const before = await fetchDomain(c.var.db, id)
 
     // See the identical lock in PATCH /:id above — same race, same fix.
-    await c.var.db.transaction(async (tx) => {
-      await tx.select().from(domains).where(eq(domains.id, id)).for("update")
+    await c.var.db.transaction().execute(async (tx) => {
+      await tx.selectFrom("domains").select("id").where("id", "=", id).forUpdate().execute()
       await assertNoLinks(tx, id)
       await tx
-        .update(domains)
+        .updateTable("domains")
         .set({ status: "archived", updated_at: new Date() })
-        .where(eq(domains.id, id))
+        .where("id", "=", id)
+        .execute()
     })
     await c.var.cache.del(domainKey(before.host))
     await c.var.caddy.remove(id)
@@ -207,11 +212,11 @@ export const domainRoutes = new Hono<Env>()
       throw ApiError.conflict("archive the domain before purging it")
     }
 
-    await c.var.db.transaction(async (tx) => {
-      await tx.select().from(domains).where(eq(domains.id, id)).for("update")
+    await c.var.db.transaction().execute(async (tx) => {
+      await tx.selectFrom("domains").select("id").where("id", "=", id).forUpdate().execute()
       await assertNoLinks(tx, id)
       try {
-        await span("domain.purge", async () => tx.delete(domains).where(eq(domains.id, id)), {
+        await span("domain.purge", async () => tx.deleteFrom("domains").where("id", "=", id).execute(), {
           in: { domain_id: id, host: domain.host },
         })
       } catch (err) {

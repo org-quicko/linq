@@ -1,7 +1,6 @@
 import { describe, expect, test } from "bun:test"
 import { bootstrap } from "../src/bootstrap.ts"
 import { claimsForPreset } from "@linq/shared"
-import { apiKeys, domains } from "../src/db/schema.ts"
 import { createTestDb, testConfig } from "./helpers/db.ts"
 
 describe("bootstrap", () => {
@@ -9,7 +8,7 @@ describe("bootstrap", () => {
     const db = await createTestDb()
     await bootstrap(db, testConfig)
 
-    const keys = await db.select().from(apiKeys)
+    const keys = await db.selectFrom("api_keys").selectAll().execute()
     expect(keys).toHaveLength(1)
     expect(keys[0]).toMatchObject({
       name: "bootstrap",
@@ -27,8 +26,8 @@ describe("bootstrap", () => {
     await bootstrap(db, config)
     await bootstrap(db, config)
 
-    expect(await db.select().from(apiKeys)).toHaveLength(1)
-    expect(await db.select().from(domains)).toHaveLength(1)
+    expect(await db.selectFrom("api_keys").selectAll().execute()).toHaveLength(1)
+    expect(await db.selectFrom("domains").selectAll().execute()).toHaveLength(1)
   })
 
   /**
@@ -38,12 +37,12 @@ describe("bootstrap", () => {
   test("mints again once every key is gone", async () => {
     const db = await createTestDb()
     await bootstrap(db, testConfig)
-    const [first] = await db.select().from(apiKeys)
+    const first = await db.selectFrom("api_keys").selectAll().executeTakeFirst()
 
-    await db.delete(apiKeys)
+    await db.deleteFrom("api_keys").execute()
     await bootstrap(db, testConfig)
 
-    const [second] = await db.select().from(apiKeys)
+    const second = await db.selectFrom("api_keys").selectAll().executeTakeFirst()
     expect(second).toBeDefined()
     expect(second?.id).not.toBe(first?.id)
   })
@@ -51,13 +50,13 @@ describe("bootstrap", () => {
   test("seeds the default domain lowercased, and only when configured", async () => {
     const seeded = await createTestDb()
     await bootstrap(seeded, { ...testConfig, LINQ_DEFAULT_DOMAIN: "Links.Example.COM" })
-    expect((await seeded.select().from(domains))[0]).toMatchObject({
+    expect((await seeded.selectFrom("domains").selectAll().execute())[0]).toMatchObject({
       host: "links.example.com",
       status: "active",
     })
 
     const bare = await createTestDb()
     await bootstrap(bare, testConfig)
-    expect(await bare.select().from(domains)).toHaveLength(0)
+    expect(await bare.selectFrom("domains").selectAll().execute()).toHaveLength(0)
   })
 })

@@ -44,7 +44,8 @@ deploy, then rebuild.
 
 `Dockerfile.client` needs no environment or Postgres — it's static files, and
 the UI is pointed at a linq server at runtime, in the browser. `Dockerfile.server`
-and `Dockerfile.full` need `DATABASE_URL`, `LINQ_DEFAULT_DOMAIN`, etc. at
+and `Dockerfile.full` need `DATABASE_URL`, `LINQ_DB_SCHEMA` (default `public`),
+`LINQ_DEFAULT_DOMAIN`, etc. at
 runtime — see `../docker-compose-examples/` for ready-made stacks around
 either. Both server images default `LINQ_CACHE_SWEEP_INTERVAL` to 60 seconds;
 override it at runtime with a value from 1 to 3600 seconds to tune how often the

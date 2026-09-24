@@ -15,6 +15,10 @@ const clientBasePathSchema = z
     return first === "home" || !RESERVED_SLUGS.has(first)
   }, "first segment conflicts with a server route")
 
+const postgresSchemaSchema = z
+  .string()
+  .regex(/^[a-z_][a-z0-9_]{0,62}$/, "must be a lowercase PostgreSQL identifier")
+
 /** The top-level slug claimed by the configured Client UI mount. */
 export function clientBaseSegment(basePath: string): string {
   return basePath.slice(1).split("/")[0] ?? ""
@@ -29,6 +33,8 @@ export function isReservedSlug(slug: string, clientBasePath: string): boolean {
 const schema = z
   .object({
     DATABASE_URL: z.string().min(1, "DATABASE_URL is required"),
+    /** PostgreSQL schema that owns linq's tables and migration journals. */
+    LINQ_DB_SCHEMA: postgresSchemaSchema.default("public"),
     /**
      * Which store the redirect cache uses. Left unset it follows
      * `LINQ_REDIS_URL`: supplying a URL is what makes Redis expected to exist.

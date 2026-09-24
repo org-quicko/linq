@@ -1,7 +1,5 @@
-import { eq } from "drizzle-orm"
 import type { Config } from "./config.ts"
 import type { Db } from "./db/client.ts"
-import { domains } from "./db/schema.ts"
 import { reqLog, span } from "./log.ts"
 
 /**
@@ -98,9 +96,6 @@ export function startCaddy(config: Config): Caddy {
  * boot-time cost, paid once, never per-request.
  */
 export async function reconcileCaddy(db: Db, caddy: Caddy): Promise<void> {
-  const rows = await db
-    .select({ id: domains.id, host: domains.host })
-    .from(domains)
-    .where(eq(domains.status, "active"))
+  const rows = await db.selectFrom("domains").select(["id", "host"]).where("status", "=", "active").execute()
   for (const row of rows) await caddy.upsert(row.id, row.host)
 }

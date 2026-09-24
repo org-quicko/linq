@@ -1,8 +1,7 @@
-import { and, asc, eq, gt, isNull, or, sql } from "drizzle-orm"
+import { sql } from "kysely"
 import { createFactory } from "hono/factory"
 import { domainKey, llmsKey } from "../cache.ts"
 import type { Db } from "../db/client.ts"
-import { links } from "../db/schema.ts"
 import { span } from "../log.ts"
 import { shortUrl } from "./api/links.ts"
 import type { Env } from "./env.ts"
@@ -56,18 +55,16 @@ async function renderForDomain(db: Db, domain_id: string, host: string): Promise
     async () => {
       const now = new Date()
       const rows = await db
-        .select({ name: links.name, slug: links.slug, destination: links.destination })
-        .from(links)
-        .where(
-          and(
-            eq(links.domain_id, domain_id),
-            eq(links.status, "active"),
-            eq(links.listed, true),
-            or(isNull(links.expires_at), gt(links.expires_at, now)),
-          ),
-        )
-        .orderBy(asc(sql`coalesce(${links.name}, ${links.slug})`), asc(links.id))
+        .selectFrom("links")
+        .select(["name", "slug", "destination"])
+        .where("domain_id", "=", domain_id)
+        .where("status", "=", "active")
+        .where("listed", "=", true)
+        .where((eb) => eb.or([eb("expires_at", "is", null), eb("expires_at", ">", now)]))
+        .orderBy(sql`coalesce(name, slug)`)
+        .orderBy("id")
         .limit(MAX_LISTED + 1)
+        .execute()
 
       const truncated = rows.length > MAX_LISTED
       const entries: LlmsEntry[] = rows.slice(0, MAX_LISTED).map((r) => ({

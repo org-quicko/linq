@@ -21,6 +21,9 @@ so the Compose volume remains the persistent log location.
 `LINQ_DEFAULT_DOMAIN` can also be set in that env file; when absent, it
 defaults to `localhost:<LINQ_PORT>`. For an existing database, change the
 domain through the UI as well: the default domain only seeds an empty database.
+`LINQ_DB_SCHEMA` selects the PostgreSQL schema linq owns and defaults to
+`public`; set it when sharing a database with another application. The server
+creates it during migration when it does not already exist.
 The examples without Redis also pass through `LINQ_CACHE_SWEEP_INTERVAL`,
 accepting 1 to 3600 seconds and defaulting to 60, for the in-process cache.
 
@@ -71,8 +74,9 @@ UI at `/home` on `LINQ_PORT`, so the separate client only makes sense there
 if you specifically want the Client UI at `/` as well.
 
 "External" Postgres means no `postgres` service in the file — set
-`DATABASE_URL` in `.env` to point at your own instance instead. It is loaded
-directly into the `linq` container through `env_file`.
+`DATABASE_URL` in `.env` to point at your own instance instead. Set
+`LINQ_DB_SCHEMA` there as well when its tables are not in `public`. Both are
+loaded directly into the `linq` container through `env_file`.
 
 For a local check from the repo root:
 

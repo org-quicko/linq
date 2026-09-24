@@ -1,23 +1,23 @@
 import { PGlite } from "@electric-sql/pglite"
-import { drizzle } from "drizzle-orm/pglite"
-import { migrate } from "drizzle-orm/pglite/migrator"
+import { Kysely, PGliteDialect } from "kysely"
 import type { Config } from "../../src/config.ts"
 import type { Db } from "../../src/db/client.ts"
-import { migrationsFolder } from "../../src/db/migrate.ts"
-import { schema } from "../../src/db/schema.ts"
+import { runMigrations } from "../../src/db/migrate.ts"
+import type { DB } from "../../src/db/types.generated.ts"
 
 /**
  * An in-memory Postgres per suite. PGlite runs the same generated migrations as
  * production, so schema drift shows up here rather than at deploy time.
  */
 export async function createTestDb(): Promise<Db> {
-  const db = drizzle(new PGlite(), { schema })
-  await migrate(db, { migrationsFolder })
-  return db as unknown as Db
+  const db = new Kysely<DB>({ dialect: new PGliteDialect({ pglite: new PGlite() }) })
+  await runMigrations(db)
+  return db
 }
 
 export const testConfig: Config = {
   DATABASE_URL: "memory://pglite",
+  LINQ_DB_SCHEMA: "public",
   // Every harness runs on `noCache` unless a suite asks for a real one, and the
   // only real one a test can open without external services is the memory store.
   LINQ_CACHE_BACKEND: "memory",

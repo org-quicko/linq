@@ -1,9 +1,10 @@
 import { claimsForPreset, type KeyPreset, type Link } from "@linq/shared"
+import type { Insertable } from "kysely"
 import { generateKey, hashKey, keyPrefix } from "../../src/auth/keys.ts"
 import { type Cache, noCache } from "../../src/cache.ts"
 import { type Caddy, noCaddy } from "../../src/caddy.ts"
 import type { Db } from "../../src/db/client.ts"
-import { apiKeys, domains, visits } from "../../src/db/schema.ts"
+import type { DB } from "../../src/db/types.generated.ts"
 import { createApp } from "../../src/http/app.ts"
 import { type MetadataFetcher, noMetadata } from "../../src/link-metadata.ts"
 import { createTestDb, testConfig } from "./db.ts"
@@ -36,7 +37,7 @@ export type Harness = {
     link_id: string | null,
     domain_id: string,
     counts: { human?: number; bot?: number },
-    overrides?: Partial<typeof visits.$inferInsert>,
+    overrides?: Partial<Insertable<DB["visits"]>>,
   ) => Promise<void>
 }
 
@@ -73,14 +74,17 @@ export async function createHarness(options: HarnessOptions = {}): Promise<Harne
   const createKey: Harness["createKey"] = async ({ preset, name = preset, expires_at }) => {
     const secret = generateKey()
     const keyId = Bun.randomUUIDv7()
-    await db.insert(apiKeys).values({
+    await db
+      .insertInto("api_keys")
+      .values({
       id: keyId,
       name,
       claims: [...claimsForPreset[preset]],
       key_hash: hashKey(secret),
       prefix: keyPrefix(secret),
       expires_at: expires_at ?? null,
-    })
+      })
+      .execute()
     return { keyId, key: secret }
   }
 
@@ -93,7 +97,10 @@ export async function createHarness(options: HarnessOptions = {}): Promise<Harne
     actor: (preset) => createKey({ preset }),
     createDomain: async (host, fallback_url) => {
       const id = Bun.randomUUIDv7()
-      await db.insert(domains).values({ id, host, fallback_url: fallback_url ?? null })
+      await db
+        .insertInto("domains")
+        .values({ id, host, fallback_url: fallback_url ?? null })
+        .execute()
       return id
     },
     createLink: async (key, domain_id, body = {}) => {
@@ -119,7 +126,7 @@ export async function createHarness(options: HarnessOptions = {}): Promise<Harne
         platform: "desktop" as const,
         ...overrides,
       }))
-      if (rows.length) await db.insert(visits).values(rows)
+      if (rows.length) await db.insertInto("visits").values(rows).execute()
     },
   }
 }

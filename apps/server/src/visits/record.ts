@@ -1,8 +1,9 @@
 import type { Db } from "../db/client.ts"
-import { visits } from "../db/schema.ts"
+import type { Insertable } from "kysely"
+import type { DB } from "../db/types.generated.ts"
 import { reqLog, span } from "../log.ts"
 
-export type VisitInput = Omit<typeof visits.$inferInsert, "id" | "occurred_at">
+export type VisitInput = Omit<Insertable<DB["visits"]>, "id" | "occurred_at">
 
 /** In-flight inserts, so a shutdown or a test can wait for them. */
 const pending = new Set<Promise<unknown>>()
@@ -26,7 +27,7 @@ export function recordVisit(db: Db, visit: VisitInput, maxPending: number): void
 
   const insert = span(
     "visit.record",
-    () => db.insert(visits).values({ id: Bun.randomUUIDv7(), ...visit }),
+    () => db.insertInto("visits").values({ id: Bun.randomUUIDv7(), ...visit }).execute(),
     { in: { link_id: visit.link_id ?? null, domain_id: visit.domain_id, slug: visit.slug_requested } },
   )
     // `reqLog()` still resolves here: the insert is not awaited, but it starts

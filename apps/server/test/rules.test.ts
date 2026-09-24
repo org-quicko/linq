@@ -1,7 +1,5 @@
 import { beforeAll, describe, expect, test } from "bun:test"
 import type { Condition } from "@linq/shared"
-import { desc, eq } from "drizzle-orm"
-import { visits } from "../src/db/schema.ts"
 import { matchRules, ruleMatches } from "../src/rules/match.ts"
 import { flushVisits } from "../src/visits/record.ts"
 import { createHarness, type Harness } from "./helpers/app.ts"
@@ -334,12 +332,12 @@ describe("rules in the redirect", () => {
 
     await get("/tracked", ANDROID)
     await flushVisits()
-    const [row] = await h.db
-      .select()
-      .from(visits)
-      .where(eq(visits.link_id, link.id))
-      .orderBy(desc(visits.id))
-      .limit(1)
+    const row = await h.db
+      .selectFrom("visits")
+      .selectAll()
+      .where("link_id", "=", link.id)
+      .orderBy("id", "desc")
+      .executeTakeFirst()
     expect(row).toMatchObject({
       destination: "https://example.com/android",
       platform: "android",

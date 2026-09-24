@@ -1,7 +1,5 @@
 import { ApiError, claimsSchema, defineAbility, type AppAbility, type Claim } from "@linq/shared"
-import { eq } from "drizzle-orm"
 import { createMiddleware } from "hono/factory"
-import { apiKeys } from "../db/schema.ts"
 import type { Env } from "../http/env.ts"
 import { hashKey } from "./keys.ts"
 
@@ -21,16 +19,12 @@ export function extractToken(headers: Headers): string | null {
 export const authenticate = createMiddleware<Env>(async (c, next) => {
   const token = extractToken(c.req.raw.headers)
   if (!token) throw ApiError.unauthorized("missing API key")
-  const [row] = await c.var.db
-    .select({
-      keyId: apiKeys.id,
-      name: apiKeys.name,
-      claims: apiKeys.claims,
-      expires_at: apiKeys.expires_at,
-    })
-    .from(apiKeys)
-    .where(eq(apiKeys.key_hash, hashKey(token)))
+  const row = await c.var.db
+    .selectFrom("api_keys")
+    .select(["id as keyId", "name", "claims", "expires_at"])
+    .where("key_hash", "=", hashKey(token))
     .limit(1)
+    .executeTakeFirst()
   if (!row) throw ApiError.unauthorized()
   if (row.expires_at && row.expires_at.getTime() <= Date.now())
     throw ApiError.unauthorized("API key has expired")

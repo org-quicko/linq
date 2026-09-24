@@ -65,6 +65,9 @@ describe("plumbing", () => {
   test("a request id is generated, echoed on the response and stamped on every line", async () => {
     const out = await capture()
     const h = await createHarness()
+    // Test database setup applies migrations, which are boot-time logs rather
+    // than request-scoped logs and therefore intentionally have no reqId.
+    out.lines.length = 0
     const res = await h.request("/api/health")
 
     const reqId = res.headers.get("x-request-id")

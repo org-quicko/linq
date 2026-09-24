@@ -9,85 +9,70 @@ import {
   analyticsTimeseriesQuerySchema,
   type StatsBucket,
 } from "@linq/shared"
-import { and, asc, count, desc, eq, inArray, isNull, type SQL, sql } from "drizzle-orm"
+import { sql, type RawBuilder, type SqlBool } from "kysely"
 import { Hono } from "hono"
 import type { Db } from "../../db/client.ts"
-import { visitDays, visits } from "../../db/schema.ts"
 import { span } from "../../log.ts"
 import type { Env } from "../env.ts"
 import { validate } from "../validate.ts"
 import { visitFilters } from "./visits.ts"
 
-/** The unfiltered path stays on the day rollup. Its helpers live here now
- * that the legacy /stats route family is gone. */
-function dayFilters(q: { from?: string; to?: string }): SQL[] {
-  const filters: SQL[] = []
-  if (q.from) filters.push(sql`${visitDays.day} >= ${q.from}`)
-  if (q.to) filters.push(sql`${visitDays.day} <= ${q.to}`)
+type Filter = RawBuilder<SqlBool>
+
+function dayFilters(q: { from?: string; to?: string }): Filter[] {
+  const filters: Filter[] = []
+  if (q.from) filters.push(sql<SqlBool>`day >= ${q.from}`)
+  if (q.to) filters.push(sql<SqlBool>`day <= ${q.to}`)
   return filters
 }
 
 function aggregateVisits(
   db: Db,
-  scope: SQL[],
+  scope: Filter[],
   dimension: AnalyticsDimension | "day",
 ): Promise<StatsBucket[]> {
   const key =
     dimension === "day"
-      ? sql<string>`to_char(${visitDays.day}, 'YYYY-MM-DD')`
-      : sql<string>`${visitDays.value}`
-  const human = sql<number>`coalesce(sum(${visitDays.count}) filter (where not ${visitDays.is_bot}), 0)`
-  const bot = sql<number>`coalesce(sum(${visitDays.count}) filter (where ${visitDays.is_bot}), 0)`
-  const volume = sql`sum(${visitDays.count})`
+      ? sql<string>`to_char(day, 'YYYY-MM-DD')`
+      : sql<string>`${sql.ref("value")}`
+  const human = sql<number>`coalesce(sum(count) filter (where not is_bot), 0)`
+  const bot = sql<number>`coalesce(sum(count) filter (where is_bot), 0)`
+  const volume = sql<number>`sum(count)`
   return db
-    .select({ key, human: human.mapWith(Number), bot: bot.mapWith(Number) })
-    .from(visitDays)
-    .where(and(eq(visitDays.dimension, dimension === "day" ? "total" : dimension), ...scope))
+    .selectFrom("visit_days")
+    .select([key.as("key"), human.as("human"), bot.as("bot")])
+    .where("dimension", "=", dimension === "day" ? "total" : dimension)
+    .where((eb) => eb.and(scope))
     .groupBy(key)
-    .orderBy(...(dimension === "day" ? [asc(key)] : [desc(volume), asc(key)]))
+    .orderBy(dimension === "day" ? key : volume, dimension === "day" ? "asc" : "desc")
+    .execute()
+    .then((rows) => rows.map((row) => ({ ...row, human: Number(row.human), bot: Number(row.bot) })))
 }
 
-/** A filter the day rollup cannot answer. It stores one dimension per row,
- *  so combining two of them — or grouping by one while filtering another —
- *  has to read the visit log. Scope (`link_id`, `domain_id`, `orphan`),
- *  `bot` and the date window are columns of `visit_days` itself and cost
- *  nothing there. docs/adr/0015. */
 function needsDetail(q: Pick<AnalyticsQuery, (typeof ANALYTICS_FILTERS)[number]>): boolean {
-  return ANALYTICS_FILTERS.some((f) => q[f].length > 0)
+  return ANALYTICS_FILTERS.some((filter) => q[filter].length > 0)
 }
 
-/** Every expression here reads a column the covering index carries
- *  (`visits_analytics_idx`, schema.ts) — that's what keeps the detail
- *  path's scan index-only. Keyed identically to what the trigger writes
- *  into `visit_days`, so the two paths agree on a bucket's name. */
 const DETAIL_KEY = {
-  day: sql<string>`to_char(${visits.occurred_at} at time zone 'UTC', 'YYYY-MM-DD')`,
-  platform: sql<string>`${visits.platform}::text`,
-  os: sql<string>`coalesce(${visits.os}, '')`,
-  browser: sql<string>`coalesce(${visits.browser}, '')`,
-  referer: sql<string>`${visits.referer_host}`,
-  slug: sql<string>`${visits.slug_requested}`,
-  destination: sql<string>`coalesce(${visits.destination}, '')`,
+  day: sql<string>`to_char(occurred_at at time zone 'UTC', 'YYYY-MM-DD')`,
+  platform: sql<string>`platform::text`,
+  os: sql<string>`coalesce(os, '')`,
+  browser: sql<string>`coalesce(browser, '')`,
+  referer: sql<string>`referer_host`,
+  slug: sql<string>`slug_requested`,
+  destination: sql<string>`coalesce(destination, '')`,
 } as const
 
-/** The non-dimension scope every rollup-path query shares: the window,
- *  link/domain/orphan scope and the human/bot split. Never includes the
- *  `dimension` predicate — `aggregateVisits` adds its own, and `summary`
- *  adds `'total'` itself. */
-function rollupScope(q: AnalyticsQuery): SQL[] {
-  const scope: SQL[] = [...dayFilters(q)]
-  if (q.link_id.length) scope.push(inArray(visitDays.link_id, q.link_id))
-  if (q.domain_id.length) scope.push(inArray(visitDays.domain_id, q.domain_id))
-  if (q.orphan === "true") scope.push(isNull(visitDays.link_id))
-  if (q.bot !== "any") scope.push(eq(visitDays.is_bot, q.bot === "true"))
+function rollupScope(q: AnalyticsQuery): Filter[] {
+  const scope = [...dayFilters(q)]
+  if (q.link_id.length) scope.push(sql<SqlBool>`link_id in (${sql.join(q.link_id)})`)
+  if (q.domain_id.length) scope.push(sql<SqlBool>`domain_id in (${sql.join(q.domain_id)})`)
+  if (q.orphan === "true") scope.push(sql<SqlBool>`link_id is null`)
+  if (q.bot !== "any") scope.push(sql<SqlBool>`is_bot = ${q.bot === "true"}`)
   return scope
 }
 
-/** The detail path's equivalent of `rollupScope`: every predicate a
- *  filtered report needs, built by the same `visitFilters` `/v1/visits`
- *  uses. `referer` is wired to `referer_host` — the column, not the raw
- *  URL, is what a filter and the covering index key on. */
-function detailFilters(q: AnalyticsQuery): SQL[] {
+function detailFilters(q: AnalyticsQuery): Filter[] {
   return visitFilters({
     from: q.from,
     to: q.to,
@@ -103,89 +88,91 @@ function detailFilters(q: AnalyticsQuery): SQL[] {
 }
 
 async function rollupSummary(db: Db, q: AnalyticsQuery): Promise<AnalyticsSummary> {
-  const scope = [eq(visitDays.dimension, "total"), ...rollupScope(q)]
-  const [row] = await db
-    .select({
-      human:
-        sql<number>`coalesce(sum(${visitDays.count}) filter (where not ${visitDays.is_bot}), 0)`.mapWith(
-          Number,
-        ),
-      bot: sql<number>`coalesce(sum(${visitDays.count}) filter (where ${visitDays.is_bot}), 0)`.mapWith(
-        Number,
-      ),
-    })
-    .from(visitDays)
-    .where(and(...scope))
-
+  const scope = [sql<SqlBool>`dimension = 'total'`, ...rollupScope(q)]
+  const row = await db
+    .selectFrom("visit_days")
+    .select([
+      sql<number>`coalesce(sum(count) filter (where not is_bot), 0)`.as("human"),
+      sql<number>`coalesce(sum(count) filter (where is_bot), 0)`.as("bot"),
+    ])
+    .where((eb) => eb.and(scope))
+    .executeTakeFirstOrThrow()
   const orphans = q.link_id.length ? 0 : await rollupOrphans(db, scope)
-  return { visits: row.human + row.bot, human: row.human, bot: row.bot, orphans }
+  const human = Number(row.human)
+  const bot = Number(row.bot)
+  return { visits: human + bot, human, bot, orphans }
 }
 
-async function rollupOrphans(db: Db, scope: SQL[]): Promise<number> {
-  const [row] = await db
-    .select({ total: sql<number>`coalesce(sum(${visitDays.count}), 0)`.mapWith(Number) })
-    .from(visitDays)
-    .where(and(...scope, isNull(visitDays.link_id)))
-  return row.total
+async function rollupOrphans(db: Db, scope: Filter[]): Promise<number> {
+  const row = await db
+    .selectFrom("visit_days")
+    .select(sql<number>`coalesce(sum(count), 0)`.as("total"))
+    .where((eb) => eb.and([...scope, sql<SqlBool>`link_id is null`]))
+    .executeTakeFirstOrThrow()
+  return Number(row.total)
 }
 
 async function detailSummary(db: Db, q: AnalyticsQuery): Promise<AnalyticsSummary> {
   const filters = detailFilters(q)
-  const [row] = await db
-    .select({
-      human: sql<number>`count(*) filter (where not ${visits.is_bot})`.mapWith(Number),
-      bot: sql<number>`count(*) filter (where ${visits.is_bot})`.mapWith(Number),
-    })
-    .from(visits)
-    .where(and(...filters))
-
+  const row = await db
+    .selectFrom("visits")
+    .select([
+      sql<number>`count(*) filter (where not is_bot)`.as("human"),
+      sql<number>`count(*) filter (where is_bot)`.as("bot"),
+    ])
+    .where((eb) => eb.and(filters))
+    .executeTakeFirstOrThrow()
   const orphans = q.link_id.length ? 0 : await detailOrphans(db, filters)
-  return { visits: row.human + row.bot, human: row.human, bot: row.bot, orphans }
+  const human = Number(row.human)
+  const bot = Number(row.bot)
+  return { visits: human + bot, human, bot, orphans }
 }
 
-async function detailOrphans(db: Db, filters: SQL[]): Promise<number> {
-  const [{ total }] = await db
-    .select({ total: count() })
-    .from(visits)
-    .where(and(...filters, isNull(visits.link_id)))
-  return total
+async function detailOrphans(db: Db, filters: Filter[]): Promise<number> {
+  const row = await db
+    .selectFrom("visits")
+    .select((eb) => eb.fn.countAll<number>().as("total"))
+    .where((eb) => eb.and([...filters, sql<SqlBool>`link_id is null`]))
+    .executeTakeFirstOrThrow()
+  return Number(row.total)
 }
 
 async function detailTimeseries(db: Db, q: AnalyticsQuery): Promise<StatsBucket[]> {
   const key = DETAIL_KEY.day
   return db
-    .select({
-      key,
-      human: sql<number>`count(*) filter (where not ${visits.is_bot})`.mapWith(Number),
-      bot: sql<number>`count(*) filter (where ${visits.is_bot})`.mapWith(Number),
-    })
-    .from(visits)
-    .where(and(...detailFilters(q)))
+    .selectFrom("visits")
+    .select([
+      key.as("key"),
+      sql<number>`count(*) filter (where not is_bot)`.as("human"),
+      sql<number>`count(*) filter (where is_bot)`.as("bot"),
+    ])
+    .where((eb) => eb.and(detailFilters(q)))
     .groupBy(key)
-    .orderBy(asc(key))
+    .orderBy(key, "asc")
+    .execute()
+    .then((rows) => rows.map((row) => ({ ...row, human: Number(row.human), bot: Number(row.bot) })))
 }
 
 async function detailBreakdown(db: Db, q: AnalyticsBreakdownQuery): Promise<StatsBucket[]> {
   const key = DETAIL_KEY[q.dimension]
-  const human = sql<number>`count(*) filter (where not ${visits.is_bot})`
-  const bot = sql<number>`count(*) filter (where ${visits.is_bot})`
-  const volume = sql`count(*)`
+  const volume = sql<number>`count(*)`
   return db
-    .select({ key, human: human.mapWith(Number), bot: bot.mapWith(Number) })
-    .from(visits)
-    .where(and(...detailFilters(q)))
+    .selectFrom("visits")
+    .select([
+      key.as("key"),
+      sql<number>`count(*) filter (where not is_bot)`.as("human"),
+      sql<number>`count(*) filter (where is_bot)`.as("bot"),
+    ])
+    .where((eb) => eb.and(detailFilters(q)))
     .groupBy(key)
-    .orderBy(desc(volume), asc(key))
+    .orderBy(volume, "desc")
+    .orderBy(key, "asc")
+    .execute()
+    .then((rows) => rows.map((row) => ({ ...row, human: Number(row.human), bot: Number(row.bot) })))
 }
 
-/**
- * Mounted at /analytics. Three routes sharing one filter vocabulary: no
- * dimension filter reads the day-wise rollup, pre-counted and never
- * touching `visits`; any dimension filter (`referer`/`os`/`browser`/
- * `platform`) reads the visit log through the covering index instead,
- * because the rollup stores one dimension per row and cannot answer a
- * combination. docs/adr/0015.
- */
+/** Mounted at /analytics. Dimension filters read the raw log; otherwise the
+ * pre-aggregated day rollup answers the request. */
 export const analyticsRoutes = new Hono<Env>()
   .get("/summary", validate("query", analyticsSummaryQuerySchema), async (c) => {
     const q = c.req.valid("query")

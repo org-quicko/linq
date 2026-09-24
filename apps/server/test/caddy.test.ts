@@ -1,6 +1,5 @@
 import { describe, expect, test } from "bun:test"
 import { type Caddy, guarded, reconcileCaddy, startCaddy } from "../src/caddy.ts"
-import { domains } from "../src/db/schema.ts"
 import { createTestDb, testConfig } from "./helpers/db.ts"
 
 const CADDY_CONFIG = {
@@ -106,11 +105,14 @@ describe("reconcileCaddy", () => {
     const active1 = Bun.randomUUIDv7()
     const active2 = Bun.randomUUIDv7()
     const archived = Bun.randomUUIDv7()
-    await db.insert(domains).values([
-      { id: active1, host: "active-one.test", status: "active" },
-      { id: active2, host: "active-two.test", status: "active" },
-      { id: archived, host: "archived-one.test", status: "archived" },
-    ])
+    await db
+      .insertInto("domains")
+      .values([
+        { id: active1, host: "active-one.test", status: "active" },
+        { id: active2, host: "active-two.test", status: "active" },
+        { id: archived, host: "archived-one.test", status: "archived" },
+      ])
+      .execute()
 
     const upserts: Array<[string, string]> = []
     const spy: Caddy = {

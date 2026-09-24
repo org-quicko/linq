@@ -1,10 +1,10 @@
 import { type Rule, rulesPutSchema, uuidSchema } from "@linq/shared"
-import { eq } from "drizzle-orm"
 import { Hono } from "hono"
 import { z } from "zod"
 import { assertCanEdit } from "../../auth/permissions.ts"
 import { targetKey } from "../../cache.ts"
-import { rules } from "../../db/schema.ts"
+import type { Selectable } from "kysely"
+import type { DB } from "../../db/types.generated.ts"
 import { listRules } from "../../rules/store.ts"
 import type { Env } from "../env.ts"
 import { validate } from "../validate.ts"
@@ -13,7 +13,7 @@ import { loadLink } from "./links.ts"
 const idParam = validate("param", z.object({ id: uuidSchema }))
 
 /** Maps a rule row to the JSON shape the API returns. */
-function toRule(row: typeof rules.$inferSelect): Rule {
+function toRule(row: Selectable<DB["rules"]>): Rule {
   return {
     id: row.id,
     link_id: row.link_id,
@@ -44,10 +44,10 @@ export const ruleRoutes = new Hono<Env>()
 
     // One transaction: a failed insert must never leave the link with its old
     // rules deleted and no new ones in their place.
-    await c.var.db.transaction(async (tx) => {
-      await tx.delete(rules).where(eq(rules.link_id, id))
+    await c.var.db.transaction().execute(async (tx) => {
+      await tx.deleteFrom("rules").where("link_id", "=", id).execute()
       if (input.length === 0) return
-      await tx.insert(rules).values(
+      await tx.insertInto("rules").values(
         input.map((rule, position) => ({
           id: Bun.randomUUIDv7(),
           link_id: id,
@@ -55,7 +55,7 @@ export const ruleRoutes = new Hono<Env>()
           destination: rule.destination,
           conditions: rule.conditions,
         })),
-      )
+      ).execute()
     })
 
     // The redirect caches a link's rules inside its target entry, so replacing

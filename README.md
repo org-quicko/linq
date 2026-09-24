@@ -44,7 +44,10 @@ cp .env.example .env
 ```
 
 Then edit `.env` and set `DATABASE_URL` to your own Postgres credentials. That
-is the only required value; everything else has a working default. The defaults
+is the only required value; everything else has a working default. `LINQ_DB_SCHEMA`
+selects the schema linq owns and defaults to `public`; set it when sharing a
+database with another application. linq creates the selected schema if needed.
+The defaults
 put the server on port 3000, seed `localhost:3000` as the first domain, and
 cache redirect lookups in the process for five minutes.
 
@@ -176,7 +179,8 @@ bun run lint      # biome check .
 bun run format    # biome check --write .
 bun run build:client             # the export the server serves at LINQ_CLIENT_BASE_PATH
 bun run build:client:standalone  # the export for a static host, at a domain root
-bun run db:generate  # generate a migration after editing db/schema.ts
+bun run db:migrate   # apply pending Kysely-managed SQL migrations
+bun run db:codegen   # regenerate Kysely query types from DATABASE_URL and LINQ_DB_SCHEMA
 ```
 
 ## Deploying the Client UI
