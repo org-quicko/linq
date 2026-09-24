@@ -1,16 +1,15 @@
 # Builds and publishes the four linq container images — client, server,
 # full, app-host — to Docker Hub and GHCR.
 #
-# Triggers on:
-#   - a push to main (a merge) -> tags each image `:latest`
-#   - a pushed tag with "beta" in it, e.g. v0.2.0-beta.1 -> tags each image
-#     with the version (no leading v) and `:beta`
+# Triggers on a pushed release tag, vMAJOR.MINOR.PATCH with no suffix, e.g.
+# v1.2.3 -> tags each image `1.2.3`, `1.2` and `:latest`. The tagged commit
+# must be on main; a release tag anywhere else fails verify before anything
+# is pushed. Pre-release tags (alpha) belong to docker-snapshot.yml.
 name: docker-release
 
 on:
   push:
-    branches: [main]
-    tags: ["*beta*"]
+    tags: ["v[0-9]+.[0-9]+.[0-9]+"]
 
 permissions:
   contents: read
@@ -29,6 +28,13 @@ jobs:
     runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0 # full history, so the tag can be checked against main
+      - name: Tag is on main
+        run: |
+          git fetch --no-tags origin main
+          git merge-base --is-ancestor "$GITHUB_SHA" origin/main \
+            || { echo "::error::$GITHUB_REF_NAME is not on main"; exit 1; }
       - uses: oven-sh/setup-bun@v2
         with:
           bun-version: ${{ env.BUN_VERSION }}
@@ -74,8 +80,8 @@ jobs:
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
-      # `latest` on a merge to main, the bare version plus `beta` on a beta
-      # tag. Built from the git ref alone, so nothing downstream re-derives it.
+      # v1.2.3 -> `1.2.3`, `1.2` and `latest`. Built from the git ref alone,
+      # so nothing downstream re-derives it.
       - name: Docker metadata
         id: meta
         uses: docker/metadata-action@v5
@@ -83,10 +89,11 @@ jobs:
           images: |
             ${{ env.DOCKERHUB_NAMESPACE }}/${{ matrix.image }}
             ghcr.io/${{ env.GHCR_NAMESPACE }}/${{ matrix.image }}
+          flavor: latest=false
           tags: |
-            type=raw,value=latest,enable=${{ github.ref_type == 'branch' }}
-            type=raw,value=beta,enable=${{ github.ref_type == 'tag' }}
-            type=match,pattern=v(.*),group=1,enable=${{ github.ref_type == 'tag' }}
+            type=semver,pattern={{version}}
+            type=semver,pattern={{major}}.{{minor}}
+            type=raw,value=latest
 
       - name: Build and push ${{ matrix.image }}
         uses: docker/build-push-action@v6
