@@ -30,7 +30,10 @@ export async function runMigrations(
       if (options.advisoryLock)
         await sql`select pg_advisory_lock(${migrationLockKey(schema)})`.execute(conn)
       try {
-        await conn.schema.createSchema(schema).ifNotExists().execute()
+        // CREATE SCHEMA checks the database CREATE privilege before IF NOT EXISTS,
+        // so skip it when the schema already exists and the role cannot create one.
+        const { rows } = await sql`select 1 from pg_namespace where nspname = ${schema}`.execute(conn)
+        if (rows.length === 0) await conn.schema.createSchema(schema).execute()
         const migrator = new Migrator({
           db: conn,
           provider: new FileMigrationProvider({ fs, path, migrationFolder: migrationsFolder }),
