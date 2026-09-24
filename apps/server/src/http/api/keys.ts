@@ -91,7 +91,7 @@ export const keyRoutes = new Hono<Env>()
       .set({
         ...(patch.name !== undefined ? { name: patch.name } : {}),
         ...(patch.claims !== undefined || patch.preset !== undefined
-          ? { claims: resolvedClaims(patch) }
+          ? { claims: JSON.stringify(resolvedClaims(patch)) }
           : {}),
         ...(patch.expires_at !== undefined
           ? { expires_at: patch.expires_at ? new Date(patch.expires_at) : null }

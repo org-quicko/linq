@@ -53,7 +53,7 @@ export const ruleRoutes = new Hono<Env>()
           link_id: id,
           position,
           destination: rule.destination,
-          conditions: rule.conditions,
+          conditions: JSON.stringify(rule.conditions),
         })),
       ).execute()
     })

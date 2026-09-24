@@ -179,7 +179,7 @@ bun run lint      # biome check .
 bun run format    # biome check --write .
 bun run build:client             # the export the server serves at LINQ_CLIENT_BASE_PATH
 bun run build:client:standalone  # the export for a static host, at a domain root
-bun run db:migrate   # apply pending Kysely-managed SQL migrations
+bun run db:migrate   # apply pending Kysely migrations
 bun run db:codegen   # regenerate Kysely query types from DATABASE_URL and LINQ_DB_SCHEMA
 ```
 

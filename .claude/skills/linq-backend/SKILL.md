@@ -27,9 +27,9 @@ order matters there, the redirect catch-all must stay last.
    `conflict`, `forbidden`, `validation`) — `app.ts`'s `onError` turns these
    into the JSON envelope. A raw `throw new Error(...)` becomes an
    unhandled 500.
-5. **DB access is `c.var.db`** (the `Db` type from `db/client.ts`), Drizzle
+5. **DB access is `c.var.db`** (the `Db` type from `db/client.ts`), Kysely's
    query builder. Schema changes go through the `linq-db-migration` skill —
-   never hand-edit `db/schema.ts` without regenerating the migration.
+   never hand-edit `db/types.generated.ts`; regenerate it after migrating.
 6. **Invalidate the cache after any write a cached read depends on**:
    `c.var.cache.del(...)` (see the `domainKey` calls in `domains.ts`) —
    otherwise a redirect or lookup serves the pre-write value until it

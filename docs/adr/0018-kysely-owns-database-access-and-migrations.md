@@ -10,11 +10,11 @@ migration path. The database has PostgreSQL-specific invariants that cannot be
 reduced to ordinary tables: enums, generated columns, partial and GiN indexes,
 `NULLS NOT DISTINCT` constraints, functions, and visit-rollup triggers.
 
-Drizzle currently owns table declarations, generated migration snapshots, the
-runtime migration runner, and all server queries. Its current migration journal
-records a schema history that existing installations have already applied.
-Switching database tooling without an adoption path would either replay DDL
-against populated tables or lose the ability to establish a fresh database.
+Drizzle owned table declarations, generated migration snapshots, the runtime
+migration runner, and all server queries. Its 24-file history accumulated
+renames, dropped features, and schema-qualified DDL that ignored
+`LINQ_DB_SCHEMA`. linq has no deployment that must keep that history: every
+installation starts from an empty database.
 
 Kysely provides the required typed query builder, executable migrations, and
 PostgreSQL/PGlite dialects. It deliberately does not make a `Database` type a
@@ -39,14 +39,14 @@ already-migrated PostgreSQL database to produce the committed
 `types.generated.ts` file consumed by queries. Generated types never modify a
 database and are regenerated after every schema migration.
 
-**Kysely history begins with an explicit baseline adoption.** One initial
-Kysely migration creates the complete current schema for fresh databases. At
-startup, under a namespaced PostgreSQL advisory lock, a fully known
-Drizzle-managed installation is verified, Kysely's explicitly named migration
-and lock tables are initialized, and that initial migration is recorded as
-applied without executing its DDL. A partial, unknown, or drifted legacy
-history stops startup with an actionable error. The server never guesses,
-repairs, resets, or replays historical DDL against an existing database.
+**Kysely history begins with a squashed baseline.** `0001_initial.ts` creates
+the complete current schema for an empty database, equivalent to the final
+Drizzle schema minus the unused legacy `role` enum. Object names are
+unqualified so the whole schema lands in `LINQ_DB_SCHEMA`. The Drizzle history
+is deleted, and there is no adoption path: a database created by the Drizzle
+runner is not supported and must be recreated or migrated by hand. Migrations
+run under a namespaced PostgreSQL advisory lock and record themselves in
+explicitly named `linq_kysely_migration` tables.
 
 **Migration execution remains boot-time and forward-only.** The Kysely
 migrator runs to latest before bootstrap and is also available as an explicit
@@ -67,10 +67,9 @@ ADR.
 - The Kysely `Database` interface is derived output, not a competing schema
   declaration. CI must fail when migrations produce a schema that would change
   the committed generated types.
-- Existing data is retained only when the prior migration journal and final
-  schema pass the adoption checks. Operators with altered or partial state must
-  resolve it deliberately, because automatic reconciliation risks data loss.
-- Drizzle metadata and SQL remain read-only historical evidence during the
-  adoption release, but no running process reads them after successful
-  adoption. Removing that archive is separate housekeeping, not part of this
-  migration.
+- A database created before this change would get `0001_initial.ts` applied
+  on top of its existing tables and fail at the first `CREATE TYPE`. That fails
+  loudly rather than corrupting data, but it is not an upgrade path. If one is
+  ever needed, it is a one-off script that records `0001_initial` as applied
+  after verifying the schema, not code in the server.
+- The old SQL history survives only in git.

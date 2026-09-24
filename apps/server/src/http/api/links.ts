@@ -297,7 +297,7 @@ export const linkRoutes = new Hono<Env>()
             link_id: linkRow.id,
             position,
             destination: rule.destination,
-            conditions: rule.conditions,
+            conditions: JSON.stringify(rule.conditions),
           })),
         ).execute()
       }
@@ -368,7 +368,7 @@ export const linkRoutes = new Hono<Env>()
               link_id: id,
               position,
               destination: rule.destination,
-              conditions: rule.conditions,
+              conditions: JSON.stringify(rule.conditions),
             })),
           ).execute()
         }

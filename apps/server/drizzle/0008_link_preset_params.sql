@@ -1,1 +1,0 @@
-ALTER TABLE "links" ADD COLUMN "preset_params" jsonb DEFAULT '{}'::jsonb NOT NULL;

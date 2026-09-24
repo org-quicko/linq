@@ -3,10 +3,5 @@
   "compilerOptions": {
     "types": ["bun"]
   },
-  "include": [
-    "packages/shared/src/**/*.ts",
-    "apps/server/src/**/*.ts",
-    "apps/server/test/**/*.ts",
-    "apps/server/drizzle.config.ts"
-  ]
+  "include": ["packages/shared/src/**/*.ts", "apps/server/src/**/*.ts", "apps/server/test/**/*.ts"]
 }

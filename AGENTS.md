@@ -9,14 +9,15 @@ covers what isn't obvious from the code.
 
 - `bun run dev` / `bun run start` need Postgres reachable at `DATABASE_URL`,
   or the process exits with `ERR_POSTGRES_CONNECTION_REFUSED`. Migrations
-  apply automatically at boot — there is no separate migrate command.
+  apply automatically at boot; `bun run db:migrate` runs the same runner
+  explicitly.
 - `bun run test` needs nothing running. It uses an in-memory Postgres
   (PGlite, see `apps/server/test/helpers/db.ts`) per suite, never the real
   database or `DATABASE_URL`.
-- Database DDL lives in ordered SQL files under `apps/server/drizzle/`, run by
-  Kysely at boot. Add and review a new migration there, then run
-  `bun run db:codegen` against a migrated PostgreSQL database to refresh query
-  types. `bun run db:migrate` runs the same migration runner explicitly.
+- Database DDL lives in ordered, frozen Kysely migrations under
+  `apps/server/src/db/migrations/` (`0001_initial.ts` is the whole baseline
+  schema). Add a new `NNNN_<name>.ts` there, then run `bun run db:codegen`
+  against a migrated PostgreSQL database to refresh query types.
 
 ## Redis and Caddy are optional, and fail loud
 

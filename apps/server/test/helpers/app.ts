@@ -79,7 +79,7 @@ export async function createHarness(options: HarnessOptions = {}): Promise<Harne
       .values({
       id: keyId,
       name,
-      claims: [...claimsForPreset[preset]],
+      claims: JSON.stringify(claimsForPreset[preset]),
       key_hash: hashKey(secret),
       prefix: keyPrefix(secret),
       expires_at: expires_at ?? null,

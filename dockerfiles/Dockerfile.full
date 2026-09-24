@@ -55,7 +55,6 @@ RUN bun install --frozen-lockfile --production --filter '@linq/server' --filter 
 COPY tsconfig.base.json ./
 COPY packages/shared/src packages/shared/src
 COPY apps/server/src apps/server/src
-COPY apps/server/drizzle apps/server/drizzle
 COPY --from=build /app/apps/client/out apps/client/out
 
 EXPOSE 3000

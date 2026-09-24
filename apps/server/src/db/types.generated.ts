@@ -2,20 +2,28 @@
  * Query types for the PostgreSQL schema. Regenerate with `bun run db:codegen`
  * after applying migrations to the local verification database.
  *
- * This initial checked-in form preserves the existing driver contract while the
- * migration history is adopted. Do not add DDL here: migrations own DDL.
+ * Keep the driver contract (JSON column shapes, bigint read as number) when
+ * regenerating. Do not add DDL here: migrations own DDL.
  */
-import type { ColumnType, Generated, JSONColumnType } from "kysely"
+import type { ColumnType, Generated } from "kysely"
 
 type Timestamp = ColumnType<Date, Date | string | undefined, Date | string>
-type NullableTimestamp = ColumnType<Date | null, Date | string | null | undefined, Date | string | null>
-type Json = JSONColumnType<Record<string, unknown> | unknown[]>
+type NullableTimestamp = ColumnType<
+  Date | null,
+  Date | string | null | undefined,
+  Date | string | null
+>
+// node-postgres sends a JS array as a Postgres array literal, not JSON, so a
+// jsonb array column only accepts a JSON.stringify'd string on write. PGlite
+// would accept the raw array, which is why tests alone cannot catch this.
+// biome-ignore lint/suspicious/noExplicitAny: read shape is asserted by callers
+type JsonArray = ColumnType<any, string, string>
 
 export interface DB {
   api_keys: {
     id: Generated<string>
     name: string
-    claims: ColumnType<any, any, any>
+    claims: JsonArray
     key_hash: string
     prefix: string
     expires_at: NullableTimestamp
@@ -54,7 +62,7 @@ export interface DB {
     link_id: string
     position: number
     destination: string
-    conditions: ColumnType<any, any, any>
+    conditions: JsonArray
   }
   qr_codes: {
     id: Generated<string>

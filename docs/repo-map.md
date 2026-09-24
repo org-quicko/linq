@@ -110,6 +110,6 @@ from a JSON body on the client). Nothing here imports from either app.
 
 `.agents/skills/` and `.claude/skills/` hold the same set, mirrored for both
 tools: `linq-dev` (start the dev environment), `linq-db-migration` (add and
-verify a Kysely-managed SQL migration), `linq-adr` (write a new
+verify a Kysely migration), `linq-adr` (write a new
 ADR), `linq-backend` (add or change an `apps/server` API resource),
 `linq-frontend` (add or change an `apps/client` UI feature).

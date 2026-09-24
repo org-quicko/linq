@@ -8,7 +8,6 @@
       "!**/.next",
       "!**/out",
       "!**/dist",
-      "!**/drizzle",
       "!apps/client/components/ui",
       "!resources/*"
     ]

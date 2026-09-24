@@ -12,7 +12,7 @@ export async function createApiKey(
     .values({
       id: Bun.randomUUIDv7(),
       name: opts.name,
-      claims: [...opts.claims],
+      claims: JSON.stringify(opts.claims),
       key_hash: hashKey(secret),
       prefix: keyPrefix(secret),
       expires_at: opts.expires_at ?? null,
