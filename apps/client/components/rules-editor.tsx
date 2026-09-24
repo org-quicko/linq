@@ -1,10 +1,17 @@
 "use client"
 
 import type { Condition, ConditionType, Platform, Rule } from "@linq/shared"
-import { ArrowDownIcon, ArrowUpIcon } from "lucide-react"
-import { useState } from "react"
+import { cn } from "cn"
+import {
+  ChevronDownIcon,
+  ChevronUpIcon,
+  GripVerticalIcon,
+  PlusIcon,
+  Trash2Icon,
+  XIcon,
+} from "lucide-react"
+import { type ReactNode, useState } from "react"
 import { Picker } from "@/components/common"
-import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Card, CardAction, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
@@ -15,8 +22,8 @@ import { useUpdateLinkRulesMutation } from "../lib/store/links"
 export type RuleDraft = { destination: string; conditions: Condition[] }
 
 export const CONDITION_OPTIONS: { value: ConditionType; label: string }[] = [
-  { value: "platform", label: "Platform is" },
-  { value: "query_param", label: "Query parameter" },
+  { value: "platform", label: "Platform" },
+  { value: "query_param", label: "Query param" },
 ]
 
 export const PLATFORM_OPTIONS = [
@@ -31,9 +38,28 @@ export function blankCondition(type: ConditionType): Condition {
   return { type: "query_param", key: "" }
 }
 
+/** The small blue "+ Add ..." affordance used inside the rules card. */
+function AddLink({ children, onClick }: { children: ReactNode; onClick: () => void }) {
+  return (
+    <button
+      type="button"
+      className="inline-flex cursor-pointer items-center gap-1 py-1 text-[12.5px] font-medium text-chart-1 hover:opacity-70"
+      onClick={onClick}
+    >
+      <PlusIcon className="size-3" />
+      {children}
+    </button>
+  )
+}
+
 /**
  * Reusable list of rule drafts. Used both by the standalone RulesEditor on the
  * link detail page, and embedded directly inside LinkFormDialog.
+ *
+ * Each rule is its own box: a header (drag handle, name, remove, collapse),
+ * then its "If" conditions and a "Then go to" destination. Only one rule is
+ * open at a time. Reorder by dragging a rule by its handle, or focus the
+ * handle and press the arrow keys.
  */
 export function RulesList({
   rules,
@@ -44,124 +70,214 @@ export function RulesList({
   onChange: (next: RuleDraft[]) => void
   readOnly?: boolean
 }) {
+  // The one open rule, by position. Moves and removals keep it pointing at
+  // the same rule.
+  const [openIndex, setOpenIndex] = useState<number | null>(0)
+  // The box is only draggable while its handle is held, so text in the
+  // inputs stays selectable instead of starting a drag.
+  const [grabbed, setGrabbed] = useState<number | null>(null)
+  const [dragging, setDragging] = useState<number | null>(null)
+  const [dragOver, setDragOver] = useState<number | null>(null)
+
   /** Applies a change to one rule. */
   function edit(index: number, next: Partial<RuleDraft>) {
     onChange(rules.map((rule, i) => (i === index ? { ...rule, ...next } : rule)))
   }
 
-  /** Moves a rule up or down; order here is the only thing that breaks a tie. */
-  function move(index: number, by: -1 | 1) {
-    const target = index + by
-    if (target < 0 || target >= rules.length) return
+  /** Moves a rule to a new position; order here is the only thing that breaks a tie. */
+  function move(from: number, to: number) {
+    if (from === to || to < 0 || to >= rules.length) return
     const next = [...rules]
-    ;[next[index], next[target]] = [next[target], next[index]]
+    const [moved] = next.splice(from, 1)
+    next.splice(to, 0, moved)
+    setOpenIndex((open) => {
+      if (open === null) return null
+      if (open === from) return to
+      // The rules between `from` and `to` each shift one place toward `from`.
+      if (from < open && open <= to) return open - 1
+      if (to <= open && open < from) return open + 1
+      return open
+    })
     onChange(next)
   }
 
+  function remove(index: number) {
+    setOpenIndex((open) =>
+      open === null || open === index ? null : open > index ? open - 1 : open,
+    )
+    onChange(rules.filter((_, i) => i !== index))
+  }
+
+  function endDrag() {
+    setGrabbed(null)
+    setDragging(null)
+    setDragOver(null)
+  }
+
   return (
-    <div className="flex flex-col gap-3">
+    <div className="flex flex-col">
       {rules.length === 0 ? (
         <p className="py-2 text-center text-sm text-muted-foreground">
           No rules. Every visitor goes to the default destination.
         </p>
       ) : null}
 
-      {rules.map((rule, index) => (
-        // biome-ignore lint/suspicious/noArrayIndexKey: position is the identity here
-        <div key={index} className="rounded-md border p-3">
-          <div className="flex items-center gap-2">
-            <Badge variant="secondary">#{index + 1}</Badge>
-            <Input
-              value={rule.destination}
-              onChange={(event) => edit(index, { destination: event.target.value })}
-              placeholder="https://play.google.com/store/apps/…"
-              disabled={readOnly}
-            />
-            {readOnly ? null : (
-              <>
-                <Button
-                  type="button"
-                  variant="ghost"
-                  size="icon"
-                  aria-label="Move up"
-                  onClick={() => move(index, -1)}
-                  disabled={index === 0}
-                >
-                  <ArrowUpIcon />
-                </Button>
-                <Button
-                  type="button"
-                  variant="ghost"
-                  size="icon"
-                  aria-label="Move down"
-                  onClick={() => move(index, 1)}
-                  disabled={index === rules.length - 1}
-                >
-                  <ArrowDownIcon />
-                </Button>
-                <Button
-                  type="button"
-                  variant="destructive"
-                  onClick={() => onChange(rules.filter((_, i) => i !== index))}
-                >
-                  Remove
-                </Button>
-              </>
-            )}
-          </div>
-
-          <div className="mt-3 flex flex-col gap-2 pl-2">
-            {rule.conditions.map((condition, conditionIndex) => (
-              <ConditionRow
-                // biome-ignore lint/suspicious/noArrayIndexKey: conditions are positional too
-                key={conditionIndex}
-                condition={condition}
-                readOnly={readOnly}
-                onChange={(next) =>
-                  edit(index, {
-                    conditions: rule.conditions.map((c, i) => (i === conditionIndex ? next : c)),
-                  })
-                }
-                onRemove={
-                  rule.conditions.length > 1
-                    ? () =>
-                        edit(index, {
-                          conditions: rule.conditions.filter((_, i) => i !== conditionIndex),
-                        })
-                    : undefined
-                }
-              />
-            ))}
-
-            {readOnly ? null : (
-              <Button
-                type="button"
-                variant="ghost"
-                className="self-start"
-                onClick={() =>
-                  edit(index, {
-                    conditions: [...rule.conditions, blankCondition("query_param")],
-                  })
-                }
+      <div className="flex flex-col gap-2.5">
+        {rules.map((rule, index) => {
+          const expanded = openIndex === index
+          return (
+            // biome-ignore lint/a11y/noStaticElementInteractions: drag source and drop target; the handle carries the keyboard path
+            <div
+              // biome-ignore lint/suspicious/noArrayIndexKey: position is the identity here
+              key={index}
+              draggable={grabbed === index}
+              className={cn(
+                "rounded-lg border bg-background p-3 transition-opacity",
+                dragging === index && "opacity-50",
+                dragOver === index && dragging !== index && "border-chart-1 ring-1 ring-chart-1",
+              )}
+              onDragStart={(event) => {
+                event.dataTransfer.effectAllowed = "move"
+                // Firefox refuses to start a drag without some data set.
+                event.dataTransfer.setData("text/plain", String(index))
+                setDragging(index)
+              }}
+              onDragEnd={endDrag}
+              onDragOver={(event) => {
+                if (dragging === null) return
+                event.preventDefault()
+                event.dataTransfer.dropEffect = "move"
+                if (dragOver !== index) setDragOver(index)
+              }}
+              onDrop={(event) => {
+                event.preventDefault()
+                if (dragging !== null) move(dragging, index)
+                endDrag()
+              }}
+            >
+              <div
+                className={cn(
+                  "flex items-center justify-between",
+                  expanded && "mb-2.5 border-b pb-2.5",
+                )}
               >
-                + Add condition (all must hold)
-              </Button>
-            )}
-          </div>
-        </div>
-      ))}
+                <div className="flex items-center gap-2">
+                  {readOnly ? null : (
+                    // A span, not a <button>: Firefox never starts a drag from inside a button.
+                    // biome-ignore lint/a11y/useSemanticElements: see above
+                    <span
+                      role="button"
+                      tabIndex={0}
+                      aria-label={`Reorder rule ${index + 1} (drag, or use the arrow keys)`}
+                      className="flex cursor-grab items-center rounded-sm p-0.5 text-muted-foreground outline-none hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring/50 active:cursor-grabbing"
+                      onPointerDown={() => setGrabbed(index)}
+                      onPointerUp={() => setGrabbed(null)}
+                      onKeyDown={(event) => {
+                        if (event.key === "ArrowUp") move(index, index - 1)
+                        else if (event.key === "ArrowDown") move(index, index + 1)
+                        else return
+                        event.preventDefault()
+                      }}
+                    >
+                      <GripVerticalIcon className="size-3.5" />
+                    </span>
+                  )}
+                  <span className="text-[13px] font-semibold">Rule {index + 1}</span>
+                </div>
+                <div className="flex items-center gap-1">
+                  {readOnly ? null : (
+                    <button
+                      type="button"
+                      aria-label={`Remove rule ${index + 1}`}
+                      className="cursor-pointer rounded-sm p-1 text-muted-foreground hover:text-destructive"
+                      onClick={() => remove(index)}
+                    >
+                      <Trash2Icon className="size-3.5" />
+                    </button>
+                  )}
+                  <button
+                    type="button"
+                    aria-label={`${expanded ? "Collapse" : "Expand"} rule ${index + 1}`}
+                    aria-expanded={expanded}
+                    className="cursor-pointer rounded-sm p-1 text-muted-foreground hover:text-foreground"
+                    onClick={() => setOpenIndex(expanded ? null : index)}
+                  >
+                    {expanded ? (
+                      <ChevronUpIcon className="size-3" />
+                    ) : (
+                      <ChevronDownIcon className="size-3" />
+                    )}
+                  </button>
+                </div>
+              </div>
+
+              {expanded ? (
+                <div className="flex flex-col gap-2.5">
+                  <span className="text-[12.5px] font-semibold">If</span>
+                  {rule.conditions.map((condition, conditionIndex) => (
+                    <ConditionRow
+                      // biome-ignore lint/suspicious/noArrayIndexKey: conditions are positional too
+                      key={conditionIndex}
+                      condition={condition}
+                      readOnly={readOnly}
+                      onChange={(next) =>
+                        edit(index, {
+                          conditions: rule.conditions.map((c, i) =>
+                            i === conditionIndex ? next : c,
+                          ),
+                        })
+                      }
+                      onRemove={
+                        rule.conditions.length > 1
+                          ? () =>
+                              edit(index, {
+                                conditions: rule.conditions.filter((_, i) => i !== conditionIndex),
+                              })
+                          : undefined
+                      }
+                    />
+                  ))}
+
+                  {readOnly ? null : (
+                    <div className="flex justify-end">
+                      <AddLink
+                        onClick={() =>
+                          edit(index, {
+                            conditions: [...rule.conditions, blankCondition("query_param")],
+                          })
+                        }
+                      >
+                        Add condition
+                      </AddLink>
+                    </div>
+                  )}
+
+                  <span className="mt-0.5 text-[12.5px] font-semibold">Then go to</span>
+                  <Input
+                    className="h-10"
+                    value={rule.destination}
+                    onChange={(event) => edit(index, { destination: event.target.value })}
+                    placeholder="e.g. https://apps.apple.com/app/quicko"
+                    disabled={readOnly}
+                  />
+                </div>
+              ) : null}
+            </div>
+          )
+        })}
+      </div>
 
       {readOnly ? null : (
-        <Button
-          type="button"
-          variant="outline"
-          className="self-start"
-          onClick={() =>
-            onChange([...rules, { destination: "", conditions: [blankCondition("platform")] }])
-          }
-        >
-          Add rule
-        </Button>
+        <div className="mt-3">
+          <AddLink
+            onClick={() => {
+              setOpenIndex(rules.length)
+              onChange([...rules, { destination: "", conditions: [blankCondition("platform")] }])
+            }}
+          >
+            Add rule
+          </AddLink>
+        </div>
       )}
     </div>
   )
@@ -233,7 +349,7 @@ export function RulesEditor({
   )
 }
 
-/** One condition: the type picker plus whichever fields that type needs. */
+/** One condition: the field picker, "is", then whichever value that field needs. */
 function ConditionRow({
   condition,
   readOnly,
@@ -245,10 +361,12 @@ function ConditionRow({
   onChange: (next: Condition) => void
   onRemove?: () => void
 }) {
+  const is = <span className="shrink-0 text-[13px] text-muted-foreground">is</span>
+
   return (
-    <div className="flex flex-wrap items-center gap-2">
+    <div className="flex items-center gap-2">
       <Picker
-        className="w-44"
+        className="w-[158px] shrink-0 data-[size=default]:h-[38px]"
         value={condition.type}
         disabled={readOnly}
         onChange={(value) => onChange(blankCondition(value as ConditionType))}
@@ -256,26 +374,30 @@ function ConditionRow({
       />
 
       {condition.type === "platform" ? (
-        <Picker
-          className="w-40"
-          value={condition.value}
-          disabled={readOnly}
-          onChange={(value) => onChange({ type: "platform", value: value as Platform })}
-          options={PLATFORM_OPTIONS}
-        />
+        <>
+          {is}
+          <Picker
+            className="min-w-0 flex-1 data-[size=default]:h-[38px]"
+            value={condition.value}
+            disabled={readOnly}
+            onChange={(value) => onChange({ type: "platform", value: value as Platform })}
+            options={PLATFORM_OPTIONS}
+          />
+        </>
       ) : null}
 
       {condition.type === "query_param" ? (
         <>
           <Input
-            className="w-40"
+            className="h-[38px] min-w-0 flex-1"
             value={condition.key}
             disabled={readOnly}
-            placeholder="utm_source"
+            placeholder="e.g. utm_source"
             onChange={(event) => onChange({ ...condition, key: event.target.value })}
           />
+          {is}
           <Input
-            className="w-40"
+            className="h-[38px] min-w-0 flex-1"
             value={condition.value ?? ""}
             disabled={readOnly}
             placeholder="any value"
@@ -293,8 +415,15 @@ function ConditionRow({
       ) : null}
 
       {onRemove && !readOnly ? (
-        <Button type="button" variant="ghost" onClick={onRemove}>
-          Remove
+        <Button
+          type="button"
+          variant="ghost"
+          size="icon-sm"
+          className="shrink-0"
+          aria-label="Remove condition"
+          onClick={onRemove}
+        >
+          <XIcon className="size-3" />
         </Button>
       ) : null}
     </div>
