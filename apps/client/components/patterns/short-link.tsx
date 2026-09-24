@@ -7,7 +7,7 @@ import { CopyButton } from "@/components/common"
 type ShortLinkLike = { domain_host: string; slug: string; short_url: string }
 
 /** The plain "host/slug" text, for contexts that need a string, not markup —
- *  a dialog title (`Purge ${shortLinkText(link)}?`) chief among them. */
+ *  a dialog title (`Delete ${shortLinkText(link)}?`) chief among them. */
 export function shortLinkText(link: Pick<ShortLinkLike, "domain_host" | "slug">): string {
   return `${link.domain_host}/${link.slug}`
 }

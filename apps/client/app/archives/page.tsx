@@ -85,7 +85,7 @@ function ArchivedLinksTab() {
             variant="outline"
             className="shrink-0 border-destructive/30 text-destructive hover:bg-destructive/10 hover:text-destructive"
             title="Empty the archive?"
-            description="Purges every archived link for good, and every visit ever recorded on each of them. This cannot be undone."
+            description="Deletes every archived link for good, and every visit ever recorded on each of them. This cannot be undone."
             confirmLabel="Empty archive"
             onConfirm={emptyArchive}
           >
@@ -115,9 +115,9 @@ function ArchivedLinksTab() {
                 <ConfirmButton
                   className="size-10"
                   ariaLabel="Delete permanently"
-                  title={`Purge ${shortLinkText(link)}?`}
+                  title={`Delete ${shortLinkText(link)}?`}
                   description="This destroys the link and every visit ever recorded on it. It cannot be undone, and the slug becomes free for reuse on this domain."
-                  confirmLabel="Purge for good"
+                  confirmLabel="Delete for good"
                   confirmText={link.slug}
                   onConfirm={() => purge(link)}
                 >

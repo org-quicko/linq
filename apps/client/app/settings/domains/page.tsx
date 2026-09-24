@@ -118,7 +118,7 @@ function DomainRow({ domain, isAdmin }: { domain: Domain; isAdmin: boolean }) {
                 className="size-10"
                 ariaLabel="Delete"
                 title={`Delete ${domain.host}?`}
-                description="Permanently deletes this domain and every visit ever recorded on it. This cannot be undone. Refused while any link, archived included, still points at this host — purge them first."
+                description="Permanently deletes this domain and every visit ever recorded on it. This cannot be undone. Refused while any link, archived included, still points at this host — delete them first."
                 confirmLabel="Delete"
                 confirmText={domain.host}
                 onConfirm={remove}

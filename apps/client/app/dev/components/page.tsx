@@ -73,7 +73,7 @@ export default function ComponentGalleryPage() {
           <ShortLink link={FIXTURE_LINKS[0]} href="#" />
           <ShortLink link={FIXTURE_LINKS[1]} copy={false} />
           <p className="text-sm text-muted-foreground">
-            Dialog-title form: “Purge {shortLinkText(FIXTURE_LINKS[0])}?”
+            Dialog-title form: “Delete {shortLinkText(FIXTURE_LINKS[0])}?”
           </p>
         </div>
       </Section>
@@ -231,7 +231,7 @@ export default function ComponentGalleryPage() {
                 <Archive className="size-4" />
               </RowCardTile>
             }
-            actions={<IconButton icon={Trash2} label="Purge for good" variant="destructive" />}
+            actions={<IconButton icon={Trash2} label="Delete for good" variant="destructive" />}
           >
             <span className="truncate font-medium">go.example.com</span>
             <span className="truncate text-xs text-muted-foreground">No fallback URL</span>
