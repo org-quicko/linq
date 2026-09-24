@@ -7,8 +7,9 @@ const clientBasePathSchema = z
   .trim()
   .max(256)
   .regex(
-    /^\/(?:[a-z0-9_-]{1,64})(?:\/[a-z0-9_-]{1,64})*$/,
-    "must start with /, contain lowercase path segments, and have no trailing slash",
+    // A bare "/" is the root mount, allowed only with LINQ_APP_HOST (see below).
+    /^\/(?:(?:[a-z0-9_-]{1,64})(?:\/[a-z0-9_-]{1,64})*)?$/,
+    "must be / or start with /, contain lowercase path segments, and have no trailing slash",
   )
   .refine((path) => {
     const first = path.slice(1).split("/")[0]
@@ -24,10 +25,33 @@ export function clientBaseSegment(basePath: string): string {
   return basePath.slice(1).split("/")[0] ?? ""
 }
 
-/** Static server paths plus the deployment-specific Client UI mount. */
+/**
+ * A path under the Client UI mount. A root mount has no prefix, so `/` + `/x`
+ * must not become the protocol-relative `//x`.
+ */
+export function clientPath(basePath: string, path: string): string {
+  return basePath === "/" ? path : `${basePath}${path}`
+}
+
+/**
+ * Static server paths plus the deployment-specific Client UI mount. A root
+ * mount claims no slug: it only ever answers on LINQ_APP_HOST, never on a
+ * shortening domain.
+ */
 export function isReservedSlug(slug: string, clientBasePath: string): boolean {
   const normalised = slug.toLowerCase()
-  return RESERVED_SLUGS.has(normalised) || normalised === clientBaseSegment(clientBasePath)
+  const segment = clientBaseSegment(clientBasePath)
+  return RESERVED_SLUGS.has(normalised) || (segment !== "" && normalised === segment)
+}
+
+/**
+ * Whether a request's Host header names LINQ_APP_HOST, tried as sent and then
+ * with its port stripped, the same way a domain row is matched.
+ */
+export function isAppHost(config: Pick<Config, "LINQ_APP_HOST">, hostHeader: string): boolean {
+  if (!config.LINQ_APP_HOST) return false
+  const host = hostHeader.trim().toLowerCase()
+  return host === config.LINQ_APP_HOST || host.replace(/:\d+$/, "") === config.LINQ_APP_HOST
 }
 
 const schema = z
@@ -66,6 +90,12 @@ const schema = z
     LINQ_VISIT_MAX_PENDING: z.coerce.number().int().min(1).max(100_000).default(1_000),
     /** Where a combined deployment mounts its pre-built Client UI. */
     LINQ_CLIENT_BASE_PATH: clientBasePathSchema.default("/home"),
+    /**
+     * The one host that serves the Client UI. Set, the UI answers only here and
+     * never on a shortening domain, which is what lets it mount at `/`. Unset,
+     * the UI answers on every host at LINQ_CLIENT_BASE_PATH.
+     */
+    LINQ_APP_HOST: hostSchema.optional(),
     // Same hostSchema an API-created domain goes through: a scheme snuck in
     // here (e.g. LINQ_DEFAULT_DOMAIN=https://example.com) would otherwise be
     // stored verbatim and doubled up by shortUrl()'s own "https://".
@@ -111,6 +141,23 @@ const schema = z
         code: "custom",
         path: ["LINQ_CADDY_UPSTREAM"],
         message: "required when LINQ_CADDY_ADMIN_URL is set",
+      })
+    }
+    // On a shortening domain every root path is a slug; only a dedicated app
+    // host can give the UI the root.
+    if (c.LINQ_CLIENT_BASE_PATH === "/" && !c.LINQ_APP_HOST) {
+      ctx.addIssue({
+        code: "custom",
+        path: ["LINQ_APP_HOST"],
+        message: "required when LINQ_CLIENT_BASE_PATH is /",
+      })
+    }
+    // The UI would shadow every link on it.
+    if (c.LINQ_APP_HOST && c.LINQ_DEFAULT_DOMAIN === c.LINQ_APP_HOST) {
+      ctx.addIssue({
+        code: "custom",
+        path: ["LINQ_DEFAULT_DOMAIN"],
+        message: "must differ from LINQ_APP_HOST",
       })
     }
   })

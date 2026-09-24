@@ -12,7 +12,9 @@ const isDev = process.env.NODE_ENV === "development"
  * `lib/base-path.ts` reads the same variable for the handful of
  * `window.location` navigations Next does not rewrite, so the two cannot drift.
  */
-const basePath = process.env.NEXT_PUBLIC_BASE_PATH ?? process.env.LINQ_CLIENT_BASE_PATH ?? "/home"
+const configured = process.env.NEXT_PUBLIC_BASE_PATH ?? process.env.LINQ_CLIENT_BASE_PATH ?? "/home"
+// The server spells a root mount `/` (with LINQ_APP_HOST); Next spells it empty.
+const basePath = configured === "/" ? "" : configured
 
 /**
  * A static export with no server of its own. Every call it makes goes to a

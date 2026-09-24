@@ -2,6 +2,7 @@ import { createHash } from "node:crypto"
 import { dirname, isAbsolute, join, relative as relativePath, resolve } from "node:path"
 import { fileURLToPath } from "node:url"
 import type { Context, Hono } from "hono"
+import { clientPath, isAppHost } from "../config.ts"
 import type { Env } from "./env.ts"
 
 /**
@@ -73,15 +74,25 @@ function setAdminSecurityHeaders(c: Context<Env>, html: string) {
  * Must be mounted before the catch-all redirect, or the first path segment
  * would be read as a slug. Returns 404 when no export is present, so a server
  * running without a built UI still serves redirects and the API.
+ *
+ * With LINQ_APP_HOST set, every other host falls through to the redirect
+ * handler, which is what lets a root mount (`/`) coexist with slugs.
  */
 export function mountAdmin(
   app: Hono<Env>,
   { basePath, root = adminRoot }: { basePath: string; root?: string },
 ): void {
-  app.get(basePath, (c) => c.redirect(`${basePath}/`, 302))
+  const onThisHost = (c: Context<Env>) =>
+    !c.var.config.LINQ_APP_HOST ||
+    isAppHost(c.var.config, c.req.header("host") ?? new URL(c.req.url).host)
 
-  app.get(`${basePath}/*`, async (c) => {
-    const relative = c.req.path.slice(basePath.length) || "/"
+  if (basePath !== "/") {
+    app.get(basePath, (c, next) => (onThisHost(c) ? c.redirect(`${basePath}/`, 302) : next()))
+  }
+
+  app.get(clientPath(basePath, "/*"), async (c, next) => {
+    if (!onThisHost(c)) return next()
+    const relative = basePath === "/" ? c.req.path : c.req.path.slice(basePath.length) || "/"
 
     // Trust boundary: resolve the path, then refuse anything that landed outside
     // the export directory, however it was encoded. `relative` handles the

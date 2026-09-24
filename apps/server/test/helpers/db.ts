@@ -29,6 +29,7 @@ export const testConfig: Config = {
   LINQ_API_RATE_LIMIT_PER_MINUTE: 1_000,
   LINQ_VISIT_MAX_PENDING: 1_000,
   LINQ_CLIENT_BASE_PATH: "/home",
+  LINQ_APP_HOST: undefined,
   LINQ_DEFAULT_DOMAIN: undefined,
   LINQ_DATA_DIR: "./data",
   LINQ_SLUG_LENGTH: 6,

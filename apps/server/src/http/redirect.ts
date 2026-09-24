@@ -2,7 +2,7 @@ import { type Condition, SLUG_PATTERN } from "@linq/shared"
 import type { Context } from "hono"
 import { createFactory } from "hono/factory"
 import { domainKey, targetKey } from "../cache.ts"
-import { isReservedSlug } from "../config.ts"
+import { clientPath, isReservedSlug } from "../config.ts"
 import type { Db } from "../db/client.ts"
 import { reqLog, span } from "../log.ts"
 import { matchRules } from "../rules/match.ts"
@@ -331,11 +331,14 @@ function sendRedirect(c: Context<Env>, destination: string) {
 /**
  * The root path's fallback of last resort. Not cached, for the same reason
  * as `sendRedirect`: configuring a base path redirect later must take over
- * immediately, not wait out a stale 302 some intermediary held onto.
+ * immediately, not wait out a stale 302 some intermediary held onto. With
+ * LINQ_APP_HOST set the UI answers only there, so this points at it.
  */
 function redirectToAdmin(c: Context<Env>) {
+  const { LINQ_APP_HOST, LINQ_CLIENT_BASE_PATH } = c.var.config
+  const path = clientPath(LINQ_CLIENT_BASE_PATH, "/")
   c.header("cache-control", "no-store")
-  return c.redirect(`${c.var.config.LINQ_CLIENT_BASE_PATH}/`, 302)
+  return c.redirect(LINQ_APP_HOST ? shortUrl(LINQ_APP_HOST, path.slice(1)) : path, 302)
 }
 
 /**

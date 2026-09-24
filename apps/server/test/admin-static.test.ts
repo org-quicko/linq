@@ -106,3 +106,59 @@ describe("mounting order", () => {
     expect((await custom.request("/admin/example/nope")).status).toBe(404)
   })
 })
+
+describe("a root mount on LINQ_APP_HOST", () => {
+  const APP = "app.test"
+  const LINKS = "links.test"
+  let root: Harness
+  let slug: string
+
+  beforeAll(async () => {
+    root = await createHarness({ config: { LINQ_CLIENT_BASE_PATH: "/", LINQ_APP_HOST: APP } })
+    const { key } = await root.actor("editor")
+    const domain = await root.createDomain(LINKS)
+    slug = (await root.createLink(key, domain, { destination: "https://example.com/" })).slug
+  })
+
+  test("a slug redirects on a shortening domain but belongs to the UI on the app host", async () => {
+    const link = await root.request(`/${slug}`, { host: LINKS })
+    expect(link.status).toBe(302)
+    expect(link.headers.get("location")).toBe("https://example.com/")
+    expect((await root.request(`/${slug}`, { host: APP })).status).not.toBe(302)
+  })
+
+  test("the API answers on the app host", async () => {
+    expect((await root.request("/api/health", { host: APP })).status).toBe(200)
+  })
+
+  test("an unregistered host's root points at the app host", async () => {
+    const res = await root.request("/", { host: "nobody.test" })
+    expect(res.status).toBe(302)
+    expect(res.headers.get("location")).toBe(`https://${APP}/`)
+  })
+
+  test("robots.txt keeps crawlers off the app host only", async () => {
+    expect(await (await root.request("/robots.txt", { host: APP })).text()).toContain(
+      "Disallow: /\n",
+    )
+    expect(await (await root.request("/robots.txt", { host: LINKS })).text()).not.toContain(
+      "Disallow: /\n",
+    )
+  })
+
+  test("the app host cannot be registered as a domain", async () => {
+    const { key } = await root.actor("admin")
+    expect((await root.post("/api/v1/domains", key, { host: APP })).status).toBe(400)
+  })
+})
+
+describe.skipIf(!built)("the exported Client UI at / on LINQ_APP_HOST", () => {
+  test("serves the UI at the app host's root", async () => {
+    const root = await createHarness({
+      config: { LINQ_CLIENT_BASE_PATH: "/", LINQ_APP_HOST: "app.test" },
+    })
+    const res = await root.request("/", { host: "app.test" })
+    expect(res.status).toBe(200)
+    expect(await res.text()).toContain("<html")
+  })
+})

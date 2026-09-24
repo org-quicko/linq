@@ -11,6 +11,7 @@ import { Hono } from "hono"
 import { z } from "zod"
 import { assertCan, assertCanPurge } from "../../auth/permissions.ts"
 import { domainKey } from "../../cache.ts"
+import { isAppHost } from "../../config.ts"
 import type { Db } from "../../db/client.ts"
 import type { DB } from "../../db/types.generated.ts"
 import { span } from "../../log.ts"
@@ -113,6 +114,10 @@ export const domainRoutes = new Hono<Env>()
   .post("/", validate("json", domainCreateSchema), async (c) => {
     assertCan(c.var.principal, "create", "Domain")
     const body = c.req.valid("json")
+    // The Client UI claims every path on the app host, so no link there could resolve.
+    if (isAppHost(c.var.config, body.host)) {
+      throw ApiError.validation(`${body.host} is LINQ_APP_HOST and cannot be a domain`)
+    }
 
     const row = await c.var.db
       .insertInto("domains")

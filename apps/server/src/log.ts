@@ -6,7 +6,7 @@ import type { Context, Next } from "hono"
 import pino, { type Logger } from "pino"
 import pinoRoll from "pino-roll"
 import type { Principal } from "./auth/middleware.ts"
-import type { Config } from "./config.ts"
+import { type Config, clientPath } from "./config.ts"
 import type { Env } from "./http/env.ts"
 
 /** Anything a serialised log line can be handed to. Tests pass an array-backed one. */
@@ -209,7 +209,7 @@ export async function withRequestLog(c: Context<Env>, next: Next): Promise<void>
 
   // One admin page load is ~30 hashed chunk requests. None of them is diagnostic.
   const clientBasePath = c.var.config?.LINQ_CLIENT_BASE_PATH ?? "/home"
-  if (c.req.path.startsWith(`${clientBasePath}/_next/`)) return next()
+  if (c.req.path.startsWith(clientPath(clientBasePath, "/_next/"))) return next()
 
   const child = log.child({ reqId })
   await als.run(child, async () => {

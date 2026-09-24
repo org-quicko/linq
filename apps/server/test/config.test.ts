@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test"
-import { clientBaseSegment, isReservedSlug, loadConfig } from "../src/config.ts"
+import { clientBaseSegment, isAppHost, isReservedSlug, loadConfig } from "../src/config.ts"
 
 describe("cache configuration", () => {
   test("defaults the memory sweep interval to 60 seconds", () => {
@@ -58,5 +58,18 @@ describe("Client UI base path configuration", () => {
     expect(clientBaseSegment(config.LINQ_CLIENT_BASE_PATH)).toBe("admin")
     expect(isReservedSlug("ADMIN", config.LINQ_CLIENT_BASE_PATH)).toBe(true)
     expect(isReservedSlug("campaign", config.LINQ_CLIENT_BASE_PATH)).toBe(false)
+  })
+
+  test("accepts a root mount with an app host, and reserves no slug for it", () => {
+    const config = loadConfig({
+      DATABASE_URL: "memory://pglite",
+      LINQ_CLIENT_BASE_PATH: "/",
+      LINQ_APP_HOST: "App.Example.com",
+    })
+
+    expect(config.LINQ_APP_HOST).toBe("app.example.com")
+    expect(isAppHost(config, "app.example.com:443")).toBe(true)
+    expect(isAppHost(config, "links.example.com")).toBe(false)
+    expect(isReservedSlug("", config.LINQ_CLIENT_BASE_PATH)).toBe(false)
   })
 })

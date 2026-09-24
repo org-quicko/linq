@@ -8,7 +8,7 @@ import { authenticate } from "../auth/middleware.ts"
 import { limitByKey } from "../auth/rate-limit.ts"
 import { type Cache, guarded, noCache } from "../cache.ts"
 import { type Caddy, guarded as guardedCaddy, noCaddy } from "../caddy.ts"
-import type { Config } from "../config.ts"
+import { type Config, isAppHost } from "../config.ts"
 import type { Db } from "../db/client.ts"
 import { guarded as guardedMetadata, type MetadataFetcher, noMetadata } from "../link-metadata.ts"
 import { reqLog, withRequestLog } from "../log.ts"
@@ -110,9 +110,16 @@ export function createApp({
 
   // `.on([...])`, not `.get()`: GET-only left HEAD falling through to the
   // catch-all's 404. Both text routes take the same fix.
-  app.on(["GET", "HEAD"], "/robots.txt", (c) =>
-    c.text(`User-agent: *\nDisallow: /api\nDisallow: ${config.LINQ_CLIENT_BASE_PATH}\n`),
-  )
+  // The app host is nothing but the API and the UI, so none of it is for
+  // crawlers. A root mount never answers on a shortening domain, so it gets no
+  // line there.
+  app.on(["GET", "HEAD"], "/robots.txt", (c) => {
+    if (isAppHost(config, c.req.header("host") ?? new URL(c.req.url).host))
+      return c.text("User-agent: *\nDisallow: /\n")
+    const ui =
+      config.LINQ_CLIENT_BASE_PATH === "/" ? "" : `Disallow: ${config.LINQ_CLIENT_BASE_PATH}\n`
+    return c.text(`User-agent: *\nDisallow: /api\n${ui}`)
+  })
   app.on(["GET", "HEAD"], "/llms.txt", ...llmsHandler)
 
   // The exported Client UI. Before the catch-all, or its first segment reads as a slug.
