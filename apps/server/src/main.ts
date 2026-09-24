@@ -26,7 +26,7 @@ const app = createApp({ db, config, cache, caddy, metadata })
 
 // Repairs Caddy's routes after its own restart, or a first boot alongside a
 // fresh Caddy container whose skeleton config has no routes yet.
-await reconcileCaddy(db, caddy)
+await reconcileCaddy(db, caddy, config.LINQ_APP_HOST)
 
 const server = Bun.serve({
   port: config.LINQ_PORT,

@@ -1,25 +1,20 @@
 # syntax=docker/dockerfile:1
 
-ARG LINQ_CLIENT_BASE_PATH=/home
-
-# Both: the API, the redirects and the Client UI (served at
-# LINQ_CLIENT_BASE_PATH, /home by default) from one process. One of three
-# shapes in this folder (server-only, client-only, both); see
-# dockerfiles/README.md.
+# Dockerfile.full with the Client UI fixed at the root: the API, the redirects
+# and the UI from one process, the UI answering only on LINQ_APP_HOST, which
+# must be set at runtime (docs/adr/0019). Published as linq-root. Kept in step
+# with Dockerfile.full; only the base path differs.
 #
 # Build from the repo root, not this directory:
-#   docker build -f dockerfiles/Dockerfile.full -t linq .
-# Custom Client UI path (requires a rebuild):
-#   docker build --build-arg LINQ_CLIENT_BASE_PATH=/admin -f dockerfiles/Dockerfile.full -t linq .
-# UI at the root: see Dockerfile.root, which is this file with / fixed.
+#   docker build -f dockerfiles/Dockerfile.root -t linq-root .
 #
 # Stage 1 builds the Client UI into a static export. Nothing from here ships
 # except apps/client/out.
 FROM oven/bun:1.4 AS build
-ARG LINQ_CLIENT_BASE_PATH
 WORKDIR /app
 
-ENV NEXT_PUBLIC_BASE_PATH=${LINQ_CLIENT_BASE_PATH}
+# next.config.ts reads / as the root, which Next itself spells as no basePath.
+ENV NEXT_PUBLIC_BASE_PATH=/
 
 COPY package.json bun.lock tsconfig.base.json ./
 COPY apps/server/package.json apps/server/
@@ -34,13 +29,13 @@ RUN bun --filter '@linq/client' build
 # Stage 2 is the runtime: Bun executes the server sources directly, so there is
 # no server bundle step. Postgres is always external; see docker-compose-examples/.
 FROM oven/bun:1.4 AS runtime
-ARG LINQ_CLIENT_BASE_PATH
 WORKDIR /app
 
 ENV NODE_ENV=production
 ENV LINQ_DATA_DIR=/data
 ENV LINQ_PORT=3000
-ENV LINQ_CLIENT_BASE_PATH=${LINQ_CLIENT_BASE_PATH}
+# Must match the export above; overriding it would not move the UI.
+ENV LINQ_CLIENT_BASE_PATH=/
 ENV LINQ_CACHE_SWEEP_INTERVAL=60
 # Logs go to stdout and to /data/logs/linq.log, rotated and capped.
 ENV LINQ_LOG_LEVEL=info

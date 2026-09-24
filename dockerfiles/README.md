@@ -1,6 +1,6 @@
 # Dockerfiles
 
-Three shapes of the linq image — the canonical Dockerfiles this repo builds
+The shapes of the linq image — the canonical Dockerfiles this repo builds
 from, whether that's a local `docker build`/`docker compose` or a CI workflow
 publishing images:
 
@@ -9,6 +9,7 @@ publishing images:
 | `Dockerfile.client` | Client UI only, as a standalone static export | `oven/bun:1.4` |
 | `Dockerfile.server` | API and redirects only, no Client UI | `oven/bun:1.4` |
 | `Dockerfile.full` | Both — the API and the Client UI at `/home` by default, one process | `oven/bun:1.4` |
+| `Dockerfile.root` | Both, with the Client UI fixed at `/` on `LINQ_APP_HOST` | `oven/bun:1.4` |
 
 `Dockerfile.client` runs `serve-static.ts` under plain Bun rather than
 introducing nginx as a second base image. It mirrors
@@ -41,6 +42,20 @@ docker build --build-arg LINQ_CLIENT_BASE_PATH=/admin/example -f dockerfiles/Doc
 The Dockerfile does not read `.env`; pass the argument explicitly. With Compose,
 put the literal value under `services.linq.build.args` in the Compose file you
 deploy, then rebuild.
+
+`Dockerfile.root` is `Dockerfile.full` with the base path fixed at `/`, so the
+UI sits at the root. The server accepts that only with `LINQ_APP_HOST` set at
+runtime, so the UI answers on that one host and every other host keeps its short
+links (`../docs/adr/0019`). CI publishes it as `linq-root`, next to `linq`,
+`linq-server` and `linq-client`. Keep the two files in step; only the base path
+differs:
+
+```sh
+docker build -f dockerfiles/Dockerfile.root -t linq-root .
+```
+
+`Dockerfile.full` with `--build-arg LINQ_CLIENT_BASE_PATH=/` builds the same
+image.
 
 `Dockerfile.client` needs no environment or Postgres — it's static files, and
 the UI is pointed at a linq server at runtime, in the browser. `Dockerfile.server`

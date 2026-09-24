@@ -52,7 +52,7 @@ a separate Next.js project with its own config. `bun run typecheck` runs
 | `db/` | `types.generated.ts` (Kysely query types), `client.ts` (the Postgres/PGlite `Db` boundary), `migrate.ts` (runs migrations in `LINQ_DB_SCHEMA` at boot) |
 | `http/app.ts` | `createApp` — mounts every route, in the order that keeps the redirect catch-all from shadowing anything reserved |
 | `http/redirect.ts` | The redirect handler: domain/link/rule resolution, the cache-through helper, query merging, and the link-preview OG page |
-| `http/admin-static.ts` | Serves the exported Client UI at `LINQ_CLIENT_BASE_PATH` (`/home` by default), path-traversal-checked |
+| `http/admin-static.ts` | Serves the exported Client UI at `LINQ_CLIENT_BASE_PATH` (`/home` by default), path-traversal-checked; only on `LINQ_APP_HOST` when that is set |
 | `http/llms.ts` | `GET /llms.txt` — the per-domain catalogue of opted-in links, unauthenticated. See `docs/adr/0013` |
 | `http/env.ts` | The Hono `Env` type — what `c.var` and `c.get`/`c.set` carry (db, config, cache, caddy, metadata, principal) |
 | `http/validate.ts` | The zod-body/query/param validation middleware every route uses |
@@ -102,8 +102,8 @@ from a JSON body on the client). Nothing here imports from either app.
 
 | Path | What it is |
 |------|------------|
-| `dockerfiles/` | `Dockerfile.full` (server + built Client UI in one image), `Dockerfile.server` (server only, configured UI path 404s), `Dockerfile.client` (standalone client build) |
-| `docker-compose-examples/` | One compose file per deployment shape — bundled or external Postgres, with or without Redis/Caddy, client served together or standalone |
+| `dockerfiles/` | `Dockerfile.full` (server + built Client UI in one image), `Dockerfile.root` (the same, UI fixed at `/` for `LINQ_APP_HOST`), `Dockerfile.server` (server only, configured UI path 404s), `Dockerfile.client` (standalone client build) |
+| `docker-compose-examples/` | One compose file per deployment shape — bundled or external Postgres, with or without Redis/Caddy, client served together or standalone, or on an app host of its own (`11-app-host.yml`) |
 | `caddy/` | The Caddy config template used by the `*.with-caddy.yml`/`*.full.yml` compose files. See `docs/adr/0012` |
 
 ## Agent tooling

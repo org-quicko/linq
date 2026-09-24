@@ -63,7 +63,8 @@ LINQ_DEFAULT_DOMAIN=localhost:${LINQ_PORT}
 `LINQ_PORT` controls the API/redirect server for `dev` and `start`;
 `LINQ_CLIENT_PORT` controls `dev:client`. They default to 3000 and 3001.
 `LINQ_CLIENT_BASE_PATH` controls where a combined deployment mounts the UI and
-defaults to `/home`.
+defaults to `/home`. `LINQ_APP_HOST` is unset by default; set it only to give the
+UI a host of its own, see [The UI and API on their own host](#the-ui-and-api-on-their-own-host).
 `LINQ_CACHE_SWEEP_INTERVAL` controls how often the in-process cache physically
 reclaims expired entries, accepts 1 to 3600 seconds, and defaults to 60; it does
 not change when an entry expires, which remains controlled by `LINQ_CACHE_TTL`.
@@ -168,7 +169,9 @@ The URLs below use the default ports. Substitute your configured values.
 
 `http://localhost:3000/` is not the Client UI. The root of a domain is a short
 link like any other: it redirects to that domain's fallback URL, and 404s when
-none is set. You can set one per domain on the Domains page.
+none is set. You can set one per domain on the Domains page. The one exception
+is `LINQ_APP_HOST`, when it is set: that host is not a domain, and its root is
+the UI.
 
 ## Everyday commands
 
@@ -280,7 +283,33 @@ client Compose file also works by itself against an API you already run.
 If you deploy the UI separately, `dockerfiles/Dockerfile.server` is the same
 image with the Client UI build stage dropped — the server answers 404 on its
 configured Client UI path and carries on serving the API and the redirects. See
-`dockerfiles/README.md` for all three image shapes.
+`dockerfiles/README.md` for all the image shapes.
+
+### The UI and API on their own host
+
+To serve the UI at the root of one host and short links on others, from one
+process, set two values:
+
+```dotenv
+LINQ_APP_HOST=linq.example.com      # UI at /, API at /api/*
+LINQ_DEFAULT_DOMAIN=link.example.com # short links: link.example.com/<slug>
+```
+
+With `LINQ_APP_HOST` set, the UI answers only on that host, so it may sit at `/`
+without taking over any short link. Every other host behaves exactly as before,
+and `/api/*` still answers on all of them. The app host must differ from
+`LINQ_DEFAULT_DOMAIN` and from every registered domain; linq refuses to start or
+to create the domain otherwise. `docs/adr/0019` has the reasoning.
+
+The UI at `/` needs an image built for it. `linq-root`, built from
+`dockerfiles/Dockerfile.root`, is published next to the other images;
+`docker-compose-examples/11-app-host.yml` runs it. To build it yourself, set
+`LINQ_CLIENT_BASE_PATH=/` in `.env` and use any combined example with `--build`.
+
+Behind a reverse proxy, send both hosts to the same linq port and keep the
+`Host` header, which is how linq tells them apart. With Caddy sync on, linq adds
+the app host's route itself at boot. In the UI, add the server as
+`https://linq.example.com`: the page and the API then share an origin.
 
 ### Custom domains with automatic HTTPS
 

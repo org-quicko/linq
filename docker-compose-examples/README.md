@@ -38,6 +38,11 @@ accepting 1 to 3600 seconds and defaulting to 60, for the in-process cache.
 | 7 | `07-external-postgres-caddy.yml` | external | – | yes |
 | 8 | `08-external-postgres-full.yml` | external | yes | yes |
 
+Three more cover other deployment shapes: `09-server-only.yml` and
+`10-client-only.yml` split the API and the Client UI into separate containers,
+and `11-app-host.yml` puts both on one host of their own. They're described
+below.
+
 All eight of the above build from `../dockerfiles/Dockerfile.full` — the
 combined image, API plus Client UI at `/home` by default. The UI path is a
 build-time option. Their build argument is wired to
@@ -72,6 +77,30 @@ Pairing `10-client-only.yml` with one of the eight combined-image
 files above works too, but is redundant: the combined image already serves a
 UI at `/home` on `LINQ_PORT`, so the separate client only makes sense there
 if you specifically want the Client UI at `/` as well.
+
+## The UI and API on their own host
+
+One process can also serve the Client UI at `/` and the API at `/api/*` on one
+host, with short links on the others (`docs/adr/0019`). Set `LINQ_APP_HOST` to
+that host in `.env`; it must differ from `LINQ_DEFAULT_DOMAIN` and from every
+domain you register. linq tells the hosts apart by the `Host` header, so point
+both at the same container.
+
+`11-app-host.yml` does this with the published `linq-root` image
+(`../dockerfiles/Dockerfile.root`, the full image with its UI fixed at `/`)
+against an external Postgres. It builds nothing, and it refuses to start
+without `LINQ_APP_HOST` and `LINQ_DEFAULT_DOMAIN`. `LINQ_IMAGE_REPOSITORY` and `LINQ_IMAGE_VERSION` pick
+the image, defaulting to `ghcr.io/org-quicko/linq-root:latest`.
+
+Any of the eight build-from-source files above works the same way: set
+`LINQ_CLIENT_BASE_PATH=/` and `LINQ_APP_HOST` in `.env`, then
+`docker compose ... up --build`. With a Caddy example (3, 4, 7, 8), linq pushes
+a route for `LINQ_APP_HOST` at boot next to the domain routes, so the app host
+gets its certificate like any domain does. Its DNS still has to point at this
+host.
+
+Archive any existing domain whose host equals `LINQ_APP_HOST` first. The UI
+claims every path on that host, so its links would stop resolving.
 
 "External" Postgres means no `postgres` service in the file — set
 `DATABASE_URL` in `.env` to point at your own instance instead. Set

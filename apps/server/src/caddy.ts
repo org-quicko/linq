@@ -93,9 +93,11 @@ export function startCaddy(config: Config): Caddy {
 /**
  * Repairs Caddy's routes after Caddy's own restart wipes it back to its empty
  * skeleton. The only place a mutation reads every domain instead of one — a
- * boot-time cost, paid once, never per-request.
+ * boot-time cost, paid once, never per-request. LINQ_APP_HOST is no domain
+ * row, so it gets its own fixed route here; changing it takes a restart.
  */
-export async function reconcileCaddy(db: Db, caddy: Caddy): Promise<void> {
+export async function reconcileCaddy(db: Db, caddy: Caddy, appHost?: string): Promise<void> {
   const rows = await db.selectFrom("domains").select(["id", "host"]).where("status", "=", "active").execute()
   for (const row of rows) await caddy.upsert(row.id, row.host)
+  if (appHost) await caddy.upsert("app-host", appHost)
 }

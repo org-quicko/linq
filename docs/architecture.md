@@ -208,6 +208,11 @@ link. `Dockerfile.full` accepts the value only as an explicit build argument and
 must be rebuilt when it changes; it does not read `.env`. Neither UI build bakes
 in an API URL.
 
+With `LINQ_APP_HOST` set, the combined UI answers only on that host and falls
+through to the redirect handler everywhere else, which is what lets the base path
+be `/` (`docs/adr/0019`). The app host is never a domain row; `/api/*` stays
+host-agnostic.
+
 Server state is Redux Toolkit Query (`lib/store/`) — one `apiSlice` per
 resource, `configureStore` wiring it in. Client-only state (the saved
 servers, theme) stays in `localStorage`, read through `lib/servers.ts`,

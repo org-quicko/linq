@@ -119,10 +119,12 @@ describe("reconcileCaddy", () => {
       upsert: async (domain_id, host) => void upserts.push([domain_id, host]),
       remove: async () => {},
     }
-    await reconcileCaddy(db, spy)
+    await reconcileCaddy(db, spy, "app.test")
 
-    expect(upserts).toHaveLength(2)
+    expect(upserts).toHaveLength(3)
     expect(upserts).toContainEqual([active1, "active-one.test"])
     expect(upserts).toContainEqual([active2, "active-two.test"])
+    // LINQ_APP_HOST is no domain row but still needs a route.
+    expect(upserts).toContainEqual(["app-host", "app.test"])
   })
 })

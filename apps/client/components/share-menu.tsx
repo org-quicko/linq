@@ -24,8 +24,8 @@ type Network = {
   href: (url: string, text: string) => string
 }
 
-/** `url` goes through every network's own encoding — never interpolated raw
- *  into a template string, since `link.name` is user-entered text. */
+/** `url` and `text` go through every network's own encoding — never
+ *  interpolated raw into a template string. */
 const NETWORKS: Network[] = [
   {
     name: "WhatsApp",
@@ -52,7 +52,7 @@ const NETWORKS: Network[] = [
     name: "Email",
     Icon: Mail,
     href: (url, text) =>
-      `mailto:?subject=${encodeURIComponent(text)}&body=${encodeURIComponent(url)}`,
+      `mailto:?subject=${encodeURIComponent(text)}&body=${encodeURIComponent(`${text} ${url}`)}`,
   },
 ]
 
@@ -71,7 +71,7 @@ export function ShareMenu({ link }: { link: Link }) {
   )
 
   const qrCodes = useListQrCodesQuery({ link_id: link.id, limit: 5 })
-  const shareText = link.name?.trim() || shortLinkText(link)
+  const shareText = "Check out this link"
 
   const [deleteQrCode] = useDeleteQrCodeMutation()
   const { run } = useRun()
