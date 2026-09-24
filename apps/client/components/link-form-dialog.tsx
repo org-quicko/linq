@@ -3,7 +3,7 @@
 import { type Domain, destinationTitle, type Link } from "@linq/shared"
 import { skipToken } from "@reduxjs/toolkit/query/react"
 import { CalendarIcon, ChevronDown, Info, Route, TagIcon } from "lucide-react"
-import { type ReactNode, useEffect, useState } from "react"
+import { type ReactNode, useEffect, useRef, useState } from "react"
 import { DateField, Field, TimeField } from "@/components/common"
 import {
   type PresetParamRow,
@@ -336,14 +336,34 @@ function ToggleSection({
   onOpenChange: (open: boolean) => void
   children: ReactNode
 }) {
+  const ref = useRef<HTMLDivElement>(null)
+  // Set only by the switch, so an edit dialog that opens with the section
+  // already on doesn't steal focus.
+  const justOpened = useRef(false)
+
+  useEffect(() => {
+    if (!open || !justOpened.current) return
+    justOpened.current = false
+    ref.current?.scrollIntoView({ block: "nearest", behavior: "smooth" })
+    ref.current
+      ?.querySelector<HTMLElement>('input:not([disabled]), [role="combobox"], [aria-haspopup="dialog"]')
+      ?.focus({ preventScroll: true })
+  }, [open])
+
   return (
-    <div className="rounded-lg border">
+    <div ref={ref} className="rounded-lg border">
       <Label className="flex items-center justify-between gap-2 p-3 font-normal">
         <span className="flex items-center gap-2 text-muted-foreground">
           {icon}
           {label}
         </span>
-        <Switch checked={open} onCheckedChange={onOpenChange} />
+        <Switch
+          checked={open}
+          onCheckedChange={(next) => {
+            justOpened.current = next
+            onOpenChange(next)
+          }}
+        />
       </Label>
       {open ? <div className="border-t p-3">{children}</div> : null}
     </div>
