@@ -2,16 +2,12 @@
 # full — to GHCR only. Not Docker Hub: these are unreleased builds, and
 # Docker Hub is where docker-release.yml's `:latest` lives.
 #
-# Triggers on:
-#   - a push to any branch except main -> tags each image with the branch
-#     name
-#   - a pushed tag with "alpha" in it, e.g. v0.2.0-alpha.1 -> tags each
-#     image with the version (no leading v) and `:alpha`
+# Triggers on a pushed tag with "alpha" in it, e.g. v0.2.0-alpha.1 -> tags
+# each image with the version (no leading v) and `:alpha`
 name: docker-snapshot
 
 on:
   push:
-    branches-ignore: [main]
     tags: ["*alpha*"]
 
 permissions:
@@ -66,17 +62,15 @@ jobs:
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
-      # The branch name (sanitized) on a branch push, the bare version plus
-      # `alpha` on an alpha tag.
+      # The bare version plus `alpha`.
       - name: Docker metadata
         id: meta
         uses: docker/metadata-action@v5
         with:
           images: ghcr.io/${{ env.GHCR_NAMESPACE }}/${{ matrix.image }}
           tags: |
-            type=ref,event=branch
-            type=raw,value=alpha,enable=${{ github.ref_type == 'tag' }}
-            type=match,pattern=v(.*),group=1,enable=${{ github.ref_type == 'tag' }}
+            type=raw,value=alpha
+            type=match,pattern=v(.*),group=1
 
       - name: Build and push ${{ matrix.image }}
         uses: docker/build-push-action@v6
