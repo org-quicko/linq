@@ -1,4 +1,13 @@
-# Docker Compose examples
+# Docker examples
+
+The published image, `linq`, is built from `../dockerfiles/Dockerfile.linq`.
+Everything in this folder is an example, and none of it is published:
+
+- `docker-compose/`: one Compose stack per deployment shape.
+- `dockerfiles/`: the other image shapes those stacks build from, and the
+  Caddy config they mount.
+
+## Compose files
 
 Every combination of linq's optional pieces — Postgres bundled vs. external,
 Redis on/off (docs/adr/0009), Caddy on/off (docs/adr/0012). Pick the file that
@@ -8,14 +17,15 @@ matches your setup, configure the repo-root `.env`, then
 port, build-argument, and bundled-Postgres substitutions.
 
 All `build:`, volume-mount, and `env_file` paths are resolved relative to the
-Compose file's directory (`..` reaches the repo root), not your shell's
-directory. Run from here, or use `-f docker-compose-examples/<file>` from the
-repo root. If you copy a file elsewhere, change `../.env` to the `.env` beside
-the copied file and fix the other relative paths first.
+Compose file's directory (`../../..` reaches the repo root), not your shell's
+directory. Run from `docker-compose/`, or use
+`-f docker/examples/docker-compose/<file>` from the repo root. If you
+copy a file elsewhere, change `../../../.env` to the `.env` beside the copied
+file and fix the other relative paths first.
 
 Set `LINQ_PORT` in the repo-root `.env` to change the published port from
-3000. Run from the repo root, or pass `--env-file ../.env` when running from
-this directory so Compose can interpolate that value. The container and Caddy
+3000. Run from the repo root, or pass `--env-file ../../../.env` when running
+from `docker-compose/` so Compose can interpolate that value. The container and Caddy
 upstream stay on port 3000. `LINQ_DATA_DIR` is always `/data` in the container,
 so the Compose volume remains the persistent log location.
 `LINQ_DEFAULT_DOMAIN` can also be set in that env file; when absent, it
@@ -43,13 +53,13 @@ Three more cover other deployment shapes: `09-server-only.yml` and
 and `11-app-host.yml` puts both on one host of their own. They're described
 below.
 
-All eight of the above build from `../dockerfiles/Dockerfile.full` — the
+All eight of the above build from `dockerfiles/Dockerfile.full` — the
 combined image, API plus Client UI at `/home` by default. The UI path is a
 build-time option. Their build argument is wired to
 `LINQ_CLIENT_BASE_PATH` in `.env`; change that value and run
 `docker compose ... up --build`. It is baked into the frontend, so restarting
 without rebuilding is not enough.
-`../dockerfiles/` also has
+`dockerfiles/` also has
 `Dockerfile.server` (API only) and `Dockerfile.client` (Client UI only, as a
 standalone export); the two files below (9 and 10) build from those instead,
 for a split deployment across separate containers and ports.
@@ -64,7 +74,7 @@ as usual; both containers keep listening on 3000 internally. From the repo
 root:
 
 ```sh
-docker compose --env-file .env -f docker-compose-examples/01-bundled-postgres.yml -f docker-compose-examples/09-server-only.yml -f docker-compose-examples/10-client-only.yml up --build -d
+docker compose --env-file .env -f docker/examples/docker-compose/01-bundled-postgres.yml -f docker/examples/docker-compose/09-server-only.yml -f docker/examples/docker-compose/10-client-only.yml up --build -d
 ```
 
 For example, `LINQ_PORT=8080` and `LINQ_CLIENT_PORT=8081` publish the API on
@@ -86,11 +96,11 @@ that host in `.env`; it must differ from `LINQ_DEFAULT_DOMAIN` and from every
 domain you register. linq tells the hosts apart by the `Host` header, so point
 both at the same container.
 
-`11-app-host.yml` does this with the published `linq-app-host` image
-(`../dockerfiles/Dockerfile.app-host`, the full image with its UI fixed at `/`)
+`11-app-host.yml` does this with the published `linq` image
+(`../dockerfiles/Dockerfile.linq`, the full image with its UI fixed at `/`)
 against an external Postgres. It builds nothing, and it refuses to start
 without `LINQ_APP_HOST` and `LINQ_DEFAULT_DOMAIN`. `LINQ_IMAGE_REPOSITORY` and `LINQ_IMAGE_VERSION` pick
-the image, defaulting to `ghcr.io/org-quicko/linq-app-host:latest`.
+the image, defaulting to `ghcr.io/org-quicko/linq:latest`.
 
 Any of the eight build-from-source files above works the same way: set
 `LINQ_CLIENT_BASE_PATH=/` and `LINQ_APP_HOST` in `.env`, then
@@ -110,8 +120,8 @@ loaded directly into the `linq` container through `env_file`.
 For a local check from the repo root:
 
 ```sh
-docker compose -f docker-compose-examples/01-bundled-postgres.yml up --build -d
-docker compose -f docker-compose-examples/01-bundled-postgres.yml logs linq
+docker compose -f docker/examples/docker-compose/01-bundled-postgres.yml up --build -d
+docker compose -f docker/examples/docker-compose/01-bundled-postgres.yml logs linq
 curl http://localhost:3000/api/health
 ```
 
@@ -132,5 +142,57 @@ CA; trust that CA or use `curl -k` for this local smoke check. Public
 certificate issuance still requires a real domain, public DNS, and inbound
 ports 80/443, and cannot be validated by a localhost-only test.
 
-See `../README.md` (Docker section) for what each piece does, and
-`../dockerfiles/` for the Dockerfiles these all build from.
+## Dockerfiles
+
+| File | Contains |
+| --- | --- |
+| `../dockerfiles/Dockerfile.linq` | The published `linq` image: API and Client UI, the UI fixed at `/` on `LINQ_APP_HOST` |
+| `dockerfiles/Dockerfile.full` | API and Client UI, the UI at `/home` by default, one process |
+| `dockerfiles/Dockerfile.server` | API and redirects only, no Client UI |
+| `dockerfiles/Dockerfile.client` | Client UI only, as a standalone static export |
+
+All run on `oven/bun:1.4` and build from the **repo root**, not this
+directory — the Client UI imports `@linq/shared` as TypeScript over a
+workspace link and its tsconfig reaches the repo root, so `bun install` needs
+the whole workspace present even when only one app is being built:
+
+```sh
+docker build -f docker/examples/dockerfiles/Dockerfile.client  -t linq-client  .
+docker build -f docker/examples/dockerfiles/Dockerfile.server  -t linq-server  .
+docker build -f docker/examples/dockerfiles/Dockerfile.full    -t linq-full    .
+```
+
+`Dockerfile.full` accepts `LINQ_CLIENT_BASE_PATH` as a build argument. It feeds
+the same value to the static frontend build and runtime server. The default is
+`/home`; changing it requires rebuilding the image:
+
+```sh
+docker build --build-arg LINQ_CLIENT_BASE_PATH=/admin/example -f docker/examples/dockerfiles/Dockerfile.full -t linq-full .
+```
+
+The Dockerfile does not read `.env`; pass the argument explicitly. With Compose,
+put the literal value under `services.linq.build.args` in the Compose file you
+deploy, then rebuild.
+
+`../dockerfiles/Dockerfile.linq` is `Dockerfile.full` with the base path fixed at `/`. The
+server accepts that only with `LINQ_APP_HOST` set at runtime, so the UI answers
+on that one host and every other host keeps its short links
+(`docs/adr/0019`). Keep the two files in step; only the base path differs.
+`Dockerfile.full` with `--build-arg LINQ_CLIENT_BASE_PATH=/` builds the same
+image.
+
+`Dockerfile.client` runs `serve-static.ts` under plain Bun rather than
+introducing nginx as a second base image. It mirrors
+`apps/server/src/http/admin-static.ts` — the handler the combined image
+already uses to serve this same kind of export at `/home` — just mounted at
+`/` instead: trailing-slash resolution, immutable caching for hashed
+`_next/static` assets, the export's own `404.html`, and a path-traversal
+guard. It needs no environment or Postgres — the UI is pointed at a linq
+server at runtime, in the browser. The server images need `DATABASE_URL`,
+`LINQ_DB_SCHEMA` (default `public`), `LINQ_DEFAULT_DOMAIN`, etc. at runtime,
+and default `LINQ_CACHE_SWEEP_INTERVAL` to 60 seconds (1 to 3600).
+
+`dockerfiles/caddy/caddy.json` is the empty skeleton Caddy boots from in the Caddy
+examples (3, 4, 7, 8); see `docs/adr/0012`.
+
+See the root `README.md` (Docker section) for what each piece does.

@@ -15,8 +15,8 @@ feature-linq/
 ├─ resources/     DBML and OpenAPI spec, kept in sync with the code
 ├─ docs/
 │  └─ adr/        decisions that are hard to reverse, and why
-├─ docker-compose-examples/, dockerfiles/, caddy/   deployment shapes
-└─ .claude/, .agents/   skills: step-by-step procedures for agents working here
+├─ docker/        deployment shapes
+└─ .agents/       skills: step-by-step procedures for agents working here
 ```
 
 One Bun workspace (`workspaces: ["apps/*", "packages/*"]`), one `bun.lock`.
@@ -30,7 +30,7 @@ a separate Next.js project with its own config. `bun run typecheck` runs
 |------|------------|
 | `package.json` | Workspace root. Delegates every script (`dev`, `test`, `db:migrate`, `db:codegen`, …) to the member that owns it via `bun --filter` |
 | `AGENTS.md` | What isn't obvious from the code: running it, Redis/Caddy's fail-loud behaviour, docs conventions |
-| `CLAUDE.md` | Points Claude at `AGENTS.md` and `.claude/skills/` |
+| `CLAUDE.md` | Points Claude at `AGENTS.md` and `.agents/skills/` |
 | `CONTEXT.md` | The domain glossary — terms only, no implementation |
 | `README.md` | Local setup, Docker, deploying the Client UI |
 | `biome.json` | Lint/format config (`bun run lint` / `format`) |
@@ -102,14 +102,13 @@ from a JSON body on the client). Nothing here imports from either app.
 
 | Path | What it is |
 |------|------------|
-| `dockerfiles/` | `Dockerfile.full` (server + built Client UI in one image), `Dockerfile.app-host` (the same, UI fixed at `/` for `LINQ_APP_HOST`), `Dockerfile.server` (server only, configured UI path 404s), `Dockerfile.client` (standalone client build) |
-| `docker-compose-examples/` | One compose file per deployment shape — bundled or external Postgres, with or without Redis/Caddy, client served together or standalone, or on an app host of its own (`11-app-host.yml`) |
-| `caddy/` | The Caddy config template used by the `*.with-caddy.yml`/`*.full.yml` compose files. See `docs/adr/0012` |
+| `docker/dockerfiles/` | `Dockerfile.linq`, the one published image: server + built Client UI, UI fixed at `/` for `LINQ_APP_HOST` |
+| `docker/examples/dockerfiles/` | `Dockerfile.full` (server + built Client UI at `/home`), `Dockerfile.server` (server only, configured UI path 404s), `Dockerfile.client` (standalone client build), and `caddy/`, the Caddy config template the Caddy compose files mount (see `docs/adr/0012`) |
+| `docker/examples/docker-compose/` | One compose file per deployment shape — bundled or external Postgres, with or without Redis/Caddy, client served together or standalone, or on an app host of its own (`11-app-host.yml`) |
 
 ## Agent tooling
 
-`.agents/skills/` and `.claude/skills/` hold the same set, mirrored for both
-tools: `linq-dev` (start the dev environment), `linq-db-migration` (add and
-verify a Kysely migration), `linq-adr` (write a new
-ADR), `linq-backend` (add or change an `apps/server` API resource),
+`.agents/skills/` holds the skills: `linq-dev` (start the dev environment),
+`linq-db-migration` (add and verify a Kysely migration), `linq-adr` (write a
+new ADR), `linq-backend` (add or change an `apps/server` API resource),
 `linq-frontend` (add or change an `apps/client` UI feature).

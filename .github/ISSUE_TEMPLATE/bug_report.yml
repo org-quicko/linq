@@ -86,9 +86,8 @@ body:
     attributes:
       label: How you're running linq
       options:
-        - Docker (linq, the full image)
-        - Docker (linq-server + linq-client)
-        - docker-compose-examples/
+        - Docker (linq, the published image)
+        - docker/examples/ (Compose examples or example Dockerfiles)
         - From source (bun run dev / start)
         - Other
     validations:

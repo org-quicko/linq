@@ -2,7 +2,7 @@
 
 Context for any agent working in this repo. Full user-facing setup and
 deployment docs are in `README.md` — read that before touching
-`apps/server`, `dockerfiles/`, or `docker-compose-examples/`. This file only
+`apps/server` or `docker/`. This file only
 covers what isn't obvious from the code.
 
 ## Running it

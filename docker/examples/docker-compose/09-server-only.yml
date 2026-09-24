@@ -6,4 +6,4 @@
 services:
   linq:
     build:
-      dockerfile: dockerfiles/Dockerfile.server
+      dockerfile: docker/examples/dockerfiles/Dockerfile.server

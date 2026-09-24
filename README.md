@@ -232,28 +232,29 @@ writes to disk that is worth backing up.
 
 ### Which image?
 
-linq publishes four images, to `labsatquicko/<image>` on Docker Hub and
-`ghcr.io/org-quicko/<image>`. Pick by where the Client UI should live:
+linq publishes one image, `linq`, to `labsatquicko/linq` on Docker Hub and
+`ghcr.io/org-quicko/linq`, built from `docker/dockerfiles/Dockerfile.linq`.
+The other shapes are examples in `docker/examples/dockerfiles/`, built
+locally. Pick by where the Client UI should live:
 
 | You want | Image | Client UI at | Must set |
 | --- | --- | --- | --- |
-| One container, UI next to the short links | `linq` | `/home` on every host | `DATABASE_URL`, `LINQ_DEFAULT_DOMAIN` |
-| One container, UI on its own domain | `linq-app-host` | `/` on `LINQ_APP_HOST` only | the above and `LINQ_APP_HOST` |
-| The API and short links, UI hosted elsewhere | `linq-server` | nowhere | `DATABASE_URL`, `LINQ_DEFAULT_DOMAIN` |
-| Only the UI, pointed at a linq server you run | `linq-client` | `/` | nothing |
+| One container, UI on its own domain | `linq` (published) | `/` on `LINQ_APP_HOST` only | `DATABASE_URL`, `LINQ_DEFAULT_DOMAIN`, `LINQ_APP_HOST` |
+| One container, UI next to the short links | `Dockerfile.full` (example) | `/home` on every host | `DATABASE_URL`, `LINQ_DEFAULT_DOMAIN` |
+| The API and short links, UI hosted elsewhere | `Dockerfile.server` (example) | nowhere | `DATABASE_URL`, `LINQ_DEFAULT_DOMAIN` |
+| Only the UI, pointed at a linq server you run | `Dockerfile.client` (example) | `/` | nothing |
 
-`linq-app-host` is named after `LINQ_APP_HOST`, the one setting it cannot
-start without: the domain the UI answers on, for example `linq.example.com`,
-while `link.example.com/<slug>` keeps serving short links. It is `linq` with
-the UI moved from `/home` to `/`; see
+`linq` cannot start without `LINQ_APP_HOST`: the domain the UI answers on, for
+example `linq.example.com`, while `link.example.com/<slug>` keeps serving short
+links. It is `Dockerfile.full` with the UI moved from `/home` to `/`; see
 [The UI and API on their own host](#the-ui-and-api-on-their-own-host).
 
 ### Building and running
 
-`dockerfiles/Dockerfile.full` builds an image that serves the API, the
-redirects and the Client UI from one process. Postgres stays external, and
-so does Redis if you opt into it. Pick a matching file from
-`docker-compose-examples/`, configure the repo-root `.env`, then run the
+`docker/examples/dockerfiles/Dockerfile.full` builds an image that serves the
+API, the redirects and the Client UI from one process. Postgres stays external,
+and so does Redis if you opt into it. Pick a matching file from
+`docker/examples/docker-compose/`, configure the repo-root `.env`, then run the
 matching `docker compose -f ... up` command. The examples load `.env` into the
 `linq` service at runtime.
 
@@ -261,7 +262,7 @@ The full image serves the UI at `/home` by default. To use another path, rebuild
 the image with an explicit build argument:
 
 ```sh
-docker build --build-arg LINQ_CLIENT_BASE_PATH=/admin/example -f dockerfiles/Dockerfile.full -t linq .
+docker build --build-arg LINQ_CLIENT_BASE_PATH=/admin/example -f docker/examples/dockerfiles/Dockerfile.full -t linq-full .
 ```
 
 The path is written into the static frontend during `docker build`; changing
@@ -290,7 +291,7 @@ LINQ_CLIENT_PORT=8081
 Start the API and standalone client together from the repo root:
 
 ```sh
-docker compose --env-file .env.ports -f docker-compose-examples/01-bundled-postgres.yml -f docker-compose-examples/10-client-only.yml up --build -d
+docker compose --env-file .env.ports -f docker/examples/docker-compose/01-bundled-postgres.yml -f docker/examples/docker-compose/10-client-only.yml up --build -d
 ```
 
 The API and its bundled UI are available on port 8080 (`/api/v1` and
@@ -300,10 +301,10 @@ Neither container publishes host port 3000. Both can listen internally on
 3000 because each has its own container network namespace. The standalone
 client Compose file also works by itself against an API you already run.
 
-If you deploy the UI separately, `dockerfiles/Dockerfile.server` is the same
+If you deploy the UI separately, `docker/examples/dockerfiles/Dockerfile.server` is the same
 image with the Client UI build stage dropped — the server answers 404 on its
 configured Client UI path and carries on serving the API and the redirects. See
-`dockerfiles/README.md` for all the image shapes.
+`docker/examples/README.md` for all the image shapes.
 
 ### The UI and API on their own host
 
@@ -321,9 +322,9 @@ and `/api/*` still answers on all of them. The app host must differ from
 `LINQ_DEFAULT_DOMAIN` and from every registered domain; linq refuses to start or
 to create the domain otherwise. `docs/adr/0019` has the reasoning.
 
-The UI at `/` needs an image built for it. `linq-app-host`, built from
-`dockerfiles/Dockerfile.app-host`, is published next to the other images;
-`docker-compose-examples/11-app-host.yml` runs it. To build it yourself, set
+The UI at `/` needs an image built for it. `linq`, built from
+`docker/dockerfiles/Dockerfile.linq`, is the published image;
+`docker/examples/docker-compose/11-app-host.yml` runs it. To build it yourself, set
 `LINQ_CLIENT_BASE_PATH=/` in `.env` and use any combined example with `--build`.
 
 Behind a reverse proxy, send both hosts to the same linq port and keep the
@@ -334,7 +335,7 @@ the app host's route itself at boot. In the UI, add the server as
 ### Custom domains with automatic HTTPS
 
 Use one of the `with-caddy` or `full` examples (3, 4, 7, 8) in
-`docker-compose-examples/` — they already wire up the `caddy` service and
+`docker/examples/docker-compose/` — they already wire up the `caddy` service and
 `LINQ_CADDY_ADMIN_URL` on `linq`. Once set, every domain
 create, archive, reactivate and purge is pushed to Caddy as its own route —
 adding a domain in linq is enough to make it resolve over HTTPS, with nothing

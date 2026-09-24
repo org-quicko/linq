@@ -1,27 +1,19 @@
-# Bundled Postgres plus Caddy for automatic HTTPS on custom domains. Once
-# LINQ_CADDY_ADMIN_URL is set, every domain create, archive, reactivate and
-# purge is pushed to Caddy as its own route — nothing in Caddy is edited by
-# hand. See docs/adr/0012 and caddy/caddy.json, the empty skeleton Caddy boots
-# from. No Redis here — the redirect cache stays in-process.
+# linq plus Redis (docs/adr/0009) and Caddy (docs/adr/0012), against an
+# existing Postgres instance you already run (managed, another host,
+# whatever).
 #
 # :2019, Caddy's admin API, is deliberately not published to the host — only
 # linq, over the compose network, ever needs to reach it. A custom domain
 # still needs its DNS pointed at this host before Caddy's automatic HTTPS can
 # issue it a certificate.
 #
-# Configure POSTGRES_PASSWORD and LINQ_DEFAULT_DOMAIN in .env, then:
-#   docker compose -f 03-bundled-postgres-caddy.yml up
+# Set DATABASE_URL to that instance and LINQ_DEFAULT_DOMAIN in .env, then:
+#   docker compose -f 08-external-postgres-full.yml up
 services:
-  postgres:
-    image: postgres:17
-    environment:
-      POSTGRES_USER: ${POSTGRES_USER:-linq}
-      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-linq}
-      POSTGRES_DB: ${POSTGRES_DB:-linq}
-    volumes:
-      - postgres-data:/var/lib/postgresql/data
+  redis:
+    image: redis:8
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-linq} -d ${POSTGRES_DB:-linq}"]
+      test: ["CMD", "redis-cli", "ping"]
       interval: 5s
       timeout: 5s
       retries: 10
@@ -30,7 +22,7 @@ services:
     image: caddy:2
     command: caddy run --config /etc/caddy/caddy.json --resume
     volumes:
-      - ../caddy/caddy.json:/etc/caddy/caddy.json:ro
+      - ../dockerfiles/caddy/caddy.json:/etc/caddy/caddy.json:ro
       - caddy-data:/data      # issued certificates — must persist
       - caddy-config:/config
     ports:
@@ -45,24 +37,23 @@ services:
   linq:
     env_file:
       # Change this path to use an environment file in another location.
-      - ../.env
+      - ../../../.env
     build:
-      context: ..
-      dockerfile: dockerfiles/Dockerfile.full
+      context: ../../..
+      dockerfile: docker/examples/dockerfiles/Dockerfile.full
       args:
         LINQ_CLIENT_BASE_PATH: ${LINQ_CLIENT_BASE_PATH:-/home}
     depends_on:
-      postgres:
+      redis:
         condition: service_healthy
       caddy:
         condition: service_healthy
     environment:
-      DATABASE_URL: postgres://${POSTGRES_USER:-linq}:${POSTGRES_PASSWORD:-linq}@postgres:5432/${POSTGRES_DB:-linq}
       LINQ_PORT: 3000
       LINQ_DB_SCHEMA: ${LINQ_DB_SCHEMA:-public}
       LINQ_DATA_DIR: /data
+      LINQ_REDIS_URL: redis://redis:6379
       LINQ_DEFAULT_DOMAIN: ${LINQ_DEFAULT_DOMAIN:-localhost:${LINQ_PORT:-3000}}
-      LINQ_CACHE_SWEEP_INTERVAL: ${LINQ_CACHE_SWEEP_INTERVAL:-60}
       LINQ_CADDY_ADMIN_URL: http://caddy:2019
       LINQ_CADDY_UPSTREAM: linq:3000
       # An admin key is minted and printed on first boot; read it from
@@ -75,7 +66,6 @@ services:
       - linq-data:/data
 
 volumes:
-  postgres-data:
   linq-data:
   caddy-data:
   caddy-config:

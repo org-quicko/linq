@@ -1,6 +1,6 @@
 # The Client UI and the API on their own host, short links on the others
-# (docs/adr/0019), against an existing Postgres instance. Pulls linq-app-host, the
-# published dockerfiles/Dockerfile.app-host, so nothing is built here.
+# (docs/adr/0019), against an existing Postgres instance. Pulls linq, the
+# published docker/dockerfiles/Dockerfile.linq, so nothing is built here.
 #
 #   LINQ_APP_HOST        UI at /, API at /api/*. Never a shortening domain.
 #   LINQ_DEFAULT_DOMAIN  the first shortening domain. Must differ from it.
@@ -11,10 +11,10 @@
 #   docker compose -f 11-app-host.yml up
 services:
   linq:
-    image: ${LINQ_IMAGE_REPOSITORY:-ghcr.io/org-quicko/linq-app-host}:${LINQ_IMAGE_VERSION:-latest}
+    image: ${LINQ_IMAGE_REPOSITORY:-ghcr.io/org-quicko/linq}:${LINQ_IMAGE_VERSION:-latest}
     env_file:
       # Change this path to use an environment file in another location.
-      - ../.env
+      - ../../../.env
     environment:
       LINQ_PORT: 3000
       LINQ_DB_SCHEMA: ${LINQ_DB_SCHEMA:-public}

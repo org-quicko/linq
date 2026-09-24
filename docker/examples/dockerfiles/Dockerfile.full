@@ -5,13 +5,13 @@ ARG LINQ_CLIENT_BASE_PATH=/home
 # Both: the API, the redirects and the Client UI (served at
 # LINQ_CLIENT_BASE_PATH, /home by default) from one process. One of three
 # shapes in this folder (server-only, client-only, both); see
-# dockerfiles/README.md.
+# ../README.md.
 #
 # Build from the repo root, not this directory:
-#   docker build -f dockerfiles/Dockerfile.full -t linq .
+#   docker build -f docker/examples/dockerfiles/Dockerfile.full -t linq-full .
 # Custom Client UI path (requires a rebuild):
-#   docker build --build-arg LINQ_CLIENT_BASE_PATH=/admin -f dockerfiles/Dockerfile.full -t linq .
-# UI at the root: see Dockerfile.app-host, which is this file with / fixed.
+#   docker build --build-arg LINQ_CLIENT_BASE_PATH=/admin -f docker/examples/dockerfiles/Dockerfile.full -t linq-full .
+# UI at the root: see docker/dockerfiles/Dockerfile.linq, which is this file with / fixed.
 #
 # Stage 1 builds the Client UI into a static export. Nothing from here ships
 # except apps/client/out.
@@ -32,7 +32,7 @@ COPY apps/client apps/client
 RUN bun --filter '@linq/client' build
 
 # Stage 2 is the runtime: Bun executes the server sources directly, so there is
-# no server bundle step. Postgres is always external; see docker-compose-examples/.
+# no server bundle step. Postgres is always external; see docker/examples/docker-compose/.
 FROM oven/bun:1.4 AS runtime
 ARG LINQ_CLIENT_BASE_PATH
 WORKDIR /app

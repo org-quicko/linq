@@ -8,10 +8,10 @@ services:
   linq:
     env_file:
       # Change this path to use an environment file in another location.
-      - ../.env
+      - ../../../.env
     build:
-      context: ..
-      dockerfile: dockerfiles/Dockerfile.full
+      context: ../../..
+      dockerfile: docker/examples/dockerfiles/Dockerfile.full
       args:
         LINQ_CLIENT_BASE_PATH: ${LINQ_CLIENT_BASE_PATH:-/home}
     environment:

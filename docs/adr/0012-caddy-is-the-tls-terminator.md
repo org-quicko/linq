@@ -34,7 +34,7 @@ The full active-domain list is read in exactly one place: `reconcileCaddy`,
 called once at linq boot. That is deliberate — it is the only case where the
 full set is actually needed, because it is the only case addressing a single
 domain cannot fix: Caddy's own restart wipes its in-memory config back to the
-empty skeleton in `caddy/caddy.json`, and every domain has to be re-added at
+empty skeleton in `docker/examples/dockerfiles/caddy/caddy.json`, and every domain has to be re-added at
 once to repair it. A boot-time cost is fine to pay in full; a per-request one
 is not.
 

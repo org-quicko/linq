@@ -1,8 +1,8 @@
-# Builds and publishes the four linq container images — client, server,
-# full, app-host — to Docker Hub and GHCR.
+# Builds and publishes the linq container image,
+# docker/dockerfiles/Dockerfile.linq, to Docker Hub and GHCR.
 #
 # Triggers on a pushed release tag, vMAJOR.MINOR.PATCH with no suffix, e.g.
-# v1.2.3 -> tags each image `1.2.3`, `1.2` and `:latest`. The tagged commit
+# v1.2.3 -> tags the image `1.2.3`, `1.2` and `:latest`. The tagged commit
 # must be on main; a release tag anywhere else fails verify before anything
 # is pushed. Pre-release tags (alpha) belong to docker-snapshot.yml.
 name: docker-release
@@ -50,15 +50,9 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          - dockerfile: dockerfiles/Dockerfile.client
-            image: linq-client
-          - dockerfile: dockerfiles/Dockerfile.server
-            image: linq-server
-          - dockerfile: dockerfiles/Dockerfile.full
-            image: linq
           # The Client UI at /, for a server run with LINQ_APP_HOST.
-          - dockerfile: dockerfiles/Dockerfile.app-host
-            image: linq-app-host
+          - dockerfile: docker/dockerfiles/Dockerfile.linq
+            image: linq
     runs-on: ubuntu-24.04
     permissions:
       contents: read

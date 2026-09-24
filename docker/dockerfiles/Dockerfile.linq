@@ -1,13 +1,13 @@
 # syntax=docker/dockerfile:1
 
-# Dockerfile.full with the Client UI fixed at the root: the API, the redirects
-# and the UI from one process, the UI answering only on LINQ_APP_HOST, which
-# must be set at runtime (docs/adr/0019). Published as linq-app-host, named
-# after that variable. Kept in step with Dockerfile.full; only the base path
-# differs.
+# docker/examples/dockerfiles/Dockerfile.full with the Client UI fixed at the
+# root: the API, the redirects and the UI from one process, the UI answering
+# only on LINQ_APP_HOST, which must be set at runtime (docs/adr/0019).
+# Published as linq, the only published image. Kept in step with
+# Dockerfile.full; only the base path differs.
 #
 # Build from the repo root, not this directory:
-#   docker build -f dockerfiles/Dockerfile.app-host -t linq-app-host .
+#   docker build -f docker/dockerfiles/Dockerfile.linq -t linq .
 #
 # Stage 1 builds the Client UI into a static export. Nothing from here ships
 # except apps/client/out.
@@ -28,7 +28,7 @@ COPY apps/client apps/client
 RUN bun --filter '@linq/client' build
 
 # Stage 2 is the runtime: Bun executes the server sources directly, so there is
-# no server bundle step. Postgres is always external; see docker-compose-examples/.
+# no server bundle step. Postgres is always external; see docker/examples/docker-compose/.
 FROM oven/bun:1.4 AS runtime
 WORKDIR /app
 

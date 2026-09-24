@@ -1,9 +1,10 @@
-# Builds and publishes the four linq container images — client, server,
-# full, app-host — to GHCR only. Not Docker Hub: these are unreleased builds, and
-# Docker Hub is where docker-release.yml's `:latest` lives.
+# Builds and publishes the linq container image,
+# docker/dockerfiles/Dockerfile.linq, to GHCR only. Not Docker Hub: these are
+# unreleased builds, and Docker Hub is where docker-release.yml's `:latest`
+# lives.
 #
 # Triggers on a pushed tag with "alpha" in it, e.g. v0.2.0-alpha.1 -> tags
-# each image with the version (no leading v) and `:alpha`
+# the image with the version (no leading v) and `:alpha`
 name: docker-snapshot
 
 on:
@@ -41,15 +42,9 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          - dockerfile: dockerfiles/Dockerfile.client
-            image: linq-client
-          - dockerfile: dockerfiles/Dockerfile.server
-            image: linq-server
-          - dockerfile: dockerfiles/Dockerfile.full
-            image: linq
           # The Client UI at /, for a server run with LINQ_APP_HOST.
-          - dockerfile: dockerfiles/Dockerfile.app-host
-            image: linq-app-host
+          - dockerfile: docker/dockerfiles/Dockerfile.linq
+            image: linq
     runs-on: ubuntu-24.04
     permissions:
       contents: read
