@@ -301,8 +301,8 @@ and `/api/*` still answers on all of them. The app host must differ from
 `LINQ_DEFAULT_DOMAIN` and from every registered domain; linq refuses to start or
 to create the domain otherwise. `docs/adr/0019` has the reasoning.
 
-The UI at `/` needs an image built for it. `linq-root`, built from
-`dockerfiles/Dockerfile.root`, is published next to the other images;
+The UI at `/` needs an image built for it. `linq-app-host`, built from
+`dockerfiles/Dockerfile.app-host`, is published next to the other images;
 `docker-compose-examples/11-app-host.yml` runs it. To build it yourself, set
 `LINQ_CLIENT_BASE_PATH=/` in `.env` and use any combined example with `--build`.
 

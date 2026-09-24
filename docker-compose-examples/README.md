@@ -86,11 +86,11 @@ that host in `.env`; it must differ from `LINQ_DEFAULT_DOMAIN` and from every
 domain you register. linq tells the hosts apart by the `Host` header, so point
 both at the same container.
 
-`11-app-host.yml` does this with the published `linq-root` image
-(`../dockerfiles/Dockerfile.root`, the full image with its UI fixed at `/`)
+`11-app-host.yml` does this with the published `linq-app-host` image
+(`../dockerfiles/Dockerfile.app-host`, the full image with its UI fixed at `/`)
 against an external Postgres. It builds nothing, and it refuses to start
 without `LINQ_APP_HOST` and `LINQ_DEFAULT_DOMAIN`. `LINQ_IMAGE_REPOSITORY` and `LINQ_IMAGE_VERSION` pick
-the image, defaulting to `ghcr.io/org-quicko/linq-root:latest`.
+the image, defaulting to `ghcr.io/org-quicko/linq-app-host:latest`.
 
 Any of the eight build-from-source files above works the same way: set
 `LINQ_CLIENT_BASE_PATH=/` and `LINQ_APP_HOST` in `.env`, then

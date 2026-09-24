@@ -48,8 +48,8 @@ jobs:
           - dockerfile: dockerfiles/Dockerfile.full
             image: linq
           # The Client UI at /, for a server run with LINQ_APP_HOST.
-          - dockerfile: dockerfiles/Dockerfile.root
-            image: linq-root
+          - dockerfile: dockerfiles/Dockerfile.app-host
+            image: linq-app-host
     runs-on: ubuntu-24.04
     permissions:
       contents: read

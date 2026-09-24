@@ -11,7 +11,7 @@ ARG LINQ_CLIENT_BASE_PATH=/home
 #   docker build -f dockerfiles/Dockerfile.full -t linq .
 # Custom Client UI path (requires a rebuild):
 #   docker build --build-arg LINQ_CLIENT_BASE_PATH=/admin -f dockerfiles/Dockerfile.full -t linq .
-# UI at the root: see Dockerfile.root, which is this file with / fixed.
+# UI at the root: see Dockerfile.app-host, which is this file with / fixed.
 #
 # Stage 1 builds the Client UI into a static export. Nothing from here ships
 # except apps/client/out.

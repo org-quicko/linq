@@ -39,8 +39,8 @@ Client UI. When it is set:
   `domain:app-host` route for it at boot, since it has no domain row to sync
   from.
 
-The root-mounted image is `Dockerfile.root`, which is `Dockerfile.full` with
-the base path fixed at `/`. It is published as `linq-root` next to `linq`,
+The app-host image is `Dockerfile.app-host`, which is `Dockerfile.full` with
+the base path fixed at `/`. It is published as `linq-app-host` next to `linq`,
 `linq-server` and `linq-client`.
 
 Left unset, nothing changes: the UI answers on every host at

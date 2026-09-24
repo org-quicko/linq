@@ -2,11 +2,11 @@
 
 # Dockerfile.full with the Client UI fixed at the root: the API, the redirects
 # and the UI from one process, the UI answering only on LINQ_APP_HOST, which
-# must be set at runtime (docs/adr/0019). Published as linq-root. Kept in step
+# must be set at runtime (docs/adr/0019). Published as linq-app-host. Kept in step
 # with Dockerfile.full; only the base path differs.
 #
 # Build from the repo root, not this directory:
-#   docker build -f dockerfiles/Dockerfile.root -t linq-root .
+#   docker build -f dockerfiles/Dockerfile.app-host -t linq-app-host .
 #
 # Stage 1 builds the Client UI into a static export. Nothing from here ships
 # except apps/client/out.

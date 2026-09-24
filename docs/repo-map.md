@@ -102,7 +102,7 @@ from a JSON body on the client). Nothing here imports from either app.
 
 | Path | What it is |
 |------|------------|
-| `dockerfiles/` | `Dockerfile.full` (server + built Client UI in one image), `Dockerfile.root` (the same, UI fixed at `/` for `LINQ_APP_HOST`), `Dockerfile.server` (server only, configured UI path 404s), `Dockerfile.client` (standalone client build) |
+| `dockerfiles/` | `Dockerfile.full` (server + built Client UI in one image), `Dockerfile.app-host` (the same, UI fixed at `/` for `LINQ_APP_HOST`), `Dockerfile.server` (server only, configured UI path 404s), `Dockerfile.client` (standalone client build) |
 | `docker-compose-examples/` | One compose file per deployment shape — bundled or external Postgres, with or without Redis/Caddy, client served together or standalone, or on an app host of its own (`11-app-host.yml`) |
 | `caddy/` | The Caddy config template used by the `*.with-caddy.yml`/`*.full.yml` compose files. See `docs/adr/0012` |
 
