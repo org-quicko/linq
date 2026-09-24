@@ -4,9 +4,9 @@ A self-hosted platform for short links.
 
 - **URL Shortener**: branded short links on your own domains.
 - **Dynamic Links**: rules that send each visitor to the right destination.
-- **Link Tree** *(coming soon)*: a hosted page that lists several links. Short
-  links already support the `tree` type, and Tree pages will ship in a future
-  release.
+- **Link Tree** *(coming soon)*: a single hosted page for all your links, like
+  a social-media profile link page. The groundwork is already in place, since
+  short links support a `tree` type alongside `redirect`.
 
 ## Running it locally
 
