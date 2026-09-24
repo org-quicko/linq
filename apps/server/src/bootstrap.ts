@@ -29,7 +29,7 @@ async function bootstrapKey(db: Db): Promise<void> {
     if (existing) return
 
     const { row, secret } = await createApiKey(db, {
-      name: "bootstrap",
+      name: "Bootstrap Key",
       claims: claimsForPreset.admin,
     })
 

@@ -1,10 +1,10 @@
 "use client"
 
-import type { Domain, Link } from "@linq/shared"
+import { type Domain, destinationTitle, type Link } from "@linq/shared"
 import { skipToken } from "@reduxjs/toolkit/query/react"
 import { CalendarIcon, ChevronDown, Info, Route, TagIcon } from "lucide-react"
 import { type ReactNode, useEffect, useState } from "react"
-import { Field } from "@/components/common"
+import { DateField, Field, TimeField } from "@/components/common"
 import {
   type PresetParamRow,
   PresetParamsEditor,
@@ -74,6 +74,10 @@ export function LinkFormDialog({
   const [slug, setSlug] = useState(mode === "edit" ? (link?.slug ?? "") : "")
   const [destination, setDestination] = useState(link?.destination ?? "")
   const [name, setName] = useState(link?.name ?? "")
+  // Create mode shows the server's default title while the user hasn't typed
+  // their own. Untouched, it's still sent as "no name", so the server can
+  // prefer the destination page's fetched title over this host fallback.
+  const [nameTouched, setNameTouched] = useState(mode === "edit")
   const [description, setDescription] = useState(link?.description ?? "")
   const [tags, setTags] = useState<string[]>(link?.tags ?? [])
   const [forward_query, setForwardQuery] = useState(link?.forward_query ?? true)
@@ -124,7 +128,7 @@ export function LinkFormDialog({
             ...shared,
             domain_id: chosenDomain as string,
             slug: slug.trim() || undefined,
-            name: name.trim() || undefined,
+            name: nameTouched ? name.trim() || undefined : undefined,
             description: description.trim() || undefined,
             rules: validRules,
           }).unwrap(),
@@ -170,7 +174,10 @@ export function LinkFormDialog({
           <Field label="Destination URL">
             <Input
               value={destination}
-              onChange={(event) => setDestination(event.target.value)}
+              onChange={(event) => {
+                setDestination(event.target.value)
+                if (!nameTouched) setName(defaultTitle(event.target.value))
+              }}
               placeholder="example.com/landing"
             />
           </Field>
@@ -195,7 +202,13 @@ export function LinkFormDialog({
           </Field>
 
           <Field label="Title">
-            <Input value={name} onChange={(event) => setName(event.target.value)} />
+            <Input
+              value={name}
+              onChange={(event) => {
+                setName(event.target.value)
+                setNameTouched(true)
+              }}
+            />
           </Field>
 
           <Field label="Description">
@@ -253,11 +266,7 @@ export function LinkFormDialog({
             open={expiryOpen}
             onOpenChange={setExpiryOpen}
           >
-            <Input
-              type="datetime-local"
-              value={expires_at}
-              onChange={(event) => setExpiresAt(event.target.value)}
-            />
+            <ExpiryField value={expires_at} onChange={setExpiresAt} />
           </ToggleSection>
 
           <ToggleSection
@@ -402,6 +411,37 @@ function ShortLinkField({
         disabled={mode === "edit"}
         readOnly={mode === "edit"}
       />
+    </div>
+  )
+}
+
+/** The title the server falls back to, or "" while the URL is still incomplete. */
+function defaultTitle(destination: string): string {
+  try {
+    return destinationTitle(withScheme(destination))
+  } catch {
+    return ""
+  }
+}
+
+/**
+ * The analytics calendar for the day plus a time input, over the same
+ * `YYYY-MM-DDTHH:mm` local value `toDatetimeLocal` produces. A picked day
+ * with no time yet expires at the end of that day.
+ */
+function ExpiryField({ value, onChange }: { value: string; onChange: (value: string) => void }) {
+  const [date = "", time = ""] = value.split("T")
+  const pad = (n: number) => String(n).padStart(2, "0")
+  const now = new Date()
+  const today = `${now.getFullYear()}-${pad(now.getMonth() + 1)}-${pad(now.getDate())}`
+  return (
+    <div className="flex items-center gap-2">
+      <DateField
+        value={date}
+        min={today}
+        onChange={(next) => onChange(`${next}T${time || "23:59"}`)}
+      />
+      <TimeField value={time} disabled={!date} onChange={(next) => onChange(`${date}T${next}`)} />
     </div>
   )
 }

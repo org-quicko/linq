@@ -1,6 +1,6 @@
 "use client"
 
-import { CalendarDays, CheckIcon, ChevronLeft, ChevronRight, CopyIcon } from "lucide-react"
+import { CalendarDays, CheckIcon, ChevronLeft, ChevronRight, Clock, CopyIcon } from "lucide-react"
 import { type ComponentProps, type ReactNode, useState } from "react"
 import { EmptyState } from "@/components/patterns/empty-state"
 import { Button } from "@/components/ui/button"
@@ -535,36 +535,43 @@ export function RangePicker({
 
 const WEEKDAYS = ["Su", "Mo", "Tu", "We", "Th", "Fr", "Sa"]
 
-/** An in-app calendar keeps date selection consistent across browsers. */
-function DateField({
+/**
+ * An in-app calendar keeps date selection consistent across browsers. Values
+ * are `YYYY-MM-DD`. `today` is the outlined day and what the Today button
+ * picks; it defaults to `max`, which is today for a past-only range. Omit
+ * `max` for an open-ended future.
+ */
+export function DateField({
   value,
   min,
   max,
+  today = max ?? min,
   onChange,
 }: {
   value: string
   min: string
-  max: string
+  max?: string
+  today?: string
   onChange: (value: string) => void
 }) {
   const [open, setOpen] = useState(false)
-  const [month, setMonth] = useState(() => monthStart(value || max))
+  const [month, setMonth] = useState(() => monthStart(value || today))
   const days = calendarDays(month)
   const canGoBack = monthKey(month) > monthKey(monthStart(min))
-  const canGoForward = monthKey(month) < monthKey(monthStart(max))
+  const canGoForward = max === undefined || monthKey(month) < monthKey(monthStart(max))
 
   return (
     <Popover
       open={open}
       onOpenChange={(next) => {
         setOpen(next)
-        if (next) setMonth(monthStart(value || max))
+        if (next) setMonth(monthStart(value || today))
       }}
     >
       <PopoverTrigger asChild>
         <button
           type="button"
-          className="flex h-8 min-w-0 flex-1 items-center justify-between gap-1 rounded-md border bg-background px-2 text-left text-xs text-foreground shadow-xs hover:bg-muted"
+          className="flex h-8 min-w-0 flex-1 cursor-pointer items-center justify-between gap-1 rounded-md border bg-background px-2 text-left text-xs text-foreground shadow-xs hover:bg-muted"
           aria-label={value ? `Change date, ${formatPickerDate(value)}` : "Choose date"}
         >
           <span className={value ? "truncate" : "truncate text-muted-foreground"}>
@@ -608,7 +615,7 @@ function DateField({
         </div>
         <div className="grid grid-cols-7 gap-y-0.5">
           {days.map((day) => {
-            const disabled = day.value < min || day.value > max
+            const disabled = day.value < min || (max !== undefined && day.value > max)
             const selected = day.value === value
             const currentMonth = day.date.getUTCMonth() === month.getUTCMonth()
             return (
@@ -617,10 +624,10 @@ function DateField({
                 type="button"
                 aria-pressed={selected}
                 disabled={disabled}
-                className={`mx-auto flex size-7 items-center justify-center rounded-md text-xs tabular-nums ${
+                className={`mx-auto flex size-7 cursor-pointer items-center disabled:cursor-not-allowed disabled:opacity-40 justify-center rounded-md text-xs tabular-nums ${
                   selected
                     ? "bg-primary text-primary-foreground"
-                    : day.value === max
+                    : day.value === today
                       ? "border border-primary text-primary"
                       : currentMonth
                         ? "text-foreground hover:bg-muted"
@@ -639,14 +646,92 @@ function DateField({
         <div className="mt-2 flex justify-end border-t pt-2">
           <button
             type="button"
-            className="text-xs font-medium text-primary hover:underline"
+            className="cursor-pointer text-xs font-medium text-primary hover:underline"
             onClick={() => {
-              onChange(max)
+              onChange(today)
               setOpen(false)
             }}
           >
             Today
           </button>
+        </div>
+      </PopoverContent>
+    </Popover>
+  )
+}
+
+const HOURS = Array.from({ length: 24 }, (_, n) => String(n).padStart(2, "0"))
+const MINUTES = Array.from({ length: 60 }, (_, n) => String(n).padStart(2, "0"))
+
+/**
+ * The time counterpart of `DateField`: `HH:mm`, 24-hour, picked from two
+ * scrolling columns in a popover instead of the browser's own time input.
+ */
+export function TimeField({
+  value,
+  disabled,
+  onChange,
+}: {
+  value: string
+  disabled?: boolean
+  onChange: (value: string) => void
+}) {
+  const [hour = "", minute = ""] = value.split(":")
+  const column = (
+    items: string[],
+    selected: string,
+    pick: (item: string) => void,
+    label: string,
+  ) => (
+    <div
+      role="listbox"
+      aria-label={label}
+      className="no-scrollbar h-56 flex-1 overflow-y-auto py-1"
+    >
+      {items.map((item) => (
+        <button
+          key={item}
+          type="button"
+          role="option"
+          aria-selected={item === selected}
+          // Keeps the current pick in view on open, without jumping on every click.
+          ref={item === selected ? (el) => el?.scrollIntoView({ block: "nearest" }) : undefined}
+          className={`flex h-8 w-full cursor-pointer items-center justify-center rounded-md text-xs tabular-nums ${
+            item === selected
+              ? "bg-primary text-primary-foreground"
+              : "text-foreground hover:bg-muted"
+          }`}
+          onClick={() => pick(item)}
+        >
+          {item}
+        </button>
+      ))}
+    </div>
+  )
+
+  return (
+    <Popover>
+      <PopoverTrigger asChild>
+        <button
+          type="button"
+          disabled={disabled}
+          className="flex h-8 min-w-0 flex-1 cursor-pointer items-center justify-between gap-1 rounded-md border bg-background px-2 text-left text-xs text-foreground shadow-xs hover:bg-muted disabled:cursor-not-allowed disabled:opacity-50"
+          aria-label={value ? `Change time, ${value}` : "Choose time"}
+        >
+          <span className={value ? "truncate tabular-nums" : "truncate text-muted-foreground"}>
+            {value || "Select time"}
+          </span>
+          <Clock className="size-3.5 shrink-0 text-muted-foreground" />
+        </button>
+      </PopoverTrigger>
+      <PopoverContent align="start" sideOffset={6} className="w-40 p-2">
+        <div className="grid grid-cols-2 pb-1 text-center text-[11px] text-muted-foreground">
+          <span>Hour</span>
+          <span>Minute</span>
+        </div>
+        <div className="flex gap-1 border-t pt-1">
+          {column(HOURS, hour, (h) => onChange(`${h}:${minute || "00"}`), "Hour")}
+          {column(MINUTES, minute, (m) => onChange(`${hour || "00"}:${m}`), "Minute")}
         </div>
       </PopoverContent>
     </Popover>

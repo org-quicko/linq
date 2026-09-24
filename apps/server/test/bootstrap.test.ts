@@ -11,7 +11,7 @@ describe("bootstrap", () => {
     const keys = await db.selectFrom("api_keys").selectAll().execute()
     expect(keys).toHaveLength(1)
     expect(keys[0]).toMatchObject({
-      name: "bootstrap",
+      name: "Bootstrap Key",
       claims: [...claimsForPreset.admin],
       expires_at: null,
     })
