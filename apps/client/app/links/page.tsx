@@ -200,7 +200,11 @@ function LinksList({ actor }: { actor: Actor }) {
           query={links}
           rows={rows}
           variant="list"
-          emptyMessage="No links match your search."
+          emptyMessage={
+            settledSearch || tags.length || filters.domain_id
+              ? "No links match your search."
+              : "No links found."
+          }
         >
           {(link: Link) => (
             <LinkRow
