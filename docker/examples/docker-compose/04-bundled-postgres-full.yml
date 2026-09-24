@@ -53,7 +53,7 @@ services:
       - ../../../.env
     build:
       context: ../../..
-      dockerfile: docker/examples/dockerfiles/Dockerfile.full
+      dockerfile: docker/dockerfiles/Dockerfile
       args:
         LINQ_CLIENT_BASE_PATH: ${LINQ_CLIENT_BASE_PATH:-/home}
     depends_on:

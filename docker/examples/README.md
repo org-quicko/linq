@@ -1,6 +1,6 @@
 # Docker examples
 
-The published image, `linq`, is built from `../dockerfiles/Dockerfile.linq`.
+The published image, `linq`, is built from `../dockerfiles/Dockerfile`.
 Everything in this folder is an example, and none of it is published:
 
 - `docker-compose/`: one Compose stack per deployment shape.
@@ -53,8 +53,8 @@ Three more cover other deployment shapes: `09-server-only.yml` and
 and `11-app-host.yml` puts both on one host of their own. They're described
 below.
 
-All eight of the above build from `dockerfiles/Dockerfile.full` — the
-combined image, API plus Client UI at `/home` by default. The UI path is a
+All eight of the above build from `../dockerfiles/Dockerfile` — the
+combined image, API plus Client UI, which these files build at `/home`. The UI path is a
 build-time option. Their build argument is wired to
 `LINQ_CLIENT_BASE_PATH` in `.env`; change that value and run
 `docker compose ... up --build`. It is baked into the frontend, so restarting
@@ -97,7 +97,7 @@ domain you register. linq tells the hosts apart by the `Host` header, so point
 both at the same container.
 
 `11-app-host.yml` does this with the published `linq` image
-(`../dockerfiles/Dockerfile.linq`, the full image with its UI fixed at `/`)
+(`../dockerfiles/Dockerfile` with its default base path, `/`)
 against an external Postgres. It builds nothing, and it refuses to start
 without `LINQ_APP_HOST` and `LINQ_DEFAULT_DOMAIN`. `LINQ_IMAGE_REPOSITORY` and `LINQ_IMAGE_VERSION` pick
 the image, defaulting to `ghcr.io/org-quicko/linq:latest`.
@@ -146,8 +146,7 @@ ports 80/443, and cannot be validated by a localhost-only test.
 
 | File | Contains |
 | --- | --- |
-| `../dockerfiles/Dockerfile.linq` | The published `linq` image: API and Client UI, the UI fixed at `/` on `LINQ_APP_HOST` |
-| `dockerfiles/Dockerfile.full` | API and Client UI, the UI at `/home` by default, one process |
+| `../dockerfiles/Dockerfile` | The published `linq` image: API and Client UI in one process, the UI at `LINQ_CLIENT_BASE_PATH` (`/` by default, on `LINQ_APP_HOST`) |
 | `dockerfiles/Dockerfile.server` | API and redirects only, no Client UI |
 | `dockerfiles/Dockerfile.client` | Client UI only, as a standalone static export |
 
@@ -159,27 +158,24 @@ the whole workspace present even when only one app is being built:
 ```sh
 docker build -f docker/examples/dockerfiles/Dockerfile.client  -t linq-client  .
 docker build -f docker/examples/dockerfiles/Dockerfile.server  -t linq-server  .
-docker build -f docker/examples/dockerfiles/Dockerfile.full    -t linq-full    .
+docker build -f docker/dockerfiles/Dockerfile                  -t linq         .
 ```
 
-`Dockerfile.full` accepts `LINQ_CLIENT_BASE_PATH` as a build argument. It feeds
-the same value to the static frontend build and runtime server. The default is
-`/home`; changing it requires rebuilding the image:
+`../dockerfiles/Dockerfile` accepts `LINQ_CLIENT_BASE_PATH` as a build argument.
+It feeds the same value to the static frontend build and runtime server. The
+default is `/`; changing it requires rebuilding the image:
 
 ```sh
-docker build --build-arg LINQ_CLIENT_BASE_PATH=/admin/example -f docker/examples/dockerfiles/Dockerfile.full -t linq-full .
+docker build --build-arg LINQ_CLIENT_BASE_PATH=/admin/example -f docker/dockerfiles/Dockerfile -t linq .
 ```
 
 The Dockerfile does not read `.env`; pass the argument explicitly. With Compose,
 put the literal value under `services.linq.build.args` in the Compose file you
 deploy, then rebuild.
 
-`../dockerfiles/Dockerfile.linq` is `Dockerfile.full` with the base path fixed at `/`. The
-server accepts that only with `LINQ_APP_HOST` set at runtime, so the UI answers
-on that one host and every other host keeps its short links
-(`docs/adr/0019`). Keep the two files in step; only the base path differs.
-`Dockerfile.full` with `--build-arg LINQ_CLIENT_BASE_PATH=/` builds the same
-image.
+With the default `/`, the server starts only with `LINQ_APP_HOST` set at
+runtime, so the UI answers on that one host and every other host keeps its
+short links (`docs/adr/0019`).
 
 `Dockerfile.client` runs `serve-static.ts` under plain Bun rather than
 introducing nginx as a second base image. It mirrors

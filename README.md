@@ -233,36 +233,38 @@ writes to disk that is worth backing up.
 ### Which image?
 
 linq publishes one image, `linq`, to `labsatquicko/linq` on Docker Hub and
-`ghcr.io/org-quicko/linq`, built from `docker/dockerfiles/Dockerfile.linq`.
+`ghcr.io/org-quicko/linq`, built from `docker/dockerfiles/Dockerfile`.
 The other shapes are examples in `docker/examples/dockerfiles/`, built
 locally. Pick by where the Client UI should live:
 
 | You want | Image | Client UI at | Must set |
 | --- | --- | --- | --- |
 | One container, UI on its own domain | `linq` (published) | `/` on `LINQ_APP_HOST` only | `DATABASE_URL`, `LINQ_DEFAULT_DOMAIN`, `LINQ_APP_HOST` |
-| One container, UI next to the short links | `Dockerfile.full` (example) | `/home` on every host | `DATABASE_URL`, `LINQ_DEFAULT_DOMAIN` |
+| One container, UI next to the short links | `Dockerfile` built with `LINQ_CLIENT_BASE_PATH=/home` | `/home` on every host | `DATABASE_URL`, `LINQ_DEFAULT_DOMAIN` |
 | The API and short links, UI hosted elsewhere | `Dockerfile.server` (example) | nowhere | `DATABASE_URL`, `LINQ_DEFAULT_DOMAIN` |
 | Only the UI, pointed at a linq server you run | `Dockerfile.client` (example) | `/` | nothing |
 
 `linq` cannot start without `LINQ_APP_HOST`: the domain the UI answers on, for
 example `linq.example.com`, while `link.example.com/<slug>` keeps serving short
-links. It is `Dockerfile.full` with the UI moved from `/home` to `/`; see
+links. Build the same Dockerfile with a path such as `/home` to put the UI
+next to the short links instead; see
 [The UI and API on their own host](#the-ui-and-api-on-their-own-host).
 
 ### Building and running
 
-`docker/examples/dockerfiles/Dockerfile.full` builds an image that serves the
+`docker/dockerfiles/Dockerfile` builds an image that serves the
 API, the redirects and the Client UI from one process. Postgres stays external,
 and so does Redis if you opt into it. Pick a matching file from
 `docker/examples/docker-compose/`, configure the repo-root `.env`, then run the
 matching `docker compose -f ... up` command. The examples load `.env` into the
 `linq` service at runtime.
 
-The full image serves the UI at `/home` by default. To use another path, rebuild
-the image with an explicit build argument:
+The image serves the UI at `/` by default, and the Compose examples build it
+with `/home`. To use another path, rebuild the image with an explicit build
+argument:
 
 ```sh
-docker build --build-arg LINQ_CLIENT_BASE_PATH=/admin/example -f docker/examples/dockerfiles/Dockerfile.full -t linq-full .
+docker build --build-arg LINQ_CLIENT_BASE_PATH=/admin/example -f docker/dockerfiles/Dockerfile -t linq .
 ```
 
 The path is written into the static frontend during `docker build`; changing
@@ -323,7 +325,7 @@ and `/api/*` still answers on all of them. The app host must differ from
 to create the domain otherwise. `docs/adr/0019` has the reasoning.
 
 The UI at `/` needs an image built for it. `linq`, built from
-`docker/dockerfiles/Dockerfile.linq`, is the published image;
+`docker/dockerfiles/Dockerfile`, is the published image;
 `docker/examples/docker-compose/11-app-host.yml` runs it. To build it yourself, set
 `LINQ_CLIENT_BASE_PATH=/` in `.env` and use any combined example with `--build`.
 

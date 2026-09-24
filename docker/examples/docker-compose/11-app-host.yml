@@ -1,6 +1,6 @@
 # The Client UI and the API on their own host, short links on the others
 # (docs/adr/0019), against an existing Postgres instance. Pulls linq, the
-# published docker/dockerfiles/Dockerfile.linq, so nothing is built here.
+# published docker/dockerfiles/Dockerfile, so nothing is built here.
 #
 #   LINQ_APP_HOST        UI at /, API at /api/*. Never a shortening domain.
 #   LINQ_DEFAULT_DOMAIN  the first shortening domain. Must differ from it.

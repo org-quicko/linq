@@ -1,17 +1,17 @@
 # syntax=docker/dockerfile:1
 
-ARG LINQ_CLIENT_BASE_PATH=/home
+ARG LINQ_CLIENT_BASE_PATH=/
 
-# Both: the API, the redirects and the Client UI (served at
-# LINQ_CLIENT_BASE_PATH, /home by default) from one process. One of three
-# shapes in this folder (server-only, client-only, both); see
-# ../README.md.
+# The API, the redirects and the Client UI (served at LINQ_CLIENT_BASE_PATH)
+# from one process. Published as linq, the only published image, with the
+# default /: the UI answers only on LINQ_APP_HOST, which must then be set at
+# runtime (docs/adr/0019).
 #
 # Build from the repo root, not this directory:
-#   docker build -f docker/examples/dockerfiles/Dockerfile.full -t linq-full .
-# Custom Client UI path (requires a rebuild):
-#   docker build --build-arg LINQ_CLIENT_BASE_PATH=/admin -f docker/examples/dockerfiles/Dockerfile.full -t linq-full .
-# UI at the root: see docker/dockerfiles/Dockerfile.linq, which is this file with / fixed.
+#   docker build -f docker/dockerfiles/Dockerfile -t linq .
+# UI under a path on every host instead (requires a rebuild; the Compose
+# examples pass /home):
+#   docker build --build-arg LINQ_CLIENT_BASE_PATH=/home -f docker/dockerfiles/Dockerfile -t linq .
 #
 # Stage 1 builds the Client UI into a static export. Nothing from here ships
 # except apps/client/out.

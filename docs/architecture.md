@@ -204,7 +204,7 @@ traversal-checked, ahead of the redirect catch-all); `build:client:standalone`
 targets a domain root for hosting anywhere as plain static files. The combined
 build bakes `LINQ_CLIENT_BASE_PATH` into its static files (`/home` by default),
 and the server reserves that path's first segment so it cannot become a short
-link. `Dockerfile.full` accepts the value only as an explicit build argument and
+link. `docker/dockerfiles/Dockerfile` accepts the value only as an explicit build argument and
 must be rebuilt when it changes; it does not read `.env`. Neither UI build bakes
 in an API URL.
 

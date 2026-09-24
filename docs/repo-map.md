@@ -102,8 +102,8 @@ from a JSON body on the client). Nothing here imports from either app.
 
 | Path | What it is |
 |------|------------|
-| `docker/dockerfiles/` | `Dockerfile.linq`, the one published image: server + built Client UI, UI fixed at `/` for `LINQ_APP_HOST` |
-| `docker/examples/dockerfiles/` | `Dockerfile.full` (server + built Client UI at `/home`), `Dockerfile.server` (server only, configured UI path 404s), `Dockerfile.client` (standalone client build), and `caddy/`, the Caddy config template the Caddy compose files mount (see `docs/adr/0012`) |
+| `docker/dockerfiles/` | `Dockerfile`, the one published image: server + built Client UI, UI at `/` for `LINQ_APP_HOST` by default, or at a build-time `LINQ_CLIENT_BASE_PATH` such as `/home` |
+| `docker/examples/dockerfiles/` | `Dockerfile.server` (server only, configured UI path 404s), `Dockerfile.client` (standalone client build), and `caddy/`, the Caddy config template the Caddy compose files mount (see `docs/adr/0012`) |
 | `docker/examples/docker-compose/` | One compose file per deployment shape — bundled or external Postgres, with or without Redis/Caddy, client served together or standalone, or on an app host of its own (`11-app-host.yml`) |
 
 ## Agent tooling

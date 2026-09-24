@@ -1,5 +1,5 @@
 # Server-only variant of 01-bundled-postgres.yml: same bundled
-# Postgres stack, built from Dockerfile.server instead of Dockerfile.full, so
+# Postgres stack, built from Dockerfile.server instead of Dockerfile, so
 # there's no Client UI at all, not even at /home. An override, not a stack on
 # its own — use together with the file it overrides:
 #   docker compose -f 01-bundled-postgres.yml -f 09-server-only.yml up

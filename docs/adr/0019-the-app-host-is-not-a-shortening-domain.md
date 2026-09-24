@@ -39,9 +39,8 @@ Client UI. When it is set:
   `domain:app-host` route for it at boot, since it has no domain row to sync
   from.
 
-The app-host image is `docker/dockerfiles/Dockerfile.linq`, which is
-`docker/examples/dockerfiles/Dockerfile.full` with the base path fixed at `/`.
-It is published as `linq`, the only published image.
+The app-host image is `docker/dockerfiles/Dockerfile` built with its default
+base path, `/`. It is published as `linq`, the only published image.
 
 Left unset, nothing changes: the UI answers on every host at
 `LINQ_CLIENT_BASE_PATH`.
@@ -52,7 +51,8 @@ Left unset, nothing changes: the UI answers on every host at
   into a list; nothing needs that yet.
 - The base path is still baked into the static export at build time
   (docs/adr/0006 keeps the API URL out of it, not the path). A root mount needs
-  its own image; the full image cannot be switched to `/` at runtime.
+  its own image; an image built with `/home` cannot be switched to `/` at
+  runtime.
 - An existing domain row whose host equals `LINQ_APP_HOST` is not rejected at
   boot, only at creation. Its links stop resolving, because the UI claims every
   path on that host. Archive it before setting `LINQ_APP_HOST`.
