@@ -132,6 +132,23 @@ describe("POST /api/v1/links", () => {
     const link = await h.createLink(editor.key, domain, { tags: ["Launch", "Q3"] })
     expect(link.tags).toEqual(["launch", "q3"])
   })
+
+  test("drops duplicate tags and returns them sorted", async () => {
+    const link = await h.createLink(editor.key, domain, { tags: ["b", "a", "B"] })
+    expect(link.tags).toEqual(["a", "b"])
+  })
+})
+
+describe("PATCH /api/v1/links/:id tags", () => {
+  test("replaces them, clears them with [], and leaves them alone when absent", async () => {
+    const link = await h.createLink(editor.key, domain, { tags: ["one", "two"] })
+    const patch = async (body: object) =>
+      (await (await h.patch(`/api/v1/links/${link.id}`, editor.key, body)).json()).tags
+
+    expect(await patch({ tags: ["three", "one"] })).toEqual(["one", "three"])
+    expect(await patch({ name: "renamed" })).toEqual(["one", "three"])
+    expect(await patch({ tags: [] })).toEqual([])
+  })
 })
 
 describe("PATCH /api/v1/links/:id", () => {
