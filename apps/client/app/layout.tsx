@@ -37,7 +37,7 @@ const dmSans = localFont({
 })
 
 export const metadata: Metadata = {
-  title: "Linq",
+  title: "linq",
   // Imported rather than a public/ path so the URL carries the base path.
   icons: { icon: { url: icon.src, type: "image/svg+xml" } },
 }

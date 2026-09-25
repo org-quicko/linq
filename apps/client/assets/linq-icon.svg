@@ -2,13 +2,14 @@
 <title>Linq</title>
 <!-- The favicon: a browser tab cannot see the app's theme class, so it follows the OS/browser scheme instead. -->
 <style>
-  .ink { fill: #171717; }
-  .paper { fill: #fafafa; }
-  .stroke { stroke: #fafafa; }
+  /* Light: the inverse of the designed logo. Dark: the logo as designed. */
+  .ink { fill: #fafafa; }
+  .paper { fill: #171717; }
+  .stroke { stroke: #171717; }
   @media (prefers-color-scheme: dark) {
-    .ink { fill: #fafafa; }
-    .paper { fill: #171717; }
-    .stroke { stroke: #171717; }
+    .ink { fill: #171717; }
+    .paper { fill: #ffffff; }
+    .stroke { stroke: #ffffff; }
   }
 </style>
 <mask id="linq-icon-tile" fill="white">
