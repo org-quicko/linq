@@ -151,8 +151,8 @@ export function AnalyticsOverview() {
         <BreakdownCard
           title="Devices"
           dimension={deviceView}
-          rows={devices.data ?? []}
-          loading={devices.isLoading}
+          rows={devices.currentData ?? []}
+          loading={devices.isFetching && !devices.currentData}
           active={selected(deviceView)}
           hasAppliedFilters={hasAppliedFilters}
           onClick={toggle}
@@ -231,7 +231,7 @@ function BreakdownCard({
               >
                 <span className="relative flex h-8 min-w-0 flex-1 overflow-hidden rounded text-left">
                   <span
-                    className="absolute inset-y-0 left-0 bg-muted group-hover:bg-border"
+                    className="analytics-chart-reveal absolute inset-y-0 left-0 bg-muted group-hover:bg-border"
                     style={{ width: `${(count / max) * 100}%` }}
                   />
                   <span className="relative flex min-w-0 items-center gap-2 px-2">
@@ -295,7 +295,7 @@ function DeviceViewSelector({
           <ChevronDown className="size-3" />
         </button>
       </DropdownMenuTrigger>
-      <DropdownMenuContent align="end">
+      <DropdownMenuContent align="end" onCloseAutoFocus={(event) => event.preventDefault()}>
         {(Object.keys(labels) as DeviceView[]).map((key) => (
           <DropdownMenuItem key={key} onSelect={() => onChange(key)}>
             {labels[key]}

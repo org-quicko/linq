@@ -199,7 +199,7 @@
 }
 
 .analytics-chart-reveal {
-  animation: analytics-chart-reveal 1500ms 360ms ease-in-out both;
+  animation: analytics-chart-reveal 1000ms 360ms ease-in-out both;
   transform-box: fill-box;
   transform-origin: left center;
 }
