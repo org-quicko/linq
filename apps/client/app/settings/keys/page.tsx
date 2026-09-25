@@ -4,9 +4,10 @@ import {
   type Actor,
   type ApiKey,
   type ApiKeyCreated,
+  type ApiKeySummary,
   can,
-  PRESETS,
   type KeyPreset,
+  PRESETS,
 } from "@linq/shared"
 import { KeyRound, Plus, Trash2 } from "lucide-react"
 import { useState } from "react"
@@ -48,7 +49,7 @@ const PRESET_OPTIONS = PRESETS.map((preset) => ({ value: preset, label: preset }
  */
 export default function KeysPage() {
   return (
-    <AppShell requires={can.manageKeys}>
+    <AppShell>
       {(actor) => (
         <div className="no-scrollbar flex h-full min-h-0 flex-col overflow-y-auto px-7 py-6">
           <SettingsNav actor={actor}>
@@ -68,8 +69,8 @@ function Keys({ actor }: { actor: Actor }) {
     <div className="flex flex-col gap-4">
       <PageHeader
         title="API keys"
-        description="Let scripts and integrations act on this workspace with a scoped key."
-        actions={<MintKeyDialog />}
+        description="Review the scoped keys that can access this workspace."
+        actions={can.manageKeys(actor) ? <MintKeyDialog /> : undefined}
       />
 
       <Collection
@@ -78,18 +79,20 @@ function Keys({ actor }: { actor: Actor }) {
         variant="list"
         emptyMessage="No keys. Nothing can reach the API."
       >
-        {(key) => <KeyRow key={key.id} apiKey={key as ApiKey} actor={actor} />}
+        {(key) => <KeyRow key={key.id} apiKey={key} actor={actor} />}
       </Collection>
     </div>
   )
 }
 
-function KeyRow({ apiKey, actor }: { apiKey: ApiKey; actor: Actor }) {
+function KeyRow({ apiKey, actor }: { apiKey: ApiKey | ApiKeySummary; actor: Actor }) {
   const [updateKey] = useUpdateKeyMutation()
   const [revokeKey] = useRevokeKeyMutation()
   const { run, saving } = useRun()
 
   const isMine = apiKey.id === actor.keyId
+  const canManage = can.manageKeys(actor)
+  const hasDetails = (key: ApiKey | ApiKeySummary): key is ApiKey => "prefix" in key
 
   const save = (body: Record<string, unknown>) =>
     run(() => updateKey({ id: apiKey.id, body }).unwrap(), {
@@ -105,40 +108,42 @@ function KeyRow({ apiKey, actor }: { apiKey: ApiKey; actor: Actor }) {
         </RowCardTile>
       }
       actions={
-        <>
-          {/* Nobody changes their own role — the one-way door out of admin — so a
+        canManage ? (
+          <>
+            {/* Nobody changes their own role — the one-way door out of admin — so a
               disabled control there would just be a Picker that never does anything.
               Shown as a plain tag next to the name instead (below), same as any
               other key's role once it's not editable. */}
-          {isMine ? null : (
-            <Picker
-              className="h-8 w-28"
-              value={apiKey.preset ?? "viewer"}
-              disabled={saving}
-              onChange={(preset) => save({ preset: preset as KeyPreset })}
-              options={PRESET_OPTIONS}
-            />
-          )}
-          {/* Revoking the key in your own hand would lock you out with only the
+            {isMine ? null : (
+              <Picker
+                className="h-8 w-28"
+                value={apiKey.preset ?? "viewer"}
+                disabled={saving}
+                onChange={(preset) => save({ preset: preset as KeyPreset })}
+                options={PRESET_OPTIONS}
+              />
+            )}
+            {/* Revoking the key in your own hand would lock you out with only the
               CLI left as a way back, so it is not offered rather than refused. */}
-          {isMine ? null : (
-            <ConfirmButton
-              className="size-10"
-              ariaLabel="Revoke key"
-              title={`Revoke ${apiKey.name}?`}
-              description="This key stops working immediately. Revoking is a real delete, not an archive."
-              confirmLabel="Revoke"
-              onConfirm={() =>
-                run(() => revokeKey(apiKey.id).unwrap(), {
-                  success: "Key revoked.",
-                  fallback: "Could not revoke that key.",
-                })
-              }
-            >
-              <Trash2 />
-            </ConfirmButton>
-          )}
-        </>
+            {isMine ? null : (
+              <ConfirmButton
+                className="size-10"
+                ariaLabel="Revoke key"
+                title={`Revoke ${apiKey.name}?`}
+                description="This key stops working immediately. Revoking is a real delete, not an archive."
+                confirmLabel="Revoke"
+                onConfirm={() =>
+                  run(() => revokeKey(apiKey.id).unwrap(), {
+                    success: "Key revoked.",
+                    fallback: "Could not revoke that key.",
+                  })
+                }
+              >
+                <Trash2 />
+              </ConfirmButton>
+            )}
+          </>
+        ) : null
       }
     >
       <span className="flex items-center gap-2">
@@ -147,13 +152,19 @@ function KeyRow({ apiKey, actor }: { apiKey: ApiKey; actor: Actor }) {
         {isMine ? <Tag>This key</Tag> : null}
       </span>
       <span className="truncate text-xs text-muted-foreground">
-        {apiKey.prefix} · Created <When iso={apiKey.created_at} relative />
-        {apiKey.expires_at ? (
+        {hasDetails(apiKey) ? (
           <>
-            {" "}
-            · Expires <When iso={apiKey.expires_at} relative />
+            {apiKey.prefix} · Created <When iso={apiKey.created_at} relative />
+            {apiKey.expires_at ? (
+              <>
+                {" "}
+                · Expires <When iso={apiKey.expires_at} relative />
+              </>
+            ) : null}
           </>
-        ) : null}
+        ) : (
+          (apiKey.preset ?? "Custom claims")
+        )}
       </span>
     </RowCard>
   )

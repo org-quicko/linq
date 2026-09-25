@@ -1,6 +1,6 @@
 import { describe, expect, test } from "bun:test"
 import { mergeQuery, queryMap } from "../src/http/redirect.ts"
-import { detectBot } from "../src/visits/bot.ts"
+import { classifyBot, detectBot } from "../src/visits/bot.ts"
 import { detectPlatform } from "../src/visits/platform.ts"
 
 describe("detectPlatform", () => {
@@ -38,6 +38,32 @@ describe("detectBot", () => {
   test("a request with no user agent counts as a bot", () => {
     expect(detectBot(null)).toBe(true)
     expect(detectBot("")).toBe(true)
+  })
+})
+
+describe("classifyBot", () => {
+  test("records why each user agent was classified", () => {
+    expect(classifyBot("Mozilla/5.0 (compatible; Googlebot/2.1)")).toEqual({
+      is_bot: true,
+      bot_classification: "isbot_match",
+    })
+    expect(classifyBot(null)).toEqual({ is_bot: true, bot_classification: "missing_user_agent" })
+    expect(classifyBot("")).toEqual({ is_bot: true, bot_classification: "missing_user_agent" })
+    expect(classifyBot("Mozilla/5.0 (Macintosh) AppleWebKit/537.36 Chrome/120 Safari/537.36")).toEqual({
+      is_bot: false,
+      bot_classification: "unknown",
+    })
+  })
+
+  test("does not mistake representative browser user agents for bots", () => {
+    const browsers = [
+      "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/131.0.0.0 Safari/537.36 Edg/131.0.0.0",
+      "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 Version/18.1 Safari/605.1.15",
+      "Mozilla/5.0 (X11; Ubuntu; Linux x86_64; rv:133.0) Gecko/20100101 Firefox/133.0",
+      "Mozilla/5.0 (Linux; Android 15; Pixel 9) AppleWebKit/537.36 Chrome/131.0.0.0 Mobile Safari/537.36",
+    ]
+    for (const user_agent of browsers)
+      expect(classifyBot(user_agent)).toEqual({ is_bot: false, bot_classification: "unknown" })
   })
 })
 

@@ -191,4 +191,4 @@ and default `LINQ_CACHE_SWEEP_INTERVAL` to 60 seconds (1 to 3600).
 `dockerfiles/caddy/caddy.json` is the empty skeleton Caddy boots from in the Caddy
 examples (3, 4, 7, 8); see `docs/adr/0012`.
 
-See the root `README.md` (Docker section) for what each piece does.
+See the root `README.md` (Deploying section) for what each piece does.

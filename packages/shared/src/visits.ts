@@ -19,6 +19,15 @@ const scope = {
 /** Open vocabulary (`os`/`browser` aren't a closed enum like `platform`), lowercased at the boundary so a filter matches regardless of how it's typed — the stored value is always lowercase. */
 const openFilter = z.string().min(1).toLowerCase().optional()
 
+/** How a newer visit was classified. `unknown` is not proof of a human. Null predates the field. */
+export const BOT_CLASSIFICATIONS = [
+  "missing_user_agent",
+  "isbot_match",
+  "pattern_match",
+  "unknown",
+] as const
+export type BotClassification = (typeof BOT_CLASSIFICATIONS)[number]
+
 /**
  * The raw log filters on instants, because that is what a visit row carries.
  * `to` is inclusive.
@@ -41,6 +50,7 @@ export type Visit = {
   slug_requested: string
   occurred_at: string
   is_bot: boolean
+  bot_classification: BotClassification | null
   platform: Platform
   os: Os | null
   browser: Browser | null

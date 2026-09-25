@@ -81,6 +81,7 @@ export interface DB {
     slug_requested: string
     occurred_at: Generated<Date>
     is_bot: boolean
+    bot_classification: "missing_user_agent" | "isbot_match" | "pattern_match" | "unknown" | null
     platform: "android" | "ios" | "desktop"
     os: string | null
     browser: string | null

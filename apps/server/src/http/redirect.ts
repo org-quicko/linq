@@ -7,7 +7,7 @@ import type { Db } from "../db/client.ts"
 import { reqLog, span } from "../log.ts"
 import { matchRules } from "../rules/match.ts"
 import { listRules } from "../rules/store.ts"
-import { detectBot, isPreviewCrawler } from "../visits/bot.ts"
+import { classifyBot, isPreviewCrawler } from "../visits/bot.ts"
 import { detectBrowser, detectOs, detectPlatform } from "../visits/platform.ts"
 import { recordVisit } from "../visits/record.ts"
 import { shortUrl } from "./api/links.ts"
@@ -230,6 +230,7 @@ export const redirectHandler = factory.createHandlers(async (c) => {
   // HEAD is answered exactly like GET but never tracked.
   const tracked = c.req.method === "GET"
   const user_agent = c.req.header("user-agent") ?? null
+  const bot = classifyBot(user_agent)
   const cached = slug
     ? await through(c, targetKey(domain.id, slug), () =>
         findActiveTarget(c.var.db, domain.id, slug),
@@ -245,7 +246,7 @@ export const redirectHandler = factory.createHandlers(async (c) => {
   const visit = {
     domain_id: domain.id,
     slug_requested: slug,
-    is_bot: detectBot(user_agent),
+    ...bot,
     platform: detectPlatform(user_agent),
     os: detectOs(user_agent),
     browser: detectBrowser(user_agent),
