@@ -79,7 +79,7 @@ export function AnalyticsOverview() {
   const hasAppliedFilters = Boolean(link_id || segments.length || preset !== "7")
 
   return (
-    <div className="flex flex-col gap-4">
+    <div className="analytics-page-enter flex flex-col gap-4">
       <div className="flex flex-wrap items-center gap-2">
         <h1 className="shrink-0 font-heading text-xl font-semibold">Analytics</h1>
         <div className="flex min-w-0 flex-1 flex-wrap items-center gap-2">
@@ -423,17 +423,22 @@ function VisitsChart({
                   <stop offset="0%" stopColor="var(--chart-1)" stopOpacity="0.35" />
                   <stop offset="100%" stopColor="var(--chart-1)" stopOpacity="0" />
                 </linearGradient>
+                <clipPath id={`${gradientId}-reveal`}>
+                  <rect className="analytics-chart-reveal" x="0" y="0" width="100" height="100" />
+                </clipPath>
               </defs>
-              <path d={chart.areaPath} fill={`url(#${gradientId})`} stroke="none" />
-              <path
-                d={chart.linePath}
-                fill="none"
-                stroke="var(--chart-1)"
-                strokeWidth={1.5}
-                vectorEffect="non-scaling-stroke"
-                strokeLinejoin="round"
-                strokeLinecap="round"
-              />
+              <g clipPath={`url(#${gradientId}-reveal)`}>
+                <path d={chart.areaPath} fill={`url(#${gradientId})`} stroke="none" />
+                <path
+                  d={chart.linePath}
+                  fill="none"
+                  stroke="var(--chart-1)"
+                  strokeWidth={1.5}
+                  vectorEffect="non-scaling-stroke"
+                  strokeLinejoin="round"
+                  strokeLinecap="round"
+                />
+              </g>
             </svg>
             {chart.points.map((point) => (
               <div
