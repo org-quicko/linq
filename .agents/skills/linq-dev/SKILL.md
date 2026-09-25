@@ -44,8 +44,9 @@ linq admin API key: linq_xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
 ```
 
 Only its hash is stored — if you miss it, it cannot be read back. Mint more
-without a restart with `bun run key:create --name <name> --role <role>`
-(`--role` defaults to `admin`).
+without a restart with `bun run key:create --name <name> --preset <preset>`
+(`viewer`, `editor` or `admin`; defaults to `admin`). There is no `--role`:
+it was replaced by presets (`docs/adr/0017`).
 
 ## Pointing the Client UI at the server
 
