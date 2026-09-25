@@ -15,7 +15,7 @@ A self-hosted platform for short links.
 ### Prerequisites
 
 - [Bun](https://bun.sh) 1.4+
-- [PostgreSQL](https://www.postgresql.org) 15+, running on `localhost:5432`
+- [PostgreSQL](https://www.postgresql.org) 15+
 
 linq never runs Postgres itself. Without it, the server exits with
 `ERR_POSTGRES_CONNECTION_REFUSED`. Redis is optional, because the redirect cache
@@ -28,7 +28,7 @@ git clone https://github.com/org-quicko/linq.git
 cd linq
 bun install
 psql -U postgres -c "CREATE DATABASE linq;"
-cp .env.example .env   # then set DATABASE_URL
+cp .env.example .env   # then set DATABASE_URL to your Postgres credentials
 ```
 
 linq applies its own migrations at boot, but it does not create the database.
