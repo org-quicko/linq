@@ -3,7 +3,7 @@
 import { Link2, Plus, Trash2, X } from "lucide-react"
 import { useEffect, useState } from "react"
 import { ConfirmButton } from "@/components/common"
-import { RowCard, RowCardTile } from "@/components/patterns"
+import { RowCard, RowCardTile, Wordmark } from "@/components/patterns"
 import { AddServerDialog } from "@/components/server-form"
 import { Button } from "@/components/ui/button"
 import { appUrl } from "../lib/base-path"
@@ -77,12 +77,7 @@ export function ServerManager({
   return (
     <div className="flex min-h-screen flex-col bg-background">
       <div className="flex shrink-0 items-center justify-between border-b px-7 py-3.5">
-        <div className="flex items-center gap-[7px]">
-          <div className="flex size-[22px] shrink-0 items-center justify-center rounded-[6px] bg-primary text-primary-foreground">
-            <Link2 className="size-[13px]" />
-          </div>
-          <span className="text-[15px] font-semibold tracking-[-0.02em]">Linq</span>
-        </div>
+        <Wordmark />
         {canGoBack ? (
           <Button
             type="button"

@@ -8,7 +8,7 @@ import Link from "next/link"
 import { usePathname, useRouter } from "next/navigation"
 import { type ReactNode, useEffect } from "react"
 import { QueryState } from "@/components/common"
-import { PageHeader, ThemeToggle } from "@/components/patterns"
+import { PageHeader, ThemeToggle, Wordmark } from "@/components/patterns"
 import { ServerSwitcher } from "@/components/server-switcher"
 import { Button } from "@/components/ui/button"
 import { activeServer } from "../lib/servers"
@@ -159,14 +159,8 @@ function Chrome({ actor, me, children }: { actor?: Actor; me?: Me; children: Rea
   return (
     <div className="flex h-screen overflow-hidden bg-muted">
       <aside className="flex w-60 shrink-0 flex-col gap-2 p-4">
-        <Link
-          href="/links/"
-          className="flex items-center gap-[7px] px-[9px] pb-3 pt-2 font-heading text-[15px] font-semibold tracking-[-0.02em]"
-        >
-          <span className="flex size-[22px] shrink-0 items-center justify-center rounded-md bg-primary">
-            <Link2 className="size-[13px] text-primary-foreground" />
-          </span>
-          Linq
+        <Link href="/links/" className="flex items-center px-[9px] pb-3 pt-2">
+          <Wordmark />
         </Link>
 
         <ServerSwitcher />

@@ -1,0 +1,21 @@
+<svg width="128" height="128" viewBox="0 0 128 128" fill="none" xmlns="http://www.w3.org/2000/svg">
+<title>Linq</title>
+<!-- The favicon: a browser tab cannot see the app's theme class, so it follows the OS/browser scheme instead. -->
+<style>
+  .ink { fill: #171717; }
+  .paper { fill: #fafafa; }
+  .stroke { stroke: #fafafa; }
+  @media (prefers-color-scheme: dark) {
+    .ink { fill: #fafafa; }
+    .paper { fill: #171717; }
+    .stroke { stroke: #171717; }
+  }
+</style>
+<mask id="linq-icon-tile" fill="white">
+<path d="M0 25.6C0 11.4615 11.4615 0 25.6 0H102.4C116.538 0 128 11.4615 128 25.6V102.4C128 116.538 116.538 128 102.4 128H25.6C11.4615 128 0 116.538 0 102.4V25.6Z"/>
+</mask>
+<path class="ink" d="M0 25.6C0 11.4615 11.4615 0 25.6 0H102.4C116.538 0 128 11.4615 128 25.6V102.4C128 116.538 116.538 128 102.4 128H25.6C11.4615 128 0 116.538 0 102.4V25.6Z"/>
+<path class="paper" d="M-16 25.6C-16 9.6942 -3.1058 -3.2 12.8 -3.2H102.4C118.306 -3.2 131.2 9.6942 131.2 25.6H124.8C124.8 13.2288 114.771 3.2 102.4 3.2H25.6C20.2981 3.2 16 13.2288 16 25.6H-16ZM131.2 115.2C131.2 131.106 118.306 144 102.4 144H25.6C2.62495 144 -16 125.375 -16 102.4H16C16 107.702 20.2981 112 25.6 112H102.4C114.771 112 124.8 107.702 124.8 102.4L131.2 115.2ZM25.6 144C2.62495 144 -16 125.375 -16 102.4V25.6C-16 9.6942 -3.1058 -3.2 12.8 -3.2L25.6 3.2C20.2981 3.2 16 13.2288 16 25.6V102.4C16 107.702 20.2981 112 25.6 112L25.6 144ZM102.4 -3.2C118.306 -3.2 131.2 9.6942 131.2 25.6V115.2C131.2 131.106 118.306 144 102.4 144V112C114.771 112 124.8 107.702 124.8 102.4V25.6C124.8 13.2288 114.771 3.2 102.4 3.2V-3.2Z" mask="url(#linq-icon-tile)"/>
+<path class="stroke" d="M41.6 25.6H99.4876V83.4876" stroke-width="11.5775" stroke-linecap="round" stroke-linejoin="round"/>
+<path class="stroke" d="M34.2675 90.8201L96.4795 28.6081" stroke-width="11.5775" stroke-linecap="round" stroke-linejoin="round"/>
+</svg>
