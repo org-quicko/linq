@@ -1,4 +1,6 @@
-<div align="center">
+# linq
+
+A self-hosted platform for short links.
 
 ## Features
 
@@ -48,15 +50,16 @@ once:
 ```
 
 Copy it now. Only its hash is stored. To mint another key without restarting,
-run `bun run key:create --name ops --preset admin`.
+run `bun run key:create --name ops --preset admin` (add `--expires <ISO date>` for
+an expiry). If every key is ever revoked, the next restart mints a new admin key.
 
 Open **http://localhost:3001/home/** and add a server:
 
 | Field      | Value                         |
 | ---------- | ----------------------------- |
-| Name       | anything, e.g.`local`       |
+| Name       | anything, e.g. `local`      |
 | Server URL | `http://localhost:3000`     |
-| API key    | the`linq_…` key from above |
+| API key    | the `linq_…` key from above |
 
 The UI is a standalone client. It keeps a list of servers in the browser and
 calls whichever one you pick, across origins and without a proxy. If requests
@@ -84,11 +87,11 @@ Configuration is read from the repo-root `.env` (or `.env.local`). Only
 | `DATABASE_URL`                   | —                         | Postgres connection string.                                                                         |
 | `LINQ_DB_SCHEMA`                 | `public`                 | The schema linq owns, created if missing. Set it when sharing a database.                           |
 | `LINQ_PORT`                      | `3000`                   | Port for the API and redirect server.                                                               |
-| `LINQ_CLIENT_PORT`               | `3001`                   | Port for the`dev:client` server.                                                                  |
+| `LINQ_CLIENT_PORT`               | `3001`                   | Port for the `dev:client` server.                                                                  |
 | `LINQ_CLIENT_BASE_PATH`          | `/home`                  | Where a combined deployment mounts the UI.                                                          |
-| `LINQ_APP_HOST`                  | —                         | Gives the UI a host of its own. See[UI on its own host](#ui-on-its-own-host).                        |
+| `LINQ_APP_HOST`                  | —                         | Gives the UI a host of its own. See [UI on its own host](#ui-on-its-own-host).                        |
 | `LINQ_DEFAULT_DOMAIN`            | `localhost:${LINQ_PORT}` | Seeds the first domain on an empty database only.                                                   |
-| `LINQ_REDIS_URL`                 | —                         | Moves the redirect cache to Redis. Must be reachable at boot. See`docs/adr/0009`.                 |
+| `LINQ_REDIS_URL`                 | —                         | Moves the redirect cache to Redis. Must be reachable at boot. See `docs/adr/0009`.                 |
 | `LINQ_CACHE_TTL`                 | `300`                    | How many seconds a cached lookup lives.                                                             |
 | `LINQ_FETCH_LINK_METADATA`       | `false`                  | Fetches a destination's title and icon. Enable only with egress rules that block private addresses. |
 | `LINQ_API_RATE_LIMIT_PER_MINUTE` | `1000`                   | Per-key API rate limit.                                                                             |
@@ -155,6 +158,9 @@ Use a Caddy Compose example (3, 4, 7 or 8). When `LINQ_CADDY_ADMIN_URL` is set,
 linq pushes every domain change to Caddy. Once a domain's DNS points at the
 host, adding the domain in linq is enough to serve it over HTTPS. See
 `docs/adr/0012`.
+
+The Caddy examples do not publish linq's port 3000 to the host. Caddy is the only
+public entry point, so API keys never travel over a plaintext bypass.
 
 ## Development
 
