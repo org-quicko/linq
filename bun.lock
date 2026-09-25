@@ -12,7 +12,7 @@
     },
     "apps/client": {
       "name": "@linq/client",
-      "version": "0.2.0",
+      "version": "1.0.0",
       "dependencies": {
         "@linq/shared": "workspace:*",
         "@reduxjs/toolkit": "^2.12.0",
@@ -42,7 +42,7 @@
     },
     "apps/server": {
       "name": "@linq/server",
-      "version": "0.2.0",
+      "version": "1.0.0",
       "dependencies": {
         "@hono/zod-validator": "^0.7.4",
         "@linq/shared": "workspace:*",
@@ -65,7 +65,7 @@
     },
     "packages/shared": {
       "name": "@linq/shared",
-      "version": "0.2.0",
+      "version": "1.0.0",
       "dependencies": {
         "@casl/ability": "^6.7.3",
         "zod": "^4.1.13",
