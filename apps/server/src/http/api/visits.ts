@@ -15,6 +15,7 @@ function toVisit(row: Selectable<DB["visits"]>): Visit {
     slug_requested: row.slug_requested,
     occurred_at: row.occurred_at.toISOString(),
     is_bot: row.is_bot,
+    bot_classification: row.bot_classification,
     platform: row.platform,
     os: row.os,
     browser: row.browser,

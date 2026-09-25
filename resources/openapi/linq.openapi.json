@@ -1414,7 +1414,7 @@
         ],
         "operationId": "listTags",
         "summary": "Tags in use, with counts",
-        "description": "Derived from active links; there is no tag table to keep in step.\nBusiest first, then alphabetical.\n",
+        "description": "Counted over active links on every request, so a tag no active link carries is absent.\nBusiest first, then alphabetical.\n",
         "responses": {
           "200": {
             "description": "Every tag carried by at least one active link.",
@@ -1455,7 +1455,7 @@
           "Keys"
         ],
         "summary": "List keys",
-        "description": "Every role may list keys, but only an admin sees more than `{ id, name, role }`.\n",
+        "description": "Every role may list keys. Callers without key-management permission receive `{ id, name, claims, preset }`; only key managers see prefixes and timestamps.\n",
         "parameters": [
           {
             "$ref": "#/components/parameters/Limit"
@@ -2325,6 +2325,7 @@
           "tags": {
             "type": "array",
             "maxItems": 20,
+            "description": "Sorted by name. Order is not preserved from the request.",
             "items": {
               "type": "string",
               "maxLength": 50
@@ -2411,6 +2412,7 @@
           "tags": {
             "type": "array",
             "maxItems": 20,
+            "description": "Lowercased and trimmed; duplicates are dropped. Read back sorted by name.",
             "default": [],
             "items": {
               "type": "string",
@@ -2481,6 +2483,7 @@
           "tags": {
             "type": "array",
             "maxItems": 20,
+            "description": "Replaces the link's tags; `[]` clears them. Lowercased and trimmed; duplicates are dropped. Read back sorted by name.",
             "items": {
               "type": "string",
               "maxLength": 50
@@ -2785,6 +2788,7 @@
           "slug_requested",
           "occurred_at",
           "is_bot",
+          "bot_classification",
           "platform",
           "os",
           "browser",
@@ -2820,7 +2824,21 @@
           },
           "is_bot": {
             "type": "boolean",
-            "description": "Decided once at ingest. A request with no user agent at all counts as a bot."
+            "description": "Decided once at ingest. False means no known automation matched; it is not proof of a human visit. A request with no user agent at all counts as a bot."
+          },
+          "bot_classification": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "enum": [
+              "missing_user_agent",
+              "isbot_match",
+              "pattern_match",
+              "unknown",
+              null
+            ],
+            "description": "How linq classified this visit. `unknown` means no known automation matched, not a proven human. Null means the visit predates this field or was written by an older server."
           },
           "platform": {
             "$ref": "#/components/schemas/Platform"

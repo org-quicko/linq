@@ -172,6 +172,7 @@ describe("redirecting an active link", () => {
       slug_requested: "hello",
       destination: "https://example.com/landing",
       is_bot: false,
+      bot_classification: "unknown",
       platform: "desktop",
       referer: "https://news.test/post",
     })
@@ -458,10 +459,14 @@ describe("visitor detection", () => {
     await h.createLink(editor.key, domain, { slug: "crawled" })
 
     await get("/crawled", { headers: { "user-agent": BOT } })
-    expect(await lastVisit()).toMatchObject({ is_bot: true })
+    expect(await lastVisit()).toMatchObject({ is_bot: true, bot_classification: "isbot_match" })
 
     await h.request("/crawled", { host: HOST })
-    expect(await lastVisit()).toMatchObject({ is_bot: true, user_agent: null })
+    expect(await lastVisit()).toMatchObject({
+      is_bot: true,
+      bot_classification: "missing_user_agent",
+      user_agent: null,
+    })
   })
 
   test("a link-preview crawler gets the short link's own title, not the destination's", async () => {

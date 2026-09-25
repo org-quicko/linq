@@ -3,8 +3,9 @@
 # unreleased builds, and Docker Hub is where docker-release.yml's `:latest`
 # lives.
 #
-# Triggers on a pushed tag with "alpha" in it, e.g. v0.2.0-alpha.1 -> tags
-# the image with the version (no leading v) and `:alpha`
+# Triggers on a pushed tag with "alpha" in it, e.g. v0.2.0-alpha.1 ->
+# tags the image with the version (no leading v) and `:alpha`. Release tags
+# (vMAJOR.MINOR.PATCH, no suffix) belong to docker-release.yml.
 name: docker-snapshot
 
 on:

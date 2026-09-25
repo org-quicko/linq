@@ -170,3 +170,43 @@
     transform: translateX(400%);
   }
 }
+
+/* The Analytics route arrives as one composed view, while the chart reveals
+ * the same direction as its time axis. Keep both subtle so navigating to a
+ * data-dense report remains quick to scan. */
+@keyframes analytics-page-enter {
+  from {
+    opacity: 0;
+    transform: translateX(-1rem);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(0);
+  }
+}
+
+@keyframes analytics-chart-reveal {
+  from {
+    transform: scaleX(0);
+  }
+  to {
+    transform: scaleX(1);
+  }
+}
+
+.analytics-page-enter {
+  animation: analytics-page-enter 300ms cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
+.analytics-chart-reveal {
+  animation: analytics-chart-reveal 1000ms 360ms ease-in-out both;
+  transform-box: fill-box;
+  transform-origin: left center;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .analytics-page-enter,
+  .analytics-chart-reveal {
+    animation: none;
+  }
+}

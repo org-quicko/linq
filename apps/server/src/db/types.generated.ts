@@ -48,7 +48,6 @@ export interface DB {
     name: string | null
     description: string | null
     icon_url: string | null
-    tags: Generated<string[]>
     forward_query: Generated<boolean>
     preset_params: ColumnType<any, any, any>
     status: Generated<"active" | "archived">
@@ -63,6 +62,15 @@ export interface DB {
     position: number
     destination: string
     conditions: JsonArray
+  }
+  tags: {
+    id: Generated<string>
+    name: string
+    created_at: Timestamp
+  }
+  link_tags: {
+    link_id: string
+    tag_id: string
   }
   qr_codes: {
     id: Generated<string>
@@ -81,6 +89,7 @@ export interface DB {
     slug_requested: string
     occurred_at: Generated<Date>
     is_bot: boolean
+    bot_classification: "missing_user_agent" | "isbot_match" | "pattern_match" | "unknown" | null
     platform: "android" | "ios" | "desktop"
     os: string | null
     browser: string | null

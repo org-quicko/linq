@@ -33,6 +33,7 @@ type LinkRow = Selectable<DB["links"]> & {
   human_visits: number
   bot_visits: number
   rule_count: number
+  tags: string[]
 }
 
 /** A port only ever appears in a local setup, where no TLS terminator is in front. */
@@ -88,6 +89,12 @@ function linkQuery(db: Db) {
       // A correlated subquery, not a join: `rules` is 1:N and every other join
       // here is 1:1, so joining it directly would multiply rows.
       sql<number>`(select count(*) from rules where rules.link_id = links.id)`.as("rule_count"),
+      // Same reason: `link_tags` is 1:N. Sorted so the order is stable across reads.
+      sql<string[]>`coalesce((
+        select array_agg(tags.name order by tags.name)
+        from link_tags join tags on tags.id = link_tags.tag_id
+        where link_tags.link_id = links.id
+      ), '{}')`.as("tags"),
     ])
 
   return {
@@ -120,6 +127,38 @@ export function loadLink(db: Db, id: string): Promise<Selectable<DB["links"]>> {
     },
     { in: { link_id: id }, out: (link) => ({ status: link.status }) },
   )
+}
+
+/**
+ * Replaces a link's tags, dropping duplicates. The ids
+ * are re-read rather than taken from `returning`: `doNothing` returns no row
+ * for a tag that already exists. A concurrent insert of the same new tag
+ * blocks on the unique constraint until the other transaction settles, and the
+ * select that follows is a new statement, so it sees that commit.
+ */
+async function setLinkTags(db: Db, linkId: string, names: string[]): Promise<void> {
+  const unique = [...new Set(names)]
+  await db.deleteFrom("link_tags").where("link_id", "=", linkId).execute()
+  if (unique.length === 0) return
+  await db
+    .insertInto("tags")
+    .values(unique.map((name) => ({ id: Bun.randomUUIDv7(), name })))
+    .onConflict((oc) => oc.column("name").doNothing())
+    .execute()
+  const rows = await db.selectFrom("tags").select(["id", "name"]).where("name", "in", unique).execute()
+  const ids = new Map(rows.map((row) => [row.name, row.id]))
+  await db
+    .insertInto("link_tags")
+    .values(unique.map((name) => ({ link_id: linkId, tag_id: ids.get(name)! })))
+    .execute()
+}
+
+/** A link carries any of `names`. A subquery, not a join, so the list's count query stays join-free. */
+function hasAnyTag(names: string[]) {
+  return sql<SqlBool>`exists (
+    select 1 from link_tags join tags on tags.id = link_tags.tag_id
+    where link_tags.link_id = links.id and tags.name = any(${sql.val(names)}::text[])
+  )`
 }
 
 /**
@@ -170,7 +209,7 @@ export const linkRoutes = new Hono<Env>()
     let filtered = query
     if (q.status !== "all") filtered = filtered.where("links.status", "=", q.status)
     if (q.domain_id.length) filtered = filtered.where("links.domain_id", "in", q.domain_id)
-    if (q.tags.length) filtered = filtered.where(sql<SqlBool>`links.tags && ${sql.val(q.tags)}::text[]`)
+    if (q.tags.length) filtered = filtered.where(hasAnyTag(q.tags))
     if (q.search) {
       const term = `%${q.search}%`
       filtered = filtered.where((eb) =>
@@ -209,7 +248,7 @@ export const linkRoutes = new Hono<Env>()
     let countQuery = c.var.db.selectFrom("links").select((eb) => eb.fn.countAll<number>().as("total"))
     if (q.status !== "all") countQuery = countQuery.where("status", "=", q.status)
     if (q.domain_id.length) countQuery = countQuery.where("domain_id", "in", q.domain_id)
-    if (q.tags.length) countQuery = countQuery.where(sql<SqlBool>`tags && ${sql.val(q.tags)}::text[]`)
+    if (q.tags.length) countQuery = countQuery.where(hasAnyTag(q.tags))
     if (q.search) {
       const term = `%${q.search}%`
       countQuery = countQuery.where((eb) => eb.or([eb("slug", "ilike", term), eb("name", "ilike", term), eb("destination", "ilike", term)]))
@@ -277,7 +316,6 @@ export const linkRoutes = new Hono<Env>()
           name: body.name ?? fetched.name ?? destinationTitle(body.destination),
           description: body.description ?? fetched.description ?? null,
           icon_url: fetched.icon_url,
-          tags: body.tags,
           forward_query: body.forward_query,
           preset_params: body.preset_params,
           expires_at: body.expires_at ? new Date(body.expires_at) : null,
@@ -289,6 +327,8 @@ export const linkRoutes = new Hono<Env>()
           clientBasePath: c.var.config.LINQ_CLIENT_BASE_PATH,
         },
       )
+
+      await setLinkTags(tx, linkRow.id, body.tags)
 
       if (body.rules && body.rules.length > 0) {
         await tx.insertInto("rules").values(
@@ -346,7 +386,6 @@ export const linkRoutes = new Hono<Env>()
               ? { description: fetched.description ?? existing.description }
               : {}),
           ...(fetched ? { icon_url: fetched.icon_url ?? existing.icon_url } : {}),
-          ...(patch.tags !== undefined ? { tags: patch.tags } : {}),
           ...(patch.forward_query !== undefined ? { forward_query: patch.forward_query } : {}),
           ...(patch.preset_params !== undefined ? { preset_params: patch.preset_params } : {}),
           ...(patch.status !== undefined ? { status: patch.status } : {}),
@@ -358,6 +397,8 @@ export const linkRoutes = new Hono<Env>()
         })
         .where("id", "=", id)
         .execute()
+
+      if (patch.tags !== undefined) await setLinkTags(tx, id, patch.tags)
 
       if (patch.rules !== undefined) {
         await tx.deleteFrom("rules").where("link_id", "=", id).execute()
@@ -446,20 +487,21 @@ export const linkRoutes = new Hono<Env>()
     return c.body(null, 204)
   })
 
-/** Tags are derived from active links; there is no tag table to keep in step. */
+/**
+ * Tags in use on active links, most used first. Counted per request rather
+ * than stored, so there is no counter to keep in step with archive, restore
+ * and purge; a tag no link carries any more is simply absent. See docs/adr/0020.
+ */
 export const tagRoutes = new Hono<Env>().get("/", async (c) => {
-  const expanded = c.var.db
-    .selectFrom("links")
-    .select(sql<string>`unnest(tags)`.as("tag"))
-    .where("status", "=", "active")
-    .as("expanded")
-
   const rows = await c.var.db
-    .selectFrom(expanded)
-    .select(["expanded.tag as tag", (eb) => eb.fn.countAll<number>().as("count")])
-    .groupBy("expanded.tag")
+    .selectFrom("link_tags")
+    .innerJoin("tags", "tags.id", "link_tags.tag_id")
+    .innerJoin("links", "links.id", "link_tags.link_id")
+    .where("links.status", "=", "active")
+    .select(["tags.name as tag", (eb) => eb.fn.countAll<number>().as("count")])
+    .groupBy("tags.name")
     .orderBy("count", "desc")
-    .orderBy("expanded.tag")
+    .orderBy("tags.name")
     .execute()
 
   return c.json(rows)

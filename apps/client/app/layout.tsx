@@ -1,6 +1,7 @@
 import type { Metadata } from "next"
 import localFont from "next/font/local"
 import type { ReactNode } from "react"
+import icon from "@/assets/linq-icon.svg"
 import { Providers } from "@/components/providers"
 import { Toaster } from "@/components/ui/sonner"
 import "./globals.css"
@@ -36,7 +37,9 @@ const dmSans = localFont({
 })
 
 export const metadata: Metadata = {
-  title: "Linq",
+  title: "linq",
+  // Imported rather than a public/ path so the URL carries the base path.
+  icons: { icon: { url: icon.src, type: "image/svg+xml" } },
 }
 
 export default function RootLayout({ children }: { children: ReactNode }) {

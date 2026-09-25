@@ -1,7 +1,6 @@
 "use client"
 
 import type { Actor } from "@linq/shared"
-import { can } from "@linq/shared"
 import { cn } from "cn"
 import { Globe, KeyRound } from "lucide-react"
 import Link from "next/link"
@@ -17,16 +16,16 @@ type SettingsItem = {
 
 const ITEMS: SettingsItem[] = [
   { href: "/settings/domains/", label: "Domains", icon: Globe, visible: () => true },
-  { href: "/settings/keys/", label: "Keys", icon: KeyRound, visible: can.manageKeys },
+  { href: "/settings/keys/", label: "Keys", icon: KeyRound, visible: () => true },
 ]
 
 /**
  * The mockup's 172px settings sub-nav — the one place this design uses a left
  * nav instead of tabs, since Settings is the section expected to grow.
  * Unlike the sidebar's flat list, this one must
- * filter per item rather than show everything and gate on click: Domains is
- * readable by every role, Keys only by an admin, and a viewer must never see
- * a Keys entry that renders `NotPermitted`.
+ * filter per item rather than show everything and gate on click. Both domains
+ * and keys are readable by every role; the Keys page itself hides mutations
+ * from callers without the corresponding capability.
  */
 export function SettingsNav({ actor, children }: { actor: Actor; children: ReactNode }) {
   const pathname = usePathname()
