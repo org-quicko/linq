@@ -1,4 +1,9 @@
-# linq
+<h1>
+  <picture>
+    <source media="(prefers-color-scheme: dark)" srcset="logo/linq-wordmark-dark.svg">
+    <img src="logo/linq-wordmark-light.svg" alt="linq" height="64">
+  </picture>
+</h1>
 
 A self-hosted platform for short links.
 

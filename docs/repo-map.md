@@ -16,6 +16,7 @@ feature-linq/
 ├─ docs/
 │  └─ adr/        decisions that are hard to reverse, and why
 ├─ docker/        deployment shapes
+├─ logo/          wordmark for the README, light and dark (the app's copies are in apps/client/assets)
 └─ .agents/       skills: step-by-step procedures for agents working here
 ```
 
