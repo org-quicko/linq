@@ -1414,7 +1414,7 @@
         ],
         "operationId": "listTags",
         "summary": "Tags in use, with counts",
-        "description": "Derived from active links; there is no tag table to keep in step.\nBusiest first, then alphabetical.\n",
+        "description": "Counted over active links on every request, so a tag no active link carries is absent.\nBusiest first, then alphabetical.\n",
         "responses": {
           "200": {
             "description": "Every tag carried by at least one active link.",
@@ -2325,6 +2325,7 @@
           "tags": {
             "type": "array",
             "maxItems": 20,
+            "description": "Sorted by name. Order is not preserved from the request.",
             "items": {
               "type": "string",
               "maxLength": 50
@@ -2411,6 +2412,7 @@
           "tags": {
             "type": "array",
             "maxItems": 20,
+            "description": "Lowercased and trimmed; duplicates are dropped. Read back sorted by name.",
             "default": [],
             "items": {
               "type": "string",
@@ -2481,6 +2483,7 @@
           "tags": {
             "type": "array",
             "maxItems": 20,
+            "description": "Replaces the link's tags; `[]` clears them. Lowercased and trimmed; duplicates are dropped. Read back sorted by name.",
             "items": {
               "type": "string",
               "maxLength": 50
