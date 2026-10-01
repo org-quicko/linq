@@ -23,7 +23,6 @@ import {
 
 type DeviceView = "platform" | "os" | "browser"
 type CampaignView = "utm_source" | "utm_medium" | "utm_campaign"
-type BotFilter = "" | "true" | "false"
 type Segment = { dim: DeviceView | CampaignView | "referer"; value: string }
 const FILTERS: Segment["dim"][] = [
   "referer",
@@ -57,10 +56,6 @@ export function AnalyticsOverview() {
         .map((value) => ({ dim, value })),
     ),
   )
-  const [bot, setBot] = useState<BotFilter>(() => {
-    const value = search.get("bot")
-    return value === "true" || value === "false" ? value : ""
-  })
   const [deviceView, setDeviceView] = useState<DeviceView>("platform")
   const [campaignView, setCampaignView] = useState<CampaignView>("utm_source")
   const linked = useGetLinkQuery(link_id || skipToken)
@@ -77,34 +72,19 @@ export function AnalyticsOverview() {
     )
     return { from, to, link_id: link_id || undefined, ...grouped }
   }, [from, to, link_id, segments])
-  const scoped = useMemo(() => ({ ...params, bot: bot || undefined }), [params, bot])
   useEffect(() => {
     const query = new URLSearchParams()
     if (link_id) query.set("link_id", link_id)
-    for (const [key, value] of Object.entries(scoped))
+    for (const [key, value] of Object.entries(params))
       if (key !== "from" && key !== "to" && value) query.set(key, value)
     router.replace(`/analytics/${query.size ? `?${query}` : ""}`)
-  }, [link_id, scoped, router])
+  }, [link_id, params, router])
 
-  // Summary ignores the bot scope so Human/Bot tiles stay comparable and clickable.
   const summary = useGetAnalyticsSummaryQuery(params)
-  const timeseries = useGetAnalyticsTimeseriesQuery(scoped)
-  const referrers = useGetAnalyticsBreakdownQuery({
-    ...scoped,
-    dimension: "referer",
-  })
-  const devices = useGetAnalyticsBreakdownQuery({
-    ...scoped,
-    dimension: deviceView,
-  })
-  const campaigns = useGetAnalyticsBreakdownQuery({
-    ...scoped,
-    dimension: campaignView,
-  })
-  const toggleBot = (kind: "human" | "bot") => {
-    const next = kind === "bot" ? "true" : "false"
-    setBot((current) => (current === next ? "" : next))
-  }
+  const timeseries = useGetAnalyticsTimeseriesQuery(params)
+  const referrers = useGetAnalyticsBreakdownQuery({ ...params, dimension: "referer" })
+  const devices = useGetAnalyticsBreakdownQuery({ ...params, dimension: deviceView })
+  const campaigns = useGetAnalyticsBreakdownQuery({ ...params, dimension: campaignView })
   const toggle = (dim: Segment["dim"], raw: string) => {
     const value = raw || NOT_RECORDED
     setSegments((current) =>
@@ -117,23 +97,13 @@ export function AnalyticsOverview() {
     setSegments((current) => current.filter((item) => item !== segment))
   const selected = (dim: Segment["dim"]) => segments.filter((segment) => segment.dim === dim)
   const totals = summary.data ?? { visits: 0, human: 0, bot: 0, orphans: 0 }
-  const hasAppliedFilters = Boolean(link_id || segments.length || bot || preset !== "7")
+  const hasAppliedFilters = Boolean(link_id || segments.length || preset !== "7")
 
   return (
     <div className="analytics-page-enter flex flex-col gap-4">
       <div className="flex flex-wrap items-center gap-2">
         <h1 className="shrink-0 font-heading text-xl font-semibold">Analytics</h1>
         <div className="flex min-w-0 flex-1 flex-wrap items-center gap-2">
-          {bot ? (
-            <button
-              type="button"
-              className="flex cursor-pointer items-center gap-1 rounded-full border px-2 py-1 text-xs"
-              onClick={() => setBot("")}
-            >
-              Visitors: {bot === "true" ? "Bot" : "Human"}
-              <X className="size-3" />
-            </button>
-          ) : null}
           {segments.map((segment) => (
             <button
               key={`${segment.dim}:${segment.value}`}
@@ -172,16 +142,12 @@ export function AnalyticsOverview() {
           value={totals.human}
           pct={pct(totals.human, totals.visits)}
           loading={summary.isLoading}
-          active={bot === "false"}
-          onClick={() => toggleBot("human")}
         />
         <StatTile
           label="Bot"
           value={totals.bot}
           pct={pct(totals.bot, totals.visits)}
           loading={summary.isLoading}
-          active={bot === "true"}
-          onClick={() => toggleBot("bot")}
         />
         {!link_id ? (
           <StatTile label="Orphan clicks" value={totals.orphans} loading={summary.isLoading} />
@@ -192,7 +158,6 @@ export function AnalyticsOverview() {
         from={from}
         loading={timeseries.isLoading}
         hasAppliedFilters={hasAppliedFilters}
-        bot={bot}
       />
       <div className="grid gap-3 sm:grid-cols-2">
         <BreakdownCard
@@ -242,18 +207,14 @@ function StatTile({
   value,
   pct: percentage,
   loading,
-  active,
-  onClick,
 }: {
   label: string
   value: number
   pct?: number
   loading: boolean
-  active?: boolean
-  onClick?: () => void
 }) {
-  const body = (
-    <>
+  return (
+    <div className="flex min-w-0 flex-1 flex-col gap-1 rounded-lg border bg-card p-4">
       <p className="text-[12.5px] font-medium text-muted-foreground">{label}</p>
       <p className="text-2xl font-semibold tabular-nums">
         {loading ? "—" : value.toLocaleString()}
@@ -261,20 +222,7 @@ function StatTile({
           <span className="ml-1 text-[13px] text-muted-foreground">{percentage}%</span>
         ) : null}
       </p>
-    </>
-  )
-  const base = "flex min-w-0 flex-1 flex-col gap-1 rounded-lg border bg-card p-4 text-left"
-  return onClick ? (
-    <button
-      type="button"
-      aria-pressed={active}
-      className={`${base} cursor-pointer hover:bg-muted ${active ? "border-foreground" : ""}`}
-      onClick={onClick}
-    >
-      {body}
-    </button>
-  ) : (
-    <div className={base}>{body}</div>
+    </div>
   )
 }
 
@@ -510,13 +458,11 @@ function VisitsChart({
   from,
   loading,
   hasAppliedFilters,
-  bot,
 }: {
   buckets: StatsBucket[]
   from: string
   loading: boolean
   hasAppliedFilters: boolean
-  bot: BotFilter
 }) {
   const days = useMemo(() => foldWeeks(fillDays(buckets, from)), [buckets, from])
   const chart = useMemo(() => chartPoints(days), [days])
@@ -597,8 +543,8 @@ function VisitsChart({
                     {days.length > 120 ? `Week of ${formatDay(active.key)}` : formatDay(active.key)}
                   </div>
                   <TipRow label="Total" value={active.total} strong />
-                  {bot !== "true" ? <TipRow label="Human" value={active.human} /> : null}
-                  {bot !== "false" ? <TipRow label="Bot" value={active.bot} /> : null}
+                  <TipRow label="Human" value={active.human} />
+                  <TipRow label="Bot" value={active.bot} />
                 </div>
               </div>
             ) : null}
