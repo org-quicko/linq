@@ -51,6 +51,11 @@ Enum visit_dimension {
   referer
   destination
   slug
+  utm_source
+  utm_medium
+  utm_campaign
+  utm_content
+  utm_term
 }
 
 // ── Identity ─────────────────────────────────────────────────────────────────
@@ -195,12 +200,17 @@ Table visits {
   referer_host   text        [note: 'Stored generated host extracted from referer; empty for an absent or relative URL.']
   destination    text        [note: 'The URL actually chosen, after rules and query merging']
   query          jsonb       [note: 'Record<string, string[]> of the incoming query, before any merging']
+  utm_source     text        [note: 'Stored generated from query: first value, lowercased and trimmed, capped at 200 characters. Null when absent or blank.']
+  utm_medium     text        [note: 'Stored generated from query: first value, lowercased and trimmed, capped at 200 characters. Null when absent or blank.']
+  utm_campaign   text        [note: 'Stored generated from query: first value, lowercased and trimmed, capped at 200 characters. Null when absent or blank.']
+  utm_content    text        [note: 'Stored generated from query: first value, lowercased and trimmed, capped at 200 characters. Null when absent or blank.']
+  utm_term       text        [note: 'Stored generated from query: first value, lowercased and trimmed, capped at 200 characters. Null when absent or blank.']
 
   Indexes {
     (link_id, occurred_at)   [name: 'visits_link_occurred_idx', note: 'occurred_at DESC']
     (domain_id, occurred_at) [name: 'visits_domain_occurred_idx', note: 'occurred_at DESC']
     occurred_at              [name: 'visits_orphan_occurred_idx', note: 'DESC, partial: WHERE link_id IS NULL']
-    (occurred_at, is_bot, platform, link_id, domain_id, os, browser, referer_host, slug_requested) [name: 'visits_analytics_idx', note: 'occurred_at DESC. Covering index for filtered analytics.']
+    (occurred_at, is_bot, platform, link_id, domain_id, os, browser, referer_host, slug_requested, utm_source, utm_medium, utm_campaign, utm_content, utm_term) [name: 'visits_analytics_idx', note: 'occurred_at DESC. Covering index for filtered analytics.']
   }
 
   Note: '''
@@ -232,8 +242,11 @@ Table visit_days {
     One table serves every grouping the stats API offers. Its referer dimension
     holds a host, not the full referer URL. See docs/adr/0007.
 
-    Derived data: only the triggers in 0001_initial.ts write
-    here. An AFTER INSERT trigger on visits increments seven rows per visit.
+    Its utm_* dimensions hold the visits.utm_* values, so at most 200 characters.
+
+    Derived data: only the triggers write here (created in 0001_initial.ts, the
+    visits one replaced by 0004 and 0005). An AFTER INSERT trigger on visits
+    increments twelve rows per visit.
 
     link_id deliberately carries NO foreign key. Purging a link merges these
     rows into the orphan scope, and an ON DELETE SET NULL would pre-empt that

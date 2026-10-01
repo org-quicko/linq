@@ -1151,6 +1151,21 @@
           },
           {
             "$ref": "#/components/parameters/AnalyticsPlatform"
+          },
+          {
+            "$ref": "#/components/parameters/AnalyticsUtmSource"
+          },
+          {
+            "$ref": "#/components/parameters/AnalyticsUtmMedium"
+          },
+          {
+            "$ref": "#/components/parameters/AnalyticsUtmCampaign"
+          },
+          {
+            "$ref": "#/components/parameters/AnalyticsUtmContent"
+          },
+          {
+            "$ref": "#/components/parameters/AnalyticsUtmTerm"
           }
         ],
         "responses": {
@@ -1210,6 +1225,21 @@
           },
           {
             "$ref": "#/components/parameters/AnalyticsPlatform"
+          },
+          {
+            "$ref": "#/components/parameters/AnalyticsUtmSource"
+          },
+          {
+            "$ref": "#/components/parameters/AnalyticsUtmMedium"
+          },
+          {
+            "$ref": "#/components/parameters/AnalyticsUtmCampaign"
+          },
+          {
+            "$ref": "#/components/parameters/AnalyticsUtmContent"
+          },
+          {
+            "$ref": "#/components/parameters/AnalyticsUtmTerm"
           }
         ],
         "responses": {
@@ -1265,6 +1295,21 @@
           },
           {
             "$ref": "#/components/parameters/AnalyticsPlatform"
+          },
+          {
+            "$ref": "#/components/parameters/AnalyticsUtmSource"
+          },
+          {
+            "$ref": "#/components/parameters/AnalyticsUtmMedium"
+          },
+          {
+            "$ref": "#/components/parameters/AnalyticsUtmCampaign"
+          },
+          {
+            "$ref": "#/components/parameters/AnalyticsUtmContent"
+          },
+          {
+            "$ref": "#/components/parameters/AnalyticsUtmTerm"
           }
         ],
         "responses": {
@@ -1916,6 +1961,46 @@
           ]
         }
       },
+      "AnalyticsUtmSource": {
+        "name": "utm_source",
+        "in": "query",
+        "description": "Comma-separated `utm_source` values, matched lowercase. The stored value is trimmed and capped at 200 characters, so a longer filter value matches nothing. `(none)` selects visits without one.",
+        "schema": {
+          "type": "string"
+        }
+      },
+      "AnalyticsUtmMedium": {
+        "name": "utm_medium",
+        "in": "query",
+        "description": "Comma-separated `utm_medium` values, matched lowercase. The stored value is trimmed and capped at 200 characters, so a longer filter value matches nothing. `(none)` selects visits without one.",
+        "schema": {
+          "type": "string"
+        }
+      },
+      "AnalyticsUtmCampaign": {
+        "name": "utm_campaign",
+        "in": "query",
+        "description": "Comma-separated `utm_campaign` values, matched lowercase. The stored value is trimmed and capped at 200 characters, so a longer filter value matches nothing. `(none)` selects visits without one.",
+        "schema": {
+          "type": "string"
+        }
+      },
+      "AnalyticsUtmContent": {
+        "name": "utm_content",
+        "in": "query",
+        "description": "Comma-separated `utm_content` values, matched lowercase. The stored value is trimmed and capped at 200 characters, so a longer filter value matches nothing. `(none)` selects visits without one.",
+        "schema": {
+          "type": "string"
+        }
+      },
+      "AnalyticsUtmTerm": {
+        "name": "utm_term",
+        "in": "query",
+        "description": "Comma-separated `utm_term` values, matched lowercase. The stored value is trimmed and capped at 200 characters, so a longer filter value matches nothing. `(none)` selects visits without one.",
+        "schema": {
+          "type": "string"
+        }
+      },
       "AnalyticsDimension": {
         "name": "dimension",
         "in": "query",
@@ -1928,7 +2013,12 @@
             "browser",
             "platform",
             "slug",
-            "destination"
+            "destination",
+            "utm_source",
+            "utm_medium",
+            "utm_campaign",
+            "utm_content",
+            "utm_term"
           ]
         }
       },
