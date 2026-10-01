@@ -199,37 +199,34 @@ export async function probeServer(apiUrl: string, apiKey: string): Promise<Probe
   let version: string
   try {
     const res = await fetch(`${base}/health`)
-    if (!res.ok) return { ok: false, message: reachedButNotLinq }
+    if (!res.ok) return { ok: false, message: invalidUrl }
     const body = (await res.json()) as { status?: string; version?: string }
-    if (body?.status !== "ok") return { ok: false, message: reachedButNotLinq }
+    if (body?.status !== "ok") return { ok: false, message: invalidUrl }
     version = body.version ?? "unknown"
   } catch {
     // A blocked cross-origin request and a server that is simply down both
-    // arrive here as an opaque TypeError, so the message has to cover both.
-    return { ok: false, message: unreachable }
+    // arrive here as an opaque TypeError, so they share one message.
+    return { ok: false, message: invalidUrl }
   }
 
   try {
     const res = await fetch(`${base}/v1/me`, { headers: { authorization: `Bearer ${apiKey}` } })
     if (res.status === 401) {
-      return { ok: false, message: "The server answered, but it rejected that API key." }
+      return { ok: false, message: "Invalid API key" }
     }
-    if (!res.ok) return { ok: false, message: `The server answered with ${res.status}.` }
+    if (!res.ok) return { ok: false, message: `Server error (${res.status})` }
     // `/me` is the key itself. `claims` is the field that says this is linq
     // answering rather than something else that happens to return 200.
     const body = (await res.json()) as { name?: string; preset?: string | null; claims?: unknown[] }
-    if (!Array.isArray(body?.claims)) return { ok: false, message: reachedButNotLinq }
+    if (!Array.isArray(body?.claims)) return { ok: false, message: invalidUrl }
     return {
       ok: true,
       version,
       key: { name: body.name ?? "unknown", preset: body.preset ?? null },
     }
   } catch {
-    return { ok: false, message: unreachable }
+    return { ok: false, message: invalidUrl }
   }
 }
 
-const unreachable =
-  "Could not reach that server. Check the URL, and that the server allows requests from this page."
-
-const reachedButNotLinq = "That URL answered, but it does not look like a linq server."
+const invalidUrl = "Invalid server URL"

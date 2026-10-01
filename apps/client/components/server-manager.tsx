@@ -1,6 +1,6 @@
 "use client"
 
-import { Link2, Plus, Trash2, X } from "lucide-react"
+import { Heart, Link2, Plus, Trash2, X } from "lucide-react"
 import { useEffect, useState } from "react"
 import { ConfirmButton } from "@/components/common"
 import { RowCard, RowCardTile, Wordmark } from "@/components/patterns"
@@ -105,7 +105,7 @@ export function ServerManager({
             </p>
             {unauthorized ? (
               <p className="mt-3 w-full rounded-md bg-destructive/10 px-3 py-2 text-xs text-destructive">
-                That API key was rejected by the server. It may have expired or been revoked.
+                Invalid API key
               </p>
             ) : null}
           </div>
@@ -195,6 +195,20 @@ export function ServerManager({
           </div>
         </div>
       </div>
+
+      <footer className="shrink-0 border-t py-4 text-center text-[13px] text-muted-foreground">
+        <span className="inline-flex items-center gap-1.5">
+          Built with <Heart className="size-3.5 fill-current" /> by{" "}
+          <a
+            href="https://quicko.company/labs"
+            target="_blank"
+            rel="noopener noreferrer"
+            className="font-semibold text-foreground/80 underline underline-offset-2 hover:text-foreground"
+          >
+            Labs@Quicko
+          </a>
+        </span>
+      </footer>
 
       <AddServerDialog
         open={adding}

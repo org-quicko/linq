@@ -2,7 +2,7 @@
 
 import { type Domain, destinationTitle, type Link } from "@linq/shared"
 import { skipToken } from "@reduxjs/toolkit/query/react"
-import { CalendarIcon, ChevronDown, Info, Route, TagIcon } from "lucide-react"
+import { CalendarIcon, ChevronDown, Info, RefreshCw, Route, TagIcon } from "lucide-react"
 import { type ReactNode, useEffect, useRef, useState } from "react"
 import { DateField, Field, TimeField } from "@/components/common"
 import {
@@ -34,6 +34,7 @@ import { Switch } from "@/components/ui/switch"
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip"
 import { fromDatetimeLocal, toDatetimeLocal, withScheme } from "../lib/api"
 import { useRun } from "../lib/hooks"
+import { randomSlug } from "../lib/slug"
 import { useListDomainsQuery } from "../lib/store/domains"
 import {
   useCreateLinkMutation,
@@ -47,7 +48,7 @@ import {
  * `mode` decides the verb and what gets sent;
  * `link` seeds the fields either way — as the record being edited (`mode`
  * `"edit"`, slug and domain locked) or as the starting point for a duplicate
- * (`mode` `"create"`, slug blank so the server generates a fresh one).
+ * (`mode` `"create"`, slug prefilled with a fresh random one).
  *
  * Rules are configured in the collapsible "Routing rules" section:
  * passed directly on create or patch.
@@ -71,7 +72,7 @@ export function LinkFormDialog({
   const activeDomains = (domains.data?.data ?? []).filter((domain) => domain.status === "active")
 
   const [domain_id, setDomainId] = useState(link?.domain_id ?? "")
-  const [slug, setSlug] = useState(mode === "edit" ? (link?.slug ?? "") : "")
+  const [slug, setSlug] = useState(mode === "edit" ? (link?.slug ?? "") : randomSlug())
   const [destination, setDestination] = useState(link?.destination ?? "")
   const [name, setName] = useState(link?.name ?? "")
   // Create mode shows the server's default title while the user hasn't typed
@@ -439,6 +440,21 @@ function ShortLinkField({
         disabled={mode === "edit"}
         readOnly={mode === "edit"}
       />
+      {mode === "create" ? (
+        <Tooltip>
+          <TooltipTrigger asChild>
+            <button
+              type="button"
+              aria-label="Generate a new random short link"
+              className="flex shrink-0 items-center px-2.5 text-muted-foreground hover:bg-muted hover:text-foreground"
+              onClick={() => onSlugChange(randomSlug())}
+            >
+              <RefreshCw className="size-3.5" />
+            </button>
+          </TooltipTrigger>
+          <TooltipContent>Generate a new one</TooltipContent>
+        </Tooltip>
+      ) : null}
     </div>
   )
 }
