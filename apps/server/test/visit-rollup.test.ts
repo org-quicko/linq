@@ -18,6 +18,8 @@ const DIMENSIONS = {
   utm_source: sql<string>`coalesce(utm_source, '')`,
   utm_medium: sql<string>`coalesce(utm_medium, '')`,
   utm_campaign: sql<string>`coalesce(utm_campaign, '')`,
+  utm_content: sql<string>`coalesce(utm_content, '')`,
+  utm_term: sql<string>`coalesce(utm_term, '')`,
 } as const
 
 async function liveDays(db: Db, dimension: keyof typeof DIMENSIONS) {
@@ -90,7 +92,7 @@ async function traffic() {
   const one = await h.createLink(editor.key, domain, { slug: "one" })
   const two = await h.createLink(editor.key, domain, { slug: "two" })
   for (const [slug, agent, referer] of [
-    ["one?utm_source=News&utm_medium=email", DESKTOP, "https://news.test/"],
+    ["one?utm_source=News&utm_medium=email&utm_content=Hero&utm_term=Short%20Links", DESKTOP, "https://news.test/"],
     ["one?utm_source=news&utm_source=other", DESKTOP, "https://news.test/"],
     ["one?utm_campaign=Launch&utm_source=%20", ANDROID, null],
     ["one", BOT, null],
@@ -242,16 +244,22 @@ describe("utm columns", () => {
     await traffic()
     const rows = await h.db
       .selectFrom("visits")
-      .select(["utm_source", "utm_medium", "utm_campaign"])
+      .select(["utm_source", "utm_medium", "utm_campaign", "utm_content", "utm_term"])
       .where("slug_requested", "=", "one")
       .where("is_bot", "=", false)
       .orderBy("utm_source")
       .orderBy("utm_medium")
       .execute()
     expect(rows).toEqual([
-      { utm_source: "news", utm_medium: "email", utm_campaign: null },
-      { utm_source: "news", utm_medium: null, utm_campaign: null },
-      { utm_source: null, utm_medium: null, utm_campaign: "launch" },
+      {
+        utm_source: "news",
+        utm_medium: "email",
+        utm_campaign: null,
+        utm_content: "hero",
+        utm_term: "short links",
+      },
+      { utm_source: "news", utm_medium: null, utm_campaign: null, utm_content: null, utm_term: null },
+      { utm_source: null, utm_medium: null, utm_campaign: "launch", utm_content: null, utm_term: null },
     ])
   })
 })

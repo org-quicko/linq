@@ -22,7 +22,8 @@ test("0004 derives utm columns and backfills their rollup rows", async () => {
     ('00000000-0000-7000-8000-0000000000a2', ${domain}, 'a', '2026-03-01T11:00:00Z', false, 'desktop', '{"utm_source":["mail"]}'),
     ('00000000-0000-7000-8000-0000000000a3', ${domain}, 'a', '2026-03-02T10:00:00Z', true, 'desktop', NULL)`.execute(db)
 
-  expect((await migrator.migrateToLatest()).error).toBeUndefined()
+  // Stops at 0004: later migrations have their own tests.
+  expect((await migrator.migrateTo("0004_utm_dimensions")).error).toBeUndefined()
 
   const rollup = async () =>
     (

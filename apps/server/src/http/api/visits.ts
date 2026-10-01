@@ -36,7 +36,14 @@ function toInstant(date: string): Date {
   return new Date(date.includes("T") ? date : `${date}T00:00:00Z`)
 }
 
-type OpenDimension = "os" | "browser" | "utm_source" | "utm_medium" | "utm_campaign"
+type OpenDimension =
+  | "os"
+  | "browser"
+  | "utm_source"
+  | "utm_medium"
+  | "utm_campaign"
+  | "utm_content"
+  | "utm_term"
 
 function dimensionFilter(column: OpenDimension, values: string[]): VisitFilter | undefined {
   if (!values.length) return undefined
@@ -64,6 +71,8 @@ export function visitFilters(q: {
   utm_source?: Many<string>
   utm_medium?: Many<string>
   utm_campaign?: Many<string>
+  utm_content?: Many<string>
+  utm_term?: Many<string>
 }): VisitFilter[] {
   const filters: VisitFilter[] = []
   if (q.from) filters.push(sql<SqlBool>`occurred_at >= ${toInstant(q.from)}`)
@@ -85,7 +94,15 @@ export function visitFilters(q: {
     const named = platformValues.filter((platform): platform is Platform => platform !== NOT_RECORDED)
     filters.push(named.length ? sql<SqlBool>`platform in (${sql.join(named)})` : sql<SqlBool>`false`)
   }
-  for (const column of ["os", "browser", "utm_source", "utm_medium", "utm_campaign"] as const) {
+  for (const column of [
+    "os",
+    "browser",
+    "utm_source",
+    "utm_medium",
+    "utm_campaign",
+    "utm_content",
+    "utm_term",
+  ] as const) {
     const filter = dimensionFilter(column, toArray(q[column]))
     if (filter) filters.push(filter)
   }

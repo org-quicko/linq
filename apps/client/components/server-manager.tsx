@@ -157,7 +157,7 @@ export function ServerManager({
                           <span className="truncate text-sm font-semibold">{server.name}</span>
                           {server.id === activeId ? (
                             <span className="inline-flex h-5 shrink-0 items-center rounded-sm border bg-background px-2 text-[11px] font-medium text-muted-foreground">
-                              Active
+                              Last accessed
                             </span>
                           ) : null}
                         </div>

@@ -22,8 +22,8 @@ import {
 } from "../lib/store/stats"
 
 type DeviceView = "platform" | "os" | "browser"
-type CampaignView = "utm_source" | "utm_medium" | "utm_campaign"
-type Segment = { dim: DeviceView | CampaignView | "referer"; value: string }
+type TrackingView = "utm_source" | "utm_medium" | "utm_campaign" | "utm_content" | "utm_term"
+type Segment = { dim: DeviceView | TrackingView | "referer"; value: string }
 const FILTERS: Segment["dim"][] = [
   "referer",
   "os",
@@ -32,16 +32,20 @@ const FILTERS: Segment["dim"][] = [
   "utm_source",
   "utm_medium",
   "utm_campaign",
+  "utm_content",
+  "utm_term",
 ]
 const DEVICE_LABELS: Record<DeviceView, string> = {
   platform: "Type",
   os: "OS",
   browser: "Browser",
 }
-const CAMPAIGN_LABELS: Record<CampaignView, string> = {
+const TRACKING_LABELS: Record<TrackingView, string> = {
   utm_source: "Source",
   utm_medium: "Medium",
   utm_campaign: "Campaign",
+  utm_content: "Content",
+  utm_term: "Term",
 }
 
 export function AnalyticsOverview() {
@@ -57,7 +61,7 @@ export function AnalyticsOverview() {
     ),
   )
   const [deviceView, setDeviceView] = useState<DeviceView>("platform")
-  const [campaignView, setCampaignView] = useState<CampaignView>("utm_source")
+  const [trackingView, setTrackingView] = useState<TrackingView>("utm_source")
   const linked = useGetLinkQuery(link_id || skipToken)
   const { preset, custom, setPreset, setCustom, from, to, label } = useRange()
   const params = useMemo(() => {
@@ -84,7 +88,7 @@ export function AnalyticsOverview() {
   const timeseries = useGetAnalyticsTimeseriesQuery(params)
   const referrers = useGetAnalyticsBreakdownQuery({ ...params, dimension: "referer" })
   const devices = useGetAnalyticsBreakdownQuery({ ...params, dimension: deviceView })
-  const campaigns = useGetAnalyticsBreakdownQuery({ ...params, dimension: campaignView })
+  const tracking = useGetAnalyticsBreakdownQuery({ ...params, dimension: trackingView })
   const toggle = (dim: Segment["dim"], raw: string) => {
     const value = raw || NOT_RECORDED
     setSegments((current) =>
@@ -182,18 +186,18 @@ export function AnalyticsOverview() {
           }
         />
         <BreakdownCard
-          title="UTM Parameters"
-          dimension={campaignView}
-          rows={campaigns.currentData ?? []}
-          loading={campaigns.isFetching && !campaigns.currentData}
-          active={selected(campaignView)}
+          title="Tracking"
+          dimension={trackingView}
+          rows={tracking.currentData ?? []}
+          loading={tracking.isFetching && !tracking.currentData}
+          active={selected(trackingView)}
           hasAppliedFilters={hasAppliedFilters}
           onClick={toggle}
           selector={
             <ViewSelector
-              labels={CAMPAIGN_LABELS}
-              value={campaignView}
-              onChange={setCampaignView}
+              labels={TRACKING_LABELS}
+              value={trackingView}
+              onChange={setTrackingView}
             />
           }
         />
@@ -296,7 +300,7 @@ function BreakdownCard({
 
 function BreakdownIcon({ dimension, value }: { dimension: Segment["dim"]; value: string }) {
   const Icon =
-    dimension in CAMPAIGN_LABELS
+    dimension in TRACKING_LABELS
       ? Megaphone
       : dimension !== "platform"
         ? Globe
@@ -307,7 +311,7 @@ function BreakdownIcon({ dimension, value }: { dimension: Segment["dim"]; value:
 }
 function formatValue(dim: Segment["dim"], value: string) {
   if (!value)
-    return dim === "referer" ? "Direct" : dim in CAMPAIGN_LABELS ? "(not set)" : "(not recorded)"
+    return dim === "referer" ? "Direct" : dim in TRACKING_LABELS ? "(not set)" : "(not recorded)"
   if (dim === "platform") return value === "ios" ? "iOS" : value[0].toUpperCase() + value.slice(1)
   return value
 }
@@ -317,7 +321,7 @@ function segmentLabel(segment: Segment) {
     os: "OS",
     browser: "Browser",
     platform: "Device",
-    ...CAMPAIGN_LABELS,
+    ...TRACKING_LABELS,
   }
   return `${labels[segment.dim]}: ${formatValue(segment.dim, segment.value === NOT_RECORDED ? "" : segment.value)}`
 }

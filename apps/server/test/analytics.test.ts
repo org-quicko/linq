@@ -32,7 +32,12 @@ beforeAll(async () => {
       browser: "chrome",
       referer: "https://news.test/path?q=1",
       destination: "https://example.com/a",
-      query: { utm_source: ["newsletter"], utm_campaign: ["launch"] },
+      query: {
+        utm_source: ["newsletter"],
+        utm_campaign: ["launch"],
+        utm_content: ["hero"],
+        utm_term: ["shortener"],
+      },
     },
   )
   await h.recordVisits(
@@ -59,7 +64,7 @@ beforeAll(async () => {
       browser: "safari",
       referer: "https://shop.test/",
       destination: "https://example.com/b",
-      query: { utm_source: ["twitter"], utm_medium: ["social"] },
+      query: { utm_source: ["twitter"], utm_medium: ["social"], utm_content: ["Hero"] },
     },
   )
   // Day 2: one human on `two`, windows/edge, no referer.
@@ -172,6 +177,8 @@ describe("GET /api/v1/analytics/breakdown", () => {
       utm_source: "newsletter,twitter,(none)",
       utm_medium: "social,(none)",
       utm_campaign: "launch,(none)",
+      utm_content: "hero,(none)",
+      utm_term: "shortener,(none)",
     }
     for (const dimension of ANALYTICS_FILTERS) {
       const rollup = byKey(await json(`/breakdown?dimension=${dimension}`))
@@ -192,6 +199,21 @@ describe("GET /api/v1/analytics/breakdown", () => {
     expect(byKey(filtered)).toEqual({ launch: { human: 2, bot: 0 } })
     const and = await json(`/summary?${WINDOW}&utm_source=newsletter,twitter&os=ios`)
     expect(and).toMatchObject({ visits: 1, human: 1 })
+  })
+
+  test("groups and filters by utm content and term", async () => {
+    expect(byKey(await json("/breakdown?dimension=utm_content"))).toEqual({
+      hero: { human: 3, bot: 0 },
+      "": { human: 2, bot: 1 },
+    })
+    expect(byKey(await json("/breakdown?dimension=utm_term"))).toEqual({
+      shortener: { human: 2, bot: 0 },
+      "": { human: 3, bot: 1 },
+    })
+    const bySource = await json(`/breakdown?dimension=utm_source&${WINDOW}&utm_content=HERO`)
+    expect(byKey(bySource)).toEqual({ newsletter: { human: 2, bot: 0 }, twitter: { human: 1, bot: 0 } })
+    const both = await json(`/summary?${WINDOW}&utm_content=hero&utm_term=shortener`)
+    expect(both).toMatchObject({ visits: 2, human: 2 })
   })
 
   test("rejects an unknown dimension", async () => {
