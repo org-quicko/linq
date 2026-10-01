@@ -128,7 +128,7 @@ export function LinkFormDialog({
           createLink({
             ...shared,
             domain_id: chosenDomain as string,
-            slug: slug.trim() || undefined,
+            slug: slug.trim().replace(/^\/+|\/+$/g, "") || undefined,
             name: nameTouched ? name.trim() || undefined : undefined,
             description: description.trim() || undefined,
             rules: validRules,
@@ -347,7 +347,9 @@ function ToggleSection({
     justOpened.current = false
     ref.current?.scrollIntoView({ block: "nearest", behavior: "smooth" })
     ref.current
-      ?.querySelector<HTMLElement>('input:not([disabled]), [role="combobox"], [aria-haspopup="dialog"]')
+      ?.querySelector<HTMLElement>(
+        'input:not([disabled]), [role="combobox"], [aria-haspopup="dialog"]',
+      )
       ?.focus({ preventScroll: true })
   }, [open])
 

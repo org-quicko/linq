@@ -137,6 +137,14 @@ describe("POST /api/v1/links", () => {
     const link = await h.createLink(editor.key, domain, { tags: ["b", "a", "B"] })
     expect(link.tags).toEqual(["a", "b"])
   })
+
+  test("strips leading and trailing slashes from custom slug", async () => {
+    const link = await h.createLink(editor.key, domain, {
+      slug: "/slash-trimmed/",
+      destination: "https://example.com/",
+    })
+    expect(link.slug).toBe("slash-trimmed")
+  })
 })
 
 describe("PATCH /api/v1/links/:id tags", () => {
@@ -437,7 +445,11 @@ describe("GET /api/v1/links", () => {
     await h.db
       .updateTable("links")
       .set({ created_at: now })
-      .where("id", "in", rows.map((row) => row.id))
+      .where(
+        "id",
+        "in",
+        rows.map((row) => row.id),
+      )
       .execute()
 
     const pages = await Promise.all(
