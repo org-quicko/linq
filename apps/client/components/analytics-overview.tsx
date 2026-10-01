@@ -23,6 +23,7 @@ import {
 
 type DeviceView = "platform" | "os" | "browser"
 type CampaignView = "utm_source" | "utm_medium" | "utm_campaign"
+type BotFilter = "" | "true" | "false"
 type Segment = { dim: DeviceView | CampaignView | "referer"; value: string }
 const FILTERS: Segment["dim"][] = [
   "referer",
@@ -33,7 +34,11 @@ const FILTERS: Segment["dim"][] = [
   "utm_medium",
   "utm_campaign",
 ]
-const DEVICE_LABELS: Record<DeviceView, string> = { platform: "Type", os: "OS", browser: "Browser" }
+const DEVICE_LABELS: Record<DeviceView, string> = {
+  platform: "Type",
+  os: "OS",
+  browser: "Browser",
+}
 const CAMPAIGN_LABELS: Record<CampaignView, string> = {
   utm_source: "Source",
   utm_medium: "Medium",
@@ -52,6 +57,10 @@ export function AnalyticsOverview() {
         .map((value) => ({ dim, value })),
     ),
   )
+  const [bot, setBot] = useState<BotFilter>(() => {
+    const value = search.get("bot")
+    return value === "true" || value === "false" ? value : ""
+  })
   const [deviceView, setDeviceView] = useState<DeviceView>("platform")
   const [campaignView, setCampaignView] = useState<CampaignView>("utm_source")
   const linked = useGetLinkQuery(link_id || skipToken)
@@ -68,19 +77,34 @@ export function AnalyticsOverview() {
     )
     return { from, to, link_id: link_id || undefined, ...grouped }
   }, [from, to, link_id, segments])
+  const scoped = useMemo(() => ({ ...params, bot: bot || undefined }), [params, bot])
   useEffect(() => {
     const query = new URLSearchParams()
     if (link_id) query.set("link_id", link_id)
-    for (const [key, value] of Object.entries(params))
+    for (const [key, value] of Object.entries(scoped))
       if (key !== "from" && key !== "to" && value) query.set(key, value)
     router.replace(`/analytics/${query.size ? `?${query}` : ""}`)
-  }, [link_id, params, router])
+  }, [link_id, scoped, router])
 
+  // Summary ignores the bot scope so Human/Bot tiles stay comparable and clickable.
   const summary = useGetAnalyticsSummaryQuery(params)
-  const timeseries = useGetAnalyticsTimeseriesQuery(params)
-  const referrers = useGetAnalyticsBreakdownQuery({ ...params, dimension: "referer" })
-  const devices = useGetAnalyticsBreakdownQuery({ ...params, dimension: deviceView })
-  const campaigns = useGetAnalyticsBreakdownQuery({ ...params, dimension: campaignView })
+  const timeseries = useGetAnalyticsTimeseriesQuery(scoped)
+  const referrers = useGetAnalyticsBreakdownQuery({
+    ...scoped,
+    dimension: "referer",
+  })
+  const devices = useGetAnalyticsBreakdownQuery({
+    ...scoped,
+    dimension: deviceView,
+  })
+  const campaigns = useGetAnalyticsBreakdownQuery({
+    ...scoped,
+    dimension: campaignView,
+  })
+  const toggleBot = (kind: "human" | "bot") => {
+    const next = kind === "bot" ? "true" : "false"
+    setBot((current) => (current === next ? "" : next))
+  }
   const toggle = (dim: Segment["dim"], raw: string) => {
     const value = raw || NOT_RECORDED
     setSegments((current) =>
@@ -93,13 +117,23 @@ export function AnalyticsOverview() {
     setSegments((current) => current.filter((item) => item !== segment))
   const selected = (dim: Segment["dim"]) => segments.filter((segment) => segment.dim === dim)
   const totals = summary.data ?? { visits: 0, human: 0, bot: 0, orphans: 0 }
-  const hasAppliedFilters = Boolean(link_id || segments.length || preset !== "7")
+  const hasAppliedFilters = Boolean(link_id || segments.length || bot || preset !== "7")
 
   return (
     <div className="analytics-page-enter flex flex-col gap-4">
       <div className="flex flex-wrap items-center gap-2">
         <h1 className="shrink-0 font-heading text-xl font-semibold">Analytics</h1>
         <div className="flex min-w-0 flex-1 flex-wrap items-center gap-2">
+          {bot ? (
+            <button
+              type="button"
+              className="flex cursor-pointer items-center gap-1 rounded-full border px-2 py-1 text-xs"
+              onClick={() => setBot("")}
+            >
+              Visitors: {bot === "true" ? "Bot" : "Human"}
+              <X className="size-3" />
+            </button>
+          ) : null}
           {segments.map((segment) => (
             <button
               key={`${segment.dim}:${segment.value}`}
@@ -138,12 +172,16 @@ export function AnalyticsOverview() {
           value={totals.human}
           pct={pct(totals.human, totals.visits)}
           loading={summary.isLoading}
+          active={bot === "false"}
+          onClick={() => toggleBot("human")}
         />
         <StatTile
           label="Bot"
           value={totals.bot}
           pct={pct(totals.bot, totals.visits)}
           loading={summary.isLoading}
+          active={bot === "true"}
+          onClick={() => toggleBot("bot")}
         />
         {!link_id ? (
           <StatTile label="Orphan clicks" value={totals.orphans} loading={summary.isLoading} />
@@ -154,6 +192,7 @@ export function AnalyticsOverview() {
         from={from}
         loading={timeseries.isLoading}
         hasAppliedFilters={hasAppliedFilters}
+        bot={bot}
       />
       <div className="grid gap-3 sm:grid-cols-2">
         <BreakdownCard
@@ -186,7 +225,11 @@ export function AnalyticsOverview() {
           hasAppliedFilters={hasAppliedFilters}
           onClick={toggle}
           selector={
-            <ViewSelector labels={CAMPAIGN_LABELS} value={campaignView} onChange={setCampaignView} />
+            <ViewSelector
+              labels={CAMPAIGN_LABELS}
+              value={campaignView}
+              onChange={setCampaignView}
+            />
           }
         />
       </div>
@@ -199,14 +242,18 @@ function StatTile({
   value,
   pct: percentage,
   loading,
+  active,
+  onClick,
 }: {
   label: string
   value: number
   pct?: number
   loading: boolean
+  active?: boolean
+  onClick?: () => void
 }) {
-  return (
-    <div className="flex min-w-0 flex-1 flex-col gap-1 rounded-lg border bg-card p-4">
+  const body = (
+    <>
       <p className="text-[12.5px] font-medium text-muted-foreground">{label}</p>
       <p className="text-2xl font-semibold tabular-nums">
         {loading ? "—" : value.toLocaleString()}
@@ -214,7 +261,20 @@ function StatTile({
           <span className="ml-1 text-[13px] text-muted-foreground">{percentage}%</span>
         ) : null}
       </p>
-    </div>
+    </>
+  )
+  const base = "flex min-w-0 flex-1 flex-col gap-1 rounded-lg border bg-card p-4 text-left"
+  return onClick ? (
+    <button
+      type="button"
+      aria-pressed={active}
+      className={`${base} cursor-pointer hover:bg-muted ${active ? "border-foreground" : ""}`}
+      onClick={onClick}
+    >
+      {body}
+    </button>
+  ) : (
+    <div className={base}>{body}</div>
   )
 }
 
@@ -298,7 +358,8 @@ function BreakdownIcon({ dimension, value }: { dimension: Segment["dim"]; value:
   return <Icon className="size-3 shrink-0 text-muted-foreground" />
 }
 function formatValue(dim: Segment["dim"], value: string) {
-  if (!value) return dim === "referer" ? "Direct" : dim in CAMPAIGN_LABELS ? "(not set)" : "(not recorded)"
+  if (!value)
+    return dim === "referer" ? "Direct" : dim in CAMPAIGN_LABELS ? "(not set)" : "(not recorded)"
   if (dim === "platform") return value === "ios" ? "iOS" : value[0].toUpperCase() + value.slice(1)
   return value
 }
@@ -424,6 +485,19 @@ export function chartPoints(days: StatsBucket[]) {
   }
 }
 
+function TipRow({ label, value, strong }: { label: string; value: number; strong?: boolean }) {
+  return (
+    <div
+      className={`flex justify-between gap-6 tabular-nums ${
+        strong ? "mb-1 border-b border-background/20 pb-1 font-semibold" : "opacity-75"
+      }`}
+    >
+      <span>{label}</span>
+      <span>{value.toLocaleString()}</span>
+    </div>
+  )
+}
+
 function formatDay(day: string) {
   return new Date(`${day}T00:00:00Z`).toLocaleDateString(undefined, {
     month: "short",
@@ -436,15 +510,20 @@ function VisitsChart({
   from,
   loading,
   hasAppliedFilters,
+  bot,
 }: {
   buckets: StatsBucket[]
   from: string
   loading: boolean
   hasAppliedFilters: boolean
+  bot: BotFilter
 }) {
   const days = useMemo(() => foldWeeks(fillDays(buckets, from)), [buckets, from])
   const chart = useMemo(() => chartPoints(days), [days])
   const gradientId = useId()
+  // `index` is kept after the pointer leaves so the card can fade out in place.
+  const [hover, setHover] = useState({ index: 0, on: false })
+  const active = chart?.points[Math.min(hover.index, (chart?.points.length ?? 1) - 1)]
   return (
     <div className="rounded-lg border bg-card p-4">
       <p className="mb-4 text-sm font-semibold">Visits over time</p>
@@ -456,7 +535,11 @@ function VisitsChart({
         </p>
       ) : (
         <>
-          <div className="relative h-32">
+          {/* biome-ignore lint/a11y/noStaticElementInteractions: pointer-only hover on a decorative chart (aria-hidden) */}
+          <div
+            className="relative h-32"
+            onMouseLeave={() => setHover((current) => ({ ...current, on: false }))}
+          >
             <svg
               className="absolute inset-0 size-full"
               viewBox="0 0 100 100"
@@ -485,29 +568,40 @@ function VisitsChart({
                 />
               </g>
             </svg>
-            {chart.points.map((point) => (
+            {chart.points.map((point, index) => (
+              // biome-ignore lint/a11y/noStaticElementInteractions: pointer-only hover on a decorative chart (aria-hidden)
               <div
                 key={point.key}
-                className="group absolute inset-y-0"
+                className="absolute inset-y-0"
                 style={{ left: `${point.left}%`, width: `${point.width}%` }}
+                onMouseEnter={() => setHover({ index, on: true })}
+              />
+            ))}
+            {/* One marker + card shared by all columns, so it glides between points. */}
+            {active ? (
+              <div
+                className="pointer-events-none absolute transition-[left,top,opacity] duration-150 ease-out"
+                style={{
+                  left: `${active.x}%`,
+                  top: `${active.y}%`,
+                  opacity: hover.on ? 1 : 0,
+                }}
               >
+                <div className="absolute size-1.5 -translate-x-1/2 -translate-y-1/2 rounded-full bg-[var(--chart-1)]" />
                 <div
-                  className="pointer-events-none absolute -translate-x-1/2 -translate-y-1/2"
-                  style={{
-                    left: `${((point.x - point.left) / point.width) * 100}%`,
-                    top: `${point.y}%`,
-                  }}
+                  className="absolute bottom-3 min-w-32 whitespace-nowrap rounded-lg bg-foreground px-3 py-2 text-xs text-background shadow-lg transition-transform duration-150 ease-out"
+                  // Slides from left-aligned (x=0) to right-aligned (x=100) so the card stays inside the chart.
+                  style={{ transform: `translateX(-${active.x}%)` }}
                 >
-                  <div className="size-1.5 rounded-full bg-[var(--chart-1)] opacity-0 group-hover:opacity-100" />
-                  <div className="absolute bottom-3 left-1/2 -translate-x-1/2 whitespace-nowrap rounded-sm bg-foreground px-2 py-1 text-center text-[11px] text-background opacity-0 group-hover:opacity-100">
-                    <div>
-                      {days.length > 120 ? `week of ${formatDay(point.key)}` : formatDay(point.key)}
-                    </div>
-                    <div className="opacity-75">{point.total} visits</div>
+                  <div className="mb-1.5 font-medium opacity-75">
+                    {days.length > 120 ? `Week of ${formatDay(active.key)}` : formatDay(active.key)}
                   </div>
+                  <TipRow label="Total" value={active.total} strong />
+                  {bot !== "true" ? <TipRow label="Human" value={active.human} /> : null}
+                  {bot !== "false" ? <TipRow label="Bot" value={active.bot} /> : null}
                 </div>
               </div>
-            ))}
+            ) : null}
           </div>
           <div className="mt-2 flex justify-between text-xs text-muted-foreground">
             <span>{formatDay(days[0].key)}</span>
