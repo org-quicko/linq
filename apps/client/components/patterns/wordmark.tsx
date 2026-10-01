@@ -1,18 +1,23 @@
 import { cn } from "cn"
 import Image from "next/image"
-import wordmark from "@/assets/linq-wordmark.svg"
+import dark from "@/assets/linq-wordmark-dark.svg"
+import light from "@/assets/linq-wordmark-light.svg"
 
 /**
- * The Linq logo. The asset is the dark-mode logo, white on black; light mode
- * inverts it. Driven by the app's theme class, which an <img> could not otherwise see.
+ * The Linq logo, in the variant that reads on the current theme: white artwork
+ * for dark mode, near-black for light. Both are rendered and the app's theme
+ * class picks one, which an <img> could not otherwise see.
  */
 export function Wordmark({ className }: { className?: string }) {
   return (
-    <Image
-      src={wordmark}
-      alt="Linq"
-      priority
-      className={cn("h-8 w-auto invert dark:invert-0", className)}
-    />
+    <>
+      <Image src={light} alt="Linq" priority className={cn("h-8 w-auto dark:hidden", className)} />
+      <Image
+        src={dark}
+        alt="Linq"
+        priority
+        className={cn("hidden h-8 w-auto dark:block", className)}
+      />
+    </>
   )
 }
