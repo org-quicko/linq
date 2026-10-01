@@ -77,14 +77,7 @@ export function ServerManager({
   return (
     <div className="flex min-h-screen flex-col bg-background">
       <div className="flex shrink-0 items-center justify-between border-b px-7 py-3.5">
-        <a
-          href="https://quicko.company/labs/linq"
-          target="_blank"
-          rel="noopener noreferrer"
-          aria-label="About Linq"
-        >
-          <Wordmark />
-        </a>
+        <Wordmark />
         {canGoBack ? (
           <Button
             type="button"

@@ -11,10 +11,10 @@ import light from "@/assets/linq-wordmark-light.svg"
 export function Wordmark({ className }: { className?: string }) {
   return (
     <>
-      <Image src={light} alt="Linq" priority className={cn("h-8 w-auto dark:hidden", className)} />
+      <Image src={light} alt="linq" priority className={cn("h-8 w-auto dark:hidden", className)} />
       <Image
         src={dark}
-        alt="Linq"
+        alt="linq"
         priority
         className={cn("hidden h-8 w-auto dark:block", className)}
       />
