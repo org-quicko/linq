@@ -15,6 +15,9 @@ const DIMENSIONS = {
   referer: sql<string>`coalesce(referer_host, '')`,
   destination: sql<string>`coalesce(destination, '')`,
   slug: sql<string>`slug_requested`,
+  utm_source: sql<string>`coalesce(utm_source, '')`,
+  utm_medium: sql<string>`coalesce(utm_medium, '')`,
+  utm_campaign: sql<string>`coalesce(utm_campaign, '')`,
 } as const
 
 async function liveDays(db: Db, dimension: keyof typeof DIMENSIONS) {
@@ -87,9 +90,9 @@ async function traffic() {
   const one = await h.createLink(editor.key, domain, { slug: "one" })
   const two = await h.createLink(editor.key, domain, { slug: "two" })
   for (const [slug, agent, referer] of [
-    ["one", DESKTOP, "https://news.test/"],
-    ["one", DESKTOP, "https://news.test/"],
-    ["one", ANDROID, null],
+    ["one?utm_source=News&utm_medium=email", DESKTOP, "https://news.test/"],
+    ["one?utm_source=news&utm_source=other", DESKTOP, "https://news.test/"],
+    ["one?utm_campaign=Launch&utm_source=%20", ANDROID, null],
     ["one", BOT, null],
     ["two", DESKTOP, null],
     ["two", BOT, "https://crawler.test/"],
@@ -231,5 +234,24 @@ describe("purge", () => {
         .where("link_id", "is", null)
         .execute(),
     ).toHaveLength(0)
+  })
+})
+
+describe("utm columns", () => {
+  test("are derived from the query: lowercased, first value wins, blank is null", async () => {
+    await traffic()
+    const rows = await h.db
+      .selectFrom("visits")
+      .select(["utm_source", "utm_medium", "utm_campaign"])
+      .where("slug_requested", "=", "one")
+      .where("is_bot", "=", false)
+      .orderBy("utm_source")
+      .orderBy("utm_medium")
+      .execute()
+    expect(rows).toEqual([
+      { utm_source: "news", utm_medium: "email", utm_campaign: null },
+      { utm_source: "news", utm_medium: null, utm_campaign: null },
+      { utm_source: null, utm_medium: null, utm_campaign: "launch" },
+    ])
   })
 })

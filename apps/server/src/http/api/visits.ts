@@ -36,7 +36,9 @@ function toInstant(date: string): Date {
   return new Date(date.includes("T") ? date : `${date}T00:00:00Z`)
 }
 
-function dimensionFilter(column: "os" | "browser", values: string[]): VisitFilter | undefined {
+type OpenDimension = "os" | "browser" | "utm_source" | "utm_medium" | "utm_campaign"
+
+function dimensionFilter(column: OpenDimension, values: string[]): VisitFilter | undefined {
   if (!values.length) return undefined
   const named = values.filter((value) => value !== "")
   if (!named.length) return sql<SqlBool>`${sql.ref(column)} is null`
@@ -59,6 +61,9 @@ export function visitFilters(q: {
   os?: Many<string>
   browser?: Many<string>
   referer_host?: Many<string>
+  utm_source?: Many<string>
+  utm_medium?: Many<string>
+  utm_campaign?: Many<string>
 }): VisitFilter[] {
   const filters: VisitFilter[] = []
   if (q.from) filters.push(sql<SqlBool>`occurred_at >= ${toInstant(q.from)}`)
@@ -80,10 +85,10 @@ export function visitFilters(q: {
     const named = platformValues.filter((platform): platform is Platform => platform !== NOT_RECORDED)
     filters.push(named.length ? sql<SqlBool>`platform in (${sql.join(named)})` : sql<SqlBool>`false`)
   }
-  const os = dimensionFilter("os", toArray(q.os))
-  if (os) filters.push(os)
-  const browser = dimensionFilter("browser", toArray(q.browser))
-  if (browser) filters.push(browser)
+  for (const column of ["os", "browser", "utm_source", "utm_medium", "utm_campaign"] as const) {
+    const filter = dimensionFilter(column, toArray(q[column]))
+    if (filter) filters.push(filter)
+  }
   const refererHosts = toArray(q.referer_host)
   if (refererHosts.length)
     filters.push(sql<SqlBool>`referer_host in (${sql.join(refererHosts)})`)

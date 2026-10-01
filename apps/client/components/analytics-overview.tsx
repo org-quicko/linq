@@ -2,7 +2,7 @@
 
 import { NOT_RECORDED, type StatsBucket } from "@linq/shared"
 import { skipToken } from "@reduxjs/toolkit/query/react"
-import { Check, ChevronDown, Globe, Monitor, Smartphone, X } from "lucide-react"
+import { Check, ChevronDown, Globe, Megaphone, Monitor, Smartphone, X } from "lucide-react"
 import { useRouter, useSearchParams } from "next/navigation"
 import { type ReactNode, useEffect, useId, useMemo, useState } from "react"
 import { RangePicker } from "@/components/common"
@@ -22,8 +22,23 @@ import {
 } from "../lib/store/stats"
 
 type DeviceView = "platform" | "os" | "browser"
-type Segment = { dim: DeviceView | "referer"; value: string }
-const FILTERS: Segment["dim"][] = ["referer", "os", "browser", "platform"]
+type CampaignView = "utm_source" | "utm_medium" | "utm_campaign"
+type Segment = { dim: DeviceView | CampaignView | "referer"; value: string }
+const FILTERS: Segment["dim"][] = [
+  "referer",
+  "os",
+  "browser",
+  "platform",
+  "utm_source",
+  "utm_medium",
+  "utm_campaign",
+]
+const DEVICE_LABELS: Record<DeviceView, string> = { platform: "Type", os: "OS", browser: "Browser" }
+const CAMPAIGN_LABELS: Record<CampaignView, string> = {
+  utm_source: "Source",
+  utm_medium: "Medium",
+  utm_campaign: "Campaign",
+}
 
 export function AnalyticsOverview() {
   const router = useRouter()
@@ -38,6 +53,7 @@ export function AnalyticsOverview() {
     ),
   )
   const [deviceView, setDeviceView] = useState<DeviceView>("platform")
+  const [campaignView, setCampaignView] = useState<CampaignView>("utm_source")
   const linked = useGetLinkQuery(link_id || skipToken)
   const { preset, custom, setPreset, setCustom, from, to, label } = useRange()
   const params = useMemo(() => {
@@ -64,6 +80,7 @@ export function AnalyticsOverview() {
   const timeseries = useGetAnalyticsTimeseriesQuery(params)
   const referrers = useGetAnalyticsBreakdownQuery({ ...params, dimension: "referer" })
   const devices = useGetAnalyticsBreakdownQuery({ ...params, dimension: deviceView })
+  const campaigns = useGetAnalyticsBreakdownQuery({ ...params, dimension: campaignView })
   const toggle = (dim: Segment["dim"], raw: string) => {
     const value = raw || NOT_RECORDED
     setSegments((current) =>
@@ -156,7 +173,21 @@ export function AnalyticsOverview() {
           active={selected(deviceView)}
           hasAppliedFilters={hasAppliedFilters}
           onClick={toggle}
-          selector={<DeviceViewSelector value={deviceView} onChange={setDeviceView} />}
+          selector={
+            <ViewSelector labels={DEVICE_LABELS} value={deviceView} onChange={setDeviceView} />
+          }
+        />
+        <BreakdownCard
+          title="UTM Parameters"
+          dimension={campaignView}
+          rows={campaigns.currentData ?? []}
+          loading={campaigns.isFetching && !campaigns.currentData}
+          active={selected(campaignView)}
+          hasAppliedFilters={hasAppliedFilters}
+          onClick={toggle}
+          selector={
+            <ViewSelector labels={CAMPAIGN_LABELS} value={campaignView} onChange={setCampaignView} />
+          }
         />
       </div>
     </div>
@@ -256,16 +287,29 @@ function BreakdownCard({
 }
 
 function BreakdownIcon({ dimension, value }: { dimension: Segment["dim"]; value: string }) {
-  const Icon = dimension !== "platform" ? Globe : value === "desktop" ? Monitor : Smartphone
+  const Icon =
+    dimension in CAMPAIGN_LABELS
+      ? Megaphone
+      : dimension !== "platform"
+        ? Globe
+        : value === "desktop"
+          ? Monitor
+          : Smartphone
   return <Icon className="size-3 shrink-0 text-muted-foreground" />
 }
 function formatValue(dim: Segment["dim"], value: string) {
-  if (!value) return dim === "referer" ? "Direct" : "(not recorded)"
+  if (!value) return dim === "referer" ? "Direct" : dim in CAMPAIGN_LABELS ? "(not set)" : "(not recorded)"
   if (dim === "platform") return value === "ios" ? "iOS" : value[0].toUpperCase() + value.slice(1)
   return value
 }
 function segmentLabel(segment: Segment) {
-  const labels = { referer: "Referrer", os: "OS", browser: "Browser", platform: "Device" }
+  const labels = {
+    referer: "Referrer",
+    os: "OS",
+    browser: "Browser",
+    platform: "Device",
+    ...CAMPAIGN_LABELS,
+  }
   return `${labels[segment.dim]}: ${formatValue(segment.dim, segment.value === NOT_RECORDED ? "" : segment.value)}`
 }
 function pct(part: number, total: number) {
@@ -276,14 +320,15 @@ export function analyticsEmptyMessage(hasAppliedFilters: boolean, fallback: stri
   return hasAppliedFilters ? "No visits match the applied filters." : fallback
 }
 
-function DeviceViewSelector({
+function ViewSelector<T extends string>({
+  labels,
   value,
   onChange,
 }: {
-  value: DeviceView
-  onChange: (value: DeviceView) => void
+  labels: Record<T, string>
+  value: T
+  onChange: (value: T) => void
 }) {
-  const labels: Record<DeviceView, string> = { platform: "Type", os: "OS", browser: "Browser" }
   return (
     <DropdownMenu>
       <DropdownMenuTrigger asChild>
@@ -296,7 +341,7 @@ function DeviceViewSelector({
         </button>
       </DropdownMenuTrigger>
       <DropdownMenuContent align="end" onCloseAutoFocus={(event) => event.preventDefault()}>
-        {(Object.keys(labels) as DeviceView[]).map((key) => (
+        {(Object.keys(labels) as T[]).map((key) => (
           <DropdownMenuItem key={key} onSelect={() => onChange(key)}>
             {labels[key]}
             {key === value ? <Check className="ml-auto size-3.5" /> : null}

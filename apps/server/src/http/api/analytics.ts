@@ -61,6 +61,9 @@ const DETAIL_KEY = {
   referer: sql<string>`referer_host`,
   slug: sql<string>`slug_requested`,
   destination: sql<string>`coalesce(destination, '')`,
+  utm_source: sql<string>`coalesce(utm_source, '')`,
+  utm_medium: sql<string>`coalesce(utm_medium, '')`,
+  utm_campaign: sql<string>`coalesce(utm_campaign, '')`,
 } as const
 
 function rollupScope(q: AnalyticsQuery): Filter[] {
@@ -84,6 +87,9 @@ function detailFilters(q: AnalyticsQuery): Filter[] {
     os: q.os,
     browser: q.browser,
     referer_host: q.referer,
+    utm_source: q.utm_source,
+    utm_medium: q.utm_medium,
+    utm_campaign: q.utm_campaign,
   })
 }
 

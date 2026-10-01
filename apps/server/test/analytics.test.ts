@@ -32,6 +32,7 @@ beforeAll(async () => {
       browser: "chrome",
       referer: "https://news.test/path?q=1",
       destination: "https://example.com/a",
+      query: { utm_source: ["newsletter"], utm_campaign: ["launch"] },
     },
   )
   await h.recordVisits(
@@ -58,6 +59,7 @@ beforeAll(async () => {
       browser: "safari",
       referer: "https://shop.test/",
       destination: "https://example.com/b",
+      query: { utm_source: ["twitter"], utm_medium: ["social"] },
     },
   )
   // Day 2: one human on `two`, windows/edge, no referer.
@@ -167,6 +169,9 @@ describe("GET /api/v1/analytics/breakdown", () => {
       os: "android,ios,windows,(none)",
       browser: "chrome,safari,edge,(none)",
       platform: "android,ios,desktop",
+      utm_source: "newsletter,twitter,(none)",
+      utm_medium: "social,(none)",
+      utm_campaign: "launch,(none)",
     }
     for (const dimension of ANALYTICS_FILTERS) {
       const rollup = byKey(await json(`/breakdown?dimension=${dimension}`))
@@ -175,6 +180,18 @@ describe("GET /api/v1/analytics/breakdown", () => {
       )
       expect(detail).toEqual(rollup)
     }
+  })
+
+  test("groups and filters by utm parameters", async () => {
+    expect(byKey(await json("/breakdown?dimension=utm_source"))).toEqual({
+      newsletter: { human: 2, bot: 0 },
+      "": { human: 2, bot: 1 },
+      twitter: { human: 1, bot: 0 },
+    })
+    const filtered = await json(`/breakdown?dimension=utm_campaign&${WINDOW}&utm_source=Newsletter`)
+    expect(byKey(filtered)).toEqual({ launch: { human: 2, bot: 0 } })
+    const and = await json(`/summary?${WINDOW}&utm_source=newsletter,twitter&os=ios`)
+    expect(and).toMatchObject({ visits: 1, human: 1 })
   })
 
   test("rejects an unknown dimension", async () => {
