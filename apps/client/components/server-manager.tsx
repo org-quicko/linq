@@ -196,7 +196,7 @@ export function ServerManager({
                   href="https://mintlify.wiki/org-quicko/linq/introduction"
                   target="_blank"
                   rel="noopener noreferrer"
-                  className="mt-4 flex cursor-pointer items-center justify-center gap-1.5 text-[13px] text-muted-foreground underline-offset-2 hover:text-foreground hover:underline"
+                  className="mt-4 flex cursor-pointer items-center justify-center gap-1.5 text-[13px] text-muted-foreground hover:text-foreground"
                 >
                   Learn how to set up Linq
                   <ExternalLink className="size-3.5" />
