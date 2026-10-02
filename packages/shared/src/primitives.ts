@@ -29,8 +29,13 @@ export const SLUG_PATTERN = /^[A-Za-z0-9_-]{1,64}$/
 export const slugSchema = z
   .string()
   .trim()
-  .regex(SLUG_PATTERN, "slug must be 1-64 characters of A-Z a-z 0-9 _ -")
-  .refine((s) => !RESERVED_SLUGS.has(s.toLowerCase()), "slug is reserved")
+  .transform((s) => s.replace(/^\/+|\/+$/g, ""))
+  .pipe(
+    z
+      .string()
+      .regex(SLUG_PATTERN, "slug must be 1-64 characters of A-Z a-z 0-9 _ -")
+      .refine((s) => !RESERVED_SLUGS.has(s.toLowerCase()), "slug is reserved"),
+  )
 
 /** Absolute http(s) URL, capped to the column width. */
 export const urlSchema = z

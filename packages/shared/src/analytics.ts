@@ -11,13 +11,30 @@ export const ANALYTICS_DIMENSIONS = [
   "platform",
   "slug",
   "destination",
+  "utm_source",
+  "utm_medium",
+  "utm_campaign",
+  "utm_content",
+  "utm_term",
+  "device_type",
 ] as const
 export type AnalyticsDimension = (typeof ANALYTICS_DIMENSIONS)[number]
 
 /** What a report can be narrowed by — a subset. Every one of these forces
  *  the read off the rollup (docs/adr/0015), which is why the set is
  *  deliberately smaller than the dimensions. */
-export const ANALYTICS_FILTERS = ["referer", "os", "browser", "platform"] as const
+export const ANALYTICS_FILTERS = [
+  "referer",
+  "os",
+  "browser",
+  "platform",
+  "utm_source",
+  "utm_medium",
+  "utm_campaign",
+  "utm_content",
+  "utm_term",
+  "device_type",
+] as const
 export type AnalyticsFilter = (typeof ANALYTICS_FILTERS)[number]
 
 /** The rollup stores '' where a dimension was never recorded — an absent
@@ -52,6 +69,12 @@ export const analyticsQueryShape = {
   os: csvList(filterValue),
   browser: csvList(filterValue),
   platform: csvList(z.union([platformSchema, z.literal(NOT_RECORDED)])),
+  utm_source: csvList(filterValue),
+  utm_medium: csvList(filterValue),
+  utm_campaign: csvList(filterValue),
+  utm_content: csvList(filterValue),
+  utm_term: csvList(filterValue),
+  device_type: csvList(filterValue),
 }
 
 type WindowedQuery = {
@@ -61,6 +84,12 @@ type WindowedQuery = {
   os: string[]
   browser: string[]
   platform: string[]
+  utm_source: string[]
+  utm_medium: string[]
+  utm_campaign: string[]
+  utm_content: string[]
+  utm_term: string[]
+  device_type: string[]
 }
 
 function hasDimensionFilter(q: WindowedQuery): boolean {

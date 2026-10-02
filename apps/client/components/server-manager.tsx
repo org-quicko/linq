@@ -1,6 +1,6 @@
 "use client"
 
-import { Link2, Plus, Trash2, X } from "lucide-react"
+import { ExternalLink, Heart, Link2, Plus, Trash2, X } from "lucide-react"
 import { useEffect, useState } from "react"
 import { ConfirmButton } from "@/components/common"
 import { RowCard, RowCardTile, Wordmark } from "@/components/patterns"
@@ -105,7 +105,7 @@ export function ServerManager({
             </p>
             {unauthorized ? (
               <p className="mt-3 w-full rounded-md bg-destructive/10 px-3 py-2 text-xs text-destructive">
-                That API key was rejected by the server. It may have expired or been revoked.
+                Invalid API key
               </p>
             ) : null}
           </div>
@@ -157,7 +157,7 @@ export function ServerManager({
                           <span className="truncate text-sm font-semibold">{server.name}</span>
                           {server.id === activeId ? (
                             <span className="inline-flex h-5 shrink-0 items-center rounded-sm border bg-background px-2 text-[11px] font-medium text-muted-foreground">
-                              Active
+                              Last accessed
                             </span>
                           ) : null}
                         </div>
@@ -183,18 +183,43 @@ export function ServerManager({
                 </Button>
               </>
             ) : (
-              <Button
-                type="button"
-                className="h-11 w-full gap-[7px] text-[13.5px] hover:bg-primary/90"
-                onClick={() => setAdding(true)}
-              >
-                <Plus className="size-3.5" />
-                Add server
-              </Button>
+              <>
+                <Button
+                  type="button"
+                  className="h-11 w-full gap-[7px] text-[13.5px] hover:bg-primary/90"
+                  onClick={() => setAdding(true)}
+                >
+                  <Plus className="size-3.5" />
+                  Add server
+                </Button>
+                <a
+                  href="https://mintlify.wiki/org-quicko/linq/introduction"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="mt-4 flex cursor-pointer items-center justify-center gap-1.5 text-[13px] text-muted-foreground hover:text-foreground"
+                >
+                  Learn how to set up Linq
+                  <ExternalLink className="size-3.5" />
+                </a>
+              </>
             )}
           </div>
         </div>
       </div>
+
+      <footer className="shrink-0 border-t py-4 text-center text-[13px] text-muted-foreground">
+        <span className="inline-flex items-center gap-1.5">
+          Built with <Heart className="size-3.5 fill-current" /> by{" "}
+          <a
+            href="https://quicko.company/labs"
+            target="_blank"
+            rel="noopener noreferrer"
+            className="font-semibold text-foreground/80 underline underline-offset-2 hover:text-foreground"
+          >
+            Labs@Quicko
+          </a>
+        </span>
+      </footer>
 
       <AddServerDialog
         open={adding}

@@ -16,11 +16,7 @@ let domain: string
 /** The redirect never awaits its insert, so tests drain it before asserting. */
 async function lastVisit() {
   await flushVisits()
-  return await h.db
-    .selectFrom("visits")
-    .selectAll()
-    .orderBy("id", "desc")
-    .executeTakeFirstOrThrow()
+  return await h.db.selectFrom("visits").selectAll().orderBy("id", "desc").executeTakeFirstOrThrow()
 }
 
 /** Total rows in `visits`, drained first so nothing is still in flight. */
@@ -55,6 +51,10 @@ describe("domain resolution", () => {
     // same never-registered host is still a genuine, untracked 404.
     expect((await get("/anything", { host: "never-registered.test" })).status).toBe(404)
     expect(await visitCount()).toBe(before)
+
+    const multiSlashRes = await get("///", { host: "never-registered.test" })
+    expect(multiSlashRes.status).toBe(302)
+    expect(multiSlashRes.headers.get("location")).toBe("/home/")
   })
 
   test("the unknown-host fallback follows the configured Client UI path", async () => {
@@ -180,6 +180,38 @@ describe("redirecting an active link", () => {
     expect(Object.keys(visit)).not.toContain("ip")
   })
 
+  test("redirects normally when the short link carries a trailing slash", async () => {
+    const link = await h.createLink(editor.key, domain, {
+      slug: "trailing",
+      destination: "https://example.com/trailing-dest",
+    })
+
+    const res = await get("/trailing/", {
+      headers: { "user-agent": DESKTOP, referer: "https://news.test/post" },
+    })
+    expect(res.status).toBe(302)
+    expect(res.headers.get("location")).toBe("https://example.com/trailing-dest")
+    expect(res.headers.get("cache-control")).toBe("no-store")
+
+    const visit = await lastVisit()
+    expect(visit).toMatchObject({
+      link_id: link.id,
+      domain_id: domain,
+      slug_requested: "trailing",
+      destination: "https://example.com/trailing-dest",
+    })
+
+    // Multiple trailing slashes also resolve cleanly
+    const multiRes = await get("/trailing///")
+    expect(multiRes.status).toBe(302)
+    expect(multiRes.headers.get("location")).toBe("https://example.com/trailing-dest")
+
+    // Query parameters with trailing slash
+    const queryRes = await get("/trailing/?src=slack")
+    expect(queryRes.status).toBe(302)
+    expect(queryRes.headers.get("location")).toBe("https://example.com/trailing-dest?src=slack")
+  })
+
   test("an archived link falls through to an orphan visit", async () => {
     const link = await h.createLink(editor.key, domain, { slug: "retired" })
     const admin = await h.actor("admin")
@@ -211,6 +243,17 @@ describe("orphan visits", () => {
     expect(await lastVisit()).toMatchObject({ link_id: null, slug_requested: "" })
   })
 
+  test("an unknown slug with trailing slash resolves to fallback_url", async () => {
+    const res = await get("/never-existed-trailing/")
+    expect(res.status).toBe(302)
+    expect(res.headers.get("location")).toBe("https://example.com/fallback")
+    expect(await lastVisit()).toMatchObject({
+      link_id: null,
+      slug_requested: "never-existed-trailing",
+      destination: "https://example.com/fallback",
+    })
+  })
+
   test("a domain with no fallback 404s but still records the orphan", async () => {
     const bare = await h.createDomain("bare.test")
     const res = await get("/missing", { host: "bare.test" })
@@ -228,7 +271,11 @@ describe("orphan visits", () => {
 
   test("orphan visits are the rows with a null link", async () => {
     await flushVisits()
-    const orphans = await h.db.selectFrom("visits").selectAll().where("link_id", "is", null).execute()
+    const orphans = await h.db
+      .selectFrom("visits")
+      .selectAll()
+      .where("link_id", "is", null)
+      .execute()
     expect(orphans.length).toBeGreaterThan(0)
   })
 })

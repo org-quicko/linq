@@ -15,6 +15,12 @@ const DIMENSIONS = {
   referer: sql<string>`coalesce(referer_host, '')`,
   destination: sql<string>`coalesce(destination, '')`,
   slug: sql<string>`slug_requested`,
+  utm_source: sql<string>`coalesce(utm_source, '')`,
+  utm_medium: sql<string>`coalesce(utm_medium, '')`,
+  utm_campaign: sql<string>`coalesce(utm_campaign, '')`,
+  utm_content: sql<string>`coalesce(utm_content, '')`,
+  utm_term: sql<string>`coalesce(utm_term, '')`,
+  device_type: sql<string>`coalesce(device_type, '')`,
 } as const
 
 async function liveDays(db: Db, dimension: keyof typeof DIMENSIONS) {
@@ -87,9 +93,9 @@ async function traffic() {
   const one = await h.createLink(editor.key, domain, { slug: "one" })
   const two = await h.createLink(editor.key, domain, { slug: "two" })
   for (const [slug, agent, referer] of [
-    ["one", DESKTOP, "https://news.test/"],
-    ["one", DESKTOP, "https://news.test/"],
-    ["one", ANDROID, null],
+    ["one?utm_source=News&utm_medium=email&utm_content=Hero&utm_term=Short%20Links", DESKTOP, "https://news.test/"],
+    ["one?utm_source=news&utm_source=other", DESKTOP, "https://news.test/"],
+    ["one?utm_campaign=Launch&utm_source=%20", ANDROID, null],
     ["one", BOT, null],
     ["two", DESKTOP, null],
     ["two", BOT, "https://crawler.test/"],
@@ -231,5 +237,60 @@ describe("purge", () => {
         .where("link_id", "is", null)
         .execute(),
     ).toHaveLength(0)
+  })
+})
+
+describe("utm columns", () => {
+  test("are derived from the query: lowercased, first value wins, blank is null", async () => {
+    await traffic()
+    const rows = await h.db
+      .selectFrom("visits")
+      .select(["utm_source", "utm_medium", "utm_campaign", "utm_content", "utm_term"])
+      .where("slug_requested", "=", "one")
+      .where("is_bot", "=", false)
+      .orderBy("utm_source")
+      .orderBy("utm_medium")
+      .execute()
+    expect(rows).toEqual([
+      {
+        utm_source: "news",
+        utm_medium: "email",
+        utm_campaign: null,
+        utm_content: "hero",
+        utm_term: "short links",
+      },
+      { utm_source: "news", utm_medium: null, utm_campaign: null, utm_content: null, utm_term: null },
+      { utm_source: null, utm_medium: null, utm_campaign: "launch", utm_content: null, utm_term: null },
+    ])
+  })
+})
+
+describe("device_type column", () => {
+  test("is derived from the user agent: tablet before mobile, blank is null", async () => {
+    const agents = {
+      "iphone": "Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X) Mobile/15E148 Safari/604.1",
+      "android phone": ANDROID,
+      "ipad": "Mozilla/5.0 (iPad; CPU OS 17_0 like Mac OS X) Mobile/15E148 Safari/604.1",
+      "android tablet": "Mozilla/5.0 (Linux; Android 14; SM-X710) AppleWebKit/537.36 Chrome/120 Safari/537.36",
+      "kindle": "Mozilla/5.0 (Linux; Android 9; KFTRWI) AppleWebKit/537.36 Silk/120.3 like Chrome/120 Safari/537.36",
+      "mac": DESKTOP,
+      "bot": BOT,
+      "blank": " ",
+      "absent": null,
+    }
+    for (const [slug, user_agent] of Object.entries(agents))
+      await h.recordVisits(null, domain, { human: 1 }, { slug_requested: slug, user_agent })
+    const rows = await h.db.selectFrom("visits").select(["slug_requested", "device_type"]).execute()
+    expect(Object.fromEntries(rows.map((r) => [r.slug_requested, r.device_type]))).toEqual({
+      iphone: "mobile",
+      "android phone": "mobile",
+      ipad: "tablet",
+      "android tablet": "tablet",
+      kindle: "tablet",
+      mac: "desktop",
+      bot: "desktop",
+      blank: null,
+      absent: null,
+    })
   })
 })

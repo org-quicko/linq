@@ -102,12 +102,18 @@ export interface DB {
       Record<string, string[]> | null | undefined,
       Record<string, string[]> | null
     >
+    utm_source: ColumnType<string | null, never, never>
+    utm_medium: ColumnType<string | null, never, never>
+    utm_campaign: ColumnType<string | null, never, never>
+    utm_content: ColumnType<string | null, never, never>
+    utm_term: ColumnType<string | null, never, never>
+    device_type: ColumnType<string | null, never, never>
   }
   visit_days: {
     day: Date
     domain_id: string
     link_id: string | null
-    dimension: "total" | "platform" | "os" | "browser" | "referer" | "destination" | "slug"
+    dimension: "total" | "platform" | "os" | "browser" | "referer" | "destination" | "slug" | "utm_source" | "utm_medium" | "utm_campaign" | "utm_content" | "utm_term" | "device_type"
     value: string
     is_bot: boolean
     count: Generated<number>
