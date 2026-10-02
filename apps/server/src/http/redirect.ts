@@ -204,7 +204,7 @@ const factory = createFactory<Env>()
  */
 export const redirectHandler = factory.createHandlers(async (c) => {
   const url = new URL(c.req.url)
-  const slug = url.pathname.slice(1)
+  const slug = url.pathname.replace(/\/+$/, "").slice(1)
 
   // 1. Reserved paths belong to the API, the Client UI and robots.txt. Matching on
   //    the first segment covers API typos and unknown UI subpaths too, so an
