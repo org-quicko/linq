@@ -30,6 +30,7 @@ beforeAll(async () => {
       platform: "android",
       os: "android",
       browser: "chrome",
+      user_agent: "Mozilla/5.0 (Linux; Android 14; Pixel 8) Chrome/120 Mobile Safari/537.36",
       referer: "https://news.test/path?q=1",
       destination: "https://example.com/a",
       query: {
@@ -62,6 +63,7 @@ beforeAll(async () => {
       platform: "ios",
       os: "ios",
       browser: "safari",
+      user_agent: "Mozilla/5.0 (iPad; CPU OS 17_0 like Mac OS X) Version/17.0 Mobile/15E148 Safari/604.1",
       referer: "https://shop.test/",
       destination: "https://example.com/b",
       query: { utm_source: ["twitter"], utm_medium: ["social"], utm_content: ["Hero"] },
@@ -77,6 +79,7 @@ beforeAll(async () => {
       platform: "desktop",
       os: "windows",
       browser: "edge",
+      user_agent: "Mozilla/5.0 (Windows NT 10.0; Win64; x64) Chrome/120 Safari/537.36 Edg/120",
       destination: "https://example.com/c",
     },
   )
@@ -179,6 +182,7 @@ describe("GET /api/v1/analytics/breakdown", () => {
       utm_campaign: "launch,(none)",
       utm_content: "hero,(none)",
       utm_term: "shortener,(none)",
+      device_type: "mobile,tablet,desktop,(none)",
     }
     for (const dimension of ANALYTICS_FILTERS) {
       const rollup = byKey(await json(`/breakdown?dimension=${dimension}`))
@@ -214,6 +218,19 @@ describe("GET /api/v1/analytics/breakdown", () => {
     expect(byKey(bySource)).toEqual({ newsletter: { human: 2, bot: 0 }, twitter: { human: 1, bot: 0 } })
     const both = await json(`/summary?${WINDOW}&utm_content=hero&utm_term=shortener`)
     expect(both).toMatchObject({ visits: 2, human: 2 })
+  })
+
+  test("groups and filters by device type, derived from the user agent", async () => {
+    expect(byKey(await json("/breakdown?dimension=device_type"))).toEqual({
+      mobile: { human: 2, bot: 0 },
+      tablet: { human: 1, bot: 0 },
+      desktop: { human: 1, bot: 0 },
+      "": { human: 1, bot: 1 },
+    })
+    const filtered = await json(`/breakdown?dimension=platform&${WINDOW}&device_type=Tablet`)
+    expect(byKey(filtered)).toEqual({ ios: { human: 1, bot: 0 } })
+    const none = await json(`/summary?${WINDOW}&device_type=(none)`)
+    expect(none).toMatchObject({ visits: 2, human: 1, bot: 1 })
   })
 
   test("rejects an unknown dimension", async () => {

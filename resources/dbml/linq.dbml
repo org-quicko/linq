@@ -56,6 +56,7 @@ Enum visit_dimension {
   utm_campaign
   utm_content
   utm_term
+  device_type
 }
 
 // ── Identity ─────────────────────────────────────────────────────────────────
@@ -205,12 +206,13 @@ Table visits {
   utm_campaign   text        [note: 'Stored generated from query: first value, lowercased and trimmed, capped at 200 characters. Null when absent or blank.']
   utm_content    text        [note: 'Stored generated from query: first value, lowercased and trimmed, capped at 200 characters. Null when absent or blank.']
   utm_term       text        [note: 'Stored generated from query: first value, lowercased and trimmed, capped at 200 characters. Null when absent or blank.']
+  device_type    text        [note: 'Stored generated from user_agent: mobile, tablet or desktop. Null when the user agent is absent or blank.']
 
   Indexes {
     (link_id, occurred_at)   [name: 'visits_link_occurred_idx', note: 'occurred_at DESC']
     (domain_id, occurred_at) [name: 'visits_domain_occurred_idx', note: 'occurred_at DESC']
     occurred_at              [name: 'visits_orphan_occurred_idx', note: 'DESC, partial: WHERE link_id IS NULL']
-    (occurred_at, is_bot, platform, link_id, domain_id, os, browser, referer_host, slug_requested, utm_source, utm_medium, utm_campaign, utm_content, utm_term) [name: 'visits_analytics_idx', note: 'occurred_at DESC. Covering index for filtered analytics.']
+    (occurred_at, is_bot, platform, link_id, domain_id, os, browser, referer_host, slug_requested, utm_source, utm_medium, utm_campaign, utm_content, utm_term, device_type) [name: 'visits_analytics_idx', note: 'occurred_at DESC. Covering index for filtered analytics.']
   }
 
   Note: '''

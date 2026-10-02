@@ -16,6 +16,7 @@ export const ANALYTICS_DIMENSIONS = [
   "utm_campaign",
   "utm_content",
   "utm_term",
+  "device_type",
 ] as const
 export type AnalyticsDimension = (typeof ANALYTICS_DIMENSIONS)[number]
 
@@ -32,6 +33,7 @@ export const ANALYTICS_FILTERS = [
   "utm_campaign",
   "utm_content",
   "utm_term",
+  "device_type",
 ] as const
 export type AnalyticsFilter = (typeof ANALYTICS_FILTERS)[number]
 
@@ -72,6 +74,7 @@ export const analyticsQueryShape = {
   utm_campaign: csvList(filterValue),
   utm_content: csvList(filterValue),
   utm_term: csvList(filterValue),
+  device_type: csvList(filterValue),
 }
 
 type WindowedQuery = {
@@ -86,6 +89,7 @@ type WindowedQuery = {
   utm_campaign: string[]
   utm_content: string[]
   utm_term: string[]
+  device_type: string[]
 }
 
 function hasDimensionFilter(q: WindowedQuery): boolean {

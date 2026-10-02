@@ -2,7 +2,7 @@
 
 import { NOT_RECORDED, type StatsBucket } from "@linq/shared"
 import { skipToken } from "@reduxjs/toolkit/query/react"
-import { Check, ChevronDown, Globe, Megaphone, Monitor, Smartphone, X } from "lucide-react"
+import { Check, ChevronDown, Globe, Megaphone, Monitor, Smartphone, Tablet, X } from "lucide-react"
 import { useRouter, useSearchParams } from "next/navigation"
 import { type ReactNode, useEffect, useId, useMemo, useState } from "react"
 import { RangePicker } from "@/components/common"
@@ -11,6 +11,9 @@ import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
+  DropdownMenuSub,
+  DropdownMenuSubContent,
+  DropdownMenuSubTrigger,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
 import { useRange } from "@/lib/hooks"
@@ -21,14 +24,16 @@ import {
   useGetAnalyticsTimeseriesQuery,
 } from "../lib/store/stats"
 
-type DeviceView = "platform" | "os" | "browser"
+type DeviceView = "device_type" | "os" | "browser"
 type TrackingView = "utm_source" | "utm_medium" | "utm_campaign" | "utm_content" | "utm_term"
-type Segment = { dim: DeviceView | TrackingView | "referer"; value: string }
+type SourceView = "referer" | TrackingView
+type Segment = { dim: DeviceView | TrackingView | "referer" | "platform"; value: string }
 const FILTERS: Segment["dim"][] = [
   "referer",
   "os",
   "browser",
   "platform",
+  "device_type",
   "utm_source",
   "utm_medium",
   "utm_campaign",
@@ -36,11 +41,18 @@ const FILTERS: Segment["dim"][] = [
   "utm_term",
 ]
 const DEVICE_LABELS: Record<DeviceView, string> = {
-  platform: "Type",
+  device_type: "Type",
   os: "OS",
   browser: "Browser",
 }
 const TRACKING_LABELS: Record<TrackingView, string> = {
+  utm_source: "UTM source",
+  utm_medium: "UTM medium",
+  utm_campaign: "UTM campaign",
+  utm_content: "UTM content",
+  utm_term: "UTM term",
+}
+const UTM_OPTIONS: Record<TrackingView, string> = {
   utm_source: "Source",
   utm_medium: "Medium",
   utm_campaign: "Campaign",
@@ -60,8 +72,11 @@ export function AnalyticsOverview() {
         .map((value) => ({ dim, value })),
     ),
   )
-  const [deviceView, setDeviceView] = useState<DeviceView>("platform")
-  const [trackingView, setTrackingView] = useState<TrackingView>("utm_source")
+  const [deviceView, setDeviceView] = useState<DeviceView>("device_type")
+  // A server from before device_type answers 400; its closest view is platform.
+  const [legacyDevices, setLegacyDevices] = useState(false)
+  const deviceDimension = deviceView === "device_type" && legacyDevices ? "platform" : deviceView
+  const [sourceView, setSourceView] = useState<SourceView>("referer")
   const linked = useGetLinkQuery(link_id || skipToken)
   const { preset, custom, setPreset, setCustom, from, to, label } = useRange()
   const params = useMemo(() => {
@@ -86,9 +101,12 @@ export function AnalyticsOverview() {
 
   const summary = useGetAnalyticsSummaryQuery(params)
   const timeseries = useGetAnalyticsTimeseriesQuery(params)
-  const referrers = useGetAnalyticsBreakdownQuery({ ...params, dimension: "referer" })
-  const devices = useGetAnalyticsBreakdownQuery({ ...params, dimension: deviceView })
-  const tracking = useGetAnalyticsBreakdownQuery({ ...params, dimension: trackingView })
+  const sources = useGetAnalyticsBreakdownQuery({ ...params, dimension: sourceView })
+  const devices = useGetAnalyticsBreakdownQuery({ ...params, dimension: deviceDimension })
+  const devicesStatus = (devices.error as { status?: number } | undefined)?.status
+  useEffect(() => {
+    if (deviceDimension === "device_type" && devicesStatus === 400) setLegacyDevices(true)
+  }, [deviceDimension, devicesStatus])
   const toggle = (dim: Segment["dim"], raw: string) => {
     const value = raw || NOT_RECORDED
     setSegments((current) =>
@@ -107,12 +125,18 @@ export function AnalyticsOverview() {
     <div className="analytics-page-enter flex flex-col gap-4">
       <div className="flex flex-wrap items-center gap-2">
         <h1 className="shrink-0 font-heading text-xl font-semibold">Analytics</h1>
-        <div className="flex min-w-0 flex-1 flex-wrap items-center gap-2">
+        {/* Chips scroll sideways and fade out at the right edge, under the controls. */}
+        <div
+          className="flex min-w-0 flex-1 items-center gap-2 overflow-x-auto pr-8 [mask-image:linear-gradient(to_right,#000_calc(100%-2rem),transparent)] [scrollbar-width:none]"
+          onWheel={(event) => {
+            event.currentTarget.scrollLeft += event.deltaY
+          }}
+        >
           {segments.map((segment) => (
             <button
               key={`${segment.dim}:${segment.value}`}
               type="button"
-              className="flex cursor-pointer items-center gap-1 rounded-full border px-2 py-1 text-xs"
+              className="flex shrink-0 cursor-pointer items-center gap-1 whitespace-nowrap rounded-full border px-2 py-1 text-xs"
               onClick={() => remove(segment)}
             >
               {segmentLabel(segment)}
@@ -120,7 +144,7 @@ export function AnalyticsOverview() {
             </button>
           ))}
         </div>
-        <div className="ml-auto flex shrink-0 flex-wrap items-center gap-2">
+        <div className="flex shrink-0 flex-wrap items-center gap-2">
           <LinkFilter
             value={link_id}
             name={linked.data?.name ?? linked.data?.slug ?? ""}
@@ -165,40 +189,25 @@ export function AnalyticsOverview() {
       />
       <div className="grid gap-3 sm:grid-cols-2">
         <BreakdownCard
-          title="Referrers"
-          dimension="referer"
-          rows={referrers.data ?? []}
-          loading={referrers.isLoading}
-          active={selected("referer")}
+          title="Sources"
+          dimension={sourceView}
+          rows={sources.currentData ?? []}
+          loading={sources.isFetching && !sources.currentData}
+          active={selected(sourceView)}
           hasAppliedFilters={hasAppliedFilters}
           onClick={toggle}
+          selector={<SourceSelector value={sourceView} onChange={setSourceView} />}
         />
         <BreakdownCard
           title="Devices"
-          dimension={deviceView}
+          dimension={deviceDimension}
           rows={devices.currentData ?? []}
           loading={devices.isFetching && !devices.currentData}
-          active={selected(deviceView)}
+          active={selected(deviceDimension)}
           hasAppliedFilters={hasAppliedFilters}
           onClick={toggle}
           selector={
             <ViewSelector labels={DEVICE_LABELS} value={deviceView} onChange={setDeviceView} />
-          }
-        />
-        <BreakdownCard
-          title="Tracking"
-          dimension={trackingView}
-          rows={tracking.currentData ?? []}
-          loading={tracking.isFetching && !tracking.currentData}
-          active={selected(trackingView)}
-          hasAppliedFilters={hasAppliedFilters}
-          onClick={toggle}
-          selector={
-            <ViewSelector
-              labels={TRACKING_LABELS}
-              value={trackingView}
-              onChange={setTrackingView}
-            />
           }
         />
       </div>
@@ -302,17 +311,20 @@ function BreakdownIcon({ dimension, value }: { dimension: Segment["dim"]; value:
   const Icon =
     dimension in TRACKING_LABELS
       ? Megaphone
-      : dimension !== "platform"
+      : dimension !== "platform" && dimension !== "device_type"
         ? Globe
         : value === "desktop"
           ? Monitor
-          : Smartphone
+          : value === "tablet"
+            ? Tablet
+            : Smartphone
   return <Icon className="size-3 shrink-0 text-muted-foreground" />
 }
 function formatValue(dim: Segment["dim"], value: string) {
   if (!value)
     return dim === "referer" ? "Direct" : dim in TRACKING_LABELS ? "(not set)" : "(not recorded)"
-  if (dim === "platform") return value === "ios" ? "iOS" : value[0].toUpperCase() + value.slice(1)
+  if (dim === "platform" || dim === "device_type")
+    return value === "ios" ? "iOS" : value[0].toUpperCase() + value.slice(1)
   return value
 }
 function segmentLabel(segment: Segment) {
@@ -320,7 +332,8 @@ function segmentLabel(segment: Segment) {
     referer: "Referrer",
     os: "OS",
     browser: "Browser",
-    platform: "Device",
+    platform: "Platform",
+    device_type: "Device",
     ...TRACKING_LABELS,
   }
   return `${labels[segment.dim]}: ${formatValue(segment.dim, segment.value === NOT_RECORDED ? "" : segment.value)}`
@@ -331,6 +344,45 @@ function pct(part: number, total: number) {
 
 export function analyticsEmptyMessage(hasAppliedFilters: boolean, fallback: string): string {
   return hasAppliedFilters ? "No visits match the applied filters." : fallback
+}
+
+function SourceSelector({
+  value,
+  onChange,
+}: {
+  value: SourceView
+  onChange: (value: SourceView) => void
+}) {
+  return (
+    <DropdownMenu>
+      <DropdownMenuTrigger asChild>
+        <button
+          type="button"
+          className="flex cursor-pointer items-center gap-1 text-[13px] text-muted-foreground"
+        >
+          {value === "referer" ? "Referrer" : TRACKING_LABELS[value]}
+          <ChevronDown className="size-3" />
+        </button>
+      </DropdownMenuTrigger>
+      <DropdownMenuContent align="end" onCloseAutoFocus={(event) => event.preventDefault()}>
+        <DropdownMenuItem onSelect={() => onChange("referer")}>
+          Referrer
+          {value === "referer" ? <Check className="ml-auto size-3.5" /> : null}
+        </DropdownMenuItem>
+        <DropdownMenuSub>
+          <DropdownMenuSubTrigger>UTM</DropdownMenuSubTrigger>
+          <DropdownMenuSubContent>
+            {(Object.keys(UTM_OPTIONS) as TrackingView[]).map((key) => (
+              <DropdownMenuItem key={key} onSelect={() => onChange(key)}>
+                {UTM_OPTIONS[key]}
+                {key === value ? <Check className="ml-auto size-3.5" /> : null}
+              </DropdownMenuItem>
+            ))}
+          </DropdownMenuSubContent>
+        </DropdownMenuSub>
+      </DropdownMenuContent>
+    </DropdownMenu>
+  )
 }
 
 function ViewSelector<T extends string>({

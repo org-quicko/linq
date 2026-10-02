@@ -44,6 +44,7 @@ type OpenDimension =
   | "utm_campaign"
   | "utm_content"
   | "utm_term"
+  | "device_type"
 
 function dimensionFilter(column: OpenDimension, values: string[]): VisitFilter | undefined {
   if (!values.length) return undefined
@@ -73,6 +74,7 @@ export function visitFilters(q: {
   utm_campaign?: Many<string>
   utm_content?: Many<string>
   utm_term?: Many<string>
+  device_type?: Many<string>
 }): VisitFilter[] {
   const filters: VisitFilter[] = []
   if (q.from) filters.push(sql<SqlBool>`occurred_at >= ${toInstant(q.from)}`)
@@ -102,6 +104,7 @@ export function visitFilters(q: {
     "utm_campaign",
     "utm_content",
     "utm_term",
+    "device_type",
   ] as const) {
     const filter = dimensionFilter(column, toArray(q[column]))
     if (filter) filters.push(filter)

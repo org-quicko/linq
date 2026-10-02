@@ -66,6 +66,7 @@ const DETAIL_KEY = {
   utm_campaign: sql<string>`coalesce(utm_campaign, '')`,
   utm_content: sql<string>`coalesce(utm_content, '')`,
   utm_term: sql<string>`coalesce(utm_term, '')`,
+  device_type: sql<string>`coalesce(device_type, '')`,
 } as const
 
 function rollupScope(q: AnalyticsQuery): Filter[] {
@@ -94,6 +95,7 @@ function detailFilters(q: AnalyticsQuery): Filter[] {
     utm_campaign: q.utm_campaign,
     utm_content: q.utm_content,
     utm_term: q.utm_term,
+    device_type: q.device_type,
   })
 }
 

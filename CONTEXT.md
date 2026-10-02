@@ -9,7 +9,7 @@ The ubiquitous language of linq. Terms only; no implementation details.
 - **Preset Param**: a key and value set on the Destination at redirect time, overriding the Destination's own query and any forwarded query on collision. Applied only when the Link forwards its query.
 - **Rule**: an ordered entry on a Link. An alternate Destination plus one or more Conditions, all of which must hold. First matching Rule wins. Also called a "dynamic link".
 - **Condition**: one predicate inside a Rule. `platform` (android | ios | desktop) or `query_param` (key with optional value; no value means "present").
-- **Visit**: one request to a Domain. Flagged human or bot. Carries platform, referer, user agent, forwarded query, its UTM source, medium, campaign, content and term, and the Destination chosen. Never the client address.
+- **Visit**: one request to a Domain. Flagged human or bot. Carries platform, device type (mobile, tablet or desktop, from the user agent), referer, user agent, forwarded query, its UTM source, medium, campaign, content and term, and the Destination chosen. Never the client address.
 - **Orphan Visit**: a Visit on an active Domain that resolved to no active Link: unknown Slug, archived Link, or the root path.
 - **Fallback URL**: where a Domain sends Orphan Visits. Absent means 404.
 - **Tree**: a Link of kind `tree`. Serves a hosted page (title, description, image) listing Items, in the style of social-media profile link pages.

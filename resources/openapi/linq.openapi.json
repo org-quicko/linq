@@ -1166,6 +1166,9 @@
           },
           {
             "$ref": "#/components/parameters/AnalyticsUtmTerm"
+          },
+          {
+            "$ref": "#/components/parameters/AnalyticsDeviceType"
           }
         ],
         "responses": {
@@ -1240,6 +1243,9 @@
           },
           {
             "$ref": "#/components/parameters/AnalyticsUtmTerm"
+          },
+          {
+            "$ref": "#/components/parameters/AnalyticsDeviceType"
           }
         ],
         "responses": {
@@ -1310,6 +1316,9 @@
           },
           {
             "$ref": "#/components/parameters/AnalyticsUtmTerm"
+          },
+          {
+            "$ref": "#/components/parameters/AnalyticsDeviceType"
           }
         ],
         "responses": {
@@ -2001,6 +2010,14 @@
           "type": "string"
         }
       },
+      "AnalyticsDeviceType": {
+        "name": "device_type",
+        "in": "query",
+        "description": "Comma-separated device types (`mobile`, `tablet`, `desktop`), derived from the user agent. `(none)` selects visits without a user agent.",
+        "schema": {
+          "type": "string"
+        }
+      },
       "AnalyticsDimension": {
         "name": "dimension",
         "in": "query",
@@ -2018,7 +2035,8 @@
             "utm_medium",
             "utm_campaign",
             "utm_content",
-            "utm_term"
+            "utm_term",
+            "device_type"
           ]
         }
       },
