@@ -1,6 +1,6 @@
 "use client"
 
-import { Heart, Link2, Plus, Trash2, X } from "lucide-react"
+import { ExternalLink, Heart, Link2, Plus, Trash2, X } from "lucide-react"
 import { useEffect, useState } from "react"
 import { ConfirmButton } from "@/components/common"
 import { RowCard, RowCardTile, Wordmark } from "@/components/patterns"
@@ -183,14 +183,25 @@ export function ServerManager({
                 </Button>
               </>
             ) : (
-              <Button
-                type="button"
-                className="h-11 w-full gap-[7px] text-[13.5px] hover:bg-primary/90"
-                onClick={() => setAdding(true)}
-              >
-                <Plus className="size-3.5" />
-                Add server
-              </Button>
+              <>
+                <Button
+                  type="button"
+                  className="h-11 w-full gap-[7px] text-[13.5px] hover:bg-primary/90"
+                  onClick={() => setAdding(true)}
+                >
+                  <Plus className="size-3.5" />
+                  Add server
+                </Button>
+                <a
+                  href="https://mintlify.wiki/org-quicko/linq/introduction"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="mt-4 flex cursor-pointer items-center justify-center gap-1.5 text-[13px] text-muted-foreground underline-offset-2 hover:text-foreground hover:underline"
+                >
+                  Learn how to set up Linq
+                  <ExternalLink className="size-3.5" />
+                </a>
+              </>
             )}
           </div>
         </div>
