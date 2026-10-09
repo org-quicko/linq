@@ -178,7 +178,7 @@ describe("PATCH /api/v1/links/:id", () => {
     expect(unchanged.domain_id).toBe(domain)
   })
 
-  test("any editor edits any link — links have no owner (docs/adr/0016)", async () => {
+  test("any editor edits any link — links have no owner (resources/docs/adr/0016)", async () => {
     const link = await h.createLink(editor.key, domain)
     const otherEditor = await h.actor("editor")
 

@@ -199,7 +199,7 @@ describe("the rules API", () => {
 
     expect((await put(link.id, viewer.key, [androidRule])).status).toBe(403)
     expect((await put(link.id, editor.key, [androidRule])).status).toBe(200)
-    // Links have no owner (docs/adr/0016): any editor may edit any link.
+    // Links have no owner (resources/docs/adr/0016): any editor may edit any link.
     expect((await put(link.id, otherEditor.key, [androidRule])).status).toBe(200)
   })
 

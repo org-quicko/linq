@@ -12,7 +12,7 @@ const statements = [
   `CREATE TYPE resource_status AS ENUM ('active', 'archived')`,
   `CREATE TYPE visit_dimension AS ENUM ('total', 'platform', 'os', 'browser', 'referer', 'destination', 'slug')`,
 
-  // The referer header's host, '' when absent. Backs visits.referer_host. See docs/adr/0015.
+  // The referer header's host, '' when absent. Backs visits.referer_host. See resources/docs/adr/0015.
   `CREATE FUNCTION referer_host(u text) RETURNS text
     LANGUAGE sql IMMUTABLE PARALLEL SAFE
     AS $_$
@@ -105,12 +105,12 @@ $_$`,
   `CREATE INDEX visits_link_occurred_idx ON visits (link_id, occurred_at DESC NULLS LAST)`,
   `CREATE INDEX visits_domain_occurred_idx ON visits (domain_id, occurred_at DESC NULLS LAST)`,
   `CREATE INDEX visits_orphan_occurred_idx ON visits (occurred_at DESC NULLS LAST) WHERE link_id IS NULL`,
-  // Covers every column a filtered report reads, for index-only scans. See docs/adr/0015.
+  // Covers every column a filtered report reads, for index-only scans. See resources/docs/adr/0015.
   `CREATE INDEX visits_analytics_idx ON visits
     (occurred_at DESC NULLS LAST, is_bot, platform, link_id, domain_id, os, browser, referer_host, slug_requested)`,
 
   // Derived rollups, written only by the triggers below. link_id carries no
-  // foreign key on purpose: a purge re-keys rows to the orphan scope. See docs/adr/0007.
+  // foreign key on purpose: a purge re-keys rows to the orphan scope. See resources/docs/adr/0007.
   `CREATE TABLE visit_days (
     day date NOT NULL,
     domain_id uuid NOT NULL CONSTRAINT visit_days_domain_id_domains_id_fk REFERENCES domains(id) ON DELETE CASCADE,

@@ -43,7 +43,7 @@ is not.
 response succeed regardless. The next successful mutation on that domain, or
 the next linq boot, repairs whatever this missed.
 
-**This is not the same call `docs/adr/0009` makes about Redis.** A configured
+**This is not the same call `resources/docs/adr/0009` makes about Redis.** A configured
 Redis that cannot be reached is fatal at boot, because a cache two instances
 disagree about is the exact failure that ADR exists to prevent. Caddy is the
 other way around: Caddy depends on linq being reachable at

@@ -1,7 +1,7 @@
 # Architecture
 
 How linq's pieces fit together today. For terms, see `CONTEXT.md`; for why a
-decision was made, see `docs/adr/`.
+decision was made, see `resources/docs/adr/`.
 
 ## Shape
 
@@ -45,7 +45,7 @@ as one either.
 
 There are no user accounts. An API key (`apiKeys` table) carries its own name
 and role directly, so authenticating is one indexed lookup and no join
-(`docs/adr/0011`). `authenticate` (`auth/middleware.ts`) reads
+(`resources/docs/adr/0011`). `authenticate` (`auth/middleware.ts`) reads
 `Authorization: Bearer <key>` or `X-Api-Key`, hashes it, and looks up the row;
 a missing, unknown or expired key is a 401. Only the key's sha256 is stored —
 a lost key cannot be recovered, only reissued.
@@ -55,7 +55,7 @@ Roles are linear — `viewer < editor < admin` — and every check goes through
 `auth/permissions.ts`'s `assert*` functions. An editor creates and edits any
 link; archiving, restoring and purging a link are admin-only. Links carry no
 reference to the key that created them, so revoking a key never touches its
-links (`docs/adr/0016`).
+links (`resources/docs/adr/0016`).
 
 ```
 request
@@ -77,23 +77,23 @@ handler runs
 
 Six tables, one migration tool (Kysely runs the ordered migrations in
 `apps/server/src/db/migrations/`; `kysely-codegen` writes `src/db/types.generated.ts`). A domain hosts links; a link belongs to a domain and
-carries no reference to the key that created it (`docs/adr/0016`); a link may
+carries no reference to the key that created it (`resources/docs/adr/0016`); a link may
 carry ordered rules (alternate destinations gated on platform or query-param
 conditions, first match wins — `rules/match.ts`) and styled QR codes.
 Archiving a link or domain is a status flip, never a delete: a slug is
 reserved for as long as its row exists, so an archived slug can never be
-hijacked by a new link (`docs/adr/0002`). Only a `Purge`, admin-only, destroys
+hijacked by a new link (`resources/docs/adr/0002`). Only a `Purge`, admin-only, destroys
 the row and its visits for good.
 
 Visits are the one high-volume table, and the one place traffic ever touches
 the client. Recording is fire-and-forget (`visits/record.ts`) — a redirect
 never waits on the insert, and a failed insert never turns a working link
 into an error — and never stores the client's IP address, in the row or the
-request log (`docs/adr/0001`, `docs/adr/0003`). `visit_days` and
+request log (`resources/docs/adr/0001`, `resources/docs/adr/0003`). `visit_days` and
 `visit_counts` are pre-aggregated rollups that every list and overview reads
 instead of scanning `visits`; they're maintained entirely by Postgres
 triggers on insert, not application code, so `visits` stays the single
-source of truth with no rollup job to fall behind (`docs/adr/0007`).
+source of truth with no rollup job to fall behind (`resources/docs/adr/0007`).
 
 ## The redirect hot path
 
@@ -116,7 +116,7 @@ A link-preview crawler's user agent gets a small HTML page carrying the
 link's own title as Open Graph tags, instead of the 302 — never the
 destination's title, since fetching the destination synchronously on every
 crawler hit would make the redirect page as slow as its target
-(`docs/adr/0014`). An ordinary destination gets a name, description and
+(`resources/docs/adr/0014`). An ordinary destination gets a name, description and
 favicon in the background instead, fetched once and stored on the link
 (`link-metadata.ts`), with an SSRF guard that refuses private, loopback and
 link-local IPs so a destination can't be used to probe the server's own
@@ -156,11 +156,11 @@ Redis (`LINQ_REDIS_URL`) is optional; unset, redirect lookups cache in an
 in-process LRU instead, so nothing else has to be running. Whichever backend
 is picked, once configured it must be reachable at boot or the server refuses
 to start — a Redis that goes down *after* boot degrades to hitting Postgres
-directly rather than failing requests (`docs/adr/0009`). Caddy sync
+directly rather than failing requests (`resources/docs/adr/0009`). Caddy sync
 (`LINQ_CADDY_ADMIN_URL`) is the same shape: when set, every domain
 create/archive/reactivate/purge pushes a route to Caddy's admin API so a
 custom domain resolves over HTTPS without hand-editing Caddy's config
-(`docs/adr/0012`); Caddy's own routes are wiped on its restart, so the server
+(`resources/docs/adr/0012`); Caddy's own routes are wiped on its restart, so the server
 reconciles all of them once at its own boot. Link-metadata fetching
 (`LINQ_FETCH_LINK_METADATA`) follows the same pattern too.
 
@@ -189,7 +189,7 @@ path-based redaction.
 
 A Next.js app, exported as static files, that is a client of the API — never
 assuming it's talking to the server that happens to be serving it
-(`docs/adr/0006`). It holds a list of "servers" (name, absolute URL, API key)
+(`resources/docs/adr/0006`). It holds a list of "servers" (name, absolute URL, API key)
 in `localStorage` and calls whichever one is selected; every call is
 cross-origin by construction, so the server enables CORS on `/api/*` and
 issues no cookies — the key is the only credential, and it travels in a
@@ -210,7 +210,7 @@ in an API URL.
 
 With `LINQ_APP_HOST` set, the combined UI answers only on that host and falls
 through to the redirect handler everywhere else, which is what lets the base path
-be `/` (`docs/adr/0019`). The app host is never a domain row; `/api/*` stays
+be `/` (`resources/docs/adr/0019`). The app host is never a domain row; `/api/*` stays
 host-agnostic.
 
 Server state is Redux Toolkit Query (`lib/store/`) — one `apiSlice` per

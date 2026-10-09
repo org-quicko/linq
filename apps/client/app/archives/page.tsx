@@ -29,7 +29,7 @@ import {
  * rows).
  *
  * `requires={can.purge}` is unchanged from before: archived rows are kept
- * forever (docs/adr/0002) and purge is the only way to remove one, so
+ * forever (resources/docs/adr/0002) and purge is the only way to remove one, so
  * reaching this page at all is already an admin-only action.
  */
 export default function ArchivesPage() {

@@ -4,7 +4,7 @@
 
 ## Context
 
-`docs/adr/0008` made Redis required. Its reasoning was that the redirect
+`resources/docs/adr/0008` made Redis required. Its reasoning was that the redirect
 lookups are shared state, so a per-process cache lets two instances behind a
 load balancer disagree about a slug until the TTL runs out.
 

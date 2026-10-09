@@ -35,7 +35,7 @@ Client UI. When it is set:
 - The root of a host nobody registered redirects to the UI on the app host
   (`https://<app host><base path>/`) instead of a relative `/home/`.
 - `robots.txt` on the app host disallows everything.
-- With Caddy sync on (docs/adr/0012), `reconcileCaddy` pushes a fixed
+- With Caddy sync on (resources/docs/adr/0012), `reconcileCaddy` pushes a fixed
   `domain:app-host` route for it at boot, since it has no domain row to sync
   from.
 
@@ -50,7 +50,7 @@ Left unset, nothing changes: the UI answers on every host at
 - Exactly one app host. A second admin hostname would mean turning the setting
   into a list; nothing needs that yet.
 - The base path is still baked into the static export at build time
-  (docs/adr/0006 keeps the API URL out of it, not the path). A root mount needs
+  (resources/docs/adr/0006 keeps the API URL out of it, not the path). A root mount needs
   its own image; an image built with `/home` cannot be switched to `/` at
   runtime.
 - An existing domain row whose host equals `LINQ_APP_HOST` is not rejected at
@@ -58,6 +58,6 @@ Left unset, nothing changes: the UI answers on every host at
   path on that host. Archive it before setting `LINQ_APP_HOST`.
 - The Caddy route for the app host is only written at boot. Changing
   `LINQ_APP_HOST` takes a restart, which a config change needs anyway.
-- The UI stays a client (docs/adr/0006): it still asks which server to talk to.
+- The UI stays a client (resources/docs/adr/0006): it still asks which server to talk to.
   Pointing it at its own app host makes those calls same-origin, but any other
   server URL keeps working across origins.

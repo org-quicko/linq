@@ -108,6 +108,8 @@ export interface DB {
     utm_content: ColumnType<string | null, never, never>
     utm_term: ColumnType<string | null, never, never>
     device_type: ColumnType<string | null, never, never>
+    country: string | null
+    region: string | null
   }
   visit_days: {
     day: Date

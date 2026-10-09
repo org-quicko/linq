@@ -45,7 +45,7 @@ const PRESET_OPTIONS = PRESETS.map((preset) => ({ value: preset, label: preset }
 /**
  * Keys are the principals, so this page is the whole of access control: minting
  * one is how a person gains access, revoking it is how they lose it, and there
- * is nothing else to disable. See docs/adr/0011.
+ * is nothing else to disable. See resources/docs/adr/0011.
  */
 export default function KeysPage() {
   return (

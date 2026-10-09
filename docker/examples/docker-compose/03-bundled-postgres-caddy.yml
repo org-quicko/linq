@@ -1,7 +1,7 @@
 # Bundled Postgres plus Caddy for automatic HTTPS on custom domains. Once
 # LINQ_CADDY_ADMIN_URL is set, every domain create, archive, reactivate and
 # purge is pushed to Caddy as its own route — nothing in Caddy is edited by
-# hand. See docs/adr/0012 and ../dockerfiles/caddy/caddy.json, the empty skeleton Caddy boots
+# hand. See resources/docs/adr/0012 and ../dockerfiles/caddy/caddy.json, the empty skeleton Caddy boots
 # from. No Redis here — the redirect cache stays in-process.
 #
 # :2019, Caddy's admin API, is deliberately not published to the host — only
@@ -69,7 +69,7 @@ services:
       # `docker compose logs linq`. For another without restarting:
       #   docker compose exec linq bun run key:create --name ops --role admin
       # Logs go to stdout and to /data/logs/linq.log. Client IPs are never
-      # recorded in either; see docs/adr/0003.
+      # recorded in either; see resources/docs/adr/0003.
       LINQ_LOG_LEVEL: ${LINQ_LOG_LEVEL:-info}
     volumes:
       - linq-data:/data

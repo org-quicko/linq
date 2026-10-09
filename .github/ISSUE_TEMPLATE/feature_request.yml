@@ -6,7 +6,7 @@ body:
     attributes:
       value: |
         Describe the problem first. If a decision in
-        [docs/adr/](https://github.com/org-quicko/linq/tree/main/docs/adr)
+        [resources/docs/adr/](https://github.com/org-quicko/linq/tree/main/resources/docs/adr)
         already covers this, say which one and why it should change.
 
   - type: checkboxes

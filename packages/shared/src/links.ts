@@ -35,7 +35,7 @@ export const linkCreateSchema = z.object({
   destination: urlSchema,
   /** Omit to use the destination page's title, falling back to its host. */
   name: z.string().trim().max(200).optional(),
-  /** Omit to have it filled from the destination's <head>. See docs/adr/0014. */
+  /** Omit to have it filled from the destination's <head>. See resources/docs/adr/0014. */
   description: z.string().trim().max(500).optional(),
   tags: z.array(tagSchema).max(20).default([]),
   forward_query: z.boolean().default(true),

@@ -2,7 +2,7 @@ import type { ApiKey, ApiKeyCreated, ApiKeySummary, KeyPreset, Page } from "@lin
 import { qs } from "../api"
 import { apiSlice } from "./api"
 
-/** The calling key. There is no user behind it — see docs/adr/0011. */
+/** The calling key. There is no user behind it — see resources/docs/adr/0011. */
 export type Me = ApiKey
 
 export const keysApi = apiSlice.injectEndpoints({

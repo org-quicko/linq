@@ -6,7 +6,7 @@ description: Add or change a UI feature in apps/client (the Next.js Client UI). 
 # Adding or changing a Client UI feature
 
 1. **Pages** live under `app/<route>/page.tsx` (App Router — one directory
-   per route, see `docs/repo-map.md` for the current list). **Reusable
+   per route, see `resources/docs/repo-map.md` for the current list). **Reusable
    page-building blocks** (`row-card`, `stat-card`, `page-header`,
    `empty-state`, `domain-picker`, …) live in `components/patterns/` — check
    there before writing a new one; a feature-specific component goes

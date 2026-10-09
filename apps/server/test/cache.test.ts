@@ -313,7 +313,7 @@ describe("expiry inside the cache", () => {
 })
 
 describe("degradation", () => {
-  /** A cache is never allowed to fail a request. See docs/adr/0009. */
+  /** A cache is never allowed to fail a request. See resources/docs/adr/0009. */
   const broken: Cache = {
     get: async () => {
       throw new Error("cache is down")

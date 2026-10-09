@@ -62,7 +62,7 @@ const schema = z
     /**
      * Which store the redirect cache uses. Left unset it follows
      * `LINQ_REDIS_URL`: supplying a URL is what makes Redis expected to exist.
-     * `none` turns caching off entirely. See docs/adr/0009.
+     * `none` turns caching off entirely. See resources/docs/adr/0009.
      */
     LINQ_CACHE_BACKEND: z.enum(["memory", "redis", "none"]).optional(),
     /** Only read when the backend is `redis`, and then it must be reachable. */
@@ -121,7 +121,7 @@ const schema = z
      * <head> for a title/description/favicon. An enum of the two literal
      * strings, not `z.coerce.boolean()` — that coercion treats the
      * non-empty string "false" as truthy, which is exactly the footgun an
-     * opt-out flag cannot afford. See docs/adr/0014.
+     * opt-out flag cannot afford. See resources/docs/adr/0014.
      */
     // Disabled by default: enabling this is an explicit trust in the deployment's egress policy.
     LINQ_FETCH_LINK_METADATA: z.enum(["true", "false"]).default("false"),
