@@ -1,5 +1,5 @@
-# Full stack: bundled Postgres, Redis for the redirect cache (docs/adr/0009),
-# and Caddy for automatic HTTPS on custom domains (docs/adr/0012).
+# Full stack: bundled Postgres, Redis for the redirect cache (resources/docs/adr/0009),
+# and Caddy for automatic HTTPS on custom domains (resources/docs/adr/0012).
 #
 # :2019, Caddy's admin API, is deliberately not published to the host — only
 # linq, over the compose network, ever needs to reach it. A custom domain
@@ -76,7 +76,7 @@ services:
       # `docker compose logs linq`. For another without restarting:
       #   docker compose exec linq bun run key:create --name ops --role admin
       # Logs go to stdout and to /data/logs/linq.log. Client IPs are never
-      # recorded in either; see docs/adr/0003.
+      # recorded in either; see resources/docs/adr/0003.
       LINQ_LOG_LEVEL: ${LINQ_LOG_LEVEL:-info}
     volumes:
       - linq-data:/data

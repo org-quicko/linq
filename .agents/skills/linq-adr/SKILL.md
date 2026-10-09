@@ -5,19 +5,19 @@ description: Write a new Architecture Decision Record for linq. Use when a decis
 
 # Writing an ADR
 
-`docs/adr/` holds decisions that are hard to reverse, and why — not a log of
+`resources/docs/adr/` holds decisions that are hard to reverse, and why — not a log of
 every change. Routine feature work doesn't get one; something the team would
 otherwise re-litigate or accidentally undo does.
 
 ## File
 
-`docs/adr/NNNN-kebab-case-title.md` — a 4-digit number one higher than the
-current highest file in `docs/adr/` (check the directory; don't assume the
+`resources/docs/adr/NNNN-kebab-case-title.md` — a 4-digit number one higher than the
+current highest file in `resources/docs/adr/` (check the directory; don't assume the
 count from memory).
 
 ## Structure
 
-Follow the existing ADRs exactly (e.g. `docs/adr/0012-caddy-is-the-tls-terminator.md`):
+Follow the existing ADRs exactly (e.g. `resources/docs/adr/0012-caddy-is-the-tls-terminator.md`):
 
 ```markdown
 # NNNN – Title
@@ -40,6 +40,6 @@ Follow the existing ADRs exactly (e.g. `docs/adr/0012-caddy-is-the-tls-terminato
   (e.g. "this is not the same call ADR 0009 makes about Redis").
 
 Write for a reader who wasn't in the discussion: state why the obvious
-alternative was rejected when there was one, the way `docs/adr/0012` explains
+alternative was rejected when there was one, the way `resources/docs/adr/0012` explains
 per-domain Caddy sync over a full-list `PUT`. Cross-reference other ADRs by
 number when a decision interacts with one.

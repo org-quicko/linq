@@ -97,7 +97,7 @@ export function guarded(cache: Cache): Cache {
  * Opens whichever store the configuration selected.
  *
  * Both backends honour `LINQ_CACHE_TTL` identically, so switching between them
- * changes where an entry lives and nothing about how long. See docs/adr/0009.
+ * changes where an entry lives and nothing about how long. See resources/docs/adr/0009.
  */
 export async function startCache(config: Config): Promise<Cache> {
   switch (config.LINQ_CACHE_BACKEND) {
@@ -119,7 +119,7 @@ async function redisCache(config: Config): Promise<Cache> {
   client.onclose = (err) => log.error({ err }, "cache: connection closed")
   // Not caught: naming a Redis linq cannot reach is a configuration error, and
   // quietly serving from a per-process store instead would hide it. See
-  // docs/adr/0009.
+  // resources/docs/adr/0009.
   await client.connect()
   log.info({ backend: "redis", ttl }, "cache: ready")
 
@@ -140,7 +140,7 @@ async function redisCache(config: Config): Promise<Cache> {
  * An in-process store, so nothing outside linq has to be running.
  *
  * It is per-process by definition: invalidations reach only the process that
- * made them, which is the whole of the difference from Redis. See docs/adr/0009.
+ * made them, which is the whole of the difference from Redis. See resources/docs/adr/0009.
  */
 export function memoryCache(config: Config): Cache & {
   /** Entries held, lapsed ones included until a sweep. For tests and debugging. */

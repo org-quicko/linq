@@ -177,7 +177,7 @@ export const qrCodeRoutes = new Hono<Env>()
   })
 
   /** Hard delete, no archive: a QR row has no slug and no redirect, so
-   *  archiving it would be ceremony with no consequence. See docs/adr/0002's
+   *  archiving it would be ceremony with no consequence. See resources/docs/adr/0002's
    *  amendment. */
   .delete("/:id", idParam, async (c) => {
     const { id } = c.req.valid("param")

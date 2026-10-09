@@ -10,7 +10,7 @@ Everything in this folder is an example, and none of it is published:
 ## Compose files
 
 Every combination of linq's optional pieces — Postgres bundled vs. external,
-Redis on/off (docs/adr/0009), Caddy on/off (docs/adr/0012). Pick the file that
+Redis on/off (resources/docs/adr/0009), Caddy on/off (resources/docs/adr/0012). Pick the file that
 matches your setup, configure the repo-root `.env`, then
 `docker compose -f <file> up`. Each `linq` service loads that file with
 `env_file`, so it is its runtime configuration as well as Compose's source for
@@ -91,7 +91,7 @@ if you specifically want the Client UI at `/` as well.
 ## The UI and API on their own host
 
 One process can also serve the Client UI at `/` and the API at `/api/*` on one
-host, with short links on the others (`docs/adr/0019`). Set `LINQ_APP_HOST` to
+host, with short links on the others (`resources/docs/adr/0019`). Set `LINQ_APP_HOST` to
 that host in `.env`; it must differ from `LINQ_DEFAULT_DOMAIN` and from every
 domain you register. linq tells the hosts apart by the `Host` header, so point
 both at the same container.
@@ -175,7 +175,7 @@ deploy, then rebuild.
 
 With the default `/`, the server starts only with `LINQ_APP_HOST` set at
 runtime, so the UI answers on that one host and every other host keeps its
-short links (`docs/adr/0019`).
+short links (`resources/docs/adr/0019`).
 
 `Dockerfile.client` runs `serve-static.ts` under plain Bun rather than
 introducing nginx as a second base image. It mirrors
@@ -189,6 +189,6 @@ server at runtime, in the browser. The server images need `DATABASE_URL`,
 and default `LINQ_CACHE_SWEEP_INTERVAL` to 60 seconds (1 to 3600).
 
 `dockerfiles/caddy/caddy.json` is the empty skeleton Caddy boots from in the Caddy
-examples (3, 4, 7, 8); see `docs/adr/0012`.
+examples (3, 4, 7, 8); see `resources/docs/adr/0012`.
 
 See the root `README.md` (Deploying section) for what each piece does.

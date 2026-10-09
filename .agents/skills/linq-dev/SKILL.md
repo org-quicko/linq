@@ -46,14 +46,14 @@ linq admin API key: linq_xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
 Only its hash is stored — if you miss it, it cannot be read back. Mint more
 without a restart with `bun run key:create --name <name> --preset <preset>`
 (`viewer`, `editor` or `admin`; defaults to `admin`). There is no `--role`:
-it was replaced by presets (`docs/adr/0017`).
+it was replaced by presets (`resources/docs/adr/0017`).
 
 ## Pointing the Client UI at the server
 
 Open `http://localhost:3001/home/` and fill in **Name**, **Server URL**
 (`http://localhost:3000`), **API key**. The UI is a pure client: it holds a
 list of `{name, url, key}` servers in the browser and never assumes the
-instance that served it — nothing is baked in at build time (`docs/adr/0006`).
+instance that served it — nothing is baked in at build time (`resources/docs/adr/0006`).
 So switching or adding servers never needs a rebuild or restart.
 
 **The dev Client UI on :3001 calls the API on :3000 cross-origin, with no
@@ -63,11 +63,11 @@ opaque network error, suspect CORS/server config, not a missing proxy.
 ## Optional dependencies — don't reach for them by default
 
 - **Redis**: only activates when `LINQ_REDIS_URL` is set. Once set, it must
-  be reachable at boot or the server refuses to start (`docs/adr/0009`) — a
+  be reachable at boot or the server refuses to start (`resources/docs/adr/0009`) — a
   Redis that dies *after* boot degrades to Postgres instead of failing
   requests. Not needed to run or test linq.
 - **Caddy**: only activates when `LINQ_CADDY_ADMIN_URL` (and
-  `LINQ_CADDY_UPSTREAM`) are set — see `docs/adr/0012`. Not needed to run or
+  `LINQ_CADDY_UPSTREAM`) are set — see `resources/docs/adr/0012`. Not needed to run or
   test linq.
 
 Don't set either just to "run the app fully" — the default (in-process LRU

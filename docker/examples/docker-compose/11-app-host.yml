@@ -1,5 +1,5 @@
 # The Client UI and the API on their own host, short links on the others
-# (docs/adr/0019), against an existing Postgres instance. Pulls linq, the
+# (resources/docs/adr/0019), against an existing Postgres instance. Pulls linq, the
 # published docker/dockerfiles/Dockerfile, so nothing is built here.
 #
 #   LINQ_APP_HOST        UI at /, API at /api/*. Never a shortening domain.
@@ -28,7 +28,7 @@ services:
       # `docker compose logs linq`. For another without restarting:
       #   docker compose exec linq bun run key:create --name ops --role admin
       # Logs go to stdout and to /data/logs/linq.log. Client IPs are never
-      # recorded in either; see docs/adr/0003.
+      # recorded in either; see resources/docs/adr/0003.
       LINQ_LOG_LEVEL: ${LINQ_LOG_LEVEL:-info}
     ports:
       - "${LINQ_PORT:-3000}:3000"

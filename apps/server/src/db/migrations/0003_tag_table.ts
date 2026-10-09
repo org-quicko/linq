@@ -1,7 +1,7 @@
 import { type Kysely, sql } from "kysely"
 
 /**
- * Moves tags off `links.tags` into their own table. See docs/adr/0020.
+ * Moves tags off `links.tags` into their own table. See resources/docs/adr/0020.
  *
  * Backfills from the array column, then drops it, in one migration: there is
  * no down migration, so a server rolled back past this one cannot read tags.

@@ -314,7 +314,7 @@
         ],
         "operationId": "archiveDomain",
         "summary": "Archive a domain",
-        "description": "Requires: **admin**. `DELETE` archives; it never destroys. An archived\ndomain returns an untracked 404 for everything. See `docs/adr/0002`.\n",
+        "description": "Requires: **admin**. `DELETE` archives; it never destroys. An archived\ndomain returns an untracked 404 for everything. See `resources/docs/adr/0002`.\n",
         "responses": {
           "200": {
             "description": "The archived domain.",
@@ -745,7 +745,7 @@
         ],
         "operationId": "archiveLink",
         "summary": "Archive a link",
-        "description": "Requires: **admin**.\n\n`DELETE` archives; it never destroys. An archived link stops\nredirecting — its slug becomes an orphan visit — but keeps its row, its\nvisits and its reservation on that slug. Reversible by\n`PATCH { \"status\": \"active\" }` (also admin only). See `docs/adr/0002` and\n`docs/adr/0016`.\n",
+        "description": "Requires: **admin**.\n\n`DELETE` archives; it never destroys. An archived link stops\nredirecting — its slug becomes an orphan visit — but keeps its row, its\nvisits and its reservation on that slug. Reversible by\n`PATCH { \"status\": \"active\" }` (also admin only). See `resources/docs/adr/0002` and\n`resources/docs/adr/0016`.\n",
         "responses": {
           "200": {
             "description": "The archived link.",
@@ -1097,7 +1097,7 @@
         ],
         "operationId": "deleteQrCode",
         "summary": "Delete a QR code",
-        "description": "Requires: **editor**. Hard delete, not archive: a QR code has no slug and no redirect, so archiving one would be ceremony with no consequence. See `docs/adr/0002`'s 2026-09-21 amendment. There is no purge route for QR codes.\n",
+        "description": "Requires: **editor**. Hard delete, not archive: a QR code has no slug and no redirect, so archiving one would be ceremony with no consequence. See `resources/docs/adr/0002`'s 2026-09-21 amendment. There is no purge route for QR codes.\n",
         "responses": {
           "204": {
             "description": "Deleted."
@@ -1806,7 +1806,7 @@
         ],
         "operationId": "getLlmsTxt",
         "summary": "Published link catalogue",
-        "description": "Lists links from the requested host that were explicitly opted in with `listed: true` — archived, expired and unlisted links never appear. No key required: this route sits outside `/api/v1` by design. See `docs/adr/0013`.\n",
+        "description": "Lists links from the requested host that were explicitly opted in with `listed: true` — archived, expired and unlisted links never appear. No key required: this route sits outside `/api/v1` by design. See `resources/docs/adr/0013`.\n",
         "security": [],
         "responses": {
           "200": {
@@ -2478,7 +2478,7 @@
           },
           "listed": {
             "type": "boolean",
-            "description": "Opt-in: appears in the domain's public /llms.txt catalogue. See docs/adr/0013."
+            "description": "Opt-in: appears in the domain's public /llms.txt catalogue. See resources/docs/adr/0013."
           },
           "created_at": {
             "type": "string",
@@ -2552,7 +2552,7 @@
           "listed": {
             "type": "boolean",
             "default": false,
-            "description": "Opt-in: appears in the domain's public /llms.txt catalogue. See docs/adr/0013."
+            "description": "Opt-in: appears in the domain's public /llms.txt catalogue. See resources/docs/adr/0013."
           },
           "rules": {
             "type": "array",
@@ -2622,7 +2622,7 @@
           },
           "listed": {
             "type": "boolean",
-            "description": "Opt-in: appears in the domain's public /llms.txt catalogue. See docs/adr/0013."
+            "description": "Opt-in: appears in the domain's public /llms.txt catalogue. See resources/docs/adr/0013."
           },
           "rules": {
             "type": "array",

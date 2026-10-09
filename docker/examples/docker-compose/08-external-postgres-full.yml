@@ -1,4 +1,4 @@
-# linq plus Redis (docs/adr/0009) and Caddy (docs/adr/0012), against an
+# linq plus Redis (resources/docs/adr/0009) and Caddy (resources/docs/adr/0012), against an
 # existing Postgres instance you already run (managed, another host,
 # whatever).
 #
@@ -60,7 +60,7 @@ services:
       # `docker compose logs linq`. For another without restarting:
       #   docker compose exec linq bun run key:create --name ops --role admin
       # Logs go to stdout and to /data/logs/linq.log. Client IPs are never
-      # recorded in either; see docs/adr/0003.
+      # recorded in either; see resources/docs/adr/0003.
       LINQ_LOG_LEVEL: ${LINQ_LOG_LEVEL:-info}
     volumes:
       - linq-data:/data

@@ -3,7 +3,7 @@ import { type Kysely, sql } from "kysely"
 /**
  * Promotes utm_source, utm_medium and utm_campaign to analytics dimensions.
  *
- * The columns are generated from `query`, like `referer_host` (docs/adr/0015),
+ * The columns are generated from `query`, like `referer_host` (resources/docs/adr/0015),
  * so adding them backfills every existing visit and a rolled-back server still
  * writes them. Lowercased to match the filters' boundary lowercasing; the first
  * value wins when a key repeats.
@@ -69,7 +69,7 @@ END $$`,
     FROM visits GROUP BY 1, 2, 3, 5, 6`,
   ),
 
-  // Keeps UTM-filtered reports index-only. See docs/adr/0015.
+  // Keeps UTM-filtered reports index-only. See resources/docs/adr/0015.
   `DROP INDEX visits_analytics_idx`,
   `CREATE INDEX visits_analytics_idx ON visits
     (occurred_at DESC NULLS LAST, is_bot, platform, link_id, domain_id, os, browser, referer_host, slug_requested, ${UTM.join(", ")})`,

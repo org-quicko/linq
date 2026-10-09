@@ -15,7 +15,7 @@ import { type Kysely, sql } from "kysely"
  *
  * The rollup rows for all five are rebuilt from `visits` afterwards, so a value
  * that was over the cap rolls up under its truncated form and the rollup keeps
- * equalling a live aggregate (docs/adr/0007). The `visit_dimension` rebuild
+ * equalling a live aggregate (resources/docs/adr/0007). The `visit_dimension` rebuild
  * through `text` and the single transaction are as in 0004, which explains
  * both. One statement per entry, because PGlite rejects multi-statement queries.
  */
@@ -82,7 +82,7 @@ END $$`,
     FROM visits GROUP BY 1, 2, 3, 5, 6`,
   ),
 
-  // Keeps UTM-filtered reports index-only. See docs/adr/0015.
+  // Keeps UTM-filtered reports index-only. See resources/docs/adr/0015.
   `CREATE INDEX visits_analytics_idx ON visits
     (occurred_at DESC NULLS LAST, is_bot, platform, link_id, domain_id, os, browser, referer_host, slug_requested, ${UTM.join(", ")})`,
 ]

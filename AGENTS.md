@@ -23,10 +23,10 @@ covers what isn't obvious from the code.
 
 - Redis only activates when `LINQ_REDIS_URL` is set. Once set, Redis must be
   reachable at boot or the server refuses to start — that's intentional
-  (`docs/adr/0009`), not a bug to smooth over. A Redis that dies *after* boot
+  (`resources/docs/adr/0009`), not a bug to smooth over. A Redis that dies *after* boot
   degrades to Postgres instead.
 - Caddy sync only activates when `LINQ_CADDY_ADMIN_URL` is set (needs
-  `LINQ_CADDY_UPSTREAM` too). See `docs/adr/0012`.
+  `LINQ_CADDY_UPSTREAM` too). See `resources/docs/adr/0012`.
 - Neither is required to run or test linq. Don't make either a hard
   dependency.
 
@@ -38,8 +38,8 @@ covers what isn't obvious from the code.
 
 - `README.md` — local setup, Docker, Redis/Caddy, deploying the Client UI.
 - `CONTEXT.md` — domain vocabulary.
-- `docs/architecture.md` — how the pieces fit together today.
-- `docs/repo-map.md` — where everything lives, in more detail than this list.
-- `docs/adr/` — decisions that are hard to reverse, and why.
+- `resources/docs/architecture.md` — how the pieces fit together today.
+- `resources/docs/repo-map.md` — where everything lives, in more detail than this list.
+- `resources/docs/adr/` — decisions that are hard to reverse, and why.
 - `.agents/skills/` — step-by-step procedures for this repo (dev environment,
   DB migrations, ADRs), for any agent.

@@ -21,7 +21,7 @@ export async function bootstrap(db: Db, config: Config): Promise<void> {
  * The guard is "no keys", not "first ever boot", so an instance whose last key
  * was revoked mints itself a way back in on the next restart rather than
  * becoming permanently unreachable. `bun run key:create` is the way in that
- * does not need a restart. See docs/adr/0011.
+ * does not need a restart. See resources/docs/adr/0011.
  */
 async function bootstrapKey(db: Db): Promise<void> {
   await span("bootstrap.key", async () => {

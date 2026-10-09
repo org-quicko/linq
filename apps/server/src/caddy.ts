@@ -5,7 +5,7 @@ import { reqLog, span } from "./log.ts"
 /**
  * Keeps Caddy's routes in sync with the `domains` table. Each domain is its
  * own route, addressed by a stable id, so one domain's sync never touches
- * another's. See docs/adr/0012.
+ * another's. See resources/docs/adr/0012.
  */
 export type Caddy = {
   upsert(domain_id: string, host: string): Promise<void>

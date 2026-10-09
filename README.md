@@ -69,7 +69,7 @@ Open **http://localhost:3001/home/** and add a server:
 The UI is a standalone client. It keeps a list of servers in the browser and
 calls whichever one you pick, across origins and without a proxy. If requests
 fail with an opaque network error, check the server's CORS setup first. See
-`docs/adr/0006`.
+`resources/docs/adr/0006`.
 
 | URL                            | What it is                               |
 | ------------------------------ | ---------------------------------------- |
@@ -96,7 +96,7 @@ Configuration is read from the repo-root `.env` (or `.env.local`). Only
 | `LINQ_CLIENT_BASE_PATH`          | `/home`                  | Where a combined deployment mounts the UI.                                                          |
 | `LINQ_APP_HOST`                  | —                         | Gives the UI a host of its own. See [UI on its own host](#ui-on-its-own-host).                        |
 | `LINQ_DEFAULT_DOMAIN`            | `localhost:${LINQ_PORT}` | Seeds the first domain on an empty database only.                                                   |
-| `LINQ_REDIS_URL`                 | —                         | Moves the redirect cache to Redis. Must be reachable at boot. See `docs/adr/0009`.                 |
+| `LINQ_REDIS_URL`                 | —                         | Moves the redirect cache to Redis. Must be reachable at boot. See `resources/docs/adr/0009`.                 |
 | `LINQ_CACHE_TTL`                 | `300`                    | How many seconds a cached lookup lives.                                                             |
 | `LINQ_FETCH_LINK_METADATA`       | `false`                  | Fetches a destination's title and icon. Enable only with egress rules that block private addresses. |
 | `LINQ_API_RATE_LIMIT_PER_MINUTE` | `1000`                   | Per-key API rate limit.                                                                             |
@@ -148,7 +148,7 @@ LINQ_DEFAULT_DOMAIN=link.example.com # short links at link.example.com/<slug>
 The UI answers only on the app host. Every other host serves short links, and
 `/api/*` answers on all hosts. The app host must differ from every registered
 domain. Behind a reverse proxy, route both hosts to the same port and preserve
-the `Host` header. See `docs/adr/0019`.
+the `Host` header. See `resources/docs/adr/0019`.
 
 ### Static hosting
 
@@ -162,7 +162,7 @@ checkout, and make sure the host serves `x/index.html` for `/x/`.
 Use a Caddy Compose example (3, 4, 7 or 8). When `LINQ_CADDY_ADMIN_URL` is set,
 linq pushes every domain change to Caddy. Once a domain's DNS points at the
 host, adding the domain in linq is enough to serve it over HTTPS. See
-`docs/adr/0012`.
+`resources/docs/adr/0012`.
 
 The Caddy examples do not publish linq's port 3000 to the host. Caddy is the only
 public entry point, so API keys never travel over a plaintext bypass.
@@ -185,7 +185,7 @@ Contributors and coding agents should read [`AGENTS.md`](AGENTS.md) first.
 ## Documentation
 
 - [`CONTEXT.md`](CONTEXT.md): the domain vocabulary. Read it before the code.
-- [`docs/architecture.md`](docs/architecture.md): how the pieces fit together.
-- [`docs/repo-map.md`](docs/repo-map.md): where everything lives.
-- [`docs/adr/`](docs/adr/): architecture decision records.
+- [`resources/docs/architecture.md`](resources/docs/architecture.md): how the pieces fit together.
+- [`resources/docs/repo-map.md`](resources/docs/repo-map.md): where everything lives.
+- [`resources/docs/adr/`](resources/docs/adr/): architecture decision records.
 - [`resources/openapi/linq.openapi.json`](resources/openapi/linq.openapi.json): the REST API spec.

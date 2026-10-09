@@ -5,7 +5,7 @@ import { type Kysely, sql } from "kysely"
  *
  * `platform` stays as it is: it is the android | ios | desktop routing value
  * Rules match on, not a device class. device_type is generated from
- * `user_agent`, like `referer_host` (docs/adr/0015), so adding it backfills
+ * `user_agent`, like `referer_host` (resources/docs/adr/0015), so adding it backfills
  * every existing visit with the same rule new visits get, and a rolled-back
  * server still writes it. Null when there is no user agent. Tablet is checked
  * first because Android tablets omit "Mobile"; iPadOS Safari reports itself as
@@ -78,7 +78,7 @@ END $$`,
     SELECT (occurred_at AT TIME ZONE 'UTC')::date, domain_id, link_id, 'device_type', coalesce(device_type, ''), is_bot, count(*)
     FROM visits GROUP BY 1, 2, 3, 5, 6`,
 
-  // Keeps device-type-filtered reports index-only. See docs/adr/0015.
+  // Keeps device-type-filtered reports index-only. See resources/docs/adr/0015.
   `CREATE INDEX visits_analytics_idx ON visits
     (occurred_at DESC NULLS LAST, is_bot, platform, link_id, domain_id, os, browser, referer_host, slug_requested, utm_source, utm_medium, utm_campaign, utm_content, utm_term, device_type)`,
 ]

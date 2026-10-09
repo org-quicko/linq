@@ -3,7 +3,7 @@ import { createHarness, type Harness } from "./helpers/app.ts"
 
 /**
  * Purge is the one operation that destroys data, so every test here has a
- * counterpart elsewhere pinning what archiving does instead. See docs/adr/0002.
+ * counterpart elsewhere pinning what archiving does instead. See resources/docs/adr/0002.
  */
 
 let h: Harness

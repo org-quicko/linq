@@ -74,7 +74,7 @@ function toLink(row: LinkRow): Link {
  *
  * The totals come off `visit_counts`, which a trigger keeps in step with the
  * visits table: one indexed row per link rather than an unbounded aggregate run
- * on every page of the list. See docs/adr/0007.
+ * on every page of the list. See resources/docs/adr/0007.
  */
 function linkQuery(db: Db) {
   const query = db
@@ -357,7 +357,7 @@ export const linkRoutes = new Hono<Env>()
     const patch = c.req.valid("json")
     const existing = await loadLink(c.var.db, id)
     // Archiving or restoring (a status change) is admin-only; every other
-    // field is an ordinary edit. See docs/adr/0016.
+    // field is an ordinary edit. See resources/docs/adr/0016.
     if (patch.status !== undefined) {
       assertCanArchive(c.var.principal)
     } else {
@@ -447,8 +447,8 @@ export const linkRoutes = new Hono<Env>()
     return c.json({ purged: rows.length })
   })
 
-  /** DELETE is an alias for archiving; links are never dropped. See docs/adr/0002.
-   *  Admin only, same as restoring one — see docs/adr/0016. */
+  /** DELETE is an alias for archiving; links are never dropped. See resources/docs/adr/0002.
+   *  Admin only, same as restoring one — see resources/docs/adr/0016. */
   .delete("/:id", idParam, async (c) => {
     const { id } = c.req.valid("param")
     const existing = await loadLink(c.var.db, id)
@@ -470,7 +470,7 @@ export const linkRoutes = new Hono<Env>()
    * destroyed, not reclassified as orphan traffic.
    *
    * Unlike archiving, this **releases the slug** for reuse on that domain. See
-   * docs/adr/0002.
+   * resources/docs/adr/0002.
    */
   .delete("/:id/purge", idParam, async (c) => {
     assertCanPurge(c.var.principal)
@@ -490,7 +490,7 @@ export const linkRoutes = new Hono<Env>()
 /**
  * Tags in use on active links, most used first. Counted per request rather
  * than stored, so there is no counter to keep in step with archive, restore
- * and purge; a tag no link carries any more is simply absent. See docs/adr/0020.
+ * and purge; a tag no link carries any more is simply absent. See resources/docs/adr/0020.
  */
 export const tagRoutes = new Hono<Env>().get("/", async (c) => {
   const rows = await c.var.db

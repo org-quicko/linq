@@ -176,7 +176,7 @@ describe("redirecting an active link", () => {
       platform: "desktop",
       referer: "https://news.test/post",
     })
-    // The address is never read and never stored. See docs/adr/0001.
+    // The address is never read and never stored. See resources/docs/adr/0001.
     expect(Object.keys(visit)).not.toContain("ip")
   })
 

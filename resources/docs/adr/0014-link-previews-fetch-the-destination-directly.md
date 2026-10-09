@@ -50,7 +50,7 @@ against that risk:
   redirect handling would connect first and offer no hook to refuse a hop.
 - **An unresolvable hostname is refused, not retried or ignored** — the same
   fail-closed choice `LINQ_REDIS_URL` misconfiguration makes in
-  `docs/adr/0009`: guessing "probably fine" about a host that cannot be
+  `resources/docs/adr/0009`: guessing "probably fine" about a host that cannot be
   looked up is how a check like this quietly stops doing anything.
 - **The response is capped**: 1 MB read through a manual stream reader,
   cancelled past that, and only `text/html`-declared responses are parsed at
@@ -128,9 +128,9 @@ the recommendation to constrain egress remain unchanged.
 - Whether a fetch happened is testable without a real network: `link-metadata.ts`
   exposes the fetcher as a small seam (`MetadataFetcher`, one method), the
   same shape `Cache` and `Caddy` already are in this codebase, with a
-  `noMetadata` no-op the test harness wires in by default — see `docs/adr/0009`
-  and `docs/adr/0012` for the precedent this follows.
-- This is unrelated to `docs/adr/0013` (opt-in publishing to `/llms.txt`):
+  `noMetadata` no-op the test harness wires in by default — see `resources/docs/adr/0009`
+  and `resources/docs/adr/0012` for the precedent this follows.
+- This is unrelated to `resources/docs/adr/0013` (opt-in publishing to `/llms.txt`):
   that ADR is about linq disclosing a link's *own* data to the public;
   this one is about linq's server reading a *destination's* public page,
   the same way any browser that ever opened that link already would.

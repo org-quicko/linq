@@ -5,7 +5,7 @@ ARG LINQ_CLIENT_BASE_PATH=/
 # The API, the redirects and the Client UI (served at LINQ_CLIENT_BASE_PATH)
 # from one process. Published as linq, the only published image, with the
 # default /: the UI answers only on LINQ_APP_HOST, which must then be set at
-# runtime (docs/adr/0019).
+# runtime (resources/docs/adr/0019).
 #
 # Build from the repo root, not this directory:
 #   docker build -f docker/dockerfiles/Dockerfile -t linq .

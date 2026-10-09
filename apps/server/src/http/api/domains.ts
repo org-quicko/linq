@@ -72,7 +72,7 @@ function fetchDomain(db: Db, id: string): Promise<Domain> {
  * A domain may be retired only when nothing points at it — archived links
  * included. Archiving stops the host serving and purging takes its visits
  * with it, and an archived link still owns its slug on that host
- * (docs/adr/0002), so either operation would strand a row that has nowhere
+ * (resources/docs/adr/0002), so either operation would strand a row that has nowhere
  * to go. Purging the links is the only way through, by design.
  */
 function assertNoLinks(db: Db, domain_id: string): Promise<void> {
@@ -182,7 +182,7 @@ export const domainRoutes = new Hono<Env>()
     return c.json(await fetchDomain(c.var.db, id))
   })
 
-  /** DELETE is an alias for archiving; domains are never dropped. See docs/adr/0002. */
+  /** DELETE is an alias for archiving; domains are never dropped. See resources/docs/adr/0002. */
   .delete("/:id", idParam, async (c) => {
     assertCan(c.var.principal, "archive", "Domain")
     const { id } = c.req.valid("param")
@@ -206,7 +206,7 @@ export const domainRoutes = new Hono<Env>()
 
   /**
    * Destroys an archived, empty domain for good, and its visits with it. Admin
-   * only, and archived-first. See docs/adr/0002.
+   * only, and archived-first. See resources/docs/adr/0002.
    */
   .delete("/:id/purge", idParam, async (c) => {
     assertCanPurge(c.var.principal)

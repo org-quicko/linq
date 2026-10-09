@@ -15,8 +15,8 @@ The ubiquitous language of linq. Terms only; no implementation details.
 - **Tree**: a Link of kind `tree`. Serves a hosted page (title, description, image) listing Items, in the style of social-media profile link pages.
 - **Item**: an ordered entry on a Tree: a label and a target Link on the same Domain.
 - **OG Preview**: per-Link Open Graph title, description and image, served as HTML to bots so chat and social previews show them.
-- **Server**: one linq instance, as the Client UI knows it: a name, an absolute URL and a Key, saved in one browser. The UI holds a list and talks to whichever is selected; it never assumes the instance that served it. See docs/adr/0006.
-- **Key**: an API key, and the only principal. Has a name and a Role, and may expire. Shown once, stored hashed. Revoking one is a real delete. Links carry no reference to the Key that created them — see docs/adr/0016.
+- **Server**: one linq instance, as the Client UI knows it: a name, an absolute URL and a Key, saved in one browser. The UI holds a list and talks to whichever is selected; it never assumes the instance that served it. See resources/docs/adr/0006.
+- **Key**: an API key, and the only principal. Has a name and a Role, and may expire. Shown once, stored hashed. Revoking one is a real delete. Links carry no reference to the Key that created them — see resources/docs/adr/0016.
 - **Role**: `viewer` < `editor` < `admin`. Carried by a Key. Viewer reads; editor also creates and edits any Link; admin also archives, restores and purges Links, and manages Domains and Keys.
 - **Archived**: the soft-deleted status of a Link or Domain. An archived Slug never redirects, and keeps its Visits and its reservation. Reversible; the only route out of it other than restoring is a Purge.
 - **Purge**: the irreversible destruction of an archived Link or Domain, by an admin. Distinct from archiving, which is what `DELETE` does. Purging a Link releases its Slug and destroys its Visits with it; purging a Domain destroys its Visits the same way.

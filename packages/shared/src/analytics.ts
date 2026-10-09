@@ -21,7 +21,7 @@ export const ANALYTICS_DIMENSIONS = [
 export type AnalyticsDimension = (typeof ANALYTICS_DIMENSIONS)[number]
 
 /** What a report can be narrowed by — a subset. Every one of these forces
- *  the read off the rollup (docs/adr/0015), which is why the set is
+ *  the read off the rollup (resources/docs/adr/0015), which is why the set is
  *  deliberately smaller than the dimensions. */
 export const ANALYTICS_FILTERS = [
   "referer",

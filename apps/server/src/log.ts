@@ -196,7 +196,7 @@ const REQUEST_ID = /^[\w-]{1,64}$/
  * `reqLog()` beneath it reads from.
  *
  * What is deliberately absent: the client address, `x-forwarded-for`, query
- * string *values*, and any response body. See docs/adr/0003 — a log file is a
+ * string *values*, and any response body. See resources/docs/adr/0003 — a log file is a
  * second copy of whatever it records, and `POST /keys` returns a
  * plaintext key.
  */
