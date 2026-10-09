@@ -17,10 +17,7 @@ description: Change linq's PostgreSQL schema or query types. Use when adding, re
    PostgreSQL-specific DDL (enums, generated columns, partial/GIN indexes,
    `NULLS NOT DISTINCT`, functions, triggers). Run one statement per `sql`
    call: PGlite rejects multi-statement queries. Leave object names
-   unqualified so they land in `LINQ_DB_SCHEMA`. Give a new table, and any
-   column whose meaning is not obvious from its name, a `COMMENT ON` in the
-   same migration, and update the comment when a change alters what a column
-   means. `0008_schema_comments.ts` holds the existing ones.
+   unqualified so they land in `LINQ_DB_SCHEMA`.
 3. Apply it to an empty verification database with `bun run db:migrate`.
    Startup runs the same runner before bootstrap.
 4. With `DATABASE_URL` pointed at that migrated database, run

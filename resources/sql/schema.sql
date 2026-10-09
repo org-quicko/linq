@@ -2,9 +2,10 @@
 -- PostgreSQL database dump
 --
 
+\restrict linq
 
--- Dumped from database version 18.3
--- Dumped by pg_dump version 18.3
+-- Dumped from database version 17.11 (Debian 17.11-1.pgdg13+2)
+-- Dumped by pg_dump version 17.11 (Debian 17.11-1.pgdg13+2)
 
 SET statement_timeout = 0;
 SET lock_timeout = 0;
@@ -31,13 +32,6 @@ CREATE TYPE public.bot_classification AS ENUM (
 
 
 --
--- Name: TYPE bot_classification; Type: COMMENT; Schema: public; Owner: -
---
-
-COMMENT ON TYPE public.bot_classification IS 'Why ingest classified a visit as a bot, or unknown for one it did not.';
-
-
---
 -- Name: platform; Type: TYPE; Schema: public; Owner: -
 --
 
@@ -46,13 +40,6 @@ CREATE TYPE public.platform AS ENUM (
     'ios',
     'desktop'
 );
-
-
---
--- Name: TYPE platform; Type: COMMENT; Schema: public; Owner: -
---
-
-COMMENT ON TYPE public.platform IS 'The routing value Rules match on. desktop is also the fallback for an unknown or absent user agent.';
 
 
 --
@@ -77,13 +64,6 @@ CREATE TYPE public.resource_status AS ENUM (
 
 
 --
--- Name: TYPE resource_status; Type: COMMENT; Schema: public; Owner: -
---
-
-COMMENT ON TYPE public.resource_status IS 'active, or archived: soft-deleted, keeping its rows and, for a link, its slug.';
-
-
---
 -- Name: visit_dimension; Type: TYPE; Schema: public; Owner: -
 --
 
@@ -102,13 +82,6 @@ CREATE TYPE public.visit_dimension AS ENUM (
     'utm_term',
     'device_type'
 );
-
-
---
--- Name: TYPE visit_dimension; Type: COMMENT; Schema: public; Owner: -
---
-
-COMMENT ON TYPE public.visit_dimension IS 'A visit_days grouping. total counts every visit of the day and is what the day grouping reads.';
 
 
 --
@@ -203,48 +176,6 @@ CREATE TABLE public.api_keys (
 
 
 --
--- Name: TABLE api_keys; Type: COMMENT; Schema: public; Owner: -
---
-
-COMMENT ON TABLE public.api_keys IS 'The principal. There are no user rows: a key carries its own name and claims, so authentication is one row and no join (resources/docs/adr/0011, 0017). Revoking a key deletes the row. Links carry no reference to the key that created them, so revoking never touches them (resources/docs/adr/0016).';
-
-
---
--- Name: COLUMN api_keys.name; Type: COMMENT; Schema: public; Owner: -
---
-
-COMMENT ON COLUMN public.api_keys.name IS 'Who or what the key is for.';
-
-
---
--- Name: COLUMN api_keys.claims; Type: COMMENT; Schema: public; Owner: -
---
-
-COMMENT ON COLUMN public.api_keys.claims IS 'CASL action/subject rules the key is allowed, evaluated on every request (resources/docs/adr/0017).';
-
-
---
--- Name: COLUMN api_keys.key_hash; Type: COMMENT; Schema: public; Owner: -
---
-
-COMMENT ON COLUMN public.api_keys.key_hash IS 'sha256 of the secret. The secret itself is shown once and never stored.';
-
-
---
--- Name: COLUMN api_keys.prefix; Type: COMMENT; Schema: public; Owner: -
---
-
-COMMENT ON COLUMN public.api_keys.prefix IS 'First characters of the key, so it is recognisable in a list.';
-
-
---
--- Name: COLUMN api_keys.expires_at; Type: COMMENT; Schema: public; Owner: -
---
-
-COMMENT ON COLUMN public.api_keys.expires_at IS 'Null never expires.';
-
-
---
 -- Name: domains; Type: TABLE; Schema: public; Owner: -
 --
 
@@ -261,41 +192,6 @@ CREATE TABLE public.domains (
 
 
 --
--- Name: TABLE domains; Type: COMMENT; Schema: public; Owner: -
---
-
-COMMENT ON TABLE public.domains IS 'A host that serves short links, with what to do when a request matches no link.';
-
-
---
--- Name: COLUMN domains.host; Type: COMMENT; Schema: public; Owner: -
---
-
-COMMENT ON COLUMN public.domains.host IS 'Lowercased, optionally carrying a port.';
-
-
---
--- Name: COLUMN domains.fallback_url; Type: COMMENT; Schema: public; Owner: -
---
-
-COMMENT ON COLUMN public.domains.fallback_url IS 'Where an unmatched but well-formed slug goes. Null means 404.';
-
-
---
--- Name: COLUMN domains.base_path_redirect; Type: COMMENT; Schema: public; Owner: -
---
-
-COMMENT ON COLUMN public.domains.base_path_redirect IS 'Where a bare GET / (empty slug) goes. Null falls back to fallback_url, then 404.';
-
-
---
--- Name: COLUMN domains.invalid_short_url_redirect; Type: COMMENT; Schema: public; Owner: -
---
-
-COMMENT ON COLUMN public.domains.invalid_short_url_redirect IS 'Where a malformed (not just unknown) slug goes. Null falls back to fallback_url, then 404.';
-
-
---
 -- Name: link_tags; Type: TABLE; Schema: public; Owner: -
 --
 
@@ -303,13 +199,6 @@ CREATE TABLE public.link_tags (
     link_id uuid NOT NULL,
     tag_id uuid NOT NULL
 );
-
-
---
--- Name: TABLE link_tags; Type: COMMENT; Schema: public; Owner: -
---
-
-COMMENT ON TABLE public.link_tags IS 'A link carries a tag. At most 20 per link. Unordered: the API returns a link''s tags sorted by name.';
 
 
 --
@@ -335,69 +224,6 @@ CREATE TABLE public.links (
 
 
 --
--- Name: TABLE links; Type: COMMENT; Schema: public; Owner: -
---
-
-COMMENT ON TABLE public.links IS 'One short link: a slug on a domain. Archiving keeps the row so a dead link cannot be hijacked by a new one; only a purge releases the slug (resources/docs/adr/0002).';
-
-
---
--- Name: COLUMN links.domain_id; Type: COMMENT; Schema: public; Owner: -
---
-
-COMMENT ON COLUMN public.links.domain_id IS 'Immutable. ON DELETE RESTRICT: a domain cannot be purged while any link row points at it.';
-
-
---
--- Name: COLUMN links.slug; Type: COMMENT; Schema: public; Owner: -
---
-
-COMMENT ON COLUMN public.links.slug IS 'Immutable, and never released except by a purge.';
-
-
---
--- Name: COLUMN links.description; Type: COMMENT; Schema: public; Owner: -
---
-
-COMMENT ON COLUMN public.links.description IS 'Filled from the destination''s <head> when the request did not supply one (resources/docs/adr/0014).';
-
-
---
--- Name: COLUMN links.icon_url; Type: COMMENT; Schema: public; Owner: -
---
-
-COMMENT ON COLUMN public.links.icon_url IS 'The destination''s favicon, resolved to an absolute URL (resources/docs/adr/0014).';
-
-
---
--- Name: COLUMN links.forward_query; Type: COMMENT; Schema: public; Owner: -
---
-
-COMMENT ON COLUMN public.links.forward_query IS 'Merge the incoming query string over the destination.';
-
-
---
--- Name: COLUMN links.preset_params; Type: COMMENT; Schema: public; Owner: -
---
-
-COMMENT ON COLUMN public.links.preset_params IS 'Record<string, string>, at most 20. Set on the destination when forward_query is true, overriding its own query and the forwarded one.';
-
-
---
--- Name: COLUMN links.expires_at; Type: COMMENT; Schema: public; Owner: -
---
-
-COMMENT ON COLUMN public.links.expires_at IS 'Past this, the link resolves like an unknown slug. Null never expires.';
-
-
---
--- Name: COLUMN links.listed; Type: COMMENT; Schema: public; Owner: -
---
-
-COMMENT ON COLUMN public.links.listed IS 'Opt-in: listed in the domain''s public /llms.txt catalogue (resources/docs/adr/0013).';
-
-
---
 -- Name: qr_codes; Type: TABLE; Schema: public; Owner: -
 --
 
@@ -414,13 +240,6 @@ CREATE TABLE public.qr_codes (
 
 
 --
--- Name: TABLE qr_codes; Type: COMMENT; Schema: public; Owner: -
---
-
-COMMENT ON TABLE public.qr_codes IS 'A styled QR code for a link. The encoded data is never stored: it is always the link''s current short URL, resolved at render time, so only the styling lives here. Deleted, not archived (resources/docs/adr/0002).';
-
-
---
 -- Name: rules; Type: TABLE; Schema: public; Owner: -
 --
 
@@ -434,27 +253,6 @@ CREATE TABLE public.rules (
 
 
 --
--- Name: TABLE rules; Type: COMMENT; Schema: public; Owner: -
---
-
-COMMENT ON TABLE public.rules IS 'Ordered alternate destinations for a link, at most 50. The lowest matching position wins.';
-
-
---
--- Name: COLUMN rules."position"; Type: COMMENT; Schema: public; Owner: -
---
-
-COMMENT ON COLUMN public.rules."position" IS 'Server-owned, gapless from 0.';
-
-
---
--- Name: COLUMN rules.conditions; Type: COMMENT; Schema: public; Owner: -
---
-
-COMMENT ON COLUMN public.rules.conditions IS 'Condition[]: platform | query_param. ANDed, never empty, at most 10.';
-
-
---
 -- Name: tags; Type: TABLE; Schema: public; Owner: -
 --
 
@@ -463,20 +261,6 @@ CREATE TABLE public.tags (
     name text NOT NULL,
     created_at timestamp with time zone DEFAULT now() NOT NULL
 );
-
-
---
--- Name: TABLE tags; Type: COMMENT; Schema: public; Owner: -
---
-
-COMMENT ON TABLE public.tags IS 'Every tag name ever attached to a link. A tag no link carries any more stays here but drops out of GET /v1/tags, which counts through link_tags (resources/docs/adr/0020).';
-
-
---
--- Name: COLUMN tags.name; Type: COMMENT; Schema: public; Owner: -
---
-
-COMMENT ON COLUMN public.tags.name IS 'Lowercased and trimmed by the API, at most 50 characters.';
 
 
 --
@@ -493,20 +277,6 @@ CREATE TABLE public.visit_counts (
 
 
 --
--- Name: TABLE visit_counts; Type: COMMENT; Schema: public; Owner: -
---
-
-COMMENT ON TABLE public.visit_counts IS 'All-time totals per scope: one row per link, plus one per domain for its orphans. What link lists and overview tiles read instead of aggregating visits. Derived, and link_id has no foreign key, for the same reasons as visit_days.';
-
-
---
--- Name: COLUMN visit_counts.link_id; Type: COMMENT; Schema: public; Owner: -
---
-
-COMMENT ON COLUMN public.visit_counts.link_id IS 'Null is the orphan scope, one row per domain. No foreign key; see visit_days.';
-
-
---
 -- Name: visit_days; Type: TABLE; Schema: public; Owner: -
 --
 
@@ -519,34 +289,6 @@ CREATE TABLE public.visit_days (
     is_bot boolean NOT NULL,
     count bigint DEFAULT 0 NOT NULL
 );
-
-
---
--- Name: TABLE visit_days; Type: COMMENT; Schema: public; Owner: -
---
-
-COMMENT ON TABLE public.visit_days IS 'Pre-counted visits: one row per day, scope, dimension value and bot flag, serving every grouping the stats API offers (resources/docs/adr/0007). Derived: only the visits_rollup trigger writes here, thirteen rows per visit. link_id deliberately has no foreign key: purging a link merges its rows into the orphan scope, which ON DELETE SET NULL would pre-empt and collide on the unique key. domain_id cascades, so purging a domain destroys its rollups with its visits.';
-
-
---
--- Name: COLUMN visit_days.day; Type: COMMENT; Schema: public; Owner: -
---
-
-COMMENT ON COLUMN public.visit_days.day IS 'Cut in UTC, so a report never shifts with the session timezone.';
-
-
---
--- Name: COLUMN visit_days.link_id; Type: COMMENT; Schema: public; Owner: -
---
-
-COMMENT ON COLUMN public.visit_days.link_id IS 'Null is the orphan scope. No foreign key; see the table comment.';
-
-
---
--- Name: COLUMN visit_days.value; Type: COMMENT; Schema: public; Owner: -
---
-
-COMMENT ON COLUMN public.visit_days.value IS 'Empty string where the dimension was not recorded, never a word a real value could collide with. The referer dimension holds a host, not the full URL.';
 
 
 --
@@ -585,139 +327,6 @@ END) STORED,
     region text
 )
 WITH (autovacuum_vacuum_insert_scale_factor='0.02');
-
-
---
--- Name: TABLE visits; Type: COMMENT; Schema: public; Owner: -
---
-
-COMMENT ON TABLE public.visits IS 'One row per request, inserted fire-and-forget so a visit never delays a redirect. The only source of truth for analytics: visit_days and visit_counts are derived from it by trigger (resources/docs/adr/0007).';
-
-
---
--- Name: COLUMN visits.id; Type: COMMENT; Schema: public; Owner: -
---
-
-COMMENT ON COLUMN public.visits.id IS 'UUIDv7, so it breaks ties in the order visits happened.';
-
-
---
--- Name: COLUMN visits.link_id; Type: COMMENT; Schema: public; Owner: -
---
-
-COMMENT ON COLUMN public.visits.link_id IS 'Null is an orphan visit. ON DELETE CASCADE, so purging a link destroys its visits.';
-
-
---
--- Name: COLUMN visits.slug_requested; Type: COMMENT; Schema: public; Owner: -
---
-
-COMMENT ON COLUMN public.visits.slug_requested IS 'What the caller asked for. Empty for the root path.';
-
-
---
--- Name: COLUMN visits.is_bot; Type: COMMENT; Schema: public; Owner: -
---
-
-COMMENT ON COLUMN public.visits.is_bot IS 'Decided once at ingest. No user agent at all counts as a bot.';
-
-
---
--- Name: COLUMN visits.os; Type: COMMENT; Schema: public; Owner: -
---
-
-COMMENT ON COLUMN public.visits.os IS 'Open vocabulary (unlike platform), lowercased. Null when it could not be determined.';
-
-
---
--- Name: COLUMN visits.browser; Type: COMMENT; Schema: public; Owner: -
---
-
-COMMENT ON COLUMN public.visits.browser IS 'Open vocabulary (unlike platform), lowercased. Null when it could not be determined.';
-
-
---
--- Name: COLUMN visits.referer_host; Type: COMMENT; Schema: public; Owner: -
---
-
-COMMENT ON COLUMN public.visits.referer_host IS 'Generated: the host of referer. Empty for an absent or relative URL (resources/docs/adr/0015).';
-
-
---
--- Name: COLUMN visits.destination; Type: COMMENT; Schema: public; Owner: -
---
-
-COMMENT ON COLUMN public.visits.destination IS 'The URL actually chosen, after rules, before query merging.';
-
-
---
--- Name: COLUMN visits.query; Type: COMMENT; Schema: public; Owner: -
---
-
-COMMENT ON COLUMN public.visits.query IS 'Record<string, string[]> of the incoming query, before any merging.';
-
-
---
--- Name: COLUMN visits.bot_classification; Type: COMMENT; Schema: public; Owner: -
---
-
-COMMENT ON COLUMN public.visits.bot_classification IS 'Why is_bot was decided. Null on visits recorded before it existed, or imported without one.';
-
-
---
--- Name: COLUMN visits.utm_source; Type: COMMENT; Schema: public; Owner: -
---
-
-COMMENT ON COLUMN public.visits.utm_source IS 'Generated from query: first value, lowercased and trimmed, capped at 200 characters. Null when absent or blank.';
-
-
---
--- Name: COLUMN visits.utm_medium; Type: COMMENT; Schema: public; Owner: -
---
-
-COMMENT ON COLUMN public.visits.utm_medium IS 'Generated from query: first value, lowercased and trimmed, capped at 200 characters. Null when absent or blank.';
-
-
---
--- Name: COLUMN visits.utm_campaign; Type: COMMENT; Schema: public; Owner: -
---
-
-COMMENT ON COLUMN public.visits.utm_campaign IS 'Generated from query: first value, lowercased and trimmed, capped at 200 characters. Null when absent or blank.';
-
-
---
--- Name: COLUMN visits.utm_content; Type: COMMENT; Schema: public; Owner: -
---
-
-COMMENT ON COLUMN public.visits.utm_content IS 'Generated from query: first value, lowercased and trimmed, capped at 200 characters. Null when absent or blank.';
-
-
---
--- Name: COLUMN visits.utm_term; Type: COMMENT; Schema: public; Owner: -
---
-
-COMMENT ON COLUMN public.visits.utm_term IS 'Generated from query: first value, lowercased and trimmed, capped at 200 characters. Null when absent or blank.';
-
-
---
--- Name: COLUMN visits.device_type; Type: COMMENT; Schema: public; Owner: -
---
-
-COMMENT ON COLUMN public.visits.device_type IS 'Generated from user_agent: mobile, tablet or desktop. Null when the user agent is absent or blank.';
-
-
---
--- Name: COLUMN visits.country; Type: COMMENT; Schema: public; Owner: -
---
-
-COMMENT ON COLUMN public.visits.country IS 'ISO 3166-1 alpha-2. Only imported data fills it; linq does not capture it yet (resources/docs/adr/0021).';
-
-
---
--- Name: COLUMN visits.region; Type: COMMENT; Schema: public; Owner: -
---
-
-COMMENT ON COLUMN public.visits.region IS 'Region name. Only imported data fills it; linq does not capture it yet (resources/docs/adr/0021).';
 
 
 --
@@ -1012,4 +621,5 @@ ALTER TABLE ONLY public.visits
 -- PostgreSQL database dump complete
 --
 
+\unrestrict linq
 
