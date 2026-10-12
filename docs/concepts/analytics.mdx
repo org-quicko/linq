@@ -1,0 +1,288 @@
+---
+title: "Analytics: Visit Tracking and Link Performance in linq"
+sidebarTitle: "Analytics"
+description: "Every redirect is a Visit. See what linq captures per request, how Postgres-trigger rollups speed up queries, and how to use the analytics API endpoints."
+---
+
+linq records every redirect request as a **Visit** and makes that data immediately queryable through the analytics API. Every redirect — whether it hits a rule, falls back to the default destination, or resolves to no link at all — produces a visit record the moment the 302 is issued. The recording is fire-and-forget: a visit insert never delays a redirect, and a failed insert never turns a working link into an error. The result is a complete, low-latency audit trail of link traffic that you can query, filter, and slice without ever touching raw database tables.
+
+## What a Visit Captures
+
+Each visit record carries the following fields:
+
+<ResponseField name="id" type="string (UUID)">
+  Unique identifier. UUIDv7, time-sortable.
+</ResponseField>
+
+<ResponseField name="link_id" type="string (UUID) | null">
+  The link that resolved the visit. `null` for orphan visits — unknown slug, archived link, expired link, or the root path.
+</ResponseField>
+
+<ResponseField name="domain_id" type="string (UUID)">
+  The domain that received the request.
+</ResponseField>
+
+<ResponseField name="slug_requested" type="string">
+  The exact slug the visitor requested. Empty string for root-path visits.
+</ResponseField>
+
+<ResponseField name="occurred_at" type="string (ISO 8601)">
+  When the visit was recorded, in UTC.
+</ResponseField>
+
+<ResponseField name="is_bot" type="boolean">
+  Whether the visitor was detected as a bot or link-preview crawler, decided once at ingest based on User-Agent pattern matching. A request with no User-Agent at all is treated as a bot. Human and bot counts are tracked and reported separately on every link and in every analytics query.
+</ResponseField>
+
+<ResponseField name="platform" type='"android" | "ios" | "desktop"'>
+  Detected from the User-Agent. Used by rule matching and available as an analytics dimension.
+</ResponseField>
+
+<ResponseField name="os" type="string | null">
+  Operating system, lowercased open vocabulary (e.g. `"macos"`, `"windows"`, `"android"`). `null` when it could not be determined.
+</ResponseField>
+
+<ResponseField name="browser" type="string | null">
+  Browser name, lowercased open vocabulary (e.g. `"chrome"`, `"safari"`, `"firefox"`). `null` when it could not be determined.
+</ResponseField>
+
+<ResponseField name="user_agent" type="string | null">
+  Raw User-Agent header value. `null` if the request carried none.
+</ResponseField>
+
+<ResponseField name="referer" type="string | null">
+  The referring URL as sent in the `Referer` header — never the client IP address. `null` if absent.
+</ResponseField>
+
+<ResponseField name="destination" type="string | null">
+  The destination URL the visitor was ultimately sent to, after rule matching. `null` for orphan visits that resolved to no link.
+</ResponseField>
+
+<ResponseField name="query" type="object | null">
+  The incoming query string at redirect time, as a key-to-values map (`{ key: string[] }`). Always captured regardless of the link's `forward_query` setting. `null` when the request carried no query parameters.
+</ResponseField>
+
+<Note>
+  linq is **privacy-first by design**: no geolocation, no IP addresses, no cookies. Ever. The client's IP address is not logged, not stored in the visit row, and not accessible through any API endpoint. See `docs/adr/0001` and `docs/adr/0003` in the source repository for the rationale.
+</Note>
+
+## Human vs Bot Traffic
+
+linq distinguishes human visitors from bots using User-Agent pattern matching at ingest time. Every link response includes separate `human_visits` and `bot_visits` counters. Every analytics query accepts a `bot` filter (`"true"` | `"false"` | `"any"`, default `"any"`) so you can focus on human traffic, inspect bot activity, or view the combined total.
+
+Link-preview crawlers (Slack, iMessage, Twitter Cards) are classified as bots — their requests trigger the OG preview HTML response rather than a 302, and their hits are counted under `bot_visits`.
+
+## Orphan Visits
+
+A visit on an active domain that resolved to no active link is an **orphan visit** — the `link_id` is `null`. Orphan visits arise from:
+
+- An unknown slug (no matching link on the domain)
+- An archived link (slug still reserved but not redirecting)
+- An expired link (past its `expires_at` timestamp)
+- The root path `/` of a domain with no `base_path_redirect`
+
+Orphan visits are tracked separately and are accessible via the analytics API with the `orphan=true` query parameter. They are also visible in the UI's Orphans page.
+
+## Pre-Aggregated Rollups
+
+linq maintains two rollup tables — `visit_days` and `visit_counts` — using **Postgres triggers on insert**. Every time a visit is recorded, the triggers update these tables automatically with no application-level rollup job that could fall behind or miss rows.
+
+- **`visit_counts`** — one indexed row per link with cumulative human and bot totals. Powers the `human_visits` and `bot_visits` fields on every link response.
+- **`visit_days`** — aggregated counts per day, per dimension (platform, OS, browser, referer, slug, destination). Powers the timeseries and breakdown analytics endpoints without requiring a full `visits` table scan.
+
+When you query the analytics endpoints **without** dimension filters, linq reads from these rollups rather than scanning raw visits. This keeps list and overview queries fast even on instances with millions of visit rows.
+
+## Analytics API Endpoints
+
+All analytics endpoints require a valid API key and accept a common set of query parameters.
+
+### Common Query Parameters
+
+<ParamField query="from" type="date (YYYY-MM-DD)">
+  Start of the date range (inclusive). Absent means all time — only allowed on the rollup path (no dimension filters).
+</ParamField>
+
+<ParamField query="to" type="date (YYYY-MM-DD)">
+  End of the date range (inclusive). Defaults to today.
+</ParamField>
+
+<ParamField query="link_id" type="string (UUID) | comma-separated UUIDs">
+  Restrict results to one or more specific links.
+</ParamField>
+
+<ParamField query="domain_id" type="string (UUID) | comma-separated UUIDs">
+  Restrict results to one or more domains.
+</ParamField>
+
+<ParamField query="orphan" type='"true" | "false"' default='"false"'>
+  When `"true"`, restrict to orphan visits only. When `"false"` (default), orphan visits are included in the totals but accessible separately via the `orphans` field on the summary response.
+</ParamField>
+
+<ParamField query="bot" type='"true" | "false" | "any"' default='"any"'>
+  Filter to bot-only traffic, human-only traffic, or all traffic combined.
+</ParamField>
+
+<ParamField query="platform" type="string | comma-separated strings">
+  Filter to `android`, `ios`, or `desktop`. Dimension filter — forces a raw visit scan; requires `from` within 366 days of `to`.
+</ParamField>
+
+<ParamField query="os" type="string | comma-separated strings">
+  Filter by OS name (lowercased, open vocabulary). Dimension filter.
+</ParamField>
+
+<ParamField query="browser" type="string | comma-separated strings">
+  Filter by browser name (lowercased, open vocabulary). Dimension filter.
+</ParamField>
+
+<ParamField query="referer" type="string | comma-separated strings">
+  Filter by referer host. Dimension filter.
+</ParamField>
+
+---
+
+### `GET /api/v1/analytics/summary`
+
+Returns aggregate visit totals for the selected scope.
+
+```http
+GET /api/v1/analytics/summary?domain_id=018f...&from=2024-01-01&to=2024-01-31
+```
+
+**Response:**
+
+```json
+{
+  "visits": 14823,
+  "human": 12100,
+  "bot": 2723,
+  "orphans": 45
+}
+```
+
+<ResponseField name="visits" type="integer">
+  Total visits (human + bot).
+</ResponseField>
+<ResponseField name="human" type="integer">
+  Visits not flagged as bots.
+</ResponseField>
+<ResponseField name="bot" type="integer">
+  Visits flagged as bots or link-preview crawlers.
+</ResponseField>
+<ResponseField name="orphans" type="integer">
+  Visits that resolved to no active link. Always `0` when a `link_id` filter is applied.
+</ResponseField>
+
+---
+
+### `GET /api/v1/analytics/timeseries`
+
+Returns daily visit counts over time, in ascending chronological order. The only analytics endpoint that returns data as a time-ordered series suitable for charting.
+
+```http
+GET /api/v1/analytics/timeseries?link_id=018f...&from=2024-01-01&to=2024-01-31
+```
+
+**Response** (array of `StatsBucket`):
+
+```json
+[
+  { "key": "2024-01-01", "human": 430, "bot": 12 },
+  { "key": "2024-01-02", "human": 518, "bot": 9 },
+  { "key": "2024-01-03", "human": 392, "bot": 15 }
+]
+```
+
+<Tip>
+  For heavy time ranges, narrow the window with `from` and `to`. Requests without dimension filters read from the pre-aggregated `visit_days` rollup and are fast regardless of range. Requests **with** dimension filters (e.g. `platform=ios`) scan the raw `visits` table and are subject to a maximum window of 366 days to keep the scan bounded.
+</Tip>
+
+---
+
+### `GET /api/v1/analytics/breakdown`
+
+Returns visit counts grouped by a chosen dimension, ordered by total volume descending.
+
+```http
+GET /api/v1/analytics/breakdown?domain_id=018f...&dimension=platform&from=2024-01-01
+```
+
+<ParamField query="dimension" type="string" required>
+  One of: `referer`, `os`, `browser`, `platform`, `slug`, `destination`.
+</ParamField>
+
+**Response** (array of `StatsBucket`):
+
+```json
+[
+  { "key": "desktop", "human": 8940, "bot": 2100 },
+  { "key": "ios",     "human": 2300, "bot": 430 },
+  { "key": "android", "human": 860,  "bot": 193 }
+]
+```
+
+The `key` is the dimension value. An absent or unrecorded value (e.g. a visit with no referer) uses the sentinel string `"(none)"` as its key.
+
+---
+
+### `GET /api/v1/visits`
+
+Returns the raw paginated visit log. Useful for export, auditing, or building custom aggregations.
+
+```http
+GET /api/v1/visits?link_id=018f...&from=2024-01-01T00:00:00Z&to=2024-01-31T23:59:59Z
+```
+
+Unlike the analytics endpoints (which use date boundaries), `GET /api/v1/visits` filters on precise ISO 8601 datetime values (`from` / `to` are instants, not dates).
+
+<Accordion title="Visit list query parameters">
+
+<ParamField query="link_id" type="UUID">
+  Restrict to one specific link.
+</ParamField>
+
+<ParamField query="domain_id" type="UUID">
+  Restrict to one specific domain.
+</ParamField>
+
+<ParamField query="from" type="ISO 8601 datetime">
+  Lower bound on `occurred_at` (inclusive).
+</ParamField>
+
+<ParamField query="to" type="ISO 8601 datetime">
+  Upper bound on `occurred_at` (inclusive).
+</ParamField>
+
+<ParamField query="bot" type='"true" | "false" | "any"' default='"any"'>
+  Filter by bot classification.
+</ParamField>
+
+<ParamField query="platform" type='"android" | "ios" | "desktop"'>
+  Filter by platform.
+</ParamField>
+
+<ParamField query="os" type="string">
+  Filter by OS name (lowercased).
+</ParamField>
+
+<ParamField query="browser" type="string">
+  Filter by browser name (lowercased).
+</ParamField>
+
+<ParamField query="orphan" type='"true" | "false"' default='"false"'>
+  When `"true"`, return only orphan visits.
+</ParamField>
+
+</Accordion>
+
+## Analytics Dimensions Reference
+
+The breakdown endpoint supports these dimensions:
+
+| Dimension | Description |
+|---|---|
+| `platform` | `android`, `ios`, or `desktop` |
+| `os` | Operating system (open vocabulary, lowercased) |
+| `browser` | Browser name (open vocabulary, lowercased) |
+| `referer` | Referring host extracted from the `Referer` header |
+| `slug` | The slug that was requested |
+| `destination` | The destination URL the visit resolved to |

@@ -1,0 +1,177 @@
+---
+title: "Error Responses: HTTP Status Codes and JSON Error Shape"
+sidebarTitle: "Errors"
+description: "The JSON error envelope linq returns on every failure path, all HTTP status codes, Zod validation error details, and common causes for each response code."
+---
+
+linq returns structured JSON errors on every failure path — there are no plain-text error bodies, no HTML error pages, and no empty responses for non-2xx status codes. Every error, from a missing API key to a Zod validation failure, follows the same envelope. This makes it straightforward to write a single error-handling layer in any client and to map response codes to recovery logic without inspecting response bodies by hand.
+
+## Error Response Shape
+
+All error responses share one envelope defined by the `ApiError` class in `packages/shared/src/errors.ts`:
+
+```json
+{
+  "error": {
+    "code": "not_found",
+    "message": "link not found"
+  }
+}
+```
+
+<ResponseField name="error" type="object" required>
+  The error container. Always present on non-2xx responses.
+
+  <Expandable title="error fields">
+    <ResponseField name="code" type="string" required>
+      A machine-readable error code. One of: `validation_failed`, `unauthorized`, `forbidden`, `not_found`, `conflict`, `rate_limited`, `internal`. Maps one-to-one to the HTTP status code.
+    </ResponseField>
+    <ResponseField name="message" type="string" required>
+      A human-readable description of what went wrong. Suitable for logging; not guaranteed to be stable across releases.
+    </ResponseField>
+    <ResponseField name="details" type="array">
+      Present only on `validation_failed` (400) responses. Contains the raw Zod issue objects describing every field that failed validation. See [Validation Errors](#validation-errors-400) below.
+    </ResponseField>
+  </Expandable>
+</ResponseField>
+
+## HTTP Status Codes
+
+| Code | Meaning | Common Causes |
+|---|---|---|
+| `200` | OK | Successful read or update. |
+| `201` | Created | Successful resource creation (`POST` endpoints). |
+| `204` | No Content | Successful delete or purge. No response body. |
+| `400` | Bad Request | Request body failed Zod schema validation. The `details` array carries field-level issues. |
+| `401` | Unauthorized | No API key was sent, the key is unknown, or the key's `expires_at` has passed. |
+| `403` | Forbidden | The key is valid but its role does not meet the operation's minimum. Also returned when an admin attempts to revoke or downgrade their own key. |
+| `404` | Not Found | The resource does not exist or is archived. Archived resources are treated as non-existent to callers. |
+| `409` | Conflict | The request is well-formed but conflicts with current state — e.g., a slug already taken on the domain, a domain that still has active links being archived. |
+| `429` | Too Many Requests | Rate limit exceeded. Returned when `LINQ_API_RATE_LIMIT_PER_MINUTE` is configured and the calling key has exceeded it. |
+| `500` | Internal Server Error | An unexpected server-side error. The `code` field will be `internal`. Check server logs for the full trace. |
+
+## Error Code to Status Mapping
+
+The `code` string in the error body maps exactly to one HTTP status code:
+
+| `code` | HTTP Status |
+|---|---|
+| `validation_failed` | `400` |
+| `unauthorized` | `401` |
+| `forbidden` | `403` |
+| `not_found` | `404` |
+| `conflict` | `409` |
+| `rate_limited` | `429` |
+| `internal` | `500` |
+
+## Validation Errors (400)
+
+When a request body fails Zod schema validation, the response is `400 Bad Request` with `code: "validation_failed"`. The `details` array contains one entry per failing field, each following the Zod issue format:
+
+```json
+{
+  "error": {
+    "code": "validation_failed",
+    "message": "validation failed",
+    "details": [
+      {
+        "code": "invalid_type",
+        "expected": "string",
+        "received": "undefined",
+        "path": ["destination"],
+        "message": "Required"
+      },
+      {
+        "code": "too_big",
+        "maximum": 200,
+        "type": "string",
+        "inclusive": true,
+        "path": ["name"],
+        "message": "String must contain at most 200 character(s)"
+      }
+    ]
+  }
+}
+```
+
+Each issue object includes:
+
+| Field | Description |
+|---|---|
+| `code` | Zod issue code, e.g. `invalid_type`, `too_big`, `too_small`, `invalid_string`. |
+| `path` | Array of field names identifying where in the body the issue occurred. Nested fields appear as multiple segments, e.g. `["rules", 0, "destination"]`. |
+| `message` | Human-readable description of the violation. |
+
+<Tip>
+  When building a form or CLI tool that calls linq, iterate over `details` and map each `path` to a field-level error message. This avoids a round-trip of "what exactly failed?" for your users.
+</Tip>
+
+## Common Error Scenarios
+
+<Accordion title="Slug already taken (409)">
+  A `409 Conflict` is returned when you `POST /api/v1/links` with a custom `slug` that is already claimed on that domain — including by an **archived** link. Archived links retain their slug reservation so they can be restored without being hijacked.
+
+  ```json
+  {
+    "error": {
+      "code": "conflict",
+      "message": "slug already taken"
+    }
+  }
+  ```
+
+  To resolve: choose a different slug, or purge the archived link that holds it first.
+</Accordion>
+
+<Accordion title="Archiving a domain with active links (409)">
+  A `409 Conflict` is returned when you attempt to archive or purge a domain that still has links pointing at it. All links (including archived ones) must be removed before a domain can be purged.
+
+  ```json
+  {
+    "error": {
+      "code": "conflict",
+      "message": "domain has active links"
+    }
+  }
+  ```
+</Accordion>
+
+<Accordion title="Rate limit exceeded (429)">
+  A `429 Too Many Requests` is returned when `LINQ_API_RATE_LIMIT_PER_MINUTE` is set and the calling key exceeds it. The response includes a `Retry-After` header indicating when the caller may retry.
+
+  ```json
+  {
+    "error": {
+      "code": "rate_limited",
+      "message": "rate limit exceeded"
+    }
+  }
+  ```
+
+  linq intentionally does not trust `X-Forwarded-For` for rate-limit attribution. If you deploy linq behind a reverse proxy, apply an edge-level rate limit there for public traffic.
+</Accordion>
+
+<Accordion title="Immutable field sent on PATCH (400)">
+  Several resources have immutable fields — `slug` and `domain_id` on a link, `link_id` on a QR code, `host` on a domain. These endpoints use strict body schemas: sending an immutable field is a `400 Bad Request` rather than silently ignoring it.
+
+  ```json
+  {
+    "error": {
+      "code": "validation_failed",
+      "message": "validation failed",
+      "details": [
+        {
+          "code": "unrecognized_keys",
+          "keys": ["slug"],
+          "path": [],
+          "message": "Unrecognized key(s) in object: 'slug'"
+        }
+      ]
+    }
+  }
+  ```
+</Accordion>
+
+<Note>
+  Archived resources return `404 Not Found` from all API endpoints — they are treated as non-existent to callers. This applies to archived links, archived domains, and any resource looked up through an archived parent. If you need to work with an archived resource, restore it first via `PATCH { "status": "active" }` (admin-only), or use the list endpoint with `status=archived` to discover and manage archived items.
+</Note>

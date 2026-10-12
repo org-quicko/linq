@@ -1,0 +1,203 @@
+---
+title: "Quickstart: Install linq and Create Your First Short Link"
+sidebarTitle: "Quickstart"
+description: "Install linq, connect it to PostgreSQL, configure your environment, and create your first short link. No Redis or extra services needed to get started."
+---
+
+linq is a self-hosted SaaS platform for URL shortening, dynamic link routing, and link-tree pages — all operated through a REST API and a static Next.js web UI. This guide walks you from a fresh checkout to a running instance with a working short link you can redirect in your browser.
+
+## Prerequisites
+
+Before you begin, make sure the following are installed and running on your machine:
+
+- **Bun 1.4+** — verify with `bun --version`. If the command is not found, Bun installs to `~/.bun/bin`; add that directory to your `PATH`.
+- **PostgreSQL 15+** — running and reachable on `localhost:5432`. linq never starts Postgres itself; if it cannot connect at boot, it exits immediately with `ERR_POSTGRES_CONNECTION_REFUSED`.
+
+The redirect cache runs inside the linq process on an in-memory LRU by default, so no Redis instance is needed to get started.
+
+---
+
+## Setup
+
+<Steps>
+
+### Install dependencies
+
+Clone the repository and install all workspace packages with a single command:
+
+```bash
+bun install
+```
+
+Bun reads the repo-root `package.json` and installs dependencies for every workspace package (`apps/server`, `apps/client`, `packages/shared`) in one pass.
+
+### Create the database
+
+linq applies its own migrations at boot, but it will not create the database for you. Create it now with `psql` or any Postgres client you prefer:
+
+```bash
+psql -U postgres -c "CREATE DATABASE linq;"
+```
+
+`psql` ships with PostgreSQL but may not be on your `PATH` on Windows — check the install's `bin` directory if the command is not found. Any SQL client works equally well.
+
+### Configure your environment
+
+Copy the example file and open it in your editor:
+
+```bash
+cp .env.example .env
+```
+
+The only value you must change is `DATABASE_URL`. Set it to match your Postgres credentials:
+
+```dotenv
+DATABASE_URL=postgres://youruser:yourpassword@localhost:5432/linq
+```
+
+Every other variable has a working default. On a fresh database, linq seeds `localhost:3000` as the first domain, runs the redirect cache in-process, and listens on port 3000. You can leave all of that alone for local development.
+
+<Note>
+`LINQ_DB_SCHEMA` selects the PostgreSQL schema linq owns and defaults to `public`. Set it when sharing a database with another application — linq creates the schema if it does not exist.
+</Note>
+
+### Start the API server
+
+In your first terminal, start the server:
+
+```bash
+bun run dev
+```
+
+On an instance that has **no API keys**, linq mints an admin key and prints it once to stdout:
+
+```text
+  linq admin API key: linq_xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
+  Store it now; it is not recoverable.
+  Create more with: bun run key:create --name <name> --preset <preset>
+```
+
+<Warning>
+Copy the full `linq_…` key immediately. Only its SHA-256 hash is stored in the database — the plaintext is never saved and cannot be recovered. Every subsequent start prints nothing.
+</Warning>
+
+The server stays running in this terminal, serving the REST API on port 3000 and redirecting any `/:slug` path it knows about.
+
+### Start the Client UI
+
+Open a **second terminal**, leaving the server running in the first:
+
+```bash
+bun run dev:client
+```
+
+Open [http://localhost:3001/home/](http://localhost:3001/home/) in your browser. You will see a form asking where to connect. Fill it in with the details from the previous step:
+
+| Field | Value |
+|---|---|
+| Name | Anything descriptive — `local` works well |
+| Server URL | `http://localhost:3000` |
+| API key | The `linq_…` key printed in Step 4 |
+
+The UI validates these credentials against the server before saving them, so a typo surfaces as an error here rather than a blank page later. The connection details are stored in your browser only — nothing is sent back to the server.
+
+### Create your first short link
+
+With the server running, use `curl` to create a short link against the REST API. You need the `domain_id` of the default domain first — fetch it from the Domains list:
+
+<CodeGroup>
+
+```bash Fetch the default domain
+curl -s http://localhost:3000/api/v1/domains \
+  -H "Authorization: Bearer linq_xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx" \
+  | grep -o '"id":"[^"]*"' | head -1
+```
+
+```bash Create a short link
+curl -s -X POST http://localhost:3000/api/v1/links \
+  -H "Authorization: Bearer linq_xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "domain_id": "<domain-uuid-from-above>",
+    "destination": "https://example.com/your/long/url",
+    "name": "My first link",
+    "slug": "hello"
+  }'
+```
+
+</CodeGroup>
+
+A successful response returns the new link object, including the ready-to-use `short_url`:
+
+```json
+{
+  "id": "018f1a2b-3c4d-7e8f-9a0b-1c2d3e4f5a6b",
+  "domain_id": "018f1a2b-0000-7000-8000-000000000001",
+  "domain_host": "localhost:3000",
+  "slug": "hello",
+  "short_url": "http://localhost:3000/hello",
+  "destination": "https://example.com/your/long/url",
+  "name": "My first link",
+  "status": "active",
+  "human_visits": 0,
+  "bot_visits": 0,
+  "forward_query": true,
+  "preset_params": {},
+  "tags": [],
+  "rule_count": 0,
+  "expires_at": null,
+  "listed": false,
+  "created_at": "2024-01-15T10:00:00.000Z",
+  "updated_at": "2024-01-15T10:00:00.000Z"
+}
+```
+
+Open `http://localhost:3000/hello` in your browser — it redirects to `https://example.com/your/long/url`.
+
+</Steps>
+
+---
+
+## Default URLs
+
+The table below uses the default port configuration. If you have changed `LINQ_PORT` or `LINQ_CLIENT_PORT` in your `.env`, substitute your configured values.
+
+| URL | Purpose |
+|---|---|
+| `http://localhost:3000/api/v1` | REST API |
+| `http://localhost:3000/home/` | Client UI (when the server serves the built export) |
+| `http://localhost:3001/home/` | Client UI during development (`bun run dev:client`) |
+| `http://localhost:3000/:slug` | Short link redirect |
+
+<Info>
+`http://localhost:3000/` is not the Client UI — it is the root slug for the `localhost:3000` domain, which redirects to that domain's configured fallback URL and returns 404 when none is set. Set a fallback on the Domains page if you want the root path to go somewhere.
+</Info>
+
+---
+
+## Starting again later
+
+Steps 1–3 are one-time. On subsequent runs, start Postgres, then open two terminals:
+
+```bash
+bun run dev         # terminal 1 — API and redirects on :3000
+bun run dev:client  # terminal 2 — Client UI on :3001
+```
+
+The server you added is stored in your browser, so the UI reconnects to it automatically.
+
+---
+
+<Note>
+**About the admin key.** The key is the only principal in linq — there are no user accounts. linq stores only the SHA-256 hash of the key; the plaintext is shown once and then gone. If you lose it, the only recovery path is to create another key. If every key is ever revoked, linq mints a fresh admin key on the next restart so the instance is never permanently locked out.
+</Note>
+
+<Tip>
+**Create more keys without restarting.** Once the server is running, use the CLI to mint an additional key immediately:
+
+```bash
+bun run key:create --name ops --preset admin
+```
+
+`--preset` defaults to `admin`. Pass `--expires <ISO date>` to create a key that expires automatically. Day-to-day key management is also available on the Keys page in the UI, or via `POST /api/v1/keys`.
+</Tip>

@@ -1,0 +1,51 @@
+---
+title: "Link Trees: Hosted Multi-Link Profile Pages in linq"
+sidebarTitle: "Link Trees"
+description: "A link tree is a hosted page of curated links behind one short URL — a social-profile page served by linq directly on your domain, no third party required."
+---
+
+A link tree is a link of kind `tree` that serves a hosted HTML page instead of issuing a redirect. When a visitor lands on its short URL, linq renders the page directly — displaying a title, description, optional image, and an ordered list of items, each pointing to another link on the same domain. Link trees are the linq equivalent of social-media profile link pages (like Linktree or Carrd), but self-hosted on your own domain with no third-party dependency.
+
+## Tree Links vs Redirect Links
+
+<Tabs>
+  <Tab title="Redirect link">
+    A `redirect` link has a `destination` URL. Visiting the short URL produces an HTTP 302 to that destination. A redirect link may carry conditional rules to vary its destination per visitor. The visitor never sees a linq-hosted page.
+  </Tab>
+  <Tab title="Tree link">
+    A `tree` link serves a linq-rendered HTML page when visited. The page displays a title, description, optional image, and an ordered list of items — each a label pointing to another link on the same domain. There are no rules on a tree link.
+  </Tab>
+</Tabs>
+
+The short URL format is identical for both kinds: `https://<domain>/<slug>`. Only what happens on arrival differs.
+
+## Items
+
+Each item on a tree page is an ordered entry with:
+
+- A **label** — the visible text shown to the visitor.
+- A **target link** — another link that lives on the **same domain** as the tree. The target can be any active redirect link on that domain. Clicking the item follows the target link's own redirect, including any rules.
+
+<Note>
+  Target links must belong to the **same domain** as the tree link. You cannot mix links from different domains on a single tree page.
+</Note>
+
+Items are managed as a sub-resource of the tree link. The order of items in the response is the order they appear on the rendered page.
+
+## QR Codes
+
+Tree links support the same QR code generation as redirect links. A QR code for a tree link encodes the tree's own short URL (`https://<domain>/<slug>`), which always resolves to the hosted page. You can generate multiple QR codes per tree link, each with its own color scheme and dot/corner pattern.
+
+<Tip>
+  Set a tree link as your domain's **fallback URL** to turn every orphan visit on that domain into a curated landing experience. Any visitor who lands on an unknown slug, an archived link, or the bare root path will see your tree page instead of a 404.
+
+  Example: set `fallback_url` on your domain to `https://go.example.com/links`, where `links` is the slug of your tree link.
+</Tip>
+
+## OG Metadata and Social Sharing
+
+When a link-preview crawler (Slack, iMessage, Twitter) hits the tree's short URL, linq detects the crawler's User-Agent and serves the same hosted HTML page — which already carries the correct Open Graph tags in its `<head>`. No separate OG-preview logic is needed; the tree page is the canonical response for all visitors, human and bot alike.
+
+## Link Lifecycle
+
+Tree links follow the same active → archived → purged lifecycle as redirect links. Archiving a tree link stops the hosted page from being served. Purging destroys the link row, releases the slug, and destroys all associated visit records permanently. Archiving and purging require an `admin`-role API key.

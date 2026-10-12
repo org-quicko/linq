@@ -1,0 +1,145 @@
+---
+title: "linq API Authentication: API Keys and HTTP Headers"
+sidebarTitle: "Authentication"
+description: "How to pass an API key using the Authorization or X-Api-Key header, what a 401 response looks like, and how to obtain your first key in linq."
+---
+
+Every endpoint under `/api/v1` requires an API key. There are no user accounts, no session cookies, and no OAuth flows — the key is the principal. linq authenticates by hashing the presented key and looking it up in the `api_keys` table: a missing key, an unknown key, or a key whose `expires_at` has passed all produce a `401 Unauthorized` response. The only exceptions to this requirement are `GET /api/health` and `GET /llms.txt`, which are intentionally unauthenticated.
+
+## Accepted Headers
+
+linq accepts an API key in two headers. Both are equivalent; use whichever fits your client:
+
+**Preferred: `Authorization` bearer token**
+
+```http
+Authorization: Bearer linq_xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
+```
+
+**Fallback: `X-Api-Key` header**
+
+```http
+X-Api-Key: linq_xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
+```
+
+The `X-Api-Key` form is provided as a fallback for clients or proxies that cannot set a custom `Authorization` header. In all other cases, the `Authorization: Bearer` form is preferred.
+
+## curl Examples
+
+<CodeGroup>
+```bash Authorization Header
+curl -s https://<your-host>/api/v1/me \
+  -H "Authorization: Bearer linq_xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
+```
+
+```bash X-Api-Key Header
+curl -s https://<your-host>/api/v1/me \
+  -H "X-Api-Key: linq_xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
+```
+</CodeGroup>
+
+## Full Example: Creating a Link
+
+The following example creates a short link using Bearer authentication:
+
+```bash
+curl -s -X POST https://<your-host>/api/v1/links \
+  -H "Authorization: Bearer linq_xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "domain_id": "d290f1ee-6c54-4b01-90e6-d701748f0851",
+    "destination": "https://example.com/some/long/path",
+    "name": "Example campaign link",
+    "tags": ["marketing", "launch"]
+  }'
+```
+
+A successful response returns `201 Created` with the full link object, including the generated `short_url`.
+
+## Getting Your First Key
+
+linq mints an **admin key automatically** the first time it starts with an empty `api_keys` table, and prints the plaintext secret to stdout:
+
+```
+  linq admin API key: linq_xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
+  Store it now; it is not recoverable.
+  Create more with: bun run key:create --name <name> --preset <preset>
+```
+
+Copy it immediately — only its SHA-256 hash is stored. The server will not print it again. If every key is ever revoked, the next restart mints a fresh admin key under the same rule.
+
+**Additional keys** can be created in three ways:
+
+<Steps>
+  <Step title="Via the REST API">
+    Send a `POST /api/v1/keys` request with an existing admin key. The response includes the plaintext `secret` field — the only time it ever appears.
+
+    ```bash
+    curl -s -X POST https://<your-host>/api/v1/keys \
+      -H "Authorization: Bearer linq_xxxxxxxxxx" \
+      -H "Content-Type: application/json" \
+      -d '{"name": "ci-deploy", "role": "editor"}'
+    ```
+  </Step>
+  <Step title="Via the CLI">
+    Run `bun run key:create` from the repository root without restarting the server:
+
+    ```bash
+    bun run key:create --name ops --preset admin
+    ```
+
+    `--preset` defaults to `admin`; `--expires <ISO date>` sets an expiry.
+  </Step>
+  <Step title="Via the Client UI">
+    Open the **Keys** page in the web UI. See [API Keys](/auth/api-keys) for a walkthrough.
+  </Step>
+</Steps>
+
+## Roles
+
+Roles are ordered from least to most privileged: `viewer < editor < admin`. Every operation in the API states the minimum role it requires. A key with an insufficient role is authenticated successfully but receives a `403 Forbidden` response.
+
+| Role | What it can do |
+|---|---|
+| `viewer` | Read all resources. Cannot create, update, archive, or purge. |
+| `editor` | All viewer actions, plus create and update links, rules, and QR codes. |
+| `admin` | All editor actions, plus archive/restore/purge links and domains, manage keys, and manage domains. |
+
+## 401 Unauthorized
+
+A `401` is returned when the key is missing, unknown, or expired. The response body follows linq's standard error envelope:
+
+```json
+{
+  "error": {
+    "code": "unauthorized",
+    "message": "invalid API key"
+  }
+}
+```
+
+Common causes:
+
+- No `Authorization` or `X-Api-Key` header was sent.
+- The key value is misspelled or truncated.
+- The key's `expires_at` timestamp has passed.
+- The key was revoked with `DELETE /api/v1/keys/{id}`.
+
+## 403 Forbidden
+
+A `403` is returned when the key is valid and authenticated, but its role does not meet the minimum required by the operation:
+
+```json
+{
+  "error": {
+    "code": "forbidden",
+    "message": "insufficient permissions"
+  }
+}
+```
+
+A `403` also occurs when an admin attempts to revoke or downgrade the key they are currently calling with — linq prevents an admin from accidentally locking itself out.
+
+<Warning>
+  Treat API keys like passwords. The plaintext secret is shown **once** — at creation time — and is never stored or recoverable. If a key is lost, revoke it and mint a new one. Do not commit keys to source control, and do not pass them in query string parameters where they may be captured in server or proxy logs.
+</Warning>

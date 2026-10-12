@@ -1,0 +1,255 @@
+---
+title: "Domains API: Create and Manage Custom Short Link Hosts"
+sidebarTitle: "Domains"
+description: "Full reference for the Domains resource — list, create, get, update, archive, and purge. Domains are the hosts that links live on in linq."
+---
+
+Domains are the hosts that short links live on. Each domain maps a hostname to a set of links, and carries optional fallback URLs for unmatched slugs, the root path, and malformed requests. Every link belongs to exactly one domain; a domain cannot be archived or purged while it still has any links (active or archived) pointing to it. All domain endpoints require a valid API key sent as `Authorization: Bearer <key>` or `X-Api-Key: <key>`. Roles are ordered `viewer < editor < admin`; creating, modifying, archiving, and purging domains all require `admin`.
+
+<Note>
+  The `LINQ_DEFAULT_DOMAIN` environment variable seeds the first domain entry when the domains table is empty at startup. It has no effect once any domain exists. To add further domains after the initial seed, use `POST /api/v1/domains`.
+</Note>
+
+---
+
+## GET /api/v1/domains
+
+List all domains, ordered alphabetically by host. Every role may call this endpoint.
+
+**Minimum role:** `viewer`
+
+### Query parameters
+
+<ParamField query="limit" type="integer">
+  Maximum records to return per page.
+</ParamField>
+
+<ParamField query="offset" type="integer">
+  Zero-based offset for pagination.
+</ParamField>
+
+### Response — 200
+
+<ResponseField name="data" type="Domain[]">
+  Array of domain objects.
+</ResponseField>
+
+<ResponseField name="total" type="integer">
+  Total count of domains across all pages.
+</ResponseField>
+
+<ResponseField name="limit" type="integer">
+  Page size used for this response.
+</ResponseField>
+
+<ResponseField name="offset" type="integer">
+  Offset used for this response.
+</ResponseField>
+
+```bash
+curl https://links.example.com/api/v1/domains \
+  -H "Authorization: Bearer linq_xxxx"
+```
+
+---
+
+## POST /api/v1/domains
+
+Register a new domain. The `host` must be lowercase and must not be the same hostname as the linq application itself (`LINQ_APP_HOST`). If a domain with the given host already exists, the server returns `409 Conflict`.
+
+**Minimum role:** `admin`
+
+### Request body
+
+<ParamField body="host" type="string" required>
+  The hostname, optionally with a port (e.g. `links.example.com` or `localhost:4000`). Pattern: `^[a-z0-9.-]+(:\d{1,5})?$`. Max 253 characters. Immutable after creation.
+</ParamField>
+
+<ParamField body="fallback_url" type="string | null">
+  Where orphan visits go (unknown slug, archived link, or root path if `base_path_redirect` is absent). `null` or absent means the server returns `404` for unmatched requests.
+</ParamField>
+
+<ParamField body="base_path_redirect" type="string | null">
+  Where a bare `GET /` on this host redirects. Falls back to `fallback_url` when absent.
+</ParamField>
+
+<ParamField body="invalid_short_url_redirect" type="string | null">
+  Where requests with a malformed (structurally invalid, not just unknown) slug redirect. Falls back to `fallback_url` when absent.
+</ParamField>
+
+### Response — 201
+
+Returns the created [Domain object](#domain-object).
+
+```bash
+curl -X POST https://links.example.com/api/v1/domains \
+  -H "Authorization: Bearer linq_xxxx" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "host": "go.example.com",
+    "fallback_url": "https://example.com",
+    "base_path_redirect": "https://example.com/links"
+  }'
+```
+
+---
+
+## GET /api/v1/domains/{id}
+
+Fetch a single domain by its UUID, including its current `link_count`.
+
+**Minimum role:** `viewer`
+
+### Path parameters
+
+<ParamField path="id" type="string" required>
+  UUID of the domain.
+</ParamField>
+
+### Response — 200
+
+Returns the [Domain object](#domain-object).
+
+```bash
+curl https://links.example.com/api/v1/domains/018f1e2a-0001-7000-8000-000000000001 \
+  -H "Authorization: Bearer linq_xxxx"
+```
+
+---
+
+## PATCH /api/v1/domains/{id}
+
+Update one or more mutable fields on a domain. The `host` is immutable — sending it returns `400`. To archive a domain via PATCH, set `status` to `archived`; the server refuses this if any links (active or archived) still point at the domain.
+
+**Minimum role:** `admin`
+
+### Path parameters
+
+<ParamField path="id" type="string" required>
+  UUID of the domain to update.
+</ParamField>
+
+### Request body
+
+All fields are optional.
+
+<ParamField body="fallback_url" type="string | null">
+  New fallback URL, or `null` to remove it (unmatched requests will return `404`).
+</ParamField>
+
+<ParamField body="base_path_redirect" type="string | null">
+  New root-path redirect, or `null` to fall back to `fallback_url`.
+</ParamField>
+
+<ParamField body="invalid_short_url_redirect" type="string | null">
+  New redirect for malformed slugs, or `null` to fall back to `fallback_url`.
+</ParamField>
+
+<ParamField body="status" type="string">
+  `active` or `archived`. Setting `archived` is refused while any links (including archived ones) point at this domain. Use this field to restore an archived domain without going through the `DELETE` route.
+</ParamField>
+
+### Response — 200
+
+Returns the updated [Domain object](#domain-object).
+
+```bash
+curl -X PATCH https://links.example.com/api/v1/domains/018f1e2a-0001-7000-8000-000000000001 \
+  -H "Authorization: Bearer linq_xxxx" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "fallback_url": "https://example.com/404"
+  }'
+```
+
+---
+
+## DELETE /api/v1/domains/{id}
+
+Archive a domain (soft delete). An archived domain returns an untracked `404` for every request on that host. Reversible via `PATCH { "status": "active" }`. Refused if any links — active **or archived** — still point at the domain; purge all its links first.
+
+**Minimum role:** `admin`
+
+### Path parameters
+
+<ParamField path="id" type="string" required>
+  UUID of the domain to archive.
+</ParamField>
+
+### Response — 200
+
+Returns the updated [Domain object](#domain-object) with `status: "archived"`.
+
+```bash
+curl -X DELETE https://links.example.com/api/v1/domains/018f1e2a-0001-7000-8000-000000000001 \
+  -H "Authorization: Bearer linq_xxxx"
+```
+
+---
+
+## DELETE /api/v1/domains/{id}/purge
+
+Permanently destroy an archived domain and all of its associated visit and analytics history. The domain must already be archived and must have zero links (all links must have been purged first).
+
+<Warning>
+  Purging a domain is irreversible. The domain row and all its visits and rollups are permanently destroyed — this is the one operation in linq that erases analytics history. You must archive the domain first and purge all its links before this call will succeed. A non-archived domain or one that still has any links returns `409 Conflict`.
+</Warning>
+
+**Minimum role:** `admin`
+
+### Path parameters
+
+<ParamField path="id" type="string" required>
+  UUID of the archived domain to purge.
+</ParamField>
+
+### Response — 204
+
+No content on success.
+
+```bash
+curl -X DELETE https://links.example.com/api/v1/domains/018f1e2a-0001-7000-8000-000000000001/purge \
+  -H "Authorization: Bearer linq_xxxx"
+```
+
+---
+
+## Domain object
+
+The full Domain response shape returned by all domain endpoints.
+
+<ResponseField name="id" type="string">
+  UUID (v7) of the domain.
+</ResponseField>
+
+<ResponseField name="host" type="string">
+  The hostname, optionally with a port. Lowercase. Immutable after creation.
+</ResponseField>
+
+<ResponseField name="fallback_url" type="string | null">
+  Where orphan visits (unknown slug, archived link, or root-path if `base_path_redirect` is absent) are redirected. `null` means the server returns `404`.
+</ResponseField>
+
+<ResponseField name="base_path_redirect" type="string | null">
+  Where a bare `GET /` on this host redirects. Falls back to `fallback_url` when `null`.
+</ResponseField>
+
+<ResponseField name="invalid_short_url_redirect" type="string | null">
+  Where requests with a structurally malformed slug redirect. Falls back to `fallback_url` when `null`.
+</ResponseField>
+
+<ResponseField name="status" type="string">
+  `active` or `archived`.
+</ResponseField>
+
+<ResponseField name="link_count" type="integer">
+  Total number of links on this domain, archived included. Must reach zero before the domain may be archived or purged.
+</ResponseField>
+
+<ResponseField name="created_at" type="string">
+  ISO-8601 creation timestamp.
+</ResponseField>
+
+<ResponseField name="updated_at" type="string">
+  ISO-8601 last-updated timestamp.
+</ResponseField>

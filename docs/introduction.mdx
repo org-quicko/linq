@@ -1,0 +1,66 @@
+---
+title: "linq — Self-Hosted URL Shortener and Dynamic Links"
+sidebarTitle: "Introduction"
+description: "linq is a self-hosted SaaS platform for URL shortening, conditional dynamic link routing, and link-tree pages. Deploy it with one Docker container."
+---
+
+linq is a self-hosted platform that gives you full control over your short links, dynamic routing rules, and link-tree pages — all through a clean REST API and a static web UI. Run it on your own infrastructure with a single Docker container backed by PostgreSQL.
+
+<CardGroup cols={2}>
+  <Card title="Quickstart" icon="rocket" href="/quickstart">
+    Install linq and create your first short link in under five minutes.
+  </Card>
+  <Card title="Configuration" icon="sliders" href="/configuration">
+    Every environment variable explained, with sensible defaults.
+  </Card>
+  <Card title="Docker Deployment" icon="docker" href="/deployment/docker">
+    Eleven ready-made Compose stacks for every deployment shape.
+  </Card>
+  <Card title="API Reference" icon="code" href="/api-reference/overview">
+    Full REST API for links, domains, rules, analytics, and more.
+  </Card>
+</CardGroup>
+
+## What linq does
+
+linq combines three tools in one self-hosted package:
+
+**URL shortener** — Shorten any URL to a compact slug on your own domain. Slugs are random by default (six base-62 characters) or set to any custom value you choose. A short URL is permanent: archiving a link reserves its slug so it can never be hijacked by a later link.
+
+**Dynamic links** — Add conditional rules to any link. A rule pairs an alternate destination with one or more conditions (`platform` = android/ios/desktop, or `query_param` = key present/value match). The first matching rule wins; all others fall through to the default destination. This is how you send iOS users to the App Store and everyone else to the web.
+
+**Link trees** — Create a hosted page that lists a curated set of links under a single short URL, in the style of social-media profile link pages. Each item on the tree is a link on the same domain.
+
+## Key design decisions
+
+- **No user accounts** — the only principal is an API key. Keys carry a role (`viewer`, `editor`, `admin`) and are shown once, stored hashed. Revoking a key never touches the links it created.
+- **Privacy-first** — client IP addresses are never stored in the database or written to logs. Visit records capture platform, referrer, and user agent, but not the visitor's address.
+- **One required dependency** — PostgreSQL. Redis and Caddy are optional. The redirect cache defaults to an in-process LRU so nothing else needs to be running.
+- **Static UI** — the admin UI is a Next.js static export. It can be served by the linq process or deployed anywhere that serves static files. It connects to any linq instance at runtime — one UI manages many instances.
+
+## Architecture at a glance
+
+```text
+Browser / API client
+       │
+       ▼
+  Hono HTTP server  ──►  /api/v1/*   REST API
+  (Bun runtime)    ──►  /<slug>      redirect handler  ──►  PostgreSQL
+                   ──►  /home/*      static Client UI        (+ optional Redis cache)
+                                                              (+ optional Caddy sync)
+```
+
+<CardGroup cols={2}>
+  <Card title="Core Concepts" icon="book" href="/concepts/links-and-slugs">
+    Understand links, slugs, domains, rules, and visits.
+  </Card>
+  <Card title="Authentication" icon="key" href="/auth/api-keys">
+    Create and manage API keys, understand roles.
+  </Card>
+  <Card title="Dynamic Links" icon="arrow-right-arrow-left" href="/concepts/dynamic-links">
+    Route users by platform or query parameter.
+  </Card>
+  <Card title="Analytics" icon="chart-line" href="/concepts/analytics">
+    Per-link visit counts, timeseries, and breakdowns.
+  </Card>
+</CardGroup>

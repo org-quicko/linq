@@ -1,0 +1,206 @@
+---
+title: "Dynamic Links: Route Users by Platform or Query Param"
+sidebarTitle: "Dynamic Links"
+description: "Conditional rules send different visitors to different destinations — iOS to the App Store, Android to Play Store, or anyone based on query parameters."
+---
+
+A dynamic link is a standard `redirect` link with one or more conditional **Rules** attached. When a visitor hits the short URL, linq evaluates the rules in order and redirects to the first destination whose conditions all hold. If no rule matches, the link's own default destination is used as a fallback. This lets a single short URL serve different destinations to different audiences — all without any server-side logic on your end.
+
+## How Rules Work
+
+Rules are evaluated synchronously inside the redirect handler, before the 302 is issued. No external calls are made during rule matching.
+
+<Steps>
+  <Step title="Rules are ordered by position">
+    Each rule has a `position` field assigned by the server (derived from the array index in the request body). Lower positions are checked first.
+  </Step>
+  <Step title="All conditions in a rule must hold (AND)">
+    A rule can carry up to 10 conditions. Every condition in the rule must evaluate to `true` for that rule to win. There is no OR logic within a single rule — use separate rules for that.
+  </Step>
+  <Step title="First matching rule wins">
+    The moment a rule's conditions all hold, its `destination` is used and evaluation stops. Subsequent rules are not checked.
+  </Step>
+  <Step title="Default destination is the fallback">
+    If no rule matches — or if the link has no rules at all — the redirect goes to the link's own `destination`.
+  </Step>
+</Steps>
+
+<Note>
+  Rule matching is **synchronous and in-process** — it happens entirely inside the redirect hot path with no external calls, no database reads beyond what was already fetched for the link, and no added latency beyond a few microseconds of CPU.
+</Note>
+
+## Condition Types
+
+Every condition is one of two discriminated types, defined by a `type` field.
+
+### `platform`
+
+Matches the visitor's platform as detected from the User-Agent header.
+
+<ParamField body="type" type='"platform"' required>
+  Discriminator value.
+</ParamField>
+
+<ParamField body="value" type='"android" | "ios" | "desktop"' required>
+  The platform to match against. `android` and `ios` are detected from mobile User-Agents; everything else resolves to `desktop`.
+</ParamField>
+
+### `query_param`
+
+Matches a key (and optionally a specific value) in the visitor's incoming query string.
+
+<ParamField body="type" type='"query_param"' required>
+  Discriminator value.
+</ParamField>
+
+<ParamField body="key" type="string" required>
+  The query parameter key to look for. Case-sensitive. Up to 64 characters.
+</ParamField>
+
+<ParamField body="value" type="string">
+  Optional. When omitted, the condition is satisfied if the key is **present with any value** (including an empty string). When provided, the condition is satisfied only if the key is present with **exactly this value**. Up to 512 characters.
+</ParamField>
+
+## Rule Fields
+
+A rule as returned by the API:
+
+<ResponseField name="id" type="string (UUID)">
+  Unique identifier for this rule row.
+</ResponseField>
+
+<ResponseField name="link_id" type="string (UUID)">
+  The link this rule belongs to.
+</ResponseField>
+
+<ResponseField name="position" type="integer">
+  Server-assigned evaluation order. Zero-indexed. The lowest matching position wins. Controlled entirely by the array order you send to `PUT /api/v1/links/{id}/rules`.
+</ResponseField>
+
+<ResponseField name="destination" type="string (URI)">
+  The URL visitors are sent to when this rule matches.
+</ResponseField>
+
+<ResponseField name="conditions" type="Condition[]">
+  Array of 1–10 conditions. All must hold for the rule to match (AND logic). A rule with zero conditions is rejected at write time.
+</ResponseField>
+
+## Managing Rules via the API
+
+Rules are a sub-resource of a link. The full set is replaced atomically in one request — there is no partial update.
+
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| `GET` | `/api/v1/links/{id}/rules` | Read the current rules in `position` order. |
+| `PUT` | `/api/v1/links/{id}/rules` | Replace the entire set. Send `[]` to remove all rules. Requires `editor` role or above. |
+
+The `PUT` body is an ordered array of rule inputs. The server assigns `position` from the array index, so the order you send is the order they are evaluated.
+
+```json
+PUT /api/v1/links/{id}/rules
+[
+  {
+    "destination": "https://apps.apple.com/app/example/id123456789",
+    "conditions": [
+      { "type": "platform", "value": "ios" }
+    ]
+  },
+  {
+    "destination": "https://play.google.com/store/apps/details?id=com.example.app",
+    "conditions": [
+      { "type": "platform", "value": "android" }
+    ]
+  }
+]
+```
+
+<Info>
+  You can also set rules at link creation time by including a `rules` array in `POST /api/v1/links`. This is equivalent to creating the link and then calling `PUT /api/v1/links/{id}/rules` in one transaction.
+</Info>
+
+## Example: Mobile Deep-Linking
+
+A common use case is sending mobile users to the relevant app store while desktop users land on the web product page.
+
+```json
+// Rules for link with destination: https://example.com (desktop fallback)
+[
+  {
+    "destination": "https://apps.apple.com/app/example/id123456789",
+    "conditions": [
+      { "type": "platform", "value": "ios" }
+    ]
+  },
+  {
+    "destination": "https://play.google.com/store/apps/details?id=com.example.app",
+    "conditions": [
+      { "type": "platform", "value": "android" }
+    ]
+  }
+]
+```
+
+With these rules attached, visiting the short URL:
+- On **iOS** → redirects to the App Store listing
+- On **Android** → redirects to the Google Play listing
+- On **desktop** (or any undetected platform) → redirects to the link's own `destination` (`https://example.com`)
+
+## Example: Query Parameter Routing
+
+Route visitors based on UTM parameters or feature flags already present in their session.
+
+```json
+// Send beta users to a separate landing page
+[
+  {
+    "destination": "https://beta.example.com/landing",
+    "conditions": [
+      { "type": "query_param", "key": "beta", "value": "1" }
+    ]
+  },
+  {
+    "destination": "https://beta.example.com/landing",
+    "conditions": [
+      { "type": "query_param", "key": "preview" }
+    ]
+  }
+]
+```
+
+The second rule matches any visitor who has a `preview` key in their query string, regardless of its value.
+
+## Example: Combining Conditions
+
+Multiple conditions in a single rule are ANDed together:
+
+```json
+// iOS users who came from the newsletter
+[
+  {
+    "destination": "https://apps.apple.com/app/example/id123456789",
+    "conditions": [
+      { "type": "platform", "value": "ios" },
+      { "type": "query_param", "key": "utm_medium", "value": "email" }
+    ]
+  }
+]
+```
+
+This rule only matches a visitor who is **both** on iOS **and** has `utm_medium=email` in their query string. An iOS visitor without that parameter falls through to the next rule or the default destination.
+
+## Use Cases
+
+<CardGroup cols={2}>
+  <Card title="App store deep-linking" icon="mobile">
+    One short URL in your bio or print ad automatically routes iOS users to the App Store, Android users to Play Store, and desktop visitors to your web app.
+  </Card>
+  <Card title="UTM-based personalization" icon="sliders">
+    Route visitors from different campaigns to different landing pages based on UTM parameters, without maintaining separate short URLs per campaign.
+  </Card>
+  <Card title="A/B testing" icon="flask">
+    Use a query parameter flag to split traffic between two destinations. Combine with `forward_query: true` so downstream analytics tools see the full query string.
+  </Card>
+  <Card title="Gated content" icon="lock">
+    Gate a destination behind a query parameter check — for example, a token set by your email platform — without adding server-side redirect logic.
+  </Card>
+</CardGroup>
