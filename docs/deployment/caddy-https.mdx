@@ -1,0 +1,147 @@
+---
+title: "Automatic HTTPS for linq Custom Domains with Caddy"
+sidebarTitle: "Caddy HTTPS"
+description: "Configure linq's Caddy integration so every domain you add automatically gets an HTTPS certificate — no manual reverse-proxy config required."
+---
+
+When you add a custom domain in linq, you want HTTPS working immediately — not after editing a reverse-proxy config, restarting a service, and waiting for certificate issuance. linq's Caddy integration automates that entire flow. Set two environment variables pointing linq at Caddy's admin API, and every domain create, archive, reactivation, and purge is pushed to Caddy as its own route. Caddy's automatic HTTPS issues and renews the certificate. You never touch a Caddy config by hand.
+
+## How it works
+
+<Steps>
+  <Step title="Configure the two environment variables">
+    Add these to your repo-root `.env`:
+
+    ```dotenv
+    LINQ_CADDY_ADMIN_URL=http://caddy:2019
+    LINQ_CADDY_UPSTREAM=linq:3000
+    ```
+
+    `LINQ_CADDY_ADMIN_URL` tells linq where to find Caddy's admin API. `LINQ_CADDY_UPSTREAM` tells Caddy where to forward matched traffic — always `linq:3000` inside the Compose network.
+
+    Setting `LINQ_CADDY_ADMIN_URL` is what activates the integration. Without it, every domain operation completes successfully but nothing is pushed to Caddy. Unset it to disable Caddy sync entirely.
+  </Step>
+
+  <Step title="Start a Caddy-enabled Compose stack">
+    Pick one of the Compose files that includes Caddy (stacks 03, 04, 07, or 08):
+
+    ```sh
+    docker compose -f docker/examples/docker-compose/03-bundled-postgres-caddy.yml up --build -d
+    ```
+
+    Caddy boots from an empty-skeleton config at `docker/examples/dockerfiles/caddy/caddy.json`. linq reconciles all active domain routes against Caddy during its own startup.
+  </Step>
+
+  <Step title="Add domains through linq">
+    Create a domain in the linq UI or via the API. linq pushes the route to Caddy immediately. Caddy begins ACME certificate issuance as soon as the route is live — provided DNS is already pointed at the host.
+  </Step>
+</Steps>
+
+## Route synchronisation details
+
+linq manages each domain as an individually addressable route in Caddy, identified by a stable ID (`domain:<uuid>`). The sync protocol is:
+
+- **Create or reactivate**: `DELETE /id/domain:<id>` (tolerating a 404 — that is the idempotent case) followed by a `POST` of the new route tagged with the same `@id`.
+- **Archive, delete, or purge**: a single `DELETE /id/domain:<id>`.
+
+No mutation reads or rewrites another domain's route. The cost and blast radius of any operation depend only on the domain it touches.
+
+**Boot reconciliation**: At startup, linq reads every active domain from the database and pushes each one to Caddy. This repairs any routes that were wiped by a Caddy restart — Caddy keeps its config in memory and returns to the empty skeleton on restart. A per-mutation sync cannot fix a full wipe; a boot-time full read can.
+
+**Sync failures are non-fatal**: A failure to sync a domain to Caddy is logged at `error` level but never fails the domain API request. The next successful mutation on that domain — or the next linq boot — repairs the missed sync. This is intentional: Caddy depends on linq being reachable, not the other way around. Refusing to boot linq because its own reverse proxy is momentarily down would invert that dependency.
+
+<Note>
+If `LINQ_CADDY_ADMIN_URL` is set but Caddy is unreachable when linq boots, linq logs the reconciliation failure and continues. It does **not** refuse to start — unlike a misconfigured Redis URL, which is fatal at boot. See `docs/adr/0012` for the full reasoning.
+</Note>
+
+## DNS requirement
+
+Caddy's automatic HTTPS uses ACME (Let's Encrypt or ZeroSSL) to issue certificates. ACME HTTP-01 validation requires:
+
+- The domain's DNS A/AAAA record pointing at the host running Caddy
+- Inbound TCP on port 80 (for the HTTP challenge) and port 443 (for HTTPS)
+- Both ports reachable from the public internet at the time of challenge
+
+Add the domain's DNS record **before** creating it in linq if you want the certificate to issue immediately. Caddy retries automatically, but certificate issuance cannot succeed until DNS resolves to the host.
+
+<Warning>
+Public certificate issuance requires a real registered domain, public DNS, and inbound ports 80 and 443 accessible from the internet. A localhost or LAN-only setup will see Caddy retry ACME validation and fail quietly in its own logs. This is expected — Caddy uses its local CA for `localhost`, which is fine for smoke-testing but not for production certificates.
+</Warning>
+
+## Compose files with Caddy
+
+Four Compose stacks include a `caddy` service:
+
+| # | File | Postgres | Redis |
+|---|---|---|---|
+| 3 | `03-bundled-postgres-caddy.yml` | bundled | – |
+| 4 | `04-bundled-postgres-full.yml` | bundled | yes |
+| 7 | `07-external-postgres-caddy.yml` | external | – |
+| 8 | `08-external-postgres-full.yml` | external | yes |
+
+All four publish **only ports 80 and 443** to the host. linq's port 3000 is not published — Caddy reaches `linq:3000` over the internal Compose network and is the only public entry point. This ensures API keys never travel through a plaintext bypass.
+
+Caddy's admin port (`:2019`) is also never published to the host. Only linq ever talks to it, over the Compose network. There is no way to reach the admin API from outside the container network.
+
+```sh
+# Start with bundled Postgres and Caddy (no Redis)
+docker compose -f docker/examples/docker-compose/03-bundled-postgres-caddy.yml up --build -d
+
+# Or with external Postgres, Redis, and Caddy (the "full" stack)
+docker compose -f docker/examples/docker-compose/08-external-postgres-full.yml up --build -d
+```
+
+## LINQ_APP_HOST with Caddy
+
+When `LINQ_APP_HOST` is set, linq pushes a route for the app host at boot alongside the domain routes. This gives the app host its certificate through exactly the same mechanism as custom domains — no extra Caddy configuration needed.
+
+```dotenv
+LINQ_APP_HOST=linq.example.com        # UI at /, API at /api/* — route pushed at boot
+LINQ_DEFAULT_DOMAIN=link.example.com  # short links — route pushed when domain is created
+LINQ_CADDY_ADMIN_URL=http://caddy:2019
+LINQ_CADDY_UPSTREAM=linq:3000
+```
+
+The app-host route is identified as `domain:app-host` in Caddy. It is written only at boot; changing `LINQ_APP_HOST` requires a restart, which a config change needs anyway. The app host's DNS must also point at the host for certificate issuance to succeed.
+
+<Info>
+Behind Caddy, add the server in the linq UI as `https://linq.example.com` — the page and the API share an origin, so there are no cross-origin headers to worry about.
+</Info>
+
+## Local testing with Caddy
+
+When testing locally with a Caddy stack, the domain `localhost` will receive a certificate from Caddy's local CA rather than a public CA. To smoke-test the setup without trusting the local CA:
+
+```sh
+# Check the API health through Caddy (bypassing certificate verification)
+curl -k https://localhost/api/health
+```
+
+To avoid the `-k` flag, import Caddy's local CA root into your system trust store. Caddy places it at `/data/caddy/pki/authorities/local/root.crt` inside the Caddy container.
+
+<Warning>
+A localhost-only test cannot validate public certificate issuance. The local CA is used only when ACME challenge cannot succeed (no public DNS, no public ports). Move to a real domain with public DNS before relying on HTTPS for production traffic.
+</Warning>
+
+## Troubleshooting
+
+<Accordion title="Caddy is not issuing certificates for a new domain">
+  Check that:
+  1. The domain's DNS A/AAAA record resolves to your host's public IP.
+  2. Ports 80 and 443 are open inbound on the host's firewall.
+  3. No other service is binding to port 80 or 443 on the host.
+  4. The domain was successfully created in linq — check the API response or the Domains page.
+  5. Caddy's own logs show the ACME attempt: `docker compose logs caddy`.
+</Accordion>
+
+<Accordion title="Caddy restarted and short links stopped working">
+  A Caddy restart wipes its in-memory route config. linq reconciles all routes at its own boot, so restarting linq (not just Caddy) will re-push every active domain. Alternatively, force a reconciliation by restarting the `linq` container:
+
+  ```sh
+  docker compose -f <your-file>.yml restart linq
+  ```
+</Accordion>
+
+<Accordion title="sync failure logged but domain was created">
+  A sync failure is non-fatal — the domain row exists in Postgres and the API responded successfully. To push the route to Caddy without waiting for the next mutation, restart linq (which triggers `reconcileCaddy` at boot). Check `LINQ_CADDY_ADMIN_URL` is reachable from the `linq` container and that both containers are on the same Compose network.
+</Accordion>

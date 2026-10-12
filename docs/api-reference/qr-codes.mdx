@@ -1,0 +1,288 @@
+---
+title: "QR Codes API: Generate and Style QR Codes for Links"
+sidebarTitle: "QR Codes"
+description: "Create, list, update, and delete styled QR codes attached to a link. Customize dot color, background color, and dot pattern — squares, rounded, or dots."
+---
+
+linq generates QR codes that are permanently bound to a link's short URL. Rather than storing the encoded URL directly, each QR code record stores only its visual styling — the actual URL encoded at render time is always the link's current short URL. This means a single QR code entry can survive domain changes and stays consistent across every printed copy. A single link may have multiple QR codes, each with a different appearance for different use cases: print, digital, dark-mode, and so on.
+
+<Note>
+  Deleting a QR code removes only the saved styling record — the link and its redirect remain completely intact. QR codes are hard-deleted (no archive state), so once deleted they cannot be recovered. There is no purge lifecycle for QR codes.
+</Note>
+
+## Endpoints
+
+<CardGroup cols={2}>
+  <Card title="List QR Codes" icon="list">
+    `GET /api/v1/qr-codes`
+  </Card>
+  <Card title="Create QR Code" icon="plus">
+    `POST /api/v1/qr-codes`
+  </Card>
+  <Card title="Get QR Code" icon="eye">
+    `GET /api/v1/qr-codes/{id}`
+  </Card>
+  <Card title="Update QR Code" icon="pen">
+    `PATCH /api/v1/qr-codes/{id}`
+  </Card>
+  <Card title="Delete QR Code" icon="trash">
+    `DELETE /api/v1/qr-codes/{id}`
+  </Card>
+</CardGroup>
+
+---
+
+## List QR Codes
+
+Returns a paginated list of QR codes, optionally scoped to a single link. Results are ordered newest-first.
+
+```http
+GET /api/v1/qr-codes
+```
+
+### Query Parameters
+
+<ParamField query="link_id" type="string (UUID)">
+  Filter results to QR codes belonging to a specific link. Omit to return QR codes across all links.
+</ParamField>
+
+<ParamField query="search" type="string">
+  Case-insensitive substring search across the QR code name, the parent link's name, and the parent link's slug.
+</ParamField>
+
+<ParamField query="limit" type="integer" default="50">
+  Maximum number of results per page. Must be between 1 and 200.
+</ParamField>
+
+<ParamField query="offset" type="integer" default="0">
+  Zero-based index of the first result to return. Use with `limit` to paginate.
+</ParamField>
+
+### Response
+
+Returns a list envelope: `{ data, total, limit, offset }`.
+
+```bash
+curl https://your-linq-host/api/v1/qr-codes?link_id=018f2c3e-1234-7abc-8def-000000000001 \
+  -H "x-api-key: lq_your_key_here"
+```
+
+```json
+{
+  "data": [
+    {
+      "id": "018f2c3e-0000-7000-8000-000000000002",
+      "link_id": "018f2c3e-1234-7abc-8def-000000000001",
+      "name": "Print Edition",
+      "dot_color": "#1a1a2e",
+      "bg_color": "#ffffff",
+      "pattern": "rounded",
+      "link_name": "Product Launch",
+      "link_status": "active",
+      "slug": "launch",
+      "domain_host": "go.example.com",
+      "short_url": "https://go.example.com/launch",
+      "created_at": "2024-06-01T10:00:00.000Z",
+      "updated_at": "2024-06-01T10:00:00.000Z"
+    }
+  ],
+  "total": 1,
+  "limit": 50,
+  "offset": 0
+}
+```
+
+---
+
+## Create QR Code
+
+Creates a new QR code attached to an existing link. The link must be active — QR codes cannot be attached to archived links.
+
+```http
+POST /api/v1/qr-codes
+```
+
+### Body Parameters
+
+<ParamField body="link_id" type="string (UUID)" required>
+  The ID of the link this QR code encodes. Must reference an active link. A QR code can never be reassigned to a different link after creation — doing so would invalidate every printed copy.
+</ParamField>
+
+<ParamField body="name" type="string">
+  An optional human-readable label for this QR code (max 120 characters). Useful when a link has multiple codes for different contexts.
+</ParamField>
+
+<ParamField body="dot_color" type="string" default='"#000000"'>
+  The hex color for QR dots. Must be a 6-digit hex string, e.g. `#1a1a2e`. Defaults to black.
+</ParamField>
+
+<ParamField body="bg_color" type="string" default='"#ffffff"'>
+  The hex color for the QR code background. Must be a 6-digit hex string. Defaults to white.
+</ParamField>
+
+<ParamField body="pattern" type="string" default='"squares"'>
+  The visual pattern used to render QR dots. One of:
+  - `squares` — standard square dots (default)
+  - `rounded` — square dots with rounded corners
+  - `dots` — circular dots
+</ParamField>
+
+### Response
+
+Returns the created QR code object with HTTP `201 Created`.
+
+```bash
+curl -X POST https://your-linq-host/api/v1/qr-codes \
+  -H "x-api-key: lq_your_key_here" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "link_id": "018f2c3e-1234-7abc-8def-000000000001",
+    "name": "Print Edition",
+    "dot_color": "#1a1a2e",
+    "bg_color": "#ffffff",
+    "pattern": "rounded"
+  }'
+```
+
+---
+
+## Get QR Code
+
+Retrieves a single QR code by its ID, including the parent link's name, status, slug, and resolved short URL.
+
+```http
+GET /api/v1/qr-codes/{id}
+```
+
+### Path Parameters
+
+<ParamField path="id" type="string (UUID)" required>
+  The UUID of the QR code to retrieve.
+</ParamField>
+
+```bash
+curl https://your-linq-host/api/v1/qr-codes/018f2c3e-0000-7000-8000-000000000002 \
+  -H "x-api-key: lq_your_key_here"
+```
+
+---
+
+## Update QR Code
+
+Updates the visual style fields of a QR code. The `link_id` field is immutable and cannot be changed — re-pointing a QR code to a different link would invalidate every printed copy.
+
+```http
+PATCH /api/v1/qr-codes/{id}
+```
+
+### Path Parameters
+
+<ParamField path="id" type="string (UUID)" required>
+  The UUID of the QR code to update.
+</ParamField>
+
+### Body Parameters
+
+All fields are optional. Only the fields you include will be updated.
+
+<ParamField body="name" type="string">
+  Updated display name for the QR code (max 120 characters). Pass `null` to clear it.
+</ParamField>
+
+<ParamField body="dot_color" type="string">
+  New hex color for QR dots. Must be a 6-digit hex string, e.g. `#333333`.
+</ParamField>
+
+<ParamField body="bg_color" type="string">
+  New hex color for the QR code background.
+</ParamField>
+
+<ParamField body="pattern" type="string">
+  Updated dot pattern. One of `squares`, `rounded`, or `dots`.
+</ParamField>
+
+```bash
+curl -X PATCH https://your-linq-host/api/v1/qr-codes/018f2c3e-0000-7000-8000-000000000002 \
+  -H "x-api-key: lq_your_key_here" \
+  -H "Content-Type: application/json" \
+  -d '{ "pattern": "dots", "dot_color": "#0066cc" }'
+```
+
+---
+
+## Delete QR Code
+
+Permanently deletes a QR code record. The parent link and all its redirects are unaffected. This operation is irreversible.
+
+```http
+DELETE /api/v1/qr-codes/{id}
+```
+
+### Path Parameters
+
+<ParamField path="id" type="string (UUID)" required>
+  The UUID of the QR code to delete.
+</ParamField>
+
+Returns `204 No Content` on success.
+
+```bash
+curl -X DELETE https://your-linq-host/api/v1/qr-codes/018f2c3e-0000-7000-8000-000000000002 \
+  -H "x-api-key: lq_your_key_here"
+```
+
+---
+
+## QR Code Object
+
+<ResponseField name="id" type="string">
+  UUID (v7) uniquely identifying this QR code.
+</ResponseField>
+
+<ResponseField name="link_id" type="string">
+  UUID of the parent link this QR code encodes.
+</ResponseField>
+
+<ResponseField name="name" type="string | null">
+  Optional display label for this QR code.
+</ResponseField>
+
+<ResponseField name="dot_color" type="string">
+  6-digit hex color used to render QR dots. Example: `#000000`.
+</ResponseField>
+
+<ResponseField name="bg_color" type="string">
+  6-digit hex color used for the QR background. Example: `#ffffff`.
+</ResponseField>
+
+<ResponseField name="pattern" type="string">
+  Dot pattern — one of `squares`, `rounded`, or `dots`.
+</ResponseField>
+
+<ResponseField name="link_name" type="string | null">
+  The parent link's display name, carried on the response so list views render without an extra request.
+</ResponseField>
+
+<ResponseField name="link_status" type="string">
+  The parent link's current status — `active` or `archived`.
+</ResponseField>
+
+<ResponseField name="slug" type="string">
+  The slug component of the parent link's short URL.
+</ResponseField>
+
+<ResponseField name="domain_host" type="string">
+  The hostname of the domain the parent link lives on.
+</ResponseField>
+
+<ResponseField name="short_url" type="string">
+  The fully resolved short URL that this QR code encodes, e.g. `https://go.example.com/launch`.
+</ResponseField>
+
+<ResponseField name="created_at" type="string (ISO 8601)">
+  Timestamp when this QR code was created.
+</ResponseField>
+
+<ResponseField name="updated_at" type="string (ISO 8601)">
+  Timestamp of the last style update.
+</ResponseField>

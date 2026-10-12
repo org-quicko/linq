@@ -43,3 +43,4 @@ covers what isn't obvious from the code.
 - `resources/docs/adr/` — decisions that are hard to reverse, and why.
 - `.agents/skills/` — step-by-step procedures for this repo (dev environment,
   DB migrations, ADRs), for any agent.
+- `docs` - documentation for linq

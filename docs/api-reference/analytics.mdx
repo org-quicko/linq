@@ -1,0 +1,228 @@
+---
+title: "Analytics API: Summary, Timeseries, and Breakdown Reports"
+sidebarTitle: "Analytics"
+description: "Query link traffic: total visit counts, per-day timeseries for charting, and ranked breakdowns by referer, OS, browser, platform, slug, or destination URL."
+---
+
+The analytics API provides three complementary views into your link traffic: a total-count summary, a per-day timeseries suitable for charting, and a breakdown ranked by any supported dimension. All three endpoints share the same filter parameters and read from pre-aggregated daily rollup tables for maximum performance. When dimension filters (such as `referer`, `os`, `browser`, or `platform`) are specified, the API automatically falls back to querying the raw visit log to respect the added specificity — this path is still fast for recent, bounded windows, but the time range is capped at 366 days in that case.
+
+<Note>
+  linq collects no geolocation data and stores no client IP addresses at any point. The `platform` dimension (`android`, `ios`, `desktop`) and `os`/`browser` fields are inferred purely from the request's User-Agent string.
+</Note>
+
+<Tip>
+  On high-traffic instances, always supply `from` and `to` to narrow the time window. Omitting `from` on summary and timeseries queries hits the rollup path (all-time), which is fast. On breakdown queries, `from` is required whenever any dimension filter is provided, and the window must be 366 days or fewer.
+</Tip>
+
+## Shared Filter Parameters
+
+Every analytics endpoint accepts the following query parameters. Multiple values for `link_id`, `domain_id`, `referer`, `os`, `browser`, and `platform` can be supplied as comma-separated strings.
+
+<ParamField query="from" type="string (ISO 8601 date)">
+  Start of the reporting window, inclusive. Format: `YYYY-MM-DD`. Omitting `from` on summary and timeseries returns all-time data from the rollup. Required when any dimension filter (`referer`, `os`, `browser`, `platform`) is also set.
+</ParamField>
+
+<ParamField query="to" type="string (ISO 8601 date)" default="today">
+  End of the reporting window, inclusive. Defaults to today's UTC date.
+</ParamField>
+
+<ParamField query="link_id" type="string (comma-separated UUIDs)">
+  Restrict the report to one or more specific links.
+</ParamField>
+
+<ParamField query="domain_id" type="string (comma-separated UUIDs)">
+  Restrict the report to one or more specific domains.
+</ParamField>
+
+<ParamField query="orphan" type="string" default='"false"'>
+  When `"true"`, restricts the report to orphan visits — requests that matched no active link (unknown slug, archived link, or root path). Defaults to `"false"`.
+</ParamField>
+
+<ParamField query="bot" type="string" default='"any"'>
+  Filter by bot status. One of `"true"` (bots only), `"false"` (humans only), or `"any"` (no filter, the default).
+</ParamField>
+
+<ParamField query="referer" type="string (comma-separated)">
+  Filter to visits from specific referring hostnames. Use `(none)` for visits with no recorded referrer. Enables the detail (raw log) query path.
+</ParamField>
+
+<ParamField query="os" type="string (comma-separated)">
+  Filter to visits from a specific OS (e.g. `windows`, `macos`, `android`). Case-insensitive. Enables the detail query path.
+</ParamField>
+
+<ParamField query="browser" type="string (comma-separated)">
+  Filter to visits from a specific browser (e.g. `chrome`, `safari`). Case-insensitive. Enables the detail query path.
+</ParamField>
+
+<ParamField query="platform" type="string (comma-separated)">
+  Filter to visits from a specific platform. One of `android`, `ios`, or `desktop`. Enables the detail query path.
+</ParamField>
+
+---
+
+## GET /api/v1/analytics/summary
+
+Returns the total visit count for the given filters, split into human visits, bot visits, and orphan visits.
+
+```http
+GET /api/v1/analytics/summary
+```
+
+### Response Fields
+
+<ResponseField name="visits" type="number">
+  Total visits (human + bot) matching the query.
+</ResponseField>
+
+<ResponseField name="human" type="number">
+  Visits not classified as bots.
+</ResponseField>
+
+<ResponseField name="bot" type="number">
+  Visits classified as bots.
+</ResponseField>
+
+<ResponseField name="orphans" type="number">
+  Visits that resolved to no active link. Always `0` when `link_id` is set (orphans have no link to match).
+</ResponseField>
+
+<Tabs>
+  <Tab title="All-time summary">
+    ```bash
+    curl "https://your-linq-host/api/v1/analytics/summary" \
+      -H "x-api-key: lq_your_key_here"
+    ```
+  </Tab>
+  <Tab title="Scoped to a link and date range">
+    ```bash
+    curl "https://your-linq-host/api/v1/analytics/summary?link_id=018f2c3e-1234-7abc-8def-000000000001&from=2024-05-01&to=2024-05-31" \
+      -H "x-api-key: lq_your_key_here"
+    ```
+  </Tab>
+</Tabs>
+
+```json
+{
+  "visits": 14230,
+  "human": 13891,
+  "bot": 339,
+  "orphans": 47
+}
+```
+
+---
+
+## GET /api/v1/analytics/timeseries
+
+Returns a list of per-day visit counts over the requested time range. Useful for charting trends over time. Results are ordered chronologically (oldest first).
+
+```http
+GET /api/v1/analytics/timeseries
+```
+
+### Response
+
+Returns an array of `StatsBucket` objects, one per day that had at least one qualifying visit.
+
+<ResponseField name="key" type="string">
+  The date for this bucket in `YYYY-MM-DD` format.
+</ResponseField>
+
+<ResponseField name="human" type="number">
+  Human visits on this day.
+</ResponseField>
+
+<ResponseField name="bot" type="number">
+  Bot visits on this day.
+</ResponseField>
+
+<Tabs>
+  <Tab title="cURL">
+    ```bash
+    curl "https://your-linq-host/api/v1/analytics/timeseries?from=2024-05-01&to=2024-05-07&domain_id=018f2c3e-0000-7000-8000-000000000010" \
+      -H "x-api-key: lq_your_key_here"
+    ```
+  </Tab>
+  <Tab title="Response">
+    ```json
+    [
+      { "key": "2024-05-01", "human": 1204, "bot": 32 },
+      { "key": "2024-05-02", "human": 988,  "bot": 19 },
+      { "key": "2024-05-03", "human": 1450, "bot": 41 },
+      { "key": "2024-05-04", "human": 874,  "bot": 14 },
+      { "key": "2024-05-05", "human": 703,  "bot": 8  },
+      { "key": "2024-05-06", "human": 519,  "bot": 5  },
+      { "key": "2024-05-07", "human": 621,  "bot": 11 }
+    ]
+    ```
+  </Tab>
+</Tabs>
+
+---
+
+## GET /api/v1/analytics/breakdown
+
+Returns visit counts grouped by a chosen dimension, ordered by total volume descending. Use this endpoint to identify top referrers, platforms, destination URLs, or slugs.
+
+```http
+GET /api/v1/analytics/breakdown
+```
+
+### Additional Parameter
+
+<ParamField query="dimension" type="string" required>
+  The dimension to group results by. One of:
+
+  | Value | Description |
+  |---|---|
+  | `referer` | Referring hostname (or `(none)` if absent) |
+  | `os` | Operating system inferred from User-Agent |
+  | `browser` | Browser inferred from User-Agent |
+  | `platform` | `android`, `ios`, or `desktop` |
+  | `slug` | The slug that was requested |
+  | `destination` | The destination URL the visit was sent to |
+</ParamField>
+
+### Response
+
+Returns an array of `StatsBucket` objects, sorted by total volume descending.
+
+<ResponseField name="key" type="string">
+  The dimension value for this group. For `referer`, this is the referrer hostname. Uses `(none)` for visits where the dimension was not recorded.
+</ResponseField>
+
+<ResponseField name="human" type="number">
+  Human visits in this group.
+</ResponseField>
+
+<ResponseField name="bot" type="number">
+  Bot visits in this group.
+</ResponseField>
+
+<Tabs>
+  <Tab title="By platform">
+    ```bash
+    curl "https://your-linq-host/api/v1/analytics/breakdown?dimension=platform&from=2024-05-01&to=2024-05-31" \
+      -H "x-api-key: lq_your_key_here"
+    ```
+  </Tab>
+  <Tab title="By referer">
+    ```bash
+    curl "https://your-linq-host/api/v1/analytics/breakdown?dimension=referer&from=2024-05-01&to=2024-05-31&link_id=018f2c3e-1234-7abc-8def-000000000001" \
+      -H "x-api-key: lq_your_key_here"
+    ```
+  </Tab>
+  <Tab title="Response">
+    ```json
+    [
+      { "key": "desktop", "human": 9812, "bot": 240 },
+      { "key": "ios",     "human": 2876, "bot": 55  },
+      { "key": "android", "human": 1203, "bot": 44  }
+    ]
+    ```
+  </Tab>
+</Tabs>
+
+<Warning>
+  When any dimension filter (`referer`, `os`, `browser`, or `platform`) is included in the request, the `from` parameter becomes required and the window must be 366 days or fewer. Queries without `from` on those filters will be rejected with a validation error.
+</Warning>

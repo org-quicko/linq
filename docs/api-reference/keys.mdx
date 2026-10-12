@@ -1,0 +1,369 @@
+---
+title: "Keys API: Manage Authentication Keys and Permissions"
+sidebarTitle: "Keys"
+description: "Manage API keys that authenticate all linq requests. Keys carry claims with built-in viewer, editor, and admin presets, or a fully custom claim list."
+---
+
+The keys API manages the API keys that authenticate every request to linq. A key is the only principal linq issues — there are no user accounts or session tokens. Each key carries a set of claims that determine what it can do: read-only keys (viewer), read-write keys (editor), and full-control keys (admin). All key management operations — creating, updating, or revoking keys — require a key that has the `create:Key`, `update:Key`, or `delete:Key` claim respectively, which only the `admin` preset holds by default. Authenticate all requests by passing your key in the `x-api-key` request header.
+
+<Warning>
+  The raw key secret is returned **only once**, in the `201 Created` response when a key is first created. It is never retrievable again. If a key secret is lost, the key must be revoked and a new one created.
+</Warning>
+
+---
+
+## Presets and Claims
+
+Keys can be assigned one of three built-in presets, or given a fully custom claim list for fine-grained control.
+
+<CardGroup cols={3}>
+  <Card title="viewer" icon="eye">
+    Read access to all resources: links, rules, QR codes, domains, keys, analytics, and visits.
+  </Card>
+  <Card title="editor" icon="pen">
+    All viewer permissions plus: create/update links and rules, create/update/delete QR codes.
+  </Card>
+  <Card title="admin" icon="shield">
+    All editor permissions plus: archive/restore/purge links, manage domains, and manage keys.
+  </Card>
+</CardGroup>
+
+When creating or updating a key, supply exactly one of:
+- **`preset`** — one of `viewer`, `editor`, or `admin`. The server expands it to the full claims list.
+- **`claims`** — an explicit array of `{ action, subject }` objects for custom permissions.
+
+<Accordion title="Available actions and subjects for custom claims">
+  **Actions:** `read`, `create`, `update`, `archive`, `restore`, `purge`, `delete`
+
+  **Subjects:** `Link`, `Rule`, `QrCode`, `Domain`, `Key`, `Analytics`, `Visit`
+
+  Example custom claim: `{ "action": "read", "subject": "Analytics" }`.
+  Each `action:subject` pair must be unique within the claims array.
+</Accordion>
+
+---
+
+## Endpoints
+
+<CardGroup cols={2}>
+  <Card title="List Keys" icon="list">
+    `GET /api/v1/keys`
+  </Card>
+  <Card title="Create Key" icon="plus">
+    `POST /api/v1/keys`
+  </Card>
+  <Card title="Get Key" icon="eye">
+    `GET /api/v1/keys/{id}`
+  </Card>
+  <Card title="Update Key" icon="pen">
+    `PATCH /api/v1/keys/{id}`
+  </Card>
+  <Card title="Revoke Key" icon="ban">
+    `DELETE /api/v1/keys/{id}`
+  </Card>
+  <Card title="Get Own Key" icon="user">
+    `GET /api/v1/me`
+  </Card>
+</CardGroup>
+
+---
+
+## List Keys
+
+Returns a paginated list of all API keys. The raw key secret is never included. The response includes full metadata for callers with the `create:Key` claim (admin); other callers receive a summary (id, name, claims, preset only).
+
+```http
+GET /api/v1/keys
+```
+
+### Query Parameters
+
+<ParamField query="limit" type="integer" default="50">
+  Maximum number of results per page. Must be between 1 and 200.
+</ParamField>
+
+<ParamField query="offset" type="integer" default="0">
+  Zero-based offset for pagination.
+</ParamField>
+
+```bash
+curl https://your-linq-host/api/v1/keys \
+  -H "x-api-key: lq_your_admin_key_here"
+```
+
+```json
+{
+  "data": [
+    {
+      "id": "018f2c3e-aaaa-7000-8000-000000000001",
+      "name": "CI Deploy Key",
+      "claims": [
+        { "action": "read",   "subject": "Link" },
+        { "action": "create", "subject": "Link" },
+        { "action": "update", "subject": "Link" }
+      ],
+      "preset": null,
+      "prefix": "lq_ci_",
+      "expires_at": "2025-01-01T00:00:00.000Z",
+      "created_at": "2024-06-01T09:00:00.000Z",
+      "updated_at": "2024-06-01T09:00:00.000Z"
+    }
+  ],
+  "total": 4,
+  "limit": 50,
+  "offset": 0
+}
+```
+
+---
+
+## Create Key
+
+Creates a new API key. Returns the full key object including the raw `secret` — this value is shown exactly once and cannot be retrieved later.
+
+```http
+POST /api/v1/keys
+```
+
+Requires the `create:Key` claim (admin preset).
+
+### Body Parameters
+
+<ParamField body="name" type="string" required>
+  A human-readable name for the key (1–100 characters, trimmed).
+</ParamField>
+
+<ParamField body="preset" type="string">
+  Assign a built-in permission level: `viewer`, `editor`, or `admin`. Provide exactly one of `preset` or `claims`.
+</ParamField>
+
+<ParamField body="claims" type="array">
+  An explicit array of permission claims. Each entry must be `{ "action": string, "subject": string }`. Provide exactly one of `preset` or `claims`.
+</ParamField>
+
+<ParamField body="expires_at" type="string (ISO 8601 datetime) | null">
+  Optional expiry timestamp. The key will be rejected after this instant. Pass `null` or omit for a non-expiring key.
+</ParamField>
+
+<Tabs>
+  <Tab title="With preset">
+    ```bash
+    curl -X POST https://your-linq-host/api/v1/keys \
+      -H "x-api-key: lq_your_admin_key_here" \
+      -H "Content-Type: application/json" \
+      -d '{
+        "name": "Dashboard Read-Only",
+        "preset": "viewer"
+      }'
+    ```
+  </Tab>
+  <Tab title="With custom claims">
+    ```bash
+    curl -X POST https://your-linq-host/api/v1/keys \
+      -H "x-api-key: lq_your_admin_key_here" \
+      -H "Content-Type: application/json" \
+      -d '{
+        "name": "Analytics Reporter",
+        "claims": [
+          { "action": "read", "subject": "Analytics" },
+          { "action": "read", "subject": "Visit" }
+        ],
+        "expires_at": "2025-12-31T23:59:59Z"
+      }'
+    ```
+  </Tab>
+  <Tab title="Response (201)">
+    ```json
+    {
+      "id": "018f2c3e-bbbb-7000-8000-000000000002",
+      "name": "Dashboard Read-Only",
+      "claims": [
+        { "action": "read", "subject": "Link" },
+        { "action": "read", "subject": "Rule" },
+        { "action": "read", "subject": "QrCode" },
+        { "action": "read", "subject": "Domain" },
+        { "action": "read", "subject": "Key" },
+        { "action": "read", "subject": "Analytics" },
+        { "action": "read", "subject": "Visit" }
+      ],
+      "preset": "viewer",
+      "prefix": "lq_das_",
+      "expires_at": null,
+      "created_at": "2024-06-01T12:00:00.000Z",
+      "updated_at": "2024-06-01T12:00:00.000Z",
+      "secret": "lq_das_xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
+    }
+    ```
+  </Tab>
+</Tabs>
+
+<Warning>
+  Store the `secret` value from the `201` response immediately and securely. It is never returned again by any endpoint. If the secret is lost, revoke the key with `DELETE /api/v1/keys/{id}` and create a replacement.
+</Warning>
+
+---
+
+## Get Key
+
+Returns the metadata for a single API key by its ID. The raw secret is never included.
+
+```http
+GET /api/v1/keys/{id}
+```
+
+Requires the `read:Key` claim.
+
+### Path Parameters
+
+<ParamField path="id" type="string (UUID)" required>
+  The UUID of the key to retrieve.
+</ParamField>
+
+```bash
+curl https://your-linq-host/api/v1/keys/018f2c3e-bbbb-7000-8000-000000000002 \
+  -H "x-api-key: lq_your_admin_key_here"
+```
+
+---
+
+## Update Key
+
+Updates the name, permission preset/claims, or expiry of an existing key. All fields are optional. Provide at most one of `preset` or `claims`.
+
+```http
+PATCH /api/v1/keys/{id}
+```
+
+Requires the `update:Key` claim (admin preset). A key cannot modify its own claims or preset — attempting to do so returns a `403 Forbidden`. The name and expiry can still be updated on the caller's own key.
+
+### Path Parameters
+
+<ParamField path="id" type="string (UUID)" required>
+  The UUID of the key to update.
+</ParamField>
+
+### Body Parameters
+
+<ParamField body="name" type="string">
+  Updated display name (1–100 characters).
+</ParamField>
+
+<ParamField body="preset" type="string">
+  Replace the key's permissions with a built-in preset: `viewer`, `editor`, or `admin`. Cannot be combined with `claims`.
+</ParamField>
+
+<ParamField body="claims" type="array">
+  Replace the key's permissions with an explicit claims list. Cannot be combined with `preset`.
+</ParamField>
+
+<ParamField body="expires_at" type="string (ISO 8601 datetime) | null">
+  New expiry time, or `null` to remove the expiry.
+</ParamField>
+
+```bash
+curl -X PATCH https://your-linq-host/api/v1/keys/018f2c3e-bbbb-7000-8000-000000000002 \
+  -H "x-api-key: lq_your_admin_key_here" \
+  -H "Content-Type: application/json" \
+  -d '{ "preset": "editor", "expires_at": "2026-01-01T00:00:00Z" }'
+```
+
+---
+
+## Revoke Key
+
+Permanently deletes an API key. Any requests using the revoked key will immediately start receiving `401 Unauthorized`. This operation is irreversible. A key cannot revoke itself.
+
+```http
+DELETE /api/v1/keys/{id}
+```
+
+Requires the `delete:Key` claim (admin preset). Returns `204 No Content` on success.
+
+### Path Parameters
+
+<ParamField path="id" type="string (UUID)" required>
+  The UUID of the key to revoke.
+</ParamField>
+
+```bash
+curl -X DELETE https://your-linq-host/api/v1/keys/018f2c3e-bbbb-7000-8000-000000000002 \
+  -H "x-api-key: lq_your_admin_key_here"
+```
+
+---
+
+## GET /api/v1/me
+
+Returns the full metadata for the currently authenticated key — the one whose secret is in the `x-api-key` header. Useful for confirming that authentication is working and for inspecting the calling key's own claims and preset.
+
+```http
+GET /api/v1/me
+```
+
+```bash
+curl https://your-linq-host/api/v1/me \
+  -H "x-api-key: lq_your_key_here"
+```
+
+```json
+{
+  "id": "018f2c3e-aaaa-7000-8000-000000000001",
+  "name": "CI Deploy Key",
+  "claims": [
+    { "action": "read",   "subject": "Link" },
+    { "action": "create", "subject": "Link" },
+    { "action": "update", "subject": "Link" }
+  ],
+  "preset": null,
+  "prefix": "lq_ci_",
+  "expires_at": null,
+  "created_at": "2024-06-01T09:00:00.000Z",
+  "updated_at": "2024-06-01T09:00:00.000Z"
+}
+```
+
+---
+
+## Key Object Fields
+
+<ResponseField name="id" type="string">
+  UUID (v7) uniquely identifying this key.
+</ResponseField>
+
+<ResponseField name="name" type="string">
+  Human-readable display name for the key.
+</ResponseField>
+
+<ResponseField name="claims" type="Claim[]">
+  The full expanded list of permission claims this key holds. Each claim is `{ action: string, subject: string }`.
+</ResponseField>
+
+<ResponseField name="preset" type="string | null">
+  The preset name (`viewer`, `editor`, or `admin`) if the key's claims exactly match a preset's expansion. `null` for custom claim sets.
+</ResponseField>
+
+<ResponseField name="prefix" type="string">
+  A short, non-secret prefix derived from the key name, included in the raw secret for human identification (e.g. `lq_ci_`). Never sensitive on its own.
+</ResponseField>
+
+<ResponseField name="expires_at" type="string (ISO 8601) | null">
+  When the key expires and stops authenticating. `null` for non-expiring keys.
+</ResponseField>
+
+<ResponseField name="created_at" type="string (ISO 8601)">
+  Timestamp when the key was created.
+</ResponseField>
+
+<ResponseField name="updated_at" type="string (ISO 8601)">
+  Timestamp of the last metadata update.
+</ResponseField>
+
+<ResponseField name="secret" type="string">
+  **Only present in the `POST /api/v1/keys` 201 response.** The full raw key value to use in `x-api-key` headers. Never returned by any other endpoint.
+</ResponseField>
+
+---
+
+<Note>
+  **Bootstrap guard:** if all keys are revoked and the key table is empty, the next server restart automatically mints a new admin key and prints its secret to the server's standard output. This prevents a linq instance from becoming permanently inaccessible. You can also run `bun run key:create --name <name> --preset <preset> [--expires <ISO date>]` directly on the server to create a key without a restart.
+</Note>

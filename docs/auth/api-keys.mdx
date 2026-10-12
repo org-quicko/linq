@@ -1,0 +1,265 @@
+---
+title: "API Keys: Authentication and Key Lifecycle in linq"
+sidebarTitle: "API Keys"
+description: "Learn how to obtain a linq API key, pass it in requests using Bearer or X-Api-Key headers, and manage the full key lifecycle — create, rotate, and revoke."
+---
+
+linq uses API keys as the only principal — there are no user accounts, sessions, or cookies. Every request to the REST API must carry a valid key, and every key carries a name, a role (expressed as a set of CASL claims), an optional expiry, and nothing else. Authenticating a request is a single indexed lookup against the `api_keys` table: no joins, no session store, no external identity provider.
+
+## Obtaining Your First Key
+
+When linq starts against a database with an empty `api_keys` table, it mints one admin key automatically and prints it to stdout exactly once:
+
+```
+  linq admin API key: linq_xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
+  Store it now; it is not recoverable.
+  Create more with: bun run key:create --name <name> --preset <preset>
+```
+
+Copy the key immediately and store it somewhere safe — a password manager, a secrets vault, or an environment variable. Only the SHA-256 hash of the key is stored in the database. Once the process moves past that log line, the raw value is gone and cannot be read back.
+
+<Warning>
+  The bootstrap guard fires on "no keys in the table", not "first ever boot". If
+  every key is ever revoked, the next restart mints a fresh admin key and prints
+  it to stdout. This prevents a permanently locked instance, but it also means a
+  newly restarted instance with no keys is immediately accessible to whoever
+  reads the logs first. Ensure your log output is appropriately protected.
+</Warning>
+
+## Key Format
+
+Every linq API key is produced by `generateKey()` in `apps/server/src/auth/keys.ts`:
+
+```
+linq_<base64url(32 random bytes)>
+```
+
+That yields a `linq_` prefix followed by 43 base64url characters — 48 characters total. The first 12 characters of the full key (e.g. `linq_XXXXXXX`) are stored as a human-readable `prefix` field so keys can be told apart in listings without exposing the secret. The raw key value itself is never stored or returned after the creation response.
+
+## Passing the Key in Requests
+
+linq's authentication middleware (`auth/middleware.ts`) accepts the key via two headers, checked in this order:
+
+**Option 1 — `Authorization: Bearer` (preferred)**
+
+```bash
+curl https://your-linq-host/api/v1/links \
+  -H "Authorization: Bearer linq_your_key_here"
+```
+
+**Option 2 — `X-Api-Key`**
+
+```bash
+curl https://your-linq-host/api/v1/links \
+  -H "X-Api-Key: linq_your_key_here"
+```
+
+Both headers are equivalent. Use `Authorization: Bearer` when your HTTP client or SDK already manages Bearer tokens; use `X-Api-Key` when it is more convenient to set a custom header. A request with no key, an unrecognised key, or an expired key receives a `401 Unauthorized` response.
+
+## Creating Additional Keys
+
+<Tabs>
+  <Tab title="CLI">
+    Use `key:create` to mint a new key without restarting the server. This is the
+    same code path the API and the Keys UI page use.
+
+    ```bash
+    bun run key:create --name ops --preset admin
+    ```
+
+    | Flag | Default | Description |
+    |---|---|---|
+    | `--name` | _(required)_ | Human-readable label for the key (1–100 chars) |
+    | `--preset` | `admin` | Role preset: `viewer`, `editor`, or `admin` |
+    | `--expires` | _(none)_ | ISO 8601 expiry timestamp, e.g. `2026-01-01T00:00:00Z` |
+
+    The raw key is printed once and never stored. Record it before the command exits.
+  </Tab>
+  <Tab title="API">
+    Send a `POST` request to `/api/v1/keys`. You must supply **either** a `preset`
+    **or** an explicit `claims` array — not both and not neither.
+
+    ```bash
+    curl -X POST https://your-linq-host/api/v1/keys \
+      -H "Authorization: Bearer linq_your_admin_key" \
+      -H "Content-Type: application/json" \
+      -d '{
+        "name": "ci-deploy",
+        "preset": "editor",
+        "expires_at": "2026-01-01T00:00:00Z"
+      }'
+    ```
+
+    **Request body fields:**
+
+    <ParamField body="name" type="string" required>
+      A human-readable label for the key. Between 1 and 100 characters.
+    </ParamField>
+
+    <ParamField body="preset" type="string">
+      One of `viewer`, `editor`, or `admin`. Mutually exclusive with `claims`.
+      Presets expand to a fixed claim set at write time — the stored key holds
+      the expanded claims, not the preset name.
+    </ParamField>
+
+    <ParamField body="claims" type="array">
+      An explicit array of `{ action, subject }` objects for fine-grained
+      control. Mutually exclusive with `preset`. Valid actions: `read`, `create`,
+      `update`, `archive`, `restore`, `purge`, `delete`. Valid subjects: `Link`,
+      `Rule`, `QrCode`, `Domain`, `Key`, `Analytics`, `Visit`.
+    </ParamField>
+
+    <ParamField body="expires_at" type="string">
+      Optional ISO 8601 datetime at which the key expires. Pass `null` or omit
+      for a non-expiring key.
+    </ParamField>
+
+    **Response — `201 Created`:**
+
+    ```json
+    {
+      "id": "019612ab-...",
+      "name": "ci-deploy",
+      "claims": [
+        { "action": "read",   "subject": "Link" },
+        { "action": "create", "subject": "Link" },
+        { "action": "update", "subject": "Link" }
+      ],
+      "preset": "editor",
+      "prefix": "linq_XXXXXXX",
+      "expires_at": "2026-01-01T00:00:00.000Z",
+      "created_at": "2025-07-14T10:00:00.000Z",
+      "updated_at": "2025-07-14T10:00:00.000Z",
+      "secret": "linq_your_new_key_here"
+    }
+    ```
+
+    The `secret` field contains the raw key. It appears in this response only — it is not stored and will never appear again.
+  </Tab>
+</Tabs>
+
+## Key Fields
+
+Every key returned by the API includes the following fields. Note that `secret` only appears in the creation response (`ApiKeyCreated` type); all other responses return the `ApiKey` shape without it.
+
+<ResponseField name="id" type="string">
+  UUIDv7 identifier. Stable and used in all key management endpoints.
+</ResponseField>
+
+<ResponseField name="name" type="string">
+  Human-readable label set at creation time. Mutable via `PATCH /api/v1/keys/{id}`.
+</ResponseField>
+
+<ResponseField name="claims" type="array">
+  The expanded list of `{ action, subject }` pairs that define what this key can
+  do. Always stored and returned as the full claim set, even when created with a
+  preset shorthand.
+</ResponseField>
+
+<ResponseField name="preset" type="string | null">
+  The convenience label (`viewer`, `editor`, `admin`) if the key's claims exactly
+  match a known preset; `null` for custom claim sets. Computed at read time, not
+  stored.
+</ResponseField>
+
+<ResponseField name="prefix" type="string">
+  The first 12 characters of the raw key (e.g. `linq_XXXXXXX`). Stored for
+  identification purposes in the UI and API listings without revealing the secret.
+</ResponseField>
+
+<ResponseField name="expires_at" type="string | null">
+  ISO 8601 expiry timestamp, or `null` if the key never expires.
+</ResponseField>
+
+<ResponseField name="created_at" type="string">
+  ISO 8601 timestamp of when the key was created.
+</ResponseField>
+
+<ResponseField name="updated_at" type="string">
+  ISO 8601 timestamp of the most recent update to the key.
+</ResponseField>
+
+## Listing Keys
+
+`GET /api/v1/keys` returns a paginated list of all keys. Keys with the admin
+preset (i.e. the `create Key` claim) receive the full `ApiKey` shape in the
+response; keys without it receive a reduced `ApiKeySummary` (id, name, claims,
+preset only) — enough to identify a key, but not enough to manage others.
+
+```bash
+curl "https://your-linq-host/api/v1/keys?limit=20&offset=0" \
+  -H "Authorization: Bearer linq_your_admin_key"
+```
+
+<Note>
+  The Keys page in the linq Client UI provides a visual listing of all keys and
+  links directly to creation and revocation flows, backed by the same
+  `GET /api/v1/keys` and `POST /api/v1/keys` endpoints.
+</Note>
+
+## Revoking a Key
+
+Send `DELETE /api/v1/keys/{id}` to permanently delete a key. The operation is
+irreversible — there is no soft-delete or archive state for keys.
+
+```bash
+curl -X DELETE https://your-linq-host/api/v1/keys/019612ab-... \
+  -H "Authorization: Bearer linq_your_admin_key"
+```
+
+A successful revocation returns `204 No Content`. A key cannot revoke itself — the server returns `403 Forbidden` if `{id}` matches the key making the request.
+
+<Info>
+  Links created by a revoked key are **not affected**. Links carry no reference
+  to the key that created them (see `docs/adr/0016` in the source repo). Revoking
+  an editor's key never deletes, archives, or alters any link that editor
+  created.
+</Info>
+
+## Rotating a Key
+
+linq has no in-place rotation endpoint. To rotate a key:
+
+<Steps>
+  <Step title="Create a replacement key">
+    Use `POST /api/v1/keys` or `bun run key:create` to mint a new key with the
+    same name and preset as the one being replaced.
+  </Step>
+  <Step title="Update all consumers">
+    Deploy or reconfigure every service or integration that uses the old key to
+    use the new one.
+  </Step>
+  <Step title="Revoke the old key">
+    Once all consumers have been updated, send `DELETE /api/v1/keys/{old-id}`.
+    The old key is immediately invalidated.
+  </Step>
+</Steps>
+
+## Key Expiry
+
+Set `expires_at` to an ISO 8601 timestamp when creating or updating a key. Once
+that timestamp has passed, any request carrying that key receives `401 Unauthorized`
+with the message `"API key has expired"` — even if the row still exists in the
+database.
+
+```bash
+# Create a key that expires at the end of the year
+curl -X POST https://your-linq-host/api/v1/keys \
+  -H "Authorization: Bearer linq_your_admin_key" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "name": "temporary-integration",
+    "preset": "editor",
+    "expires_at": "2025-12-31T23:59:59Z"
+  }'
+```
+
+To clear an expiry on an existing key, send `PATCH /api/v1/keys/{id}` with
+`"expires_at": null`.
+
+```bash
+curl -X PATCH https://your-linq-host/api/v1/keys/019612ab-... \
+  -H "Authorization: Bearer linq_your_admin_key" \
+  -H "Content-Type: application/json" \
+  -d '{ "expires_at": null }'
+```

@@ -1,0 +1,125 @@
+{
+  "projectType": "saas",
+  "projectName": "linq",
+  "projectDescription": "Self-hosted SaaS platform for URL shortening, dynamic link routing with conditional rules, and link-tree pages — operated via a REST API and a static web UI.",
+  "theme": "luma",
+  "primaryColor": "#6366F1",
+  "lightColor": "#EEF2FF",
+  "darkColor": "#3730A3",
+  "navigation": {
+    "tabs": [
+      {
+        "tab": "Documentation",
+        "groups": [
+          {
+            "group": "Get Started",
+            "pages": [
+              "introduction",
+              "quickstart",
+              "configuration"
+            ]
+          },
+          {
+            "group": "Deployment",
+            "pages": [
+              "deployment/docker",
+              "deployment/client-ui",
+              "deployment/caddy-https"
+            ]
+          },
+          {
+            "group": "Core Concepts",
+            "pages": [
+              "concepts/links-and-slugs",
+              "concepts/dynamic-links",
+              "concepts/link-trees",
+              "concepts/domains",
+              "concepts/analytics"
+            ]
+          },
+          {
+            "group": "Authentication & Access",
+            "pages": [
+              "auth/api-keys",
+              "auth/roles-and-permissions"
+            ]
+          }
+        ]
+      },
+      {
+        "tab": "API Reference",
+        "groups": [
+          {
+            "group": "Overview",
+            "pages": [
+              "api-reference/overview",
+              "api-reference/authentication",
+              "api-reference/errors"
+            ]
+          },
+          {
+            "group": "Resources",
+            "pages": [
+              "api-reference/links",
+              "api-reference/domains",
+              "api-reference/rules",
+              "api-reference/qr-codes",
+              "api-reference/analytics",
+              "api-reference/visits",
+              "api-reference/keys"
+            ]
+          }
+        ]
+      }
+    ]
+  },
+  "keyFeatures": [
+    "URL shortener with custom or random slugs",
+    "Dynamic link routing with platform and query-param conditions",
+    "Link tree pages (hosted social-media-style profile link pages)",
+    "QR code generation with custom styling per link",
+    "Per-link visit analytics with human/bot detection",
+    "API key authentication with viewer/editor/admin roles",
+    "Automatic HTTPS via Caddy integration for custom domains",
+    "In-process LRU or Redis redirect cache",
+    "Static Next.js client UI deployable standalone or served by the API server",
+    "Open Graph preview pages for crawlers",
+    "Privacy-first: no client IPs stored anywhere"
+  ],
+  "publicApiSurface": [
+    "GET /api/health",
+    "GET /api/v1/me",
+    "GET /api/v1/links",
+    "POST /api/v1/links",
+    "GET /api/v1/links/{id}",
+    "PATCH /api/v1/links/{id}",
+    "DELETE /api/v1/links/{id}",
+    "DELETE /api/v1/links/{id}/purge",
+    "GET /api/v1/links/{id}/rules",
+    "PUT /api/v1/links/{id}/rules",
+    "GET /api/v1/links/count",
+    "DELETE /api/v1/links/purge",
+    "GET /api/v1/domains",
+    "POST /api/v1/domains",
+    "GET /api/v1/domains/{id}",
+    "PATCH /api/v1/domains/{id}",
+    "DELETE /api/v1/domains/{id}",
+    "DELETE /api/v1/domains/{id}/purge",
+    "GET /api/v1/qr-codes",
+    "POST /api/v1/qr-codes",
+    "GET /api/v1/qr-codes/{id}",
+    "PATCH /api/v1/qr-codes/{id}",
+    "DELETE /api/v1/qr-codes/{id}",
+    "GET /api/v1/analytics/summary",
+    "GET /api/v1/analytics/timeseries",
+    "GET /api/v1/analytics/breakdown",
+    "GET /api/v1/visits",
+    "GET /api/v1/keys",
+    "POST /api/v1/keys",
+    "GET /api/v1/keys/{id}",
+    "PATCH /api/v1/keys/{id}",
+    "DELETE /api/v1/keys/{id}",
+    "GET /{slug} — redirect handler",
+    "GET /llms.txt — per-domain catalogue of opted-in links"
+  ]
+}

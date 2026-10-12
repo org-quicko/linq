@@ -1,0 +1,186 @@
+---
+title: "Links and Slugs: How Short URLs Work in the linq API"
+sidebarTitle: "Links & Slugs"
+description: "Links are linq's core entity. Learn slug generation, redirect vs tree kinds, query forwarding, preset params, expiry, and the archived–purged lifecycle."
+---
+
+Links are the core entity in linq. Every short URL is a link: a slug on a domain that either redirects a visitor to a long destination or serves a hosted link-tree page. Links carry their own metadata, optional expiry, visit counters, and a full lifecycle from creation through optional soft-deletion to permanent purge. Understanding how links and slugs work is the foundation for everything else you build with the API.
+
+## Link Kinds
+
+Every link has a `kind` that controls what happens when a visitor lands on its short URL.
+
+<Tabs>
+  <Tab title="redirect">
+    A `redirect` link sends visitors to a **Destination** URL with an HTTP 302 response. This is the standard short-link use case. A redirect link may carry up to 50 conditional **Rules** (see [Dynamic Links](/concepts/dynamic-links)) to route different visitors to different destinations.
+  </Tab>
+  <Tab title="tree">
+    A `tree` link serves a **hosted HTML page** instead of a redirect. The page displays a title, description, optional image, and an ordered list of items — each a label pointing to another link on the same domain. See [Link Trees](/concepts/link-trees) for details.
+  </Tab>
+</Tabs>
+
+## Slugs
+
+A slug is the path segment after the host that uniquely identifies a link within a domain — the `abc123` in `https://go.example.com/abc123`.
+
+<CardGroup cols={2}>
+  <Card title="Random slugs" icon="shuffle">
+    When you omit `slug` on create, linq generates a random slug using base-62 characters (`[A-Za-z0-9_-]`). The default length is **6 characters**, controlled by the `LINQ_SLUG_LENGTH` environment variable. With the default length you have 62⁶ ≈ 56 billion possible slugs per domain.
+  </Card>
+  <Card title="Custom slugs" icon="pen">
+    Supply any value matching `^[A-Za-z0-9_-]{1,64}$` in the `slug` field when creating a link. If that slug is already taken on the domain, the API returns `409 Conflict`. Reserved path segments (such as `/api` and the Client UI base path) are rejected with `400`.
+  </Card>
+</CardGroup>
+
+<Note>
+  Slugs are **immutable** once set — changing a slug would break any live short URL. To move a link to a different slug, archive the old one and create a new link. A slug remains reserved for as long as its link row exists, archived or not; only a Purge releases it.
+</Note>
+
+## Short URL Format
+
+The `short_url` field on every link response contains the fully assembled URL. The scheme is chosen automatically:
+
+```ts
+// From apps/server/src/http/api/links.ts
+export function shortUrl(host: string, slug: string): string {
+  const scheme = /^(localhost|127\.0\.0\.1)(:\d+)?$/.test(host) ? "http" : "https"
+  return `${scheme}://${host}/${slug}`
+}
+```
+
+- **`localhost` or `127.0.0.1`** (with or without a port) → `http://`
+- **Any other host** → `https://`
+
+This means a local development setup on `localhost:3000` produces `http://localhost:3000/abc123`, while a production domain like `go.example.com` always produces `https://go.example.com/abc123`.
+
+## Link Fields
+
+The full shape of a link returned by the API:
+
+<ResponseField name="id" type="string (UUID)">
+  Unique identifier for the link. UUIDv7, so it is time-sortable.
+</ResponseField>
+
+<ResponseField name="domain_id" type="string (UUID)">
+  The domain this link belongs to. Set at create time and immutable.
+</ResponseField>
+
+<ResponseField name="domain_host" type="string">
+  The host string of the domain, e.g. `go.example.com`. Joined into every response for convenience.
+</ResponseField>
+
+<ResponseField name="slug" type="string">
+  Path segment. Immutable. Pattern: `^[A-Za-z0-9_-]{1,64}$`.
+</ResponseField>
+
+<ResponseField name="short_url" type="string (URI)">
+  Fully assembled short URL: `https://<domain_host>/<slug>` (or `http://` for localhost).
+</ResponseField>
+
+<ResponseField name="destination" type="string (URI)">
+  The long URL visitors are sent to when the link resolves.
+</ResponseField>
+
+<ResponseField name="name" type="string | null">
+  Human-readable label. Auto-populated from the destination page's `<title>` when `LINQ_FETCH_LINK_METADATA` is enabled, falling back to the destination host. Up to 200 characters.
+</ResponseField>
+
+<ResponseField name="description" type="string | null">
+  Optional description. Auto-populated from the destination's `<meta name="description">` when metadata fetching is enabled. Up to 500 characters.
+</ResponseField>
+
+<ResponseField name="icon_url" type="string (URI) | null">
+  Favicon or icon URL fetched from the destination page's `<head>` when `LINQ_FETCH_LINK_METADATA` is enabled. `null` if not fetched or not found.
+</ResponseField>
+
+<ResponseField name="tags" type="string[]">
+  Up to 20 free-form tags (each up to 50 chars). Used for filtering in `GET /api/v1/links`.
+</ResponseField>
+
+<ResponseField name="forward_query" type="boolean">
+  When `true`, the caller's incoming query string is merged into the destination URL at redirect time. Defaults to `true`. Also gates `preset_params`.
+</ResponseField>
+
+<ResponseField name="preset_params" type="object">
+  Key–value pairs (up to 20, keys ≤ 64 chars, values ≤ 512 chars) applied to the destination at redirect time. When `forward_query` is `true`, preset params overwrite any colliding key from either the destination's own query or the forwarded query. See [Query Forwarding and Preset Params](#query-forwarding-and-preset-params) below.
+</ResponseField>
+
+<ResponseField name="status" type='"active" | "archived"'>
+  Current lifecycle state. See [Link Lifecycle](#link-lifecycle).
+</ResponseField>
+
+<ResponseField name="expires_at" type="string (ISO 8601) | null">
+  When set, the link stops redirecting after this timestamp. `null` means the link never expires.
+</ResponseField>
+
+<ResponseField name="listed" type="boolean">
+  Opt-in flag controlling whether this link appears in the domain's `GET /llms.txt` catalogue for AI crawlers. Defaults to `false`.
+</ResponseField>
+
+<ResponseField name="rule_count" type="integer">
+  The number of conditional rules attached to this link. When greater than zero, the Client UI marks the link as routing dynamically.
+</ResponseField>
+
+<ResponseField name="human_visits" type="integer">
+  Cumulative visit count for requests that were **not** detected as bots or link-preview crawlers.
+</ResponseField>
+
+<ResponseField name="bot_visits" type="integer">
+  Cumulative visit count for requests that **were** detected as bots or link-preview crawlers.
+</ResponseField>
+
+## Query Forwarding and Preset Params
+
+When `forward_query` is `true` (the default), linq merges the visitor's own query string into the destination URL before redirecting. Preset params are then applied on top, winning any collision:
+
+```
+Incoming request:  https://go.example.com/abc123?utm_medium=email&color=blue
+Destination:       https://app.example.com/landing?color=red
+preset_params:     { "utm_source": "linq", "color": "green" }
+
+Final URL:         https://app.example.com/landing?color=green&utm_medium=email&utm_source=linq
+```
+
+In this example `color=red` (destination's own query) is overridden by `color=blue` (forwarded), which is then overridden by `color=green` (preset param). Preset params always win on collision.
+
+<Info>
+  Setting `forward_query: false` disables both query forwarding **and** preset params in one step, since preset params are only applied when the link forwards its query.
+</Info>
+
+## Link Lifecycle
+
+Links move through a three-stage lifecycle. Only admins can archive or purge.
+
+<Steps>
+  <Step title="Active">
+    The link resolves normally. Visits are recorded. The short URL works. This is the initial state after creation.
+  </Step>
+  <Step title="Archived">
+    A soft delete triggered by `DELETE /api/v1/links/{id}`. The slug is still reserved — no other link can claim it. Existing visits are retained. An archived link **never redirects**: visitors land on the domain's fallback URL or get a 404. Archiving is **reversible** by patching `status` back to `"active"`.
+  </Step>
+  <Step title="Purged">
+    Permanent destruction triggered by `DELETE /api/v1/links/{id}/purge`. The link row is deleted. The slug is released for reuse on the same domain. All visits for this link are destroyed (`ON DELETE CASCADE`). **Irreversible.** A link must be in `archived` status before it can be purged.
+  </Step>
+</Steps>
+
+<Warning>
+  Purging is irreversible and destroys all visit history for the link. Archive first, then purge only when you are certain the data is no longer needed. Only API keys with the `admin` role can perform either operation.
+</Warning>
+
+The bulk endpoint `DELETE /api/v1/links/purge` destroys every archived link at once and is also admin-only.
+
+## Link Expiry
+
+Setting `expires_at` to an ISO 8601 datetime makes the link behave as an orphan after that timestamp — the visitor is sent to the domain's fallback URL or gets a 404. The link row is **not** automatically deleted; it stays in `active` status and can have its expiry extended by patching `expires_at`.
+
+<Info>
+  Because a cached redirect entry can outlive its `expires_at` timestamp without the cache knowing, linq intentionally treats expired links as orphans at read time rather than filtering them in SQL. The cache TTL (default 5 minutes, set via `LINQ_CACHE_TTL`) is the maximum extra time an expired link can still redirect.
+</Info>
+
+## OG Preview
+
+When a link-preview crawler (Slack, iMessage, Twitter Cards, etc.) hits a short URL, linq detects the crawler's User-Agent and returns a small HTML page carrying the link's own Open Graph tags — `og:title`, `og:description`, and `og:image` — instead of a 302. This ensures social cards show your curated metadata, not the destination's own tags, and avoids a live fetch to the destination on every crawler hit.
+
+<Note>
+  The `listed` field controls whether a link appears in `GET /llms.txt` — a plain-text catalogue read by AI crawlers and LLMs to discover the short links on a domain. It defaults to `false`. Set it to `true` only for links you want AI tools to know about publicly.
+</Note>

@@ -1,0 +1,151 @@
+---
+title: "Domains: Custom Hosts for Your Short Links in linq"
+sidebarTitle: "Domains"
+description: "A domain is a host that short links live on. Covers fallback URLs, orphan visits, lifecycle, multi-domain setups, LINQ_APP_HOST isolation, and Caddy HTTPS."
+---
+
+A domain is the host that short links live on in linq. Every link belongs to exactly one domain, and a slug is unique within that domain — so `go.example.com/abc123` and `links.example.com/abc123` are two completely separate links even though their slugs are identical. Domains carry a fallback URL for orphan visits, go through the same lifecycle as links, and optionally sync their routes into Caddy automatically for HTTPS termination.
+
+## Domain Fields
+
+<ResponseField name="id" type="string (UUID)">
+  Unique identifier. UUIDv7.
+</ResponseField>
+
+<ResponseField name="host" type="string">
+  Lowercased hostname, optionally including a port (e.g. `go.example.com` or `localhost:3000`). Pattern: `^[a-z0-9.-]+(:\d{1,5})?$`. Immutable after creation.
+</ResponseField>
+
+<ResponseField name="fallback_url" type="string (URI) | null">
+  Where orphan visits are sent. An orphan is any visit on this domain that resolves to no active link: an unknown slug, an archived link, an expired link, or a bare `GET /` request. When `null`, orphan visits receive a 404.
+</ResponseField>
+
+<ResponseField name="base_path_redirect" type="string (URI) | null">
+  Where a bare `GET /` on this domain goes specifically. When `null`, the domain falls back to `fallback_url`. Lets you distinguish "no link found" from "root path visited".
+</ResponseField>
+
+<ResponseField name="invalid_short_url_redirect" type="string (URI) | null">
+  Where a malformed slug (one that doesn't match the slug pattern at all) goes. When `null`, falls back to `fallback_url`. Useful for distinguishing typos from genuinely unknown slugs.
+</ResponseField>
+
+<ResponseField name="status" type='"active" | "archived"'>
+  Current lifecycle state. Only active domains resolve links.
+</ResponseField>
+
+<ResponseField name="link_count" type="integer">
+  Total number of links on this domain, archived links included. A domain cannot be archived or purged while `link_count` is greater than zero — purge all links first.
+</ResponseField>
+
+<ResponseField name="created_at" type="string (ISO 8601)">
+  When the domain row was created.
+</ResponseField>
+
+<ResponseField name="updated_at" type="string (ISO 8601)">
+  When the domain row was last modified.
+</ResponseField>
+
+## Fallback URL
+
+The fallback URL is the safety net for every request on a domain that does not resolve to an active link. Set it to a meaningful destination — your homepage, a custom 404 page, or even a [link tree](/concepts/link-trees) — so visitors always land somewhere useful rather than receiving a blank 404.
+
+```json
+PATCH /api/v1/domains/{id}
+{
+  "fallback_url": "https://example.com/404",
+  "base_path_redirect": "https://example.com",
+  "invalid_short_url_redirect": "https://example.com/404"
+}
+```
+
+<Note>
+  The root path (`/`) is treated like any other short URL. It does not serve the Client UI unless `LINQ_APP_HOST` is configured. A bare `GET /` on a shortening domain goes to `base_path_redirect` if set, then `fallback_url`, then 404. It is **never** the admin UI unless you configure it explicitly.
+</Note>
+
+## Default Domain
+
+When the `domains` table is empty on first boot, linq automatically seeds a domain row using the value of `LINQ_DEFAULT_DOMAIN`. This happens **once** — a restart never re-seeds. After that, domains are managed entirely through the API or the Client UI.
+
+```bash
+# .env
+LINQ_DEFAULT_DOMAIN=go.example.com
+```
+
+The seeded domain is a shortening domain, not the app host. Its `host` value must differ from `LINQ_APP_HOST` if that variable is set.
+
+## Multiple Domains
+
+linq supports any number of domains. There is no limit on how many domain rows you can create. Common patterns include:
+
+<CardGroup cols={2}>
+  <Card title="Brand subdomains" icon="link">
+    `go.example.com` for public links, `internal.example.com` for internal tools — separate domains with independent fallback URLs and link namespaces.
+  </Card>
+  <Card title="Per-campaign domains" icon="bullhorn">
+    Dedicated short domains per marketing campaign, each with its own fallback page, giving you clean analytics isolation without any query-param filtering.
+  </Card>
+  <Card title="Vanity domains" icon="star">
+    Each team or product gets its own shortening domain. Because slugs are scoped per domain, teams never collide.
+  </Card>
+  <Card title="Staging vs production" icon="flask">
+    Run a separate linq instance or domain for staging short links so test traffic never pollutes production analytics.
+  </Card>
+</CardGroup>
+
+## Domain Lifecycle
+
+Domains follow the same active → archived → purged lifecycle as links.
+
+<Steps>
+  <Step title="Active">
+    The domain resolves links normally. Links on the domain redirect or serve tree pages as configured.
+  </Step>
+  <Step title="Archived">
+    Triggered by patching `status` to `"archived"` (requires `admin` role). An archived domain stops resolving links entirely — **every visit to every slug on the domain** produces an orphan result (fallback URL or 404), even if those links are individually active. Archiving is **reversible** by patching `status` back to `"active"`. A domain cannot be archived while it has any links (`link_count > 0`).
+  </Step>
+  <Step title="Purged">
+    Triggered by `DELETE /api/v1/domains/{id}/purge` (requires `admin` role). The domain row is permanently deleted. All visit records for this domain are destroyed. The slug namespace for this host is released entirely. **Irreversible.** A domain must be archived with zero links before it can be purged.
+  </Step>
+</Steps>
+
+<Warning>
+  You must purge or archive all links on a domain before you can archive or purge the domain itself. This prevents silently stranding link rows that have nowhere to go.
+</Warning>
+
+## LINQ_APP_HOST — Separating the UI from Shortening Domains
+
+By default, linq serves the Client UI at `LINQ_CLIENT_BASE_PATH` (default `/home`) on every host. If you want the UI available at `/` on a dedicated host — and keep your shortening domains clean — set `LINQ_APP_HOST`:
+
+```bash
+# .env
+LINQ_APP_HOST=linq.example.com        # UI answers only here
+LINQ_DEFAULT_DOMAIN=go.example.com    # Short links live here
+LINQ_CLIENT_BASE_PATH=/               # Safe because APP_HOST isolates it
+```
+
+With `LINQ_APP_HOST` set:
+- The Client UI answers **only** on that host.
+- Shortening domains never serve the UI, even at the base path.
+- `/api/*` remains host-agnostic and answers on every host.
+- `LINQ_APP_HOST` must never match any domain row in the database.
+
+## Caddy HTTPS Integration
+
+When `LINQ_CADDY_ADMIN_URL` is configured, linq pushes routes to Caddy's admin API automatically on every domain create, patch, archive, and purge. This means adding a new domain in the UI immediately results in Caddy picking it up for HTTPS termination — no manual Caddyfile edits required.
+
+```bash
+# .env
+LINQ_CADDY_ADMIN_URL=http://caddy:2019
+LINQ_CADDY_UPSTREAM=linq:3000
+```
+
+<Info>
+  Caddy's in-memory routes are wiped on its restart. linq reconciles all active domain routes against Caddy once at its own boot, so a Caddy restart followed by a linq restart brings everything back in sync automatically.
+</Info>
+
+If `LINQ_CADDY_ADMIN_URL` is not set, linq operates without Caddy entirely — you can front it with any reverse proxy by pointing your domain's DNS at the host running linq on `LINQ_PORT`.
+
+## Orphan Visits
+
+A visit on an active domain that resolves to no active link — unknown slug, archived link, expired link, or the root path — is recorded as an **orphan visit**. Orphan visits are tracked separately from link visits and are visible in the UI's Orphans page and via the analytics API with `orphan=true`.
+
+Setting a meaningful `fallback_url` on each domain turns these dead-end visits into recoverable traffic instead of silent 404s.

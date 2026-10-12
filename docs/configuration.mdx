@@ -1,0 +1,434 @@
+---
+title: "Configuring linq: All Environment Variables Reference"
+sidebarTitle: "Configuration"
+description: "A complete reference for all LINQ_* environment variables — their types, defaults, and when to set them for local development and production deployments."
+---
+
+linq is configured entirely through environment variables. In local development, set them in a `.env` file at the repository root (copy from `.env.example`); in Docker, pass them to the container at runtime. linq validates its configuration at startup and exits with a descriptive error if a required value is missing or invalid — there is no partial boot with a broken config. Every variable except `DATABASE_URL` has a working default, so a minimal `.env` for local development needs only one line.
+
+---
+
+## Database
+
+<AccordionGroup>
+
+<Accordion title="DATABASE_URL" icon="database">
+
+| | |
+|---|---|
+| **Type** | String (PostgreSQL connection URL) |
+| **Default** | *(none — required)* |
+| **Example** | `postgres://linq:s3cr3t@localhost:5432/linq` |
+
+The PostgreSQL connection string linq uses for all data access and migrations. linq will not create the database — create it first with `psql` or your preferred client. Migrations are applied automatically at boot.
+
+If the connection string contains URL-reserved characters in the password (such as `@`, `#`, or `%`), percent-encode those characters.
+
+</Accordion>
+
+<Accordion title="LINQ_DB_SCHEMA" icon="table">
+
+| | |
+|---|---|
+| **Type** | String |
+| **Default** | `public` |
+| **Example** | `linq` |
+
+The PostgreSQL schema linq creates and owns. Leave unset to use the default `public` schema. Set this when linq shares a database with another application so their tables do not collide. linq creates the schema automatically if it does not already exist.
+
+</Accordion>
+
+<Accordion title="POSTGRES_USER / POSTGRES_PASSWORD / POSTGRES_DB" icon="user">
+
+| | |
+|---|---|
+| **Type** | String |
+| **Default** | `linq` / `linq` / `linq` |
+| **Scope** | Docker Compose (bundled-Postgres examples only) |
+
+These variables are read by the bundled PostgreSQL service in the Docker Compose examples that include their own Postgres container. They are **not** read by linq itself — linq only reads `DATABASE_URL`. The Compose file constructs `DATABASE_URL` from them at container startup.
+
+<Warning>
+Replace the default `POSTGRES_PASSWORD` value before deploying. If the password contains URL-reserved characters (such as `@`, `#`, or `%`), percent-encode those same characters in `DATABASE_URL`.
+</Warning>
+
+</Accordion>
+
+</AccordionGroup>
+
+---
+
+## Ports & Paths
+
+<AccordionGroup>
+
+<Accordion title="LINQ_PORT" icon="plug">
+
+| | |
+|---|---|
+| **Type** | Integer |
+| **Default** | `3000` |
+| **Example** | `4000` |
+
+The HTTP port for the REST API, short-link redirects, and — when the server serves the built Client UI export — the UI itself. Restart the server after changing this value. In Docker Compose, this is the published host port; the container always listens on 3000 internally.
+
+</Accordion>
+
+<Accordion title="LINQ_CLIENT_PORT" icon="browser">
+
+| | |
+|---|---|
+| **Type** | Integer |
+| **Default** | `3001` |
+| **Example** | `4001` |
+
+The port for the Client UI development server (`bun run dev:client`) and the published host port in the standalone client Docker Compose example. The combined Docker image serves the UI on `LINQ_PORT` instead and does not use this value at runtime.
+
+</Accordion>
+
+<Accordion title="LINQ_CLIENT_BASE_PATH" icon="folder">
+
+| | |
+|---|---|
+| **Type** | String (URL path) |
+| **Default** | `/home` |
+| **Example** | `/admin` |
+
+Where the Client UI is mounted — both in the static build and on the running server. Must start with `/`, use lowercase path segments, and have no trailing slash. The root path `/` is only valid when `LINQ_APP_HOST` is also set.
+
+<Warning>
+This value is compiled into the static frontend during `bun run build:client` (or `docker build`). Changing it in the running container's environment without rebuilding the image causes the frontend and server to disagree on paths. Always rebuild after changing this value.
+</Warning>
+
+</Accordion>
+
+<Accordion title="LINQ_APP_HOST" icon="globe">
+
+| | |
+|---|---|
+| **Type** | String (hostname, optionally with port) |
+| **Default** | *(unset)* |
+| **Example** | `linq.example.com` |
+
+The one host that serves the Client UI. When set, the UI answers only on this host — it never appears on shortening domains — which allows `LINQ_CLIENT_BASE_PATH` to be `/`. The REST API still answers on every host. This is how you put the UI at `https://linq.example.com/` while short links live on `https://link.example.com/<slug>`.
+
+<Note>
+`LINQ_APP_HOST` must differ from `LINQ_DEFAULT_DOMAIN` and from every domain row in the database. linq refuses to start — or to create the conflicting domain — if this constraint is violated. Behind a reverse proxy, send both hosts to the same linq port and preserve the `Host` header so linq can tell them apart. See `docs/adr/0019` for the full reasoning.
+</Note>
+
+</Accordion>
+
+<Accordion title="LINQ_DEFAULT_DOMAIN" icon="link">
+
+| | |
+|---|---|
+| **Type** | String (host with optional port) |
+| **Default** | `localhost:${LINQ_PORT}` |
+| **Example** | `link.example.com` |
+
+Seeds the first domain row when the `domains` table is empty. This is a shortening domain — short links read as `https://<this host>/<slug>`. It is never the app host. If you change this value after the database has been initialised, update the existing domain through the UI; this variable only acts on an empty database.
+
+</Accordion>
+
+</AccordionGroup>
+
+---
+
+## Redirect Cache
+
+linq caches slug-to-destination lookups to avoid a Postgres round-trip on every redirect hit. Every create, update, archive, and purge operation clears its own cache entry immediately; the TTL is a backstop for missed invalidations only.
+
+<AccordionGroup>
+
+<Accordion title="LINQ_CACHE_BACKEND" icon="bolt">
+
+| | |
+|---|---|
+| **Type** | `memory` \| `redis` \| `none` |
+| **Default** | `memory` (or `redis` when `LINQ_REDIS_URL` is set) |
+
+Selects where cached lookups live. When left unset, linq infers the backend from `LINQ_REDIS_URL`: a URL present selects `redis`; nothing at all selects `memory`.
+
+| Value | Behaviour |
+|---|---|
+| `memory` | In-process LRU. Nothing else to run. Invalidations only reach this process. |
+| `redis` | Shared store across all linq processes pointing at the same Redis instance. Invalidations from one process reach all others. |
+| `none` | No caching. Every redirect reads Postgres directly. |
+
+</Accordion>
+
+<Accordion title="LINQ_REDIS_URL" icon="server">
+
+| | |
+|---|---|
+| **Type** | String (Redis connection URL) |
+| **Default** | *(unset)* |
+| **Example** | `redis://localhost:6379` |
+
+The Redis connection string. Setting this implicitly selects the `redis` cache backend unless `LINQ_CACHE_BACKEND=none` is also set. A Redis instance that is unreachable at startup causes linq to exit; one that goes down later degrades transparently to Postgres rather than failing requests.
+
+</Accordion>
+
+<Accordion title="LINQ_CACHE_TTL" icon="clock">
+
+| | |
+|---|---|
+| **Type** | Integer (seconds) |
+| **Default** | `300` |
+
+How long a cached lookup survives before linq re-reads from Postgres, on either cache backend. Five minutes is the default. Most invalidations happen eagerly (on every create, update, archive, and purge), so this value is only a backstop.
+
+</Accordion>
+
+<Accordion title="LINQ_CACHE_SWEEP_INTERVAL" icon="rotate">
+
+| | |
+|---|---|
+| **Type** | Integer (seconds, 1–3600) |
+| **Default** | `60` |
+
+How often the `memory` backend physically reclaims expired entries. This does not change when an entry expires — expiry on read is still exact — it only controls how often the background sweep frees memory. Redis ignores this setting; use `maxmemory` in `redis.conf` for Redis instead.
+
+</Accordion>
+
+<Accordion title="LINQ_CACHE_MAX_ENTRIES" icon="list-ol">
+
+| | |
+|---|---|
+| **Type** | Integer |
+| **Default** | `10000` |
+
+Maximum number of entries the `memory` backend holds before evicting the least recently used. This is a count of entries, not bytes — the actual memory footprint depends on destination URL lengths. Redis ignores this setting.
+
+</Accordion>
+
+</AccordionGroup>
+
+---
+
+## Logging
+
+<AccordionGroup>
+
+<Accordion title="LINQ_DATA_DIR" icon="folder-open">
+
+| | |
+|---|---|
+| **Type** | String (directory path) |
+| **Default** | `./data` |
+| **Example** | `/data` |
+
+Root directory for all data linq writes to disk. Currently this means only the log file (`$LINQ_DATA_DIR/logs/linq.log`). In Docker, `/data` is the volume mount — it is the one thing worth backing up.
+
+</Accordion>
+
+<Accordion title="LINQ_LOG_LEVEL" icon="chart-bar">
+
+| | |
+|---|---|
+| **Type** | `trace` \| `debug` \| `info` \| `warn` \| `error` \| `fatal` \| `silent` |
+| **Default** | `info` |
+
+Controls log verbosity. The `debug` level additionally logs request parameters, query keys (never values), and span input/output. Client IP addresses are never logged regardless of level — see `docs/adr/0003`.
+
+</Accordion>
+
+<Accordion title="LINQ_LOG_FILE" icon="file-lines">
+
+| | |
+|---|---|
+| **Type** | String (file path) |
+| **Default** | `$LINQ_DATA_DIR/logs/linq.log` |
+
+Path to the NDJSON log file. Set to an empty string to write logs to stdout only and disable file logging entirely.
+
+</Accordion>
+
+<Accordion title="LINQ_LOG_MAX_SIZE" icon="hard-drive">
+
+| | |
+|---|---|
+| **Type** | String (size with unit, e.g. `20m`) |
+| **Default** | `20m` |
+
+Maximum size of a single log file before rotation. Total disk used by logs is at most `LINQ_LOG_MAX_SIZE × (LINQ_LOG_RETAIN + 1)`.
+
+</Accordion>
+
+<Accordion title="LINQ_LOG_RETAIN" icon="archive">
+
+| | |
+|---|---|
+| **Type** | Integer |
+| **Default** | `5` |
+
+Number of rotated log files to keep alongside the active log. With the default `20m` max size and `5` retained files, logs occupy at most 120 MB.
+
+</Accordion>
+
+</AccordionGroup>
+
+---
+
+## Features
+
+<AccordionGroup>
+
+<Accordion title="LINQ_FETCH_LINK_METADATA" icon="magnifying-glass">
+
+| | |
+|---|---|
+| **Type** | Boolean |
+| **Default** | `false` |
+
+When `true`, linq fetches a link's destination URL to extract its title, description, and icon for display in the UI and OG previews. Disabled by default because it makes outbound HTTP requests to arbitrary URLs supplied by API callers.
+
+<Warning>
+Enable `LINQ_FETCH_LINK_METADATA` **only** in deployments where network egress rules block requests to private and internal addresses (RFC 1918 ranges, loopback, link-local, etc.). Without those controls, this feature is an SSRF vector — an API caller could use it to probe your internal network. See `docs/adr/0014` for the full threat model.
+</Warning>
+
+</Accordion>
+
+<Accordion title="LINQ_SLUG_LENGTH" icon="text-size">
+
+| | |
+|---|---|
+| **Type** | Integer |
+| **Default** | `6` |
+
+The length of randomly generated slugs when no custom slug is supplied on link creation. Affects only new links — existing links keep their slugs. Shorter slugs are more collision-prone in large datasets; the default of 6 gives 56 billion possible values with the alphanumeric-plus-hyphen-underscore alphabet.
+
+</Accordion>
+
+</AccordionGroup>
+
+---
+
+## Rate Limiting
+
+<AccordionGroup>
+
+<Accordion title="LINQ_API_RATE_LIMIT_PER_MINUTE" icon="gauge">
+
+| | |
+|---|---|
+| **Type** | Integer |
+| **Default** | *(unset — no limit)* |
+| **Example** | `1000` |
+
+Maximum API requests per key per minute. Unset means no per-process rate limit is applied. For public-facing deployments, keep an edge rate limiter (e.g. Caddy, nginx, or a CDN) in front of linq as well — linq intentionally does not trust `X-Forwarded-For` headers itself.
+
+</Accordion>
+
+<Accordion title="LINQ_VISIT_MAX_PENDING" icon="hourglass">
+
+| | |
+|---|---|
+| **Type** | Integer |
+| **Default** | *(unset — no limit)* |
+| **Example** | `1000` |
+
+Maximum number of visit analytics events queued in-process waiting to be written to Postgres. Limits memory growth under redirect traffic spikes. Unset means unbounded.
+
+</Accordion>
+
+</AccordionGroup>
+
+---
+
+## Caddy Integration
+
+linq can sync domain routes to a Caddy reverse proxy automatically. When enabled, every domain create, patch, archive, and purge pushes the corresponding route to Caddy — adding a domain in linq is enough to make it resolve over HTTPS without any manual Caddy configuration.
+
+<AccordionGroup>
+
+<Accordion title="LINQ_CADDY_ADMIN_URL" icon="shield">
+
+| | |
+|---|---|
+| **Type** | String (URL) |
+| **Default** | *(unset)* |
+| **Example** | `http://caddy:2019` |
+
+The URL of Caddy's admin API. Setting this value is what enables domain sync. Left unset, linq does not contact Caddy at all. In the Docker Compose examples, the Caddy admin port (`2019`) is never published to the host — only linq reaches it over the internal compose network.
+
+</Accordion>
+
+<Accordion title="LINQ_CADDY_UPSTREAM" icon="arrow-right-arrow-left">
+
+| | |
+|---|---|
+| **Type** | String (host:port) |
+| **Default** | *(unset)* |
+| **Example** | `linq:3000` |
+
+Where Caddy should reverse-proxy matched domain traffic. Required when `LINQ_CADDY_ADMIN_URL` is set. In a Docker Compose stack, this is the linq service name and its container port.
+
+</Accordion>
+
+</AccordionGroup>
+
+---
+
+## Example `.env`
+
+A realistic configuration for local development with Redis caching and Caddy integration disabled:
+
+```dotenv
+# ── Required ──────────────────────────────────────────────────────────────────
+DATABASE_URL=postgres://linq:s3cr3t@localhost:5432/linq
+
+# ── Ports & paths ─────────────────────────────────────────────────────────────
+LINQ_PORT=3000
+LINQ_CLIENT_PORT=3001
+LINQ_CLIENT_BASE_PATH=/home
+LINQ_DEFAULT_DOMAIN=localhost:3000
+
+# ── Redirect cache ────────────────────────────────────────────────────────────
+LINQ_CACHE_BACKEND=memory
+LINQ_CACHE_TTL=300
+LINQ_CACHE_SWEEP_INTERVAL=60
+LINQ_CACHE_MAX_ENTRIES=10000
+
+# ── Logging ───────────────────────────────────────────────────────────────────
+LINQ_DATA_DIR=./data
+LINQ_LOG_LEVEL=info
+LINQ_LOG_MAX_SIZE=20m
+LINQ_LOG_RETAIN=5
+
+# ── Features ──────────────────────────────────────────────────────────────────
+LINQ_SLUG_LENGTH=6
+# LINQ_FETCH_LINK_METADATA=true  # Only enable with SSRF-blocking egress rules
+```
+
+And a production example with Redis, `LINQ_APP_HOST`, and Caddy sync:
+
+```dotenv
+# ── Required ──────────────────────────────────────────────────────────────────
+DATABASE_URL=postgres://linq:s3cr3t@db.internal:5432/linq
+
+# ── Ports & paths ─────────────────────────────────────────────────────────────
+LINQ_PORT=3000
+LINQ_CLIENT_BASE_PATH=/
+LINQ_DEFAULT_DOMAIN=link.example.com
+LINQ_APP_HOST=linq.example.com
+
+# ── Redirect cache ────────────────────────────────────────────────────────────
+LINQ_CACHE_BACKEND=redis
+LINQ_REDIS_URL=redis://redis.internal:6379
+LINQ_CACHE_TTL=300
+
+# ── Logging ───────────────────────────────────────────────────────────────────
+LINQ_DATA_DIR=/data
+LINQ_LOG_LEVEL=warn
+LINQ_LOG_MAX_SIZE=20m
+LINQ_LOG_RETAIN=5
+
+# ── Rate limiting ─────────────────────────────────────────────────────────────
+LINQ_API_RATE_LIMIT_PER_MINUTE=1000
+LINQ_VISIT_MAX_PENDING=1000
+
+# ── Caddy integration ─────────────────────────────────────────────────────────
+LINQ_CADDY_ADMIN_URL=http://caddy:2019
+LINQ_CADDY_UPSTREAM=linq:3000
+```

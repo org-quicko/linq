@@ -1,0 +1,88 @@
+{
+  "$schema": "https://mintlify.com/docs.json",
+  "name": "linq",
+  "theme": "luma",
+  "colors": {
+    "primary": "#6366F1",
+    "light": "#EEF2FF",
+    "dark": "#3730A3"
+  },
+  "navbar": {
+    "primary": {
+      "type": "github",
+      "href": "https://github.com/org-quicko/linq"
+    }
+  },
+  "footer": {
+    "socials": {
+      "github": "https://github.com/org-quicko/linq"
+    }
+  },
+  "navigation": {
+    "tabs": [
+      {
+        "tab": "Documentation",
+        "groups": [
+          {
+            "group": "Get Started",
+            "pages": [
+              "introduction",
+              "quickstart",
+              "configuration"
+            ]
+          },
+          {
+            "group": "Deployment",
+            "pages": [
+              "deployment/docker",
+              "deployment/client-ui",
+              "deployment/caddy-https"
+            ]
+          },
+          {
+            "group": "Core Concepts",
+            "pages": [
+              "concepts/links-and-slugs",
+              "concepts/dynamic-links",
+              "concepts/link-trees",
+              "concepts/domains",
+              "concepts/analytics"
+            ]
+          },
+          {
+            "group": "Authentication & Access",
+            "pages": [
+              "auth/api-keys",
+              "auth/roles-and-permissions"
+            ]
+          }
+        ]
+      },
+      {
+        "tab": "API Reference",
+        "groups": [
+          {
+            "group": "Overview",
+            "pages": [
+              "api-reference/overview",
+              "api-reference/authentication",
+              "api-reference/errors"
+            ]
+          },
+          {
+            "group": "Resources",
+            "pages": [
+              "api-reference/links",
+              "api-reference/domains",
+              "api-reference/rules",
+              "api-reference/qr-codes",
+              "api-reference/analytics",
+              "api-reference/visits",
+              "api-reference/keys"
+            ]
+          }
+        ]
+      }
+    ]
+  }
+}

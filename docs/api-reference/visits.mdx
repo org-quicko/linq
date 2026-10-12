@@ -1,0 +1,195 @@
+---
+title: "Visits API: Raw Visit Log with Filters and Pagination"
+sidebarTitle: "Visits"
+description: "Page through the raw visit log, filtered by link, domain, date range, bot status, platform, OS, or browser. Individual visit records returned newest-first."
+---
+
+The visits endpoint exposes the raw, unprocessed log of every request that arrived at a linq domain. Each record corresponds to one individual request and includes the platform, browser, OS, referer, user agent, destination chosen, and forwarded query — but never the visitor's IP address. For aggregated totals, charts, or ranked breakdowns, use the [Analytics API](/api-reference/analytics) instead; the visits endpoint is most useful for building custom exports, debugging redirect rules, or auditing traffic at the individual event level.
+
+<Note>
+  Client IP addresses are never stored in the visit log at any point in the processing pipeline. Platform, OS, and browser fields are derived solely from the `User-Agent` request header.
+</Note>
+
+---
+
+## GET /api/v1/visits
+
+Returns a paginated, newest-first list of visit records matching the supplied filters.
+
+```http
+GET /api/v1/visits
+```
+
+### Query Parameters
+
+<ParamField query="link_id" type="string (UUID)">
+  Restrict results to visits on a specific link. Pass `link_id` of a known link to scope your query. Omit to see visits across all links (subject to other filters).
+</ParamField>
+
+<ParamField query="domain_id" type="string (UUID)">
+  Restrict results to visits on a specific domain.
+</ParamField>
+
+<ParamField query="orphan" type="string" default='"false"'>
+  When `"true"`, restricts the response to orphan visits — requests that matched no active link (unknown slug, archived link, or root path). Defaults to `"false"`, which returns all visits regardless of link resolution.
+</ParamField>
+
+<ParamField query="from" type="string (ISO 8601 datetime)">
+  Return only visits that occurred at or after this instant. Accepts full ISO 8601 datetimes (e.g. `2024-05-01T00:00:00Z`). Inclusive.
+</ParamField>
+
+<ParamField query="to" type="string (ISO 8601 datetime)">
+  Return only visits that occurred at or before this instant. Requires a full ISO 8601 datetime string including the `T` separator (e.g. `2024-05-31T23:59:59Z`). Inclusive.
+</ParamField>
+
+<ParamField query="bot" type="string" default='"any"'>
+  Filter by bot classification. One of:
+  - `"true"` — return only bot visits
+  - `"false"` — return only human visits
+  - `"any"` — return all visits (default)
+</ParamField>
+
+<ParamField query="platform" type="string">
+  Filter to a specific platform. One of `android`, `ios`, or `desktop`.
+</ParamField>
+
+<ParamField query="os" type="string">
+  Filter to visits from a specific OS (e.g. `windows`, `macos`, `linux`). Exact match; the value is lowercased at the API boundary to match how it is stored. Open vocabulary — not a closed enum.
+</ParamField>
+
+<ParamField query="browser" type="string">
+  Filter to visits from a specific browser (e.g. `chrome`, `safari`, `firefox`). Exact match; the value is lowercased at the API boundary to match how it is stored. Open vocabulary — not a closed enum.
+</ParamField>
+
+<ParamField query="limit" type="integer" default="50">
+  Maximum number of records per page. Must be between 1 and 200.
+</ParamField>
+
+<ParamField query="offset" type="integer" default="0">
+  Zero-based offset for pagination. Use with `limit` to walk through the full result set.
+</ParamField>
+
+### Response Envelope
+
+The response is a standard list envelope:
+
+<ResponseField name="data" type="Visit[]">
+  Array of visit objects for the current page.
+</ResponseField>
+
+<ResponseField name="total" type="number">
+  Total number of visits matching the query (across all pages).
+</ResponseField>
+
+<ResponseField name="limit" type="number">
+  The effective page size used for this request.
+</ResponseField>
+
+<ResponseField name="offset" type="number">
+  The offset used for this request.
+</ResponseField>
+
+### Example
+
+<Tabs>
+  <Tab title="Human visits on a link">
+    ```bash
+    curl "https://your-linq-host/api/v1/visits?link_id=018f2c3e-1234-7abc-8def-000000000001&bot=false&limit=25" \
+      -H "x-api-key: lq_your_key_here"
+    ```
+  </Tab>
+  <Tab title="Date-bounded with platform filter">
+    ```bash
+    curl "https://your-linq-host/api/v1/visits?from=2024-05-01T00:00:00Z&to=2024-05-31T23:59:59Z&platform=ios" \
+      -H "x-api-key: lq_your_key_here"
+    ```
+  </Tab>
+  <Tab title="Response">
+    ```json
+    {
+      "data": [
+        {
+          "id": "018f2c3e-aaaa-7000-8000-000000000099",
+          "link_id": "018f2c3e-1234-7abc-8def-000000000001",
+          "domain_id": "018f2c3e-0000-7000-8000-000000000010",
+          "slug_requested": "launch",
+          "occurred_at": "2024-05-15T14:32:10.000Z",
+          "is_bot": false,
+          "platform": "desktop",
+          "os": "macos",
+          "browser": "chrome",
+          "user_agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7)...",
+          "referer": "https://twitter.com/",
+          "destination": "https://example.com/product/launch?utm_source=twitter",
+          "query": { "utm_source": ["twitter"] }
+        }
+      ],
+      "total": 1482,
+      "limit": 25,
+      "offset": 0
+    }
+    ```
+  </Tab>
+</Tabs>
+
+---
+
+## Visit Object Fields
+
+<ResponseField name="id" type="string">
+  UUID (v7) uniquely identifying this visit record.
+</ResponseField>
+
+<ResponseField name="link_id" type="string | null">
+  The UUID of the link this visit resolved to. `null` for orphan visits — requests that matched no active link.
+</ResponseField>
+
+<ResponseField name="domain_id" type="string">
+  The UUID of the domain that received this request.
+</ResponseField>
+
+<ResponseField name="slug_requested" type="string">
+  The exact slug portion of the URL that was requested. For orphan visits, this is the unrecognized path that was used.
+</ResponseField>
+
+<ResponseField name="occurred_at" type="string (ISO 8601)">
+  The instant the visit was recorded, in UTC.
+</ResponseField>
+
+<ResponseField name="is_bot" type="boolean">
+  `true` if the visit was classified as a bot based on its User-Agent.
+</ResponseField>
+
+<ResponseField name="platform" type="string">
+  The device platform — `android`, `ios`, or `desktop` — inferred from the User-Agent.
+</ResponseField>
+
+<ResponseField name="os" type="string | null">
+  The operating system name inferred from the User-Agent (e.g. `windows`, `macos`, `linux`). `null` if the OS could not be determined.
+</ResponseField>
+
+<ResponseField name="browser" type="string | null">
+  The browser name inferred from the User-Agent (e.g. `chrome`, `safari`). `null` if the browser could not be determined.
+</ResponseField>
+
+<ResponseField name="user_agent" type="string | null">
+  The raw User-Agent header string from the request.
+</ResponseField>
+
+<ResponseField name="referer" type="string | null">
+  The raw `Referer` header value. `null` if the header was absent.
+</ResponseField>
+
+<ResponseField name="destination" type="string | null">
+  The final URL this visit was redirected to, after rule evaluation. `null` for tree links or when the link was archived.
+</ResponseField>
+
+<ResponseField name="query" type="object | null">
+  The query string forwarded to the destination, if the link has query forwarding enabled. Represented as `Record<string, string[]>`. `null` if not forwarded.
+</ResponseField>
+
+---
+
+<Note>
+  Orphan visits — those with `link_id: null` — are visible in the raw log with `orphan=true`. These include requests to unknown slugs, archived links, and the root path of a domain. The web UI surfaces orphans separately; in the API they are part of the same flat log. Use the `orphan=true` filter to isolate them, or `bot=false` alongside it to see only human orphan traffic.
+</Note>

@@ -1,0 +1,172 @@
+---
+title: "Deploy linq with Docker Compose: Images and Stacks"
+sidebarTitle: "Docker"
+description: "Run linq from a pre-built image or a local build. Choose between four deployment shapes, eleven Compose stacks, and configure the right env vars for each."
+---
+
+linq publishes a single container image — `ghcr.io/org-quicko/linq` (GitHub Container Registry) and `labsatquicko/linq` (Docker Hub) — built from `docker/dockerfiles/Dockerfile`. It bundles the API server, the redirect handler, and the static Client UI export in one process. Postgres always runs outside the image; Redis and Caddy are optional sidecars wired up by the Compose examples.
+
+## Choosing a deployment shape
+
+The right image depends on where you want the Client UI to live. The published `linq` image is built with `LINQ_CLIENT_BASE_PATH=/` (the default), which means the UI answers on a single dedicated host (`LINQ_APP_HOST`) and short-link domains never serve it. If you want the UI mounted at a sub-path on every host instead, rebuild the image with `LINQ_CLIENT_BASE_PATH=/home` (what the Compose examples do). For split containers — API only, or UI only — the example Dockerfiles cover that too.
+
+| You want | Image | Client UI at | Must set |
+|---|---|---|---|
+| One container — UI on its own domain | `linq` (published) | `/` on `LINQ_APP_HOST` only | `DATABASE_URL`, `LINQ_DEFAULT_DOMAIN`, `LINQ_APP_HOST` |
+| One container — UI next to short links | `Dockerfile` built with `LINQ_CLIENT_BASE_PATH=/home` | `/home` on every host | `DATABASE_URL`, `LINQ_DEFAULT_DOMAIN` |
+| API and short links only — UI hosted elsewhere | `Dockerfile.server` (example) | nowhere | `DATABASE_URL`, `LINQ_DEFAULT_DOMAIN` |
+| UI only — pointed at a linq server you already run | `Dockerfile.client` (example) | `/` | nothing |
+
+<Warning>
+The published `linq` image is built with `LINQ_CLIENT_BASE_PATH=/` and **cannot start without `LINQ_APP_HOST`** set at runtime. With a root base path and no app host, the UI would claim every path on every shortening domain. Set `LINQ_APP_HOST` to the hostname that should serve the UI (e.g. `linq.example.com`) or rebuild the image with `LINQ_CLIENT_BASE_PATH=/home` to mount the UI at a sub-path instead.
+</Warning>
+
+## Compose stacks
+
+Eleven Compose files live in `docker/examples/docker-compose/`. The first eight cover every combination of bundled vs. external Postgres, Redis on/off, and Caddy on/off. The remaining three handle split-container shapes.
+
+| # | File | Postgres | Redis | Caddy |
+|---|---|---|---|---|
+| 1 | `01-bundled-postgres.yml` | bundled | – | – |
+| 2 | `02-bundled-postgres-redis.yml` | bundled | yes | – |
+| 3 | `03-bundled-postgres-caddy.yml` | bundled | – | yes |
+| 4 | `04-bundled-postgres-full.yml` | bundled | yes | yes |
+| 5 | `05-external-postgres.yml` | external | – | – |
+| 6 | `06-external-postgres-redis.yml` | external | yes | – |
+| 7 | `07-external-postgres-caddy.yml` | external | – | yes |
+| 8 | `08-external-postgres-full.yml` | external | yes | yes |
+| 9 | `09-server-only.yml` | override | – | – |
+| 10 | `10-client-only.yml` | – | – | – |
+| 11 | `11-app-host.yml` | external | – | – |
+
+**Bundled Postgres** stacks (01–04) spin up a `postgres` service alongside `linq`. They read `POSTGRES_USER`, `POSTGRES_PASSWORD`, and `POSTGRES_DB` from `.env` and construct `DATABASE_URL` for the `linq` service automatically. Replace the sample password before deploying.
+
+**External Postgres** stacks (05–08, 11) expect `DATABASE_URL` to be set in `.env` pointing at your own instance. For Postgres running on the Docker Desktop host, use `host.docker.internal` rather than `localhost`.
+
+**Caddy stacks** (03, 04, 07, 08) publish only ports 80 and 443. They do not publish linq's port 3000 — Caddy reaches `linq:3000` over the Compose network and is the only public entry point, so API keys never travel through a plaintext bypass.
+
+`09-server-only.yml` is a small override on `01-bundled-postgres.yml` that swaps in `Dockerfile.server`, removing the Client UI entirely. `10-client-only.yml` runs the standalone Client UI at `/` in its own container, with no API of its own. `11-app-host.yml` uses the published `linq` image against external Postgres and requires `LINQ_APP_HOST` to be set.
+
+## Quick start
+
+<Steps>
+  <Step title="Copy and configure .env">
+    From the repo root, copy the example env file and set the required values:
+
+    ```bash
+    cp .env.example .env
+    ```
+
+    At a minimum, set:
+
+    ```dotenv
+    DATABASE_URL=postgres://linq:linq@localhost:5432/linq
+    LINQ_DEFAULT_DOMAIN=localhost:3000
+    POSTGRES_USER=linq
+    POSTGRES_PASSWORD=change-me-before-deploying
+    POSTGRES_DB=linq
+    ```
+
+    For the bundled-Postgres stacks, `DATABASE_URL` is constructed by Compose from the `POSTGRES_*` values — but it must also be present in `.env` for local development. If the password contains URL-reserved characters, percent-encode the same characters in `DATABASE_URL`.
+  </Step>
+
+  <Step title="Start the simplest stack">
+    Run the bundled-Postgres stack from the repo root:
+
+    ```sh
+    docker compose -f docker/examples/docker-compose/01-bundled-postgres.yml up --build -d
+    ```
+
+    On first boot, linq applies its migrations, seeds the first domain, and — if no API keys exist — prints an admin key to stdout:
+
+    ```text
+    linq admin API key: linq_xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
+    Store it now; it is not recoverable.
+    ```
+
+    Copy that key immediately. Only its hash is stored; it cannot be read back.
+  </Step>
+
+  <Step title="Open the Client UI">
+    Navigate to `http://localhost:3000/home/` (the default base path used by the Compose examples). Add a server:
+
+    | Field | Value |
+    |---|---|
+    | Name | `local` (or any label) |
+    | Server URL | `http://localhost:3000` |
+    | API key | the `linq_…` key from the logs |
+
+    The UI validates the key against the server before saving it.
+  </Step>
+</Steps>
+
+<Note>
+All volume-mount, build-context, and `env_file` paths inside the Compose files are resolved relative to the Compose file's own directory — `../../..` reaches the repo root. Run Compose from the **repo root** with `-f docker/examples/docker-compose/<file>` to keep path resolution correct. If you copy a Compose file elsewhere, update `../../../.env` and the other relative paths to match.
+</Note>
+
+## Environment variables
+
+The `linq` container reads its configuration from environment variables at runtime. The Compose files load the repo-root `.env` via `env_file`. Key variables:
+
+<ParamField body="DATABASE_URL" type="string" required>
+  PostgreSQL connection string. Bundled-Postgres stacks override this from `POSTGRES_*` values; external stacks read it directly from `.env`.
+
+  ```dotenv
+  DATABASE_URL=postgres://linq:linq@db:5432/linq
+  ```
+</ParamField>
+
+<ParamField body="LINQ_DEFAULT_DOMAIN" type="string" required>
+  Seeds the first domain row when the `domains` table is empty — this is the hostname that will serve short links (e.g. `link.example.com`). Update an existing domain through the UI if you change this after the first boot; changing only the env var has no effect on an already-seeded database.
+</ParamField>
+
+<ParamField body="LINQ_APP_HOST" type="string">
+  Required when running the published `linq` image (built with `LINQ_CLIENT_BASE_PATH=/`). Names the single host that serves the Client UI at `/`. Must differ from `LINQ_DEFAULT_DOMAIN` and from every registered domain. See [The UI and API on their own host](#linq_client_base_path-and-build-args).
+</ParamField>
+
+<ParamField body="LINQ_REDIS_URL" type="string">
+  Moves the redirect cache from the in-process LRU to Redis. When set, Redis must be reachable at boot or the server will not start. A Redis that goes down later degrades to Postgres rather than failing requests.
+</ParamField>
+
+<ParamField body="LINQ_PORT" type="number">
+  Published host port for the API and UI. Defaults to `3000`. The container always listens on 3000 internally; this controls only the host-side mapping in Compose files without Caddy.
+</ParamField>
+
+<ParamField body="LINQ_DB_SCHEMA" type="string">
+  PostgreSQL schema linq owns. Defaults to `public`. Set when sharing a database with another application; linq creates the schema if it does not exist.
+</ParamField>
+
+## LINQ_CLIENT_BASE_PATH and build args
+
+`LINQ_CLIENT_BASE_PATH` controls where the static Client UI is mounted — and it is **baked into the frontend at image build time**, not read at container startup. Changing only the running container's environment makes the frontend and server disagree on paths; you must rebuild the image.
+
+To build with a custom path:
+
+```sh
+docker build \
+  --build-arg LINQ_CLIENT_BASE_PATH=/admin/example \
+  -f docker/dockerfiles/Dockerfile \
+  -t linq \
+  .
+```
+
+The Compose examples wire `LINQ_CLIENT_BASE_PATH` from `.env` to the build stage automatically. After changing the value in `.env`, always rebuild:
+
+```sh
+docker compose -f docker/examples/docker-compose/01-bundled-postgres.yml up --build -d
+```
+
+<Tip>
+The path must start with `/`, use lowercase path segments, and have no trailing slash. The value `/` is only allowed together with `LINQ_APP_HOST`.
+</Tip>
+
+## Data volume and backups
+
+linq writes one thing to disk: the log file (`data/logs/linq.log`, rotated). Inside the container this lives at `/data`; the Compose examples mount `./data` on the host to that path. `LINQ_DATA_DIR` controls the location inside the container and defaults to `/data`.
+
+```yaml
+volumes:
+  - ./data:/data
+```
+
+The `/data` volume is the only thing linq writes that is worth backing up. No application state lives in the container's own filesystem — all data is in Postgres. Rotation is controlled by `LINQ_LOG_MAX_SIZE` (default `20m`) and `LINQ_LOG_RETAIN` (default `5`); total disk use for logs is at most `LINQ_LOG_MAX_SIZE × (LINQ_LOG_RETAIN + 1)`.

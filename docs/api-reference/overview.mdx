@@ -1,0 +1,139 @@
+---
+title: "linq API Reference: Base URL, Pagination, and CORS"
+sidebarTitle: "Overview"
+description: "A guide to the linq REST API base URL, versioning, content types, pagination envelope, CORS policy, and all available resource endpoint groups."
+---
+
+The linq REST API is a JSON-over-HTTP interface built on [Hono](https://hono.dev), running on Bun's HTTP server. Every resource — links, domains, rules, QR codes, analytics, visits, and keys — is accessible under the versioned prefix `/api/v1`. All request and response bodies use `application/json`. There are no XML endpoints, no form-encoded payloads, and no cookies: authentication is entirely key-based, which means every request is stateless and every client is treated identically regardless of origin.
+
+## Base URL
+
+For a self-hosted deployment, the base URL is the host you configured during setup:
+
+```
+https://<your-host>/api/v1
+```
+
+When running locally with default settings, the server listens on port **3000**:
+
+```
+http://localhost:3000/api/v1
+```
+
+The port is controlled by `LINQ_PORT` in your `.env` file and defaults to `3000`. Every endpoint documented in this reference is relative to this base URL unless noted otherwise.
+
+## Health Check
+
+```http
+GET /api/health
+```
+
+This endpoint is **unversioned** and **unauthenticated** — it sits outside `/api/v1` intentionally. It returns the server's status and the running version, making it suitable for container readiness probes and load-balancer health checks.
+
+**Response:**
+
+```json
+{
+  "status": "ok",
+  "version": "0.1.0"
+}
+```
+
+No API key is required. The `version` field reflects the running binary's version string.
+
+## Content Type
+
+All endpoints accept and return `application/json`. Set the `Content-Type` header on every request that carries a body:
+
+```http
+Content-Type: application/json
+```
+
+Requests that omit `Content-Type` on a body-bearing endpoint will fail validation.
+
+## Resource Groups
+
+<CardGroup cols={2}>
+  <Card title="Links" icon="link" href="/api-reference/links">
+    Create and manage short links, set destinations, configure expiry, and attach dynamic routing rules. The core resource.
+  </Card>
+  <Card title="Domains" icon="globe" href="/api-reference/domains">
+    Register and manage the hostnames that short links live on. Each domain carries its own fallback and redirect configuration.
+  </Card>
+  <Card title="Rules" icon="shuffle" href="/api-reference/rules">
+    Ordered conditional rules attached to a link. The first rule whose conditions all match supplies the redirect destination.
+  </Card>
+  <Card title="QR Codes" icon="qrcode" href="/api-reference/qr-codes">
+    Styled QR codes tied to a link's short URL. Customise dot color, background color, and pattern shape.
+  </Card>
+  <Card title="Analytics" icon="chart-line" href="/api-reference/analytics">
+    Aggregated visit totals, daily timeseries, and breakdowns by referer, OS, browser, platform, slug, or destination.
+  </Card>
+  <Card title="Visits" icon="eye" href="/api-reference/visits">
+    The raw visit log — individual redirect events with user agent, platform, OS, browser, referer, and query string.
+  </Card>
+  <Card title="Keys" icon="key" href="/api-reference/keys">
+    API keys are the principals. Mint one to grant access; revoke it to remove access. No user accounts exist.
+  </Card>
+</CardGroup>
+
+## Pagination
+
+All list endpoints return results in a shared envelope:
+
+```json
+{
+  "data": [...],
+  "total": 142,
+  "limit": 50,
+  "offset": 0
+}
+```
+
+| Field | Type | Description |
+|---|---|---|
+| `data` | array | The items on this page. |
+| `total` | integer | Total matching rows across **all** pages, not just this one. |
+| `limit` | integer | The page size applied (mirrors the `limit` query parameter). |
+| `offset` | integer | The row offset applied (mirrors the `offset` query parameter). |
+
+**Query parameters:**
+
+| Parameter | Type | Default | Max | Description |
+|---|---|---|---|---|
+| `limit` | integer | `50` | `200` | Number of items to return. |
+| `offset` | integer | `0` | — | Zero-based row offset for cursor-style paging. |
+
+To page through a result set, increment `offset` by `limit` on each request until `offset >= total`.
+
+```http
+GET /api/v1/links?limit=50&offset=0    # page 1
+GET /api/v1/links?limit=50&offset=50   # page 2
+GET /api/v1/links?limit=50&offset=100  # page 3
+```
+
+## CORS
+
+All `/api/*` endpoints allow cross-origin requests from any origin. The API key is the only credential — linq issues no cookies and does not rely on browser same-origin policy for security. This means:
+
+- You can call the API directly from a browser app on a different domain.
+- No `Access-Control-Allow-Origin` allowlist to configure.
+- No CSRF mitigations needed, because no cookies are involved.
+
+See the architecture notes in `docs/adr/0006` for the full reasoning behind this design.
+
+## llms.txt
+
+```http
+GET /llms.txt
+```
+
+This endpoint is **unauthenticated** and **unversioned**. It returns a Markdown-formatted catalogue of links on the current domain that were created with `listed: true`. Archived, expired, and unlisted links never appear. The response is intended for AI crawlers and follows the [llms.txt](https://llmstxt.org) convention.
+
+The `Host` header selects which domain's catalogue is returned. A `404` is returned if the host does not match an active domain.
+
+## Identity Endpoint
+
+<Note>
+  `GET /api/v1/me` returns the calling key's `id`, `name`, `claims`, `preset`, `prefix`, and `expires_at`. It is a quick way to confirm that your key is valid, inspect which claims it carries, and verify connectivity before making further calls. Use it as a smoke test when setting up a new integration.
+</Note>

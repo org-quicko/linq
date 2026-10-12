@@ -1,0 +1,165 @@
+---
+title: "Deploy the linq Client UI: Combined or Standalone Build"
+sidebarTitle: "Client UI"
+description: "Ship the static Next.js admin UI as part of the linq server or as a standalone site on Vercel, Netlify, S3, or any static host — no API URL compiled in."
+---
+
+The linq Client UI is a static Next.js export — plain HTML, CSS, and JavaScript with no server-side runtime. It connects to a linq API server at runtime through a form in the browser, so no server URL is compiled into the build. One deployed UI can administer any number of linq instances, and you can add or switch servers without touching the deployment. Because the UI is purely a client, it can live anywhere: bundled into the same container as the API, or on a completely separate host.
+
+## Two deployment shapes
+
+<Tabs>
+  <Tab title="Served by linq">
+    In the combined shape, the linq server builds and serves the Client UI from the same process. This is what the published Docker image and all eight main Compose stacks use by default.
+
+    **Build command (from the repo root):**
+
+    ```bash
+    bun run build:client
+    ```
+
+    This writes `apps/client/out`, compiled for the path set in `LINQ_CLIENT_BASE_PATH` (default `/home`). The server mounts this directory and serves it at that path on every host it answers.
+
+    **How the server mounts it:**
+
+    The static export is served by the server's `mountAdmin` handler. With `LINQ_APP_HOST` unset, the UI is available at `http://<any-host>:<port>/home/` (or whatever `LINQ_CLIENT_BASE_PATH` is set to). With `LINQ_APP_HOST` set, the handler restricts the UI to that one host only, letting the base path be `/` without reserving any slugs on shortening domains.
+
+    **In Docker**, the Compose examples pass `LINQ_CLIENT_BASE_PATH` to the build stage. Because the path is baked into the static files during `docker build`, changing it requires a rebuild:
+
+    ```sh
+    docker compose -f docker/examples/docker-compose/01-bundled-postgres.yml up --build -d
+    ```
+
+    <Note>
+    The combined image build uses two stages: the first builds `apps/client/out`; the second copies that output into the runtime image alongside the server sources. The Bun runtime executes the server directly — there is no server bundle step.
+    </Note>
+  </Tab>
+
+  <Tab title="Standalone (any static host)">
+    In the standalone shape, the Client UI is deployed independently of any linq server. Upload it to Vercel, Netlify, Cloudflare Pages, S3, nginx, or any host that serves static files.
+
+    **Build command (from the repo root):**
+
+    ```bash
+    bun run build:client:standalone
+    ```
+
+    This writes `apps/client/out-standalone`, compiled for a domain root (`/`). The two outputs are kept in separate directories intentionally — a root-path export sitting in `apps/client/out` would have every asset path wrong when served at a sub-path.
+
+    **Two things to get right:**
+
+    <Steps>
+      <Step title="Build from the full repo, not apps/client alone">
+        The Client UI imports `@linq/shared` as TypeScript over a workspace link, and its `tsconfig` reaches the repo root. Always build with the entire repository present:
+
+        ```bash
+        # correct — from the repo root
+        bun install && bun run build:client:standalone
+
+        # incorrect — this will fail
+        cd apps/client && bun run build
+        ```
+      </Step>
+
+      <Step title="Configure trailing-slash handling on your host">
+        The export uses trailing slashes, so the host must serve `x/index.html` when a request arrives for `/x/`. Most static hosts do this by default. S3 behind CloudFront requires an index document configured on the distribution.
+      </Step>
+    </Steps>
+
+    **Deploying to common hosts:**
+
+    <CardGroup cols={2}>
+      <Card title="Vercel / Netlify" icon="globe">
+        Connect the repo and set the build command to `bun run build:client:standalone` with the output directory set to `apps/client/out-standalone`. Trailing slashes are handled automatically.
+      </Card>
+      <Card title="Cloudflare Pages" icon="cloud">
+        Use `bun run build:client:standalone` as the build command and `apps/client/out-standalone` as the output directory. Trailing-slash redirects work by default.
+      </Card>
+      <Card title="S3 + CloudFront" icon="database">
+        Upload `apps/client/out-standalone` to an S3 bucket. Configure the CloudFront distribution with a default root object and an index document to handle trailing-slash paths.
+      </Card>
+      <Card title="nginx" icon="server">
+        Serve `apps/client/out-standalone` as the document root. Add `try_files $uri $uri/ $uri/index.html =404;` to your location block to handle trailing slashes.
+      </Card>
+    </CardGroup>
+  </Tab>
+</Tabs>
+
+## Adding a server at runtime
+
+Regardless of which shape you deploy, the UI opens with a form to add a linq server. No configuration file is needed — everything is stored in the browser's `localStorage`.
+
+| Field | What to enter |
+|---|---|
+| Name | Any label, e.g. `production` or `staging` |
+| Server URL | The base URL of your linq API, e.g. `https://linq.example.com` |
+| API key | A `linq_…` key from your instance's Keys page or server logs |
+
+The UI validates the key against the server before saving. If the URL is unreachable or the key is invalid, you get an error immediately rather than a blank page later.
+
+Once saved, the server appears in the sidebar. You can add multiple servers and switch between them at the foot of the sidebar — one UI instance can manage any number of linq deployments, and the people using it need no access to the deployment to point it at a new server.
+
+<Tip>
+Keys are created on the Keys page (`/home/keys`) or via the API (`POST /api/v1/keys`). On an instance with no keys, linq mints and prints an admin key at boot. Copy it then — only its hash is stored and it cannot be read back.
+</Tip>
+
+## Docker images
+
+Three Dockerfiles cover the container shapes for the Client UI:
+
+<CardGroup cols={2}>
+  <Card title="Dockerfile (published image)" icon="box">
+    `docker/dockerfiles/Dockerfile` — builds the API, redirects, and Client UI in one image. The UI is mounted at `LINQ_CLIENT_BASE_PATH` (default `/`, requires `LINQ_APP_HOST` at runtime). This is `ghcr.io/org-quicko/linq` / `labsatquicko/linq`.
+  </Card>
+  <Card title="Dockerfile.server" icon="cpu">
+    `docker/examples/dockerfiles/Dockerfile.server` — API and redirects only, no Client UI build stage. The server returns 404 on the configured Client UI path and continues serving the API and redirects. Used by `09-server-only.yml`.
+  </Card>
+  <Card title="Dockerfile.client" icon="monitor">
+    `docker/examples/dockerfiles/Dockerfile.client` — standalone Client UI only. Runs `serve-static.ts` under plain Bun; no nginx, no Postgres, no environment variables needed. Used by `10-client-only.yml`.
+  </Card>
+  <Card title="10-client-only.yml" icon="layers">
+    `docker/examples/docker-compose/10-client-only.yml` — Compose file for the standalone client container. The client's published host port is `${LINQ_CLIENT_PORT:-3001}`. Works standalone or layered on top of a server Compose file.
+  </Card>
+</CardGroup>
+
+**Running the API and standalone client side by side:**
+
+```sh
+docker compose \
+  --env-file .env \
+  -f docker/examples/docker-compose/01-bundled-postgres.yml \
+  -f docker/examples/docker-compose/09-server-only.yml \
+  -f docker/examples/docker-compose/10-client-only.yml \
+  up --build -d
+```
+
+With `LINQ_PORT=8080` and `LINQ_CLIENT_PORT=8081` in `.env`, the API is on port 8080 and the standalone UI is on port 8081. Both containers listen on 3000 internally — each has its own network namespace, so there is no conflict.
+
+## LINQ_APP_HOST mode
+
+When `LINQ_APP_HOST` is set, the UI answers only on that specific host, at `/`. Every other host continues serving short links normally. This lets you give the UI a clean root URL (`https://linq.example.com/`) while keeping `https://link.example.com/<slug>` for short links — from a single process and container.
+
+```dotenv
+LINQ_APP_HOST=linq.example.com       # UI at /, API at /api/* on this host only
+LINQ_DEFAULT_DOMAIN=link.example.com # short links on this host
+```
+
+This mode requires the published `linq` image (built with `LINQ_CLIENT_BASE_PATH=/`) — or any image rebuilt with that same build arg. The app host must differ from `LINQ_DEFAULT_DOMAIN` and from every registered domain; linq refuses to start otherwise.
+
+Behind a reverse proxy, route both hostnames to the same linq port and preserve the `Host` header — that is how linq distinguishes them. With Caddy sync enabled, linq pushes the app host's route at boot automatically; see [Automatic HTTPS with Caddy](/deployment/caddy-https).
+
+<Info>
+Archive any existing domain row whose host equals the intended `LINQ_APP_HOST` before setting the variable. The UI claims every path on that host, so any links previously registered under it will stop resolving.
+</Info>
+
+## Cross-origin API calls
+
+The linq server enables CORS on all `/api/*` routes, accepting calls from any origin. The API key is the only thing that authorises a request; no cookie is ever involved. This means:
+
+- A standalone UI on `https://app.example.com` can call an API on `https://linq.example.com` without any proxy.
+- The development UI on port 3001 calls the API on port 3000 across origins — exactly as a deployed standalone UI would.
+- If you see requests fail with an opaque network error, suspect CORS configuration on the server, not a missing proxy.
+
+<Note>
+No API URL is compiled into either UI shape. The combined shape compiles only its base path into the static files; the standalone shape always uses `/`. Adding a server URL is a runtime step done in the browser.
+</Note>

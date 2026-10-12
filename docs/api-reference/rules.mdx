@@ -1,0 +1,243 @@
+---
+title: "Rules API: Configure Dynamic Link Routing Conditions"
+sidebarTitle: "Rules"
+description: "Reference for the two rules endpoints on a link: GET to read routing rules and PUT to replace them atomically with platform or query-param conditions."
+---
+
+Rules define conditional routing for a link. Instead of always sending every visitor to the same destination, a link with rules evaluates each rule in order and redirects to the first one whose conditions all match. If no rule matches, the link falls back to its default destination. Rules are managed as an ordered list on a specific link — there is no standalone rules resource. All rules endpoints require a valid API key sent as `Authorization: Bearer <key>` or `X-Api-Key: <key>`.
+
+## How rule evaluation works
+
+When a visitor hits a short link, the redirect handler evaluates the link's rules in ascending `position` order. Each rule carries one or more **conditions**, all of which must hold simultaneously (they are AND-ed together). The **first** rule whose entire condition set matches wins, and the visitor is sent to that rule's `destination`. If no rule matches — or the link has no rules — the visitor goes to the link's default `destination`. A link can carry up to 50 rules; each rule can carry up to 10 conditions.
+
+<Tip>
+  Use `query_param` conditions for A/B testing, campaign tracking, or partner routing. For example, a rule with `{ "type": "query_param", "key": "ref", "value": "partner-a" }` fires only when visitors arrive via `?ref=partner-a`, letting you send different partners to tailored landing pages without creating separate short links.
+</Tip>
+
+---
+
+## GET /api/v1/links/{id}/rules
+
+Retrieve the ordered rules list for a link. Returns rules sorted by `position` ascending, which is the order they are evaluated at redirect time. If the link exists but has no rules, returns an empty array. If the link does not exist, returns `404`.
+
+**Minimum role:** `viewer`
+
+### Path parameters
+
+<ParamField path="id" type="string" required>
+  UUID of the link whose rules you want to read.
+</ParamField>
+
+### Response — 200
+
+An array of [Rule objects](#rule-object), ordered by `position` ascending.
+
+```bash
+curl https://links.example.com/api/v1/links/018f1e2a-0001-7000-8000-000000000042/rules \
+  -H "Authorization: Bearer linq_xxxx"
+```
+
+**Example response:**
+
+```json
+[
+  {
+    "id": "018f1e2a-0002-7000-8000-000000000001",
+    "link_id": "018f1e2a-0001-7000-8000-000000000042",
+    "position": 0,
+    "destination": "https://apps.apple.com/app/example/id123456789",
+    "conditions": [
+      { "type": "platform", "value": "ios" }
+    ]
+  },
+  {
+    "id": "018f1e2a-0002-7000-8000-000000000002",
+    "link_id": "018f1e2a-0001-7000-8000-000000000042",
+    "position": 1,
+    "destination": "https://play.google.com/store/apps/details?id=com.example.app",
+    "conditions": [
+      { "type": "platform", "value": "android" }
+    ]
+  }
+]
+```
+
+---
+
+## PUT /api/v1/links/{id}/rules
+
+Replace the entire rules list for a link in a single atomic transaction. The server assigns `position` values from the array order (index 0 becomes position 0, and so on) — you do not send positions. To remove all rules, send an empty array `[]`.
+
+<Note>
+  **PUT replaces all rules atomically.** To delete a single rule, omit it from the array and send the remaining rules in your desired order. To reorder rules, send the full list in the new order. The old rules are deleted and the new ones are inserted in one transaction — the link is never left with a partial set.
+</Note>
+
+**Minimum role:** `editor`
+
+### Path parameters
+
+<ParamField path="id" type="string" required>
+  UUID of the link whose rules you want to replace.
+</ParamField>
+
+### Request body
+
+An ordered JSON array of rule input objects (maximum 50 items). Each object must have a `destination` and at least one condition. A rule with zero conditions is rejected (`400`).
+
+<ParamField body="destination" type="string" required>
+  The URL to redirect to when this rule matches. Must be a valid URL.
+</ParamField>
+
+<ParamField body="conditions" type="Condition[]" required>
+  One to 10 condition objects, all of which must match for this rule to fire. See [Condition object](#condition-object) below.
+</ParamField>
+
+### Response — 200
+
+The stored rules in their new order, as an array of [Rule objects](#rule-object).
+
+**Full example — iOS to App Store, Android to Play Store:**
+
+```bash
+curl -X PUT https://links.example.com/api/v1/links/018f1e2a-0001-7000-8000-000000000042/rules \
+  -H "Authorization: Bearer linq_xxxx" \
+  -H "Content-Type: application/json" \
+  -d '[
+    {
+      "destination": "https://apps.apple.com/app/example/id123456789",
+      "conditions": [
+        { "type": "platform", "value": "ios" }
+      ]
+    },
+    {
+      "destination": "https://play.google.com/store/apps/details?id=com.example.app",
+      "conditions": [
+        { "type": "platform", "value": "android" }
+      ]
+    }
+  ]'
+```
+
+**Campaign routing example — route by `utm_source` query param:**
+
+```bash
+curl -X PUT https://links.example.com/api/v1/links/018f1e2a-0001-7000-8000-000000000042/rules \
+  -H "Authorization: Bearer linq_xxxx" \
+  -H "Content-Type: application/json" \
+  -d '[
+    {
+      "destination": "https://example.com/landing/email-subscribers",
+      "conditions": [
+        { "type": "query_param", "key": "utm_source", "value": "newsletter" }
+      ]
+    },
+    {
+      "destination": "https://example.com/landing/social",
+      "conditions": [
+        { "type": "query_param", "key": "utm_source", "value": "twitter" }
+      ]
+    }
+  ]'
+```
+
+**Clear all rules:**
+
+```bash
+curl -X PUT https://links.example.com/api/v1/links/018f1e2a-0001-7000-8000-000000000042/rules \
+  -H "Authorization: Bearer linq_xxxx" \
+  -H "Content-Type: application/json" \
+  -d '[]'
+```
+
+---
+
+## Rule object
+
+The full Rule response shape returned by both rules endpoints.
+
+<ResponseField name="id" type="string">
+  UUID (v7) of the rule. Server-assigned.
+</ResponseField>
+
+<ResponseField name="link_id" type="string">
+  UUID of the link this rule belongs to.
+</ResponseField>
+
+<ResponseField name="position" type="integer">
+  Zero-based evaluation order. The lowest matching position wins. Server-owned — set from array index on PUT, never sent by the caller.
+</ResponseField>
+
+<ResponseField name="destination" type="string">
+  The URL visitors are sent to when this rule's conditions all match.
+</ResponseField>
+
+<ResponseField name="conditions" type="Condition[]">
+  <Expandable title="conditions">
+    Ordered array of condition objects (1–10). All conditions must hold simultaneously (AND logic) for this rule to match. See [Condition object](#condition-object) below.
+  </Expandable>
+</ResponseField>
+
+---
+
+## Condition object
+
+A condition is one predicate inside a rule. Two types are supported, discriminated by the `type` field.
+
+### Platform condition
+
+Matches visitors based on their detected platform (derived from the `User-Agent` header).
+
+<ResponseField name="type" type="string">
+  Always `"platform"`.
+</ResponseField>
+
+<ResponseField name="value" type="string">
+  One of `"android"`, `"ios"`, or `"desktop"`.
+</ResponseField>
+
+**Example:**
+```json
+{ "type": "platform", "value": "ios" }
+```
+
+### Query param condition
+
+Matches visitors based on a query parameter present in the incoming URL. If `value` is omitted, the condition matches whenever the parameter key is present with any value (including an empty string).
+
+<ResponseField name="type" type="string">
+  Always `"query_param"`.
+</ResponseField>
+
+<ResponseField name="key" type="string">
+  The query parameter name to check. 1–64 characters.
+</ResponseField>
+
+<ResponseField name="value" type="string">
+  Optional. The exact value the parameter must equal. Max 512 characters. When absent, the condition matches if the key is present with any value.
+</ResponseField>
+
+**Examples:**
+```json
+{ "type": "query_param", "key": "ref" }
+```
+```json
+{ "type": "query_param", "key": "variant", "value": "b" }
+```
+
+---
+
+## Combining condition types
+
+A single rule can combine multiple condition types for precise targeting. All conditions are AND-ed, so every one must be true for the rule to fire.
+
+**Example — iOS visitors arriving from a specific campaign:**
+
+```json
+{
+  "destination": "https://apps.apple.com/app/example/id123456789?mt=8&pt=campaign",
+  "conditions": [
+    { "type": "platform", "value": "ios" },
+    { "type": "query_param", "key": "utm_campaign", "value": "app-launch" }
+  ]
+}
+```

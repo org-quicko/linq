@@ -1,0 +1,440 @@
+---
+title: "Links API: Create, Update, Archive, and Purge Short Links"
+sidebarTitle: "Links"
+description: "Full reference for the Links resource — list, create, get, update, archive, purge, count, and bulk purge. Links are the core entity in linq."
+---
+
+Links are the core resource in linq. Each link pairs a slug on a domain with a destination URL, and optionally a set of routing rules, OG metadata, preset query parameters, and an expiry time. All link endpoints require a valid API key sent as `Authorization: Bearer <key>` or `X-Api-Key: <key>`. Roles are ordered `viewer < editor < admin`; each operation below states the minimum it requires.
+
+<Note>
+  **Archiving vs. purging.** `DELETE /api/v1/links/{id}` *archives* a link — it stops redirecting but its row, visit history, and slug reservation all remain intact. The only way to permanently destroy a link and release its slug is to purge it via `DELETE /api/v1/links/{id}/purge` (single) or `DELETE /api/v1/links/purge` (bulk). Archiving is reversible with `PATCH { "status": "active" }`; purging is not.
+</Note>
+
+---
+
+## GET /api/v1/links
+
+List links, paginated and filterable. Every role may call this endpoint.
+
+**Minimum role:** `viewer`
+
+### Query parameters
+
+<ParamField query="limit" type="integer">
+  Maximum records to return per page. Defaults to the server's configured page size.
+</ParamField>
+
+<ParamField query="offset" type="integer">
+  Zero-based offset into the result set for pagination.
+</ParamField>
+
+<ParamField query="search" type="string">
+  Substring match (case-insensitive) across `slug`, `name`, and `destination`. Minimum 1 character, maximum 200.
+</ParamField>
+
+<ParamField query="tags" type="string">
+  Comma-separated tag list. A link matches when it carries **any** of the provided tags. Example: `launch,press`.
+</ParamField>
+
+<ParamField query="domain_id" type="string">
+  Comma-separated UUID(s). Filters links to one or more domains.
+</ParamField>
+
+<ParamField query="status" type="string" default="active">
+  One of `active`, `archived`, or `all`.
+</ParamField>
+
+<ParamField query="sort" type="string" default="created_at">
+  Sort column: `created_at`, `updated_at`, or `visits`.
+</ParamField>
+
+<ParamField query="order" type="string" default="desc">
+  Sort direction: `asc` or `desc`.
+</ParamField>
+
+<ParamField query="expiry" type="string" default="any">
+  Filter by expiry state relative to now: `any`, `live` (never-expiring or future expiry), or `expired`.
+</ParamField>
+
+### Response — 200
+
+<ResponseField name="data" type="Link[]">
+  Array of link objects matching the query.
+</ResponseField>
+
+<ResponseField name="total" type="integer">
+  Total count of matching records across all pages.
+</ResponseField>
+
+<ResponseField name="limit" type="integer">
+  Page size used for this response.
+</ResponseField>
+
+<ResponseField name="offset" type="integer">
+  Offset used for this response.
+</ResponseField>
+
+```bash
+curl https://links.example.com/api/v1/links \
+  -H "Authorization: Bearer linq_xxxx" \
+  -G \
+  --data-urlencode "status=active" \
+  --data-urlencode "sort=visits" \
+  --data-urlencode "order=desc" \
+  --data-urlencode "limit=20"
+```
+
+---
+
+## POST /api/v1/links
+
+Create a new short link. Omit `slug` to have one generated automatically. A custom slug that is already taken on that domain — even by an archived link — returns `409 Conflict`.
+
+**Minimum role:** `editor`
+
+### Request body
+
+<ParamField body="domain_id" type="string" required>
+  UUID of the domain this link belongs to. The domain must be active.
+</ParamField>
+
+<ParamField body="destination" type="string" required>
+  The long URL visitors are sent to. Must be a valid URL.
+</ParamField>
+
+<ParamField body="slug" type="string">
+  Custom slug (1–64 characters, `[A-Za-z0-9_-]`). Omit for a server-generated slug. Immutable after creation.
+</ParamField>
+
+<ParamField body="name" type="string">
+  Human-readable label (max 200 chars). When absent, the server attempts to fetch the destination page's `<title>`, falling back to the destination host.
+</ParamField>
+
+<ParamField body="description" type="string">
+  Optional description (max 500 chars). When absent, the server attempts to fetch the destination page's meta description.
+</ParamField>
+
+<ParamField body="tags" type="string[]" default="[]">
+  Up to 20 tag strings (each up to 50 chars). Used for filtering; tags are derived from active links — there is no separate tag table.
+</ParamField>
+
+<ParamField body="forward_query" type="boolean" default="true">
+  When `true`, the incoming query string is merged onto the destination URL. Also gates `preset_params`: when `false`, neither forwarded query nor preset params are applied.
+</ParamField>
+
+<ParamField body="preset_params" type="object" default="{}">
+  Key-value pairs (up to 20 entries; keys max 64 chars, values max 512 chars) set on the destination at redirect time. They override both the destination's own query and any forwarded query on collision. Applied only when `forward_query` is `true`.
+</ParamField>
+
+<ParamField body="expires_at" type="string | null">
+  ISO-8601 datetime. After this moment the link resolves like an unknown slug. `null` or absent means it never expires.
+</ParamField>
+
+<ParamField body="listed" type="boolean" default="false">
+  When `true`, the link appears in the domain's public `/llms.txt` catalogue.
+</ParamField>
+
+<ParamField body="rules" type="RuleInput[]" default="[]">
+  Initial routing rules. An ordered array of rule objects (up to 50). See the [Rules API](/api-reference/rules) for the rule input shape. Positions are assigned from array order.
+</ParamField>
+
+### Response — 201
+
+Returns the created [Link object](#link-object).
+
+```bash
+curl -X POST https://links.example.com/api/v1/links \
+  -H "Authorization: Bearer linq_xxxx" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "domain_id": "018f1e2a-0001-7000-8000-000000000001",
+    "destination": "https://example.com/product/launch-2025",
+    "slug": "launch25",
+    "name": "Product Launch 2025",
+    "tags": ["launch", "marketing"],
+    "forward_query": true
+  }'
+```
+
+---
+
+## GET /api/v1/links/count
+
+Return only the total count of links matching a `status` filter, without fetching any link rows. Useful for sidebar badges and counters that have no need for full link data.
+
+**Minimum role:** `viewer`
+
+### Query parameters
+
+<ParamField query="status" type="string" default="active">
+  One of `active`, `archived`, or `all`.
+</ParamField>
+
+### Response — 200
+
+<ResponseField name="total" type="integer">
+  Number of links matching the given status filter.
+</ResponseField>
+
+```bash
+curl https://links.example.com/api/v1/links/count \
+  -H "Authorization: Bearer linq_xxxx" \
+  -G --data-urlencode "status=archived"
+```
+
+---
+
+## GET /api/v1/links/{id}
+
+Fetch a single link by its UUID. Includes denormalized `domain_host`, `short_url`, visit totals, and `rule_count`.
+
+**Minimum role:** `viewer`
+
+### Path parameters
+
+<ParamField path="id" type="string" required>
+  UUID of the link.
+</ParamField>
+
+### Response — 200
+
+Returns the [Link object](#link-object).
+
+```bash
+curl https://links.example.com/api/v1/links/018f1e2a-0001-7000-8000-000000000042 \
+  -H "Authorization: Bearer linq_xxxx"
+```
+
+---
+
+## PATCH /api/v1/links/{id}
+
+Update one or more mutable fields on a link. The request body is strict: `slug` and `domain_id` are immutable and sending either returns `400`. Status changes (archiving or restoring) require `admin`; all other field updates require `editor`.
+
+**Minimum role:** `editor` (or `admin` for `status` changes)
+
+### Path parameters
+
+<ParamField path="id" type="string" required>
+  UUID of the link to update.
+</ParamField>
+
+### Request body
+
+All fields are optional. Send only the fields you want to change.
+
+<ParamField body="destination" type="string">
+  New destination URL. Triggers a fresh metadata fetch for `name`, `description`, and `icon_url` if the caller does not also supply them.
+</ParamField>
+
+<ParamField body="name" type="string | null">
+  New label (max 200 chars). `null` clears it (the server will re-derive it on the next metadata fetch).
+</ParamField>
+
+<ParamField body="description" type="string | null">
+  New description (max 500 chars). `null` clears it.
+</ParamField>
+
+<ParamField body="tags" type="string[]">
+  Replaces the full tag list (up to 20 entries).
+</ParamField>
+
+<ParamField body="forward_query" type="boolean">
+  Toggle query forwarding and preset-params application.
+</ParamField>
+
+<ParamField body="preset_params" type="object">
+  Replaces the full preset-params map (up to 20 key-value pairs).
+</ParamField>
+
+<ParamField body="status" type="string">
+  `active` or `archived`. **Admin only.** Restoring an archived link does not reclaim any visits that occurred while it was archived.
+</ParamField>
+
+<ParamField body="expires_at" type="string | null">
+  ISO-8601 datetime, or `null` to remove the expiry.
+</ParamField>
+
+<ParamField body="listed" type="boolean">
+  Toggle `/llms.txt` visibility.
+</ParamField>
+
+<ParamField body="rules" type="RuleInput[]">
+  Replaces the full rules list atomically. Send `[]` to clear all rules.
+</ParamField>
+
+### Response — 200
+
+Returns the updated [Link object](#link-object).
+
+```bash
+curl -X PATCH https://links.example.com/api/v1/links/018f1e2a-0001-7000-8000-000000000042 \
+  -H "Authorization: Bearer linq_xxxx" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "destination": "https://example.com/product/v2",
+    "tags": ["launch", "v2"],
+    "expires_at": "2025-12-31T23:59:59Z"
+  }'
+```
+
+---
+
+## DELETE /api/v1/links/{id}
+
+Archive a link (soft delete). The link stops redirecting — its slug becomes an orphan — but its row, visit history, and slug reservation are preserved. Reversible via `PATCH { "status": "active" }`.
+
+**Minimum role:** `admin`
+
+### Path parameters
+
+<ParamField path="id" type="string" required>
+  UUID of the link to archive.
+</ParamField>
+
+### Response — 200
+
+Returns the updated [Link object](#link-object) with `status: "archived"`.
+
+```bash
+curl -X DELETE https://links.example.com/api/v1/links/018f1e2a-0001-7000-8000-000000000042 \
+  -H "Authorization: Bearer linq_xxxx"
+```
+
+---
+
+## DELETE /api/v1/links/{id}/purge
+
+Permanently destroy an archived link. Its rules are deleted with it (`ON DELETE CASCADE`). Its visits survive as **orphan visits** — their analytics history is preserved but attribution to this link is removed. This operation **releases the slug** for reuse on that domain.
+
+<Warning>
+  Purging is irreversible. The link row, its rules, and its slug reservation are all destroyed. Visit records become orphaned (history kept, attribution lost). You must archive the link before you can purge it — calling purge on an active link returns `409 Conflict`.
+</Warning>
+
+**Minimum role:** `admin`
+
+### Path parameters
+
+<ParamField path="id" type="string" required>
+  UUID of the archived link to purge.
+</ParamField>
+
+### Response — 204
+
+No content on success.
+
+```bash
+curl -X DELETE https://links.example.com/api/v1/links/018f1e2a-0001-7000-8000-000000000042/purge \
+  -H "Authorization: Bearer linq_xxxx"
+```
+
+---
+
+## DELETE /api/v1/links/purge
+
+Bulk-purge every archived link in one call — the "Empty archive" operation. Equivalent to calling `DELETE /api/v1/links/{id}/purge` for every archived link, but done server-side in a single query. Each link's rules go with it. Takes no filters: this always means *every* archived link.
+
+<Warning>
+  This is a bulk irreversible operation. All currently archived links are permanently destroyed along with their rules. Visit records become orphaned. There is no undo.
+</Warning>
+
+**Minimum role:** `admin`
+
+### Response — 200
+
+<ResponseField name="purged" type="integer">
+  Number of links that were permanently destroyed.
+</ResponseField>
+
+```bash
+curl -X DELETE https://links.example.com/api/v1/links/purge \
+  -H "Authorization: Bearer linq_xxxx"
+```
+
+---
+
+## Link object
+
+The full Link response shape returned by all link endpoints.
+
+<ResponseField name="id" type="string">
+  UUID (v7) of the link.
+</ResponseField>
+
+<ResponseField name="domain_id" type="string">
+  UUID of the domain this link belongs to.
+</ResponseField>
+
+<ResponseField name="domain_host" type="string">
+  Denormalized hostname (e.g. `links.example.com`). Included so list rows render without a second request.
+</ResponseField>
+
+<ResponseField name="slug" type="string">
+  The path segment after the host. Pattern `[A-Za-z0-9_-]{1,64}`. Immutable.
+</ResponseField>
+
+<ResponseField name="short_url" type="string">
+  The full short URL, assembled from `domain_host` and `slug` at read time. Uses `https://` for non-localhost hosts.
+</ResponseField>
+
+<ResponseField name="destination" type="string">
+  The long URL this link redirects to by default.
+</ResponseField>
+
+<ResponseField name="name" type="string | null">
+  Human-readable label (max 200 chars). Auto-derived from the destination page title when not supplied.
+</ResponseField>
+
+<ResponseField name="description" type="string | null">
+  Optional description (max 500 chars).
+</ResponseField>
+
+<ResponseField name="icon_url" type="string | null">
+  Favicon or OG image URL fetched from the destination page.
+</ResponseField>
+
+<ResponseField name="tags" type="string[]">
+  Up to 20 tag strings.
+</ResponseField>
+
+<ResponseField name="forward_query" type="boolean">
+  Whether the incoming query string is merged onto the destination. Also gates `preset_params`.
+</ResponseField>
+
+<ResponseField name="preset_params" type="object">
+  <Expandable title="preset_params">
+    Key-value map of query parameters set on the destination at redirect time. Up to 20 entries. Keys: max 64 chars. Values: max 512 chars. Applied only when `forward_query` is `true`; they override both the destination's own query and any forwarded query on collision.
+  </Expandable>
+</ResponseField>
+
+<ResponseField name="status" type="string">
+  `active` or `archived`.
+</ResponseField>
+
+<ResponseField name="human_visits" type="integer">
+  Count of non-bot visits. Sourced from the `visit_counts` materialized counter kept in sync by a database trigger.
+</ResponseField>
+
+<ResponseField name="bot_visits" type="integer">
+  Count of bot visits.
+</ResponseField>
+
+<ResponseField name="expires_at" type="string | null">
+  ISO-8601 datetime after which the link resolves like an unknown slug. `null` means it never expires.
+</ResponseField>
+
+<ResponseField name="listed" type="boolean">
+  Whether this link appears in the domain's public `/llms.txt` catalogue.
+</ResponseField>
+
+<ResponseField name="rule_count" type="integer">
+  Number of routing rules attached to this link. When greater than zero, the link uses dynamic routing; see the [Rules API](/api-reference/rules).
+</ResponseField>
+
+<ResponseField name="created_at" type="string">
+  ISO-8601 creation timestamp.
+</ResponseField>
+
+<ResponseField name="updated_at" type="string">
+  ISO-8601 last-updated timestamp.
+</ResponseField>

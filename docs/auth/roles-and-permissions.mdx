@@ -1,0 +1,249 @@
+---
+title: "Roles and Permissions: Viewer, Editor, and Admin in linq"
+sidebarTitle: "Roles"
+description: "linq's three-role hierarchy — viewer, editor, admin — what each can do, how CASL enforces rules on server and UI alike, and when to expect 401 vs 403."
+---
+
+linq has three roles that form a strict linear hierarchy: `viewer < editor < admin`. Every API key carries exactly one role, expressed as an expanded set of CASL claims stored directly on the key. There are no groups, no per-resource ownership, and no way to grant partial access within a role — a key either has a claim or it does not. Because permissions are defined in `@linq/shared` and consumed by both the server and the Client UI, the two can never drift apart: the UI hides actions the key cannot perform, and the server enforces the same rules independently.
+
+## Role Hierarchy
+
+<CardGroup cols={3}>
+  <Card title="Viewer" icon="eye">
+    Read-only access. Can inspect links, domains, visits, analytics, QR codes,
+    rules, and keys (summary only). Cannot create, modify, or delete anything.
+    Ideal for dashboards, monitoring integrations, and read-only reporting tools.
+  </Card>
+  <Card title="Editor" icon="pencil">
+    Everything a viewer can do, plus the ability to create and update links,
+    rules, and QR codes. Cannot archive, restore, or purge links, and cannot
+    touch domains or keys. The right role for deployment pipelines and content
+    publishing integrations.
+  </Card>
+  <Card title="Admin" icon="shield-check">
+    Everything an editor can do, plus the ability to archive, restore, and purge
+    links; create, update, archive, and purge domains; and create, update, and
+    revoke API keys. Required for any management operation. Bootstrap keys are
+    always admin.
+  </Card>
+</CardGroup>
+
+## Permissions Reference
+
+The table below lists every guarded action and the minimum role required. A higher role inherits all permissions of every role below it.
+
+| Action | Minimum Role |
+|---|---|
+| Read links | viewer |
+| Read domains | viewer |
+| Read visits and analytics | viewer |
+| Read QR codes | viewer |
+| Read rules | viewer |
+| Read keys (summary) | viewer |
+| Read keys (full, with prefix and timestamps) | admin |
+| Create a link | editor |
+| Update any link | editor |
+| Create a rule on a link | editor |
+| Update a rule on a link | editor |
+| Create a QR code for a link | editor |
+| Update a QR code | editor |
+| Delete a QR code | editor |
+| Archive a link | admin |
+| Restore an archived link | admin |
+| Purge an archived link | admin |
+| Create a domain | admin |
+| Update a domain | admin |
+| Archive a domain | admin |
+| Purge an archived domain | admin |
+| Create an API key | admin |
+| Update an API key (name, claims, expiry) | admin |
+| Revoke (delete) an API key | admin |
+
+<Note>
+  These permissions are sourced directly from `packages/shared/src/abilities.ts`
+  (`claimsForPreset`) and `packages/shared/src/permissions.ts` (`can`). The same
+  `defineAbility` function builds the CASL ability object on the server at
+  authentication time and in the Client UI for gating navigation and form
+  controls. The source of truth is the claim set on the key, not the preset label.
+</Note>
+
+## Preset Claim Sets
+
+When you create a key with `preset: "viewer"`, `preset: "editor"`, or
+`preset: "admin"`, linq expands the preset to its full claim list at write time
+and stores the expanded claims — not the preset name — in the database. The
+`preset` field returned by the API is derived at read time by comparing the
+stored claims against the known preset definitions.
+
+<Accordion title="Viewer claims (read all subjects)">
+  ```json
+  [
+    { "action": "read", "subject": "Link" },
+    { "action": "read", "subject": "Rule" },
+    { "action": "read", "subject": "QrCode" },
+    { "action": "read", "subject": "Domain" },
+    { "action": "read", "subject": "Key" },
+    { "action": "read", "subject": "Analytics" },
+    { "action": "read", "subject": "Visit" }
+  ]
+  ```
+</Accordion>
+
+<Accordion title="Editor claims (viewer + link/rule/QR mutations)">
+  ```json
+  [
+    { "action": "read",   "subject": "Link" },
+    { "action": "read",   "subject": "Rule" },
+    { "action": "read",   "subject": "QrCode" },
+    { "action": "read",   "subject": "Domain" },
+    { "action": "read",   "subject": "Key" },
+    { "action": "read",   "subject": "Analytics" },
+    { "action": "read",   "subject": "Visit" },
+    { "action": "create", "subject": "Link" },
+    { "action": "update", "subject": "Link" },
+    { "action": "create", "subject": "Rule" },
+    { "action": "update", "subject": "Rule" },
+    { "action": "create", "subject": "QrCode" },
+    { "action": "update", "subject": "QrCode" },
+    { "action": "delete", "subject": "QrCode" }
+  ]
+  ```
+</Accordion>
+
+<Accordion title="Admin claims (editor + archive/purge/domain/key management)">
+  ```json
+  [
+    { "action": "read",    "subject": "Link" },
+    { "action": "read",    "subject": "Rule" },
+    { "action": "read",    "subject": "QrCode" },
+    { "action": "read",    "subject": "Domain" },
+    { "action": "read",    "subject": "Key" },
+    { "action": "read",    "subject": "Analytics" },
+    { "action": "read",    "subject": "Visit" },
+    { "action": "create",  "subject": "Link" },
+    { "action": "update",  "subject": "Link" },
+    { "action": "create",  "subject": "Rule" },
+    { "action": "update",  "subject": "Rule" },
+    { "action": "create",  "subject": "QrCode" },
+    { "action": "update",  "subject": "QrCode" },
+    { "action": "delete",  "subject": "QrCode" },
+    { "action": "archive", "subject": "Link" },
+    { "action": "restore", "subject": "Link" },
+    { "action": "purge",   "subject": "Link" },
+    { "action": "create",  "subject": "Domain" },
+    { "action": "update",  "subject": "Domain" },
+    { "action": "archive", "subject": "Domain" },
+    { "action": "purge",   "subject": "Domain" },
+    { "action": "create",  "subject": "Key" },
+    { "action": "update",  "subject": "Key" },
+    { "action": "delete",  "subject": "Key" }
+  ]
+  ```
+</Accordion>
+
+## Links Are Unowned
+
+An important property of linq's permission model: links carry no reference to the key that created them. There is no concept of "a link I own" vs "a link someone else owns". An editor key can create _and_ update _any_ link, regardless of which key created it.
+
+This means:
+
+- Revoking an editor's key never changes, archives, or deletes any link.
+- All editors share the same write scope — the whole link namespace.
+- Admin-level operations (archive, restore, purge) apply to all links equally, regardless of creation history.
+
+This design is deliberate — see `docs/adr/0016` in the source repo for the reasoning. It simplifies permission checks and avoids a class of bugs where a resource becomes inaccessible because its creator's key was revoked.
+
+## Assigning and Changing Roles
+
+**At creation time**, pass `preset` in the request body:
+
+```bash
+curl -X POST https://your-linq-host/api/v1/keys \
+  -H "Authorization: Bearer linq_your_admin_key" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "name": "analytics-reader",
+    "preset": "viewer"
+  }'
+```
+
+Or use the CLI with `--preset`:
+
+```bash
+bun run key:create --name analytics-reader --preset viewer
+```
+
+**After creation**, send `PATCH /api/v1/keys/{id}` with a new `preset` or
+explicit `claims` array:
+
+```bash
+curl -X PATCH https://your-linq-host/api/v1/keys/019612ab-... \
+  -H "Authorization: Bearer linq_your_admin_key" \
+  -H "Content-Type: application/json" \
+  -d '{ "preset": "editor" }'
+```
+
+<Warning>
+  A key cannot change its own claims. If the `id` in the `PATCH` request matches
+  the key making the request, the server returns `403 Forbidden` with the message
+  `"you cannot change the claims of the key you are using"`. Likewise, a key
+  cannot revoke itself. Use a separate admin key to manage your keys.
+</Warning>
+
+## 401 vs 403
+
+linq distinguishes two authorization failure modes:
+
+| Status | Meaning | Cause |
+|---|---|---|
+| `401 Unauthorized` | The request carries no valid key | Key is missing, unrecognised, or expired |
+| `403 Forbidden` | The key is valid but lacks the required claim | Correct key, insufficient role for this operation |
+
+The server enforces this via two layers: the `authenticate` middleware (`auth/middleware.ts`) rejects unknown or expired keys with 401 before any handler runs; then each handler calls `assertCan(principal, action, subject)` (`auth/permissions.ts`) which throws 403 if the key's CASL ability does not include the required claim.
+
+```
+request
+  │  Authorization: Bearer <key>  or  X-Api-Key
+  ▼
+authenticate — hash + look up api_keys ──miss/expired──► 401
+  │ hit
+  ▼
+principal { keyId, claims, ability, name }
+  │
+  ▼
+assertCan(principal, action, subject) ──fails──► 403
+  │ passes
+  ▼
+handler runs
+```
+
+## Using CASL in Your Own Code
+
+If you are building a UI or integration that mirrors linq's permission model, import `@linq/shared` and use the same `can` helper the Client UI uses. Pass the authenticated key's claims to reconstruct the same ability object without making additional API calls:
+
+```typescript
+import { can } from "@linq/shared"
+
+// claims come from GET /api/v1/keys/{id} or the stored key object
+const actor = { keyId: "019612ab-...", claims: key.claims }
+
+if (can.createLink(actor)) {
+  // show or enable the "New Link" button
+}
+
+if (can.manageKeys(actor)) {
+  // show or enable the Keys management section
+}
+```
+
+The `can` object exposes named helpers: `createLink`, `editLink`, `archiveLink`,
+`purge`, `manageDomains`, `manageKeys`, `changeRoleOf`, and `revokeKey`. Each
+evaluates the CASL ability built from the key's claims — the same evaluation the
+server performs in `assertCan`.
+
+<Tip>
+  Use a `viewer` key for analytics dashboards, monitoring scripts, or any
+  read-only integration that pulls link or visit data. Viewer keys can read all
+  subjects but cannot create or modify anything, so a leaked viewer key cannot
+  be used to create spam links or modify your routing rules.
+</Tip>
