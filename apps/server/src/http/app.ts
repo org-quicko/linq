@@ -14,7 +14,7 @@ import { guarded as guardedMetadata, type MetadataFetcher, noMetadata } from "..
 import { reqLog, withRequestLog } from "../log.ts"
 import { mountAdmin } from "./admin-static.ts"
 import { analyticsRoutes } from "./api/analytics.ts"
-import { domainRoutes } from "./api/domains.ts"
+import { domainRoutes } from "../domains/http.ts"
 import { keyRoutes } from "./api/keys.ts"
 import { linkRoutes, tagRoutes } from "./api/links.ts"
 import { meRoutes } from "./api/me.ts"
