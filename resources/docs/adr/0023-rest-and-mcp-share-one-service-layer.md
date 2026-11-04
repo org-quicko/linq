@@ -27,7 +27,7 @@ Each resource is a folder (`links/`, `domains/`, `rules/`, `qr-codes/`,
   transactions, invalidate the cache and sync Caddy. They throw `ApiError`
   for expected failures and never see Hono's `Context`. Reads that need no
   permission check take no principal.
-- `http.ts` validates the request with the `@linq/shared` schemas and calls
+- `routes.ts` validates the request with the `@linq/shared` schemas and calls
   the service. It holds nothing else.
 
 `Deps` (`deps.ts`) is `{ db, config, cache, caddy, metadata }`. The Hono

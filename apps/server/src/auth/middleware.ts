@@ -1,6 +1,6 @@
 import { ApiError, claimsSchema, defineAbility, type AppAbility, type Claim } from "@linq/shared"
 import { createMiddleware } from "hono/factory"
-import type { Env } from "../http/env.ts"
+import type { Env } from "../app/env.ts"
 import { hashKey } from "./keys.ts"
 
 /** A key is the principal; its CASL ability is built once after authentication. */

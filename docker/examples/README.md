@@ -179,7 +179,7 @@ short links (`resources/docs/adr/0019`).
 
 `Dockerfile.client` runs `serve-static.ts` under plain Bun rather than
 introducing nginx as a second base image. It mirrors
-`apps/server/src/http/admin-static.ts` — the handler the combined image
+`apps/server/src/app/admin-static.ts` — the handler the combined image
 already uses to serve this same kind of export at `/home` — just mounted at
 `/` instead: trailing-slash resolution, immutable caching for hashed
 `_next/static` assets, the export's own `404.html`, and a path-traversal
