@@ -9,12 +9,13 @@ import { sql, type Selectable } from "kysely"
 import type { z } from "zod"
 import type { Principal } from "../auth/middleware.ts"
 import { assertCan, assertCanPurge } from "../auth/permissions.ts"
-import { domainKey } from "../infra/cache.ts"
+import { domainKey, writeThrough } from "../infra/cache.ts"
 import { isAppHost } from "../infra/config.ts"
 import type { Db } from "../infra/db/client.ts"
 import type { DB } from "../infra/db/types.generated.ts"
 import type { Deps } from "../deps.ts"
 import { span } from "../infra/log.ts"
+import { loadDomain } from "../redirect/resolve.ts"
 
 type DomainCreate = z.infer<typeof domainCreateSchema>
 type DomainPatch = z.infer<typeof domainPatchSchema>
@@ -137,8 +138,8 @@ export async function createDomain(
     .executeTakeFirst()
   if (!row) throw ApiError.conflict(`domain ${body.host} already exists`)
 
-  // Clears the negative entry a request to this host left behind while it 404'd.
-  await cache.del(domainKey(row.host))
+  // Replaces the negative entry a request to this host left behind while it 404'd.
+  await writeThrough(cache, domainKey(row.host), () => loadDomain(db, row.host))
   await caddy.upsert(row.id, row.host)
   return toDomain({ ...row, link_count: 0 })
 }
@@ -177,7 +178,7 @@ export async function updateDomain(
   }
   // Every patchable field except the status itself — the three redirect
   // URLs — is what the redirect handler reads out of the cached entry.
-  await cache.del(domainKey(before.host))
+  await writeThrough(cache, domainKey(before.host), () => loadDomain(db, before.host))
   // A redirect-only patch changes nothing Caddy needs to know about.
   if (patch.status !== undefined) {
     if (patch.status === "archived") await caddy.remove(id)
@@ -205,7 +206,7 @@ export async function archiveDomain(
       .where("id", "=", id)
       .execute()
   })
-  await cache.del(domainKey(before.host))
+  await writeThrough(cache, domainKey(before.host), () => loadDomain(db, before.host))
   await caddy.remove(id)
   return fetchDomain(db, id)
 }
@@ -242,6 +243,8 @@ export async function purgeDomain({ db, cache, caddy }: Deps, principal: Princip
       throw err
     }
   })
+  // A delete, not a write-through: with the row gone the loader reads version
+  // 0, which can never outrank the live entry it has to replace.
   await cache.del(domainKey(domain.host))
   // Defensive, not load-bearing: purging requires the domain already
   // archived, so its route is normally gone already. Idempotent either way.

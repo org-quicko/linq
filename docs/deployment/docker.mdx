@@ -4,7 +4,7 @@ sidebarTitle: "Docker"
 description: "Run linq from a pre-built image or a local build. Choose between four deployment shapes, eleven Compose stacks, and configure the right env vars for each."
 ---
 
-linq publishes a single container image — `ghcr.io/org-quicko/linq` (GitHub Container Registry) and `labsatquicko/linq` (Docker Hub) — built from `docker/dockerfiles/Dockerfile`. It bundles the API server, the redirect handler, and the static Client UI export in one process. Postgres always runs outside the image; Redis and Caddy are optional sidecars wired up by the Compose examples.
+linq publishes a single container image — `ghcr.io/org-quicko/linq` (GitHub Container Registry) and `labsatquicko/linq` (Docker Hub) — built from `docker/dockerfiles/Dockerfile`. It bundles the API server, the redirect handler, and the static Client UI export in one process. Postgres and Redis always run outside the image and are both required; Caddy is an optional sidecar. The Compose examples wire up all three.
 
 ## Choosing a deployment shape
 
@@ -12,9 +12,9 @@ The right image depends on where you want the Client UI to live. The published `
 
 | You want | Image | Client UI at | Must set |
 |---|---|---|---|
-| One container — UI on its own domain | `linq` (published) | `/` on `LINQ_APP_HOST` only | `DATABASE_URL`, `LINQ_DEFAULT_DOMAIN`, `LINQ_APP_HOST` |
-| One container — UI next to short links | `Dockerfile` built with `LINQ_CLIENT_BASE_PATH=/home` | `/home` on every host | `DATABASE_URL`, `LINQ_DEFAULT_DOMAIN` |
-| API and short links only — UI hosted elsewhere | `Dockerfile.server` (example) | nowhere | `DATABASE_URL`, `LINQ_DEFAULT_DOMAIN` |
+| One container — UI on its own domain | `linq` (published) | `/` on `LINQ_APP_HOST` only | `DATABASE_URL`, `LINQ_REDIS_URL`, `LINQ_DEFAULT_DOMAIN`, `LINQ_APP_HOST` |
+| One container — UI next to short links | `Dockerfile` built with `LINQ_CLIENT_BASE_PATH=/home` | `/home` on every host | `DATABASE_URL`, `LINQ_REDIS_URL`, `LINQ_DEFAULT_DOMAIN` |
+| API and short links only — UI hosted elsewhere | `Dockerfile.server` (example) | nowhere | `DATABASE_URL`, `LINQ_REDIS_URL`, `LINQ_DEFAULT_DOMAIN` |
 | UI only — pointed at a linq server you already run | `Dockerfile.client` (example) | `/` | nothing |
 
 <Warning>
@@ -23,21 +23,21 @@ The published `linq` image is built with `LINQ_CLIENT_BASE_PATH=/` and **cannot 
 
 ## Compose stacks
 
-Eleven Compose files live in `docker/examples/docker-compose/`. The first eight cover every combination of bundled vs. external Postgres, Redis on/off, and Caddy on/off. The remaining three handle split-container shapes.
+Eleven Compose files live in `docker/examples/docker-compose/`. The first eight cover bundled vs. external Postgres and Caddy on/off. The remaining three handle split-container shapes. Every stack that runs the server also runs a `redis` service; `02` and `06` predate that and are now equivalent to `01` and `05`.
 
 | # | File | Postgres | Redis | Caddy |
 |---|---|---|---|---|
-| 1 | `01-bundled-postgres.yml` | bundled | – | – |
+| 1 | `01-bundled-postgres.yml` | bundled | yes | – |
 | 2 | `02-bundled-postgres-redis.yml` | bundled | yes | – |
-| 3 | `03-bundled-postgres-caddy.yml` | bundled | – | yes |
+| 3 | `03-bundled-postgres-caddy.yml` | bundled | yes | yes |
 | 4 | `04-bundled-postgres-full.yml` | bundled | yes | yes |
-| 5 | `05-external-postgres.yml` | external | – | – |
+| 5 | `05-external-postgres.yml` | external | yes | – |
 | 6 | `06-external-postgres-redis.yml` | external | yes | – |
-| 7 | `07-external-postgres-caddy.yml` | external | – | yes |
+| 7 | `07-external-postgres-caddy.yml` | external | yes | yes |
 | 8 | `08-external-postgres-full.yml` | external | yes | yes |
-| 9 | `09-server-only.yml` | override | – | – |
+| 9 | `09-server-only.yml` | override | yes | – |
 | 10 | `10-client-only.yml` | – | – | – |
-| 11 | `11-app-host.yml` | external | – | – |
+| 11 | `11-app-host.yml` | external | yes | – |
 
 **Bundled Postgres** stacks (01–04) spin up a `postgres` service alongside `linq`. They read `POSTGRES_USER`, `POSTGRES_PASSWORD`, and `POSTGRES_DB` from `.env` and construct `DATABASE_URL` for the `linq` service automatically. Replace the sample password before deploying.
 
@@ -61,13 +61,14 @@ Eleven Compose files live in `docker/examples/docker-compose/`. The first eight 
 
     ```dotenv
     DATABASE_URL=postgres://linq:linq@localhost:5432/linq
+    LINQ_REDIS_URL=redis://localhost:6379
     LINQ_DEFAULT_DOMAIN=localhost:3000
     POSTGRES_USER=linq
     POSTGRES_PASSWORD=change-me-before-deploying
     POSTGRES_DB=linq
     ```
 
-    For the bundled-Postgres stacks, `DATABASE_URL` is constructed by Compose from the `POSTGRES_*` values — but it must also be present in `.env` for local development. If the password contains URL-reserved characters, percent-encode the same characters in `DATABASE_URL`.
+    For the bundled-Postgres stacks, `DATABASE_URL` is constructed by Compose from the `POSTGRES_*` values — but it must also be present in `.env` for local development. Likewise every stack sets `LINQ_REDIS_URL=redis://redis:6379` for its own `redis` service; the `.env` value is for local development. If the password contains URL-reserved characters, percent-encode the same characters in `DATABASE_URL`.
   </Step>
 
   <Step title="Start the simplest stack">
@@ -124,8 +125,8 @@ The `linq` container reads its configuration from environment variables at runti
   Required when running the published `linq` image (built with `LINQ_CLIENT_BASE_PATH=/`). Names the single host that serves the Client UI at `/`. Must differ from `LINQ_DEFAULT_DOMAIN` and from every registered domain. See [The UI and API on their own host](#linq_client_base_path-and-build-args).
 </ParamField>
 
-<ParamField body="LINQ_REDIS_URL" type="string">
-  Moves the redirect cache from the in-process LRU to Redis. When set, Redis must be reachable at boot or the server will not start. A Redis that goes down later degrades to Postgres rather than failing requests.
+<ParamField body="LINQ_REDIS_URL" type="string" required>
+  Redis connection string for the redirect cache. Redis must be reachable at boot or the server will not start. A Redis that goes down later degrades to Postgres rather than failing requests. The Compose stacks point it at their own `redis` service.
 </ParamField>
 
 <ParamField body="LINQ_PORT" type="number">

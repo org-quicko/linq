@@ -1,26 +1,46 @@
 import { describe, expect, spyOn, test } from "bun:test"
 import { clientBaseSegment, isAppHost, isReservedSlug, loadConfig } from "../src/infra/config.ts"
 
+const REDIS = "redis://localhost:6379"
+
+/** Runs `loadConfig` expecting it to refuse, and returns what it printed. */
+function refusal(env: Record<string, string>): string {
+  const exit = spyOn(process, "exit").mockImplementation((() => {
+    throw new Error("exit")
+  }) as never)
+  const error = spyOn(console, "error").mockImplementation(() => {})
+  try {
+    expect(() => loadConfig(env)).toThrow("exit")
+    return String(error.mock.calls[0]?.[0])
+  } finally {
+    exit.mockRestore()
+    error.mockRestore()
+  }
+}
+
 describe("cache configuration", () => {
-  test("defaults the memory sweep interval to 60 seconds", () => {
-    expect(loadConfig({ DATABASE_URL: "memory://pglite" }).LINQ_CACHE_SWEEP_INTERVAL).toBe(60)
+  test("requires LINQ_REDIS_URL", () => {
+    expect(refusal({ DATABASE_URL: "memory://pglite" })).toContain("LINQ_REDIS_URL")
   })
 
-  test("accepts an independent memory sweep interval", () => {
-    const config = loadConfig({
-      DATABASE_URL: "memory://pglite",
-      LINQ_CACHE_TTL: "300",
-      LINQ_CACHE_SWEEP_INTERVAL: "15",
-    })
+  test("refuses the 1.x memory and none backends by name", () => {
+    for (const backend of ["memory", "none"]) {
+      const printed = refusal({ DATABASE_URL: "memory://pglite", LINQ_REDIS_URL: REDIS, LINQ_CACHE_BACKEND: backend })
+      expect(printed).toContain("LINQ_CACHE_BACKEND")
+      expect(printed).toContain("removed in 2.0")
+    }
+  })
 
+  test("accepts a leftover LINQ_CACHE_BACKEND=redis and drops it", () => {
+    const config = loadConfig({ DATABASE_URL: "memory://pglite", LINQ_REDIS_URL: REDIS, LINQ_CACHE_BACKEND: "redis" })
+    expect("LINQ_CACHE_BACKEND" in config).toBe(false)
     expect(config.LINQ_CACHE_TTL).toBe(300)
-    expect(config.LINQ_CACHE_SWEEP_INTERVAL).toBe(15)
   })
 })
 
 describe("visit batching configuration", () => {
   test("defaults to batches of at most 100", () => {
-    expect(loadConfig({ DATABASE_URL: "memory://pglite" }).LINQ_VISIT_BATCH_SIZE).toBe(100)
+    expect(loadConfig({ DATABASE_URL: "memory://pglite", LINQ_REDIS_URL: REDIS }).LINQ_VISIT_BATCH_SIZE).toBe(100)
   })
 
   test("rejects a batch larger than the pending cap", () => {
@@ -31,7 +51,7 @@ describe("visit batching configuration", () => {
     try {
       expect(() =>
         loadConfig({
-          DATABASE_URL: "memory://pglite",
+          DATABASE_URL: "memory://pglite", LINQ_REDIS_URL: REDIS,
           LINQ_VISIT_MAX_PENDING: "10",
           LINQ_VISIT_BATCH_SIZE: "11",
         }),
@@ -46,12 +66,12 @@ describe("visit batching configuration", () => {
 
 describe("database schema configuration", () => {
   test("defaults to the public schema", () => {
-    expect(loadConfig({ DATABASE_URL: "memory://pglite" }).LINQ_DB_SCHEMA).toBe("public")
+    expect(loadConfig({ DATABASE_URL: "memory://pglite", LINQ_REDIS_URL: REDIS }).LINQ_DB_SCHEMA).toBe("public")
   })
 
   test("accepts a non-public PostgreSQL schema name", () => {
     expect(
-      loadConfig({ DATABASE_URL: "memory://pglite", LINQ_DB_SCHEMA: "shortener_data" })
+      loadConfig({ DATABASE_URL: "memory://pglite", LINQ_REDIS_URL: REDIS, LINQ_DB_SCHEMA: "shortener_data" })
         .LINQ_DB_SCHEMA,
     ).toBe("shortener_data")
   })
@@ -59,11 +79,11 @@ describe("database schema configuration", () => {
 
 describe("security configuration", () => {
   test("keeps outbound metadata fetching opt-in", () => {
-    expect(loadConfig({ DATABASE_URL: "memory://pglite" }).LINQ_FETCH_LINK_METADATA).toBe("false")
+    expect(loadConfig({ DATABASE_URL: "memory://pglite", LINQ_REDIS_URL: REDIS }).LINQ_FETCH_LINK_METADATA).toBe("false")
   })
 
   test("bounds authenticated request and pending-visit pressure by default", () => {
-    const config = loadConfig({ DATABASE_URL: "memory://pglite" })
+    const config = loadConfig({ DATABASE_URL: "memory://pglite", LINQ_REDIS_URL: REDIS })
     expect(config.LINQ_API_RATE_LIMIT_PER_MINUTE).toBe(1_000)
     expect(config.LINQ_VISIT_MAX_PENDING).toBe(1_000)
   })
@@ -71,12 +91,12 @@ describe("security configuration", () => {
 
 describe("Client UI base path configuration", () => {
   test("defaults to /home", () => {
-    expect(loadConfig({ DATABASE_URL: "memory://pglite" }).LINQ_CLIENT_BASE_PATH).toBe("/home")
+    expect(loadConfig({ DATABASE_URL: "memory://pglite", LINQ_REDIS_URL: REDIS }).LINQ_CLIENT_BASE_PATH).toBe("/home")
   })
 
   test("accepts a multi-segment path and reserves its first segment", () => {
     const config = loadConfig({
-      DATABASE_URL: "memory://pglite",
+      DATABASE_URL: "memory://pglite", LINQ_REDIS_URL: REDIS,
       LINQ_CLIENT_BASE_PATH: "/admin/example",
     })
 
@@ -88,7 +108,7 @@ describe("Client UI base path configuration", () => {
 
   test("accepts a root mount with an app host, and reserves no slug for it", () => {
     const config = loadConfig({
-      DATABASE_URL: "memory://pglite",
+      DATABASE_URL: "memory://pglite", LINQ_REDIS_URL: REDIS,
       LINQ_CLIENT_BASE_PATH: "/",
       LINQ_APP_HOST: "App.Example.com",
     })

@@ -10,7 +10,8 @@ Everything in this folder is an example, and none of it is published:
 ## Compose files
 
 Every combination of linq's optional pieces — Postgres bundled vs. external,
-Redis on/off (resources/docs/adr/0009), Caddy on/off (resources/docs/adr/0012). Pick the file that
+Caddy on/off (resources/docs/adr/0012). Every stack runs a `redis` service,
+which linq requires (resources/docs/adr/0024-redis-is-the-only-cache.md). Pick the file that
 matches your setup, configure the repo-root `.env`, then
 `docker compose -f <file> up`. Each `linq` service loads that file with
 `env_file`, so it is its runtime configuration as well as Compose's source for
@@ -34,19 +35,22 @@ domain through the UI as well: the default domain only seeds an empty database.
 `LINQ_DB_SCHEMA` selects the PostgreSQL schema linq owns and defaults to
 `public`; set it when sharing a database with another application. The server
 creates it during migration when it does not already exist.
-The examples without Redis also pass through `LINQ_CACHE_SWEEP_INTERVAL`,
-accepting 1 to 3600 seconds and defaulting to 60, for the in-process cache.
+Each stack sets `LINQ_REDIS_URL=redis://redis:6379` for its own `redis`
+service, overriding whatever `.env` says.
 
 | # | File | Postgres | Redis | Caddy |
 | --- | --- | --- | --- | --- |
-| 1 | `01-bundled-postgres.yml` | bundled | – | – |
+| 1 | `01-bundled-postgres.yml` | bundled | yes | – |
 | 2 | `02-bundled-postgres-redis.yml` | bundled | yes | – |
-| 3 | `03-bundled-postgres-caddy.yml` | bundled | – | yes |
+| 3 | `03-bundled-postgres-caddy.yml` | bundled | yes | yes |
 | 4 | `04-bundled-postgres-full.yml` | bundled | yes | yes |
-| 5 | `05-external-postgres.yml` | external | – | – |
+| 5 | `05-external-postgres.yml` | external | yes | – |
 | 6 | `06-external-postgres-redis.yml` | external | yes | – |
-| 7 | `07-external-postgres-caddy.yml` | external | – | yes |
+| 7 | `07-external-postgres-caddy.yml` | external | yes | yes |
 | 8 | `08-external-postgres-full.yml` | external | yes | yes |
+
+Since Redis became required, 02 and 06 are equivalent to 01 and 05; they are
+kept so existing commands still work.
 
 Three more cover other deployment shapes: `09-server-only.yml` and
 `10-client-only.yml` split the API and the Client UI into separate containers,
@@ -185,8 +189,8 @@ already uses to serve this same kind of export at `/home` — just mounted at
 `_next/static` assets, the export's own `404.html`, and a path-traversal
 guard. It needs no environment or Postgres — the UI is pointed at a linq
 server at runtime, in the browser. The server images need `DATABASE_URL`,
-`LINQ_DB_SCHEMA` (default `public`), `LINQ_DEFAULT_DOMAIN`, etc. at runtime,
-and default `LINQ_CACHE_SWEEP_INTERVAL` to 60 seconds (1 to 3600).
+`LINQ_REDIS_URL`, `LINQ_DB_SCHEMA` (default `public`), `LINQ_DEFAULT_DOMAIN`,
+etc. at runtime.
 
 `dockerfiles/caddy/caddy.json` is the empty skeleton Caddy boots from in the Caddy
 examples (3, 4, 7, 8); see `resources/docs/adr/0012`.

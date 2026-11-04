@@ -29,6 +29,16 @@ services:
       timeout: 5s
       retries: 10
 
+  # Required since 2.0: the redirect cache. It holds only cached lookups, so
+  # it needs no volume: a cold Redis costs one Postgres query per link.
+  redis:
+    image: redis:8
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
   linq:
     env_file:
       # Change this path to use an environment file in another location.
@@ -39,6 +49,8 @@ services:
       args:
         LINQ_CLIENT_BASE_PATH: ${LINQ_CLIENT_BASE_PATH:-/home}
     depends_on:
+      redis:
+        condition: service_healthy
       caddy:
         condition: service_healthy
     environment:
@@ -46,7 +58,7 @@ services:
       LINQ_DB_SCHEMA: ${LINQ_DB_SCHEMA:-public}
       LINQ_DATA_DIR: /data
       LINQ_DEFAULT_DOMAIN: ${LINQ_DEFAULT_DOMAIN:-localhost:${LINQ_PORT:-3000}}
-      LINQ_CACHE_SWEEP_INTERVAL: ${LINQ_CACHE_SWEEP_INTERVAL:-60}
+      LINQ_REDIS_URL: redis://redis:6379
       LINQ_CADDY_ADMIN_URL: http://caddy:2019
       LINQ_CADDY_UPSTREAM: linq:3000
       # An admin key is minted and printed on first boot; read it from

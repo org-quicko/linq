@@ -3,10 +3,11 @@ import type { Selectable } from "kysely"
 import type { z } from "zod"
 import type { Principal } from "../auth/middleware.ts"
 import { assertCanEdit } from "../auth/permissions.ts"
-import { targetKey } from "../infra/cache.ts"
+import { targetKey, writeThrough } from "../infra/cache.ts"
 import type { DB } from "../infra/db/types.generated.ts"
 import type { Deps } from "../deps.ts"
 import { loadLink } from "../links/service.ts"
+import { loadTarget } from "../redirect/resolve.ts"
 import { listRules } from "./store.ts"
 
 type RulesPut = z.infer<typeof rulesPutSchema>
@@ -41,6 +42,10 @@ export async function replaceLinkRules(
   // One transaction: a failed insert must never leave the link with its old
   // rules deleted and no new ones in their place.
   await db.transaction().execute(async (tx) => {
+    // Rules are part of what the link redirects to, so replacing them is an
+    // edit of the link: its `updated_at` is the redirect entry's version, and
+    // without the bump two concurrent replacements would race unversioned.
+    await tx.updateTable("links").set({ updated_at: new Date() }).where("id", "=", linkId).execute()
     await tx.deleteFrom("rules").where("link_id", "=", linkId).execute()
     if (input.length === 0) return
     await tx.insertInto("rules").values(
@@ -55,7 +60,9 @@ export async function replaceLinkRules(
   })
 
   // The redirect caches a link's rules inside its target entry, so replacing
-  // them has to clear it just as editing the link itself does.
-  await cache.del(targetKey(link.domain_id, link.slug))
+  // them rebuilds it just as editing the link itself does.
+  await writeThrough(cache, targetKey(link.domain_id, link.slug), () =>
+    loadTarget(db, link.domain_id, link.slug),
+  )
   return (await listRules(db, linkId)).map(toRule)
 }

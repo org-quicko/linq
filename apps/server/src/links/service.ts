@@ -14,13 +14,24 @@ import { sql, type Insertable, type Selectable, type SqlBool } from "kysely"
 import type { z } from "zod"
 import type { Principal } from "../auth/middleware.ts"
 import { assertCan, assertCanArchive, assertCanEdit, assertCanPurge } from "../auth/permissions.ts"
-import { linkKeys } from "../infra/cache.ts"
+import { type Cache, llmsKey, targetKey, writeThrough } from "../infra/cache.ts"
 import { isReservedSlug } from "../infra/config.ts"
 import type { Db } from "../infra/db/client.ts"
 import type { DB } from "../infra/db/types.generated.ts"
 import type { Deps } from "../deps.ts"
 import { span } from "../infra/log.ts"
+import { loadTarget } from "../redirect/resolve.ts"
 import { randomSlug } from "./slug.ts"
+
+/**
+ * After a write that changes what a slug redirects to: the redirect's entry is
+ * rebuilt in place (write-through), and the domain's /llms.txt, which has no
+ * single version to check, is deleted. See resources/docs/adr/0024.
+ */
+async function refreshLink(db: Db, cache: Cache, domain_id: string, slug: string): Promise<void> {
+  await writeThrough(cache, targetKey(domain_id, slug), () => loadTarget(db, domain_id, slug))
+  await cache.del(llmsKey(domain_id))
+}
 
 type LinkListQuery = z.infer<typeof linkListQuerySchema>
 type LinkCountQuery = z.infer<typeof linkCountQuerySchema>
@@ -338,8 +349,8 @@ export async function createLink(
     return linkRow
   })
 
-  // Clears the negative entry left behind while this slug was 404ing.
-  await cache.del(...linkKeys(row.domain_id, row.slug))
+  // Replaces the negative entry left behind while this slug was 404ing.
+  await refreshLink(db, cache, row.domain_id, row.slug)
   return fetchLink(db, row.id)
 }
 
@@ -412,7 +423,7 @@ export async function updateLink(
       }
     }
   })
-  await cache.del(...linkKeys(existing.domain_id, existing.slug))
+  await refreshLink(db, cache, existing.domain_id, existing.slug)
   return fetchLink(db, id)
 }
 
@@ -438,7 +449,7 @@ export async function purgeArchivedLinks({ db, cache }: Deps, principal: Princip
     { out: (deleted) => ({ purged: deleted.length }) },
   )
 
-  await cache.del(...rows.flatMap((r) => linkKeys(r.domain_id, r.slug)))
+  await cache.del(...rows.flatMap((r) => [targetKey(r.domain_id, r.slug), llmsKey(r.domain_id)]))
   return { purged: rows.length }
 }
 
@@ -453,7 +464,7 @@ export async function archiveLink({ db, cache }: Deps, principal: Principal, id:
     .set({ status: "archived", updated_at: new Date() })
     .where("id", "=", id)
     .execute()
-  await cache.del(...linkKeys(existing.domain_id, existing.slug))
+  await refreshLink(db, cache, existing.domain_id, existing.slug)
   return fetchLink(db, id)
 }
 
@@ -476,7 +487,9 @@ export async function purgeLink({ db, cache }: Deps, principal: Principal, id: s
   await span("link.purge", async () => db.deleteFrom("links").where("id", "=", id).execute(), {
     in: { link_id: id, slug: existing.slug },
   })
-  await cache.del(...linkKeys(existing.domain_id, existing.slug))
+  // A delete, not a write-through: with the row gone the loader reads version
+  // 0, which can never outrank the live entry it has to replace.
+  await cache.del(targetKey(existing.domain_id, existing.slug), llmsKey(existing.domain_id))
 }
 
 /**

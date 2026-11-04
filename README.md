@@ -22,10 +22,11 @@ A self-hosted platform for short links.
 
 - [Bun](https://bun.sh) 1.4+
 - [PostgreSQL](https://www.postgresql.org) 15+
+- [Redis](https://redis.io) 7+
 
-linq never runs Postgres itself. Without it, the server exits with
-`ERR_POSTGRES_CONNECTION_REFUSED`. Redis is optional, because the redirect cache
-runs in the process by default.
+linq never runs Postgres or Redis itself. Without Postgres, the server exits
+with `ERR_POSTGRES_CONNECTION_REFUSED`; without a reachable Redis it also
+refuses to start. For a local Redis, `docker run -d -p 6379:6379 redis:8`.
 
 ### Installation
 
@@ -34,7 +35,7 @@ git clone https://github.com/org-quicko/linq.git
 cd linq
 bun install
 psql -U postgres -c "CREATE DATABASE linq;"
-cp .env.example .env   # then set DATABASE_URL to your Postgres credentials
+cp .env.example .env   # then set DATABASE_URL and LINQ_REDIS_URL
 ```
 
 linq applies its own migrations at boot, but it does not create the database.
@@ -109,7 +110,7 @@ the job.
 ## Configuration
 
 Configuration is read from the repo-root `.env` (or `.env.local`). Only
-`DATABASE_URL` is required. Every variable is documented in
+`DATABASE_URL` and `LINQ_REDIS_URL` are required. Every variable is documented in
 [`.env.example`](.env.example). The ones you are most likely to change:
 
 | Variable                           | Default                    | Description                                                                                         |
@@ -121,8 +122,8 @@ Configuration is read from the repo-root `.env` (or `.env.local`). Only
 | `LINQ_CLIENT_BASE_PATH`          | `/home`                  | Where a combined deployment mounts the UI.                                                          |
 | `LINQ_APP_HOST`                  | —                         | Gives the UI a host of its own. See [UI on its own host](#ui-on-its-own-host).                        |
 | `LINQ_DEFAULT_DOMAIN`            | `localhost:${LINQ_PORT}` | Seeds the first domain on an empty database only.                                                   |
-| `LINQ_REDIS_URL`                 | —                         | Moves the redirect cache to Redis. Must be reachable at boot. See `resources/docs/adr/0009`.                 |
-| `LINQ_CACHE_TTL`                 | `300`                    | How many seconds a cached lookup lives.                                                             |
+| `LINQ_REDIS_URL`                 | —                         | Redis for the redirect cache. Must be reachable at boot. See `resources/docs/adr/0024`.             |
+| `LINQ_CACHE_TTL`                 | `300`                    | How many seconds a cached lookup lives. A backstop: writes update the cache directly.               |
 | `LINQ_FETCH_LINK_METADATA`       | `false`                  | Fetches a destination's title and icon. Enable only with egress rules that block private addresses. |
 | `LINQ_API_RATE_LIMIT_PER_MINUTE` | `1000`                   | Per-key API rate limit.                                                                             |
 | `LINQ_VISIT_MAX_PENDING`         | `1000`                   | Maximum queued analytics writes.                                                                    |
@@ -133,7 +134,12 @@ Logs are written to `./data/logs/linq.log` and rotated. In Docker this is the
 
 ## Deployment
 
-Postgres is always external to linq, and so is Redis if you use it.
+Postgres and Redis are always external to linq.
+
+> [!NOTE]
+> Upgrading to 2.0: the in-process cache is gone and `LINQ_REDIS_URL` is
+> required. `LINQ_CACHE_BACKEND=memory` or `none` now fails to boot, and
+> `LINQ_CACHE_SWEEP_INTERVAL` and `LINQ_CACHE_MAX_ENTRIES` no longer exist.
 
 ### Docker
 
@@ -143,14 +149,14 @@ The published image is `linq`, available as
 
 | You want                   | Image                                                     | UI at                      | Required                                                     |
 | -------------------------- | --------------------------------------------------------- | -------------------------- | ------------------------------------------------------------ |
-| UI on its own domain       | `linq` (published)                                      | `/` on `LINQ_APP_HOST` | `DATABASE_URL`, `LINQ_DEFAULT_DOMAIN`, `LINQ_APP_HOST` |
-| UI next to the short links | `Dockerfile` built with `LINQ_CLIENT_BASE_PATH=/home` | `/home` on every host    | `DATABASE_URL`, `LINQ_DEFAULT_DOMAIN`                    |
-| API only                   | `Dockerfile.server`                                     | —                         | `DATABASE_URL`, `LINQ_DEFAULT_DOMAIN`                    |
+| UI on its own domain       | `linq` (published)                                      | `/` on `LINQ_APP_HOST` | `DATABASE_URL`, `LINQ_REDIS_URL`, `LINQ_DEFAULT_DOMAIN`, `LINQ_APP_HOST` |
+| UI next to the short links | `Dockerfile` built with `LINQ_CLIENT_BASE_PATH=/home` | `/home` on every host    | `DATABASE_URL`, `LINQ_REDIS_URL`, `LINQ_DEFAULT_DOMAIN`  |
+| API only                   | `Dockerfile.server`                                     | —                         | `DATABASE_URL`, `LINQ_REDIS_URL`, `LINQ_DEFAULT_DOMAIN`  |
 | UI only                    | `Dockerfile.client`                                     | `/`                      | —                                                           |
 
 `docker/examples/docker-compose/` has a Compose stack for each combination:
-bundled or external Postgres, with or without Redis, with or without Caddy, and
-split client/server setups:
+bundled or external Postgres, with or without Caddy, and split client/server
+setups. Every stack runs Redis:
 
 ```sh
 docker compose -f docker/examples/docker-compose/01-bundled-postgres.yml up --build -d

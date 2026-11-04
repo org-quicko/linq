@@ -60,29 +60,18 @@ const schema = z
     /** PostgreSQL schema that owns linq's tables and migration journals. */
     LINQ_DB_SCHEMA: postgresSchemaSchema.default("public"),
     /**
-     * Which store the redirect cache uses. Left unset it follows
-     * `LINQ_REDIS_URL`: supplying a URL is what makes Redis expected to exist.
-     * `none` turns caching off entirely. See resources/docs/adr/0009.
+     * Removed in 2.0, when Redis became the only cache. Still parsed so a 1.x
+     * `.env` naming `memory` or `none` fails loudly instead of being ignored;
+     * `redis` is accepted as a harmless leftover. See resources/docs/adr/0024.
      */
-    LINQ_CACHE_BACKEND: z.enum(["memory", "redis", "none"]).optional(),
-    /** Only read when the backend is `redis`, and then it must be reachable. */
-    LINQ_REDIS_URL: z.string().min(1).optional(),
+    LINQ_CACHE_BACKEND: z.string().optional(),
+    /** Required, and required to be reachable at boot. See resources/docs/adr/0024. */
+    LINQ_REDIS_URL: z.string().min(1, "LINQ_REDIS_URL is required"),
     /**
-     * How long a cached lookup survives, on either backend. A backstop for an
-     * invalidation that was missed, not the invalidation mechanism.
+     * How long a cached lookup survives. A backstop for a write-through that
+     * failed, not the mechanism that keeps entries fresh.
      */
     LINQ_CACHE_TTL: z.coerce.number().int().min(1).default(300),
-    /**
-     * How often the in-memory backend physically removes expired entries.
-     * Expiry itself remains exact on read; Redis ignores this setting.
-     */
-    LINQ_CACHE_SWEEP_INTERVAL: z.coerce.number().int().min(1).max(3600).default(60),
-    /**
-     * Entries the in-memory backend holds before evicting the least recently
-     * used. Redis cannot be capped by a client; use `maxmemory` in redis.conf.
-     * Bounded above because lru-cache pre-allocates its index arrays to it.
-     */
-    LINQ_CACHE_MAX_ENTRIES: z.coerce.number().int().min(1).max(1_000_000).default(10_000),
     LINQ_PORT: z.coerce.number().int().min(1).max(65535).default(3000),
     /** Requests one authenticated key may make in one minute, per process. */
     LINQ_API_RATE_LIMIT_PER_MINUTE: z.coerce.number().int().min(1).max(10_000).default(1_000),
@@ -131,14 +120,16 @@ const schema = z
     // Disabled by default: enabling this is an explicit trust in the deployment's egress policy.
     LINQ_FETCH_LINK_METADATA: z.enum(["true", "false"]).default("false"),
   })
-  // Naming redis without somewhere to reach it is the one combination that
-  // cannot be resolved by a default, so it is rejected rather than guessed at.
   .superRefine((c, ctx) => {
-    if (c.LINQ_CACHE_BACKEND === "redis" && !c.LINQ_REDIS_URL) {
+    // A 1.x deployment that chose the in-process store or no cache at all must
+    // decide to run Redis, not be switched to it silently.
+    if (c.LINQ_CACHE_BACKEND !== undefined && c.LINQ_CACHE_BACKEND !== "redis") {
       ctx.addIssue({
         code: "custom",
-        path: ["LINQ_REDIS_URL"],
-        message: "required when LINQ_CACHE_BACKEND is redis",
+        path: ["LINQ_CACHE_BACKEND"],
+        message:
+          `"${c.LINQ_CACHE_BACKEND}" was removed in 2.0: linq now caches in Redis only. ` +
+          "Set LINQ_REDIS_URL and delete LINQ_CACHE_BACKEND",
       })
     }
     if (c.LINQ_CADDY_ADMIN_URL && !c.LINQ_CADDY_UPSTREAM) {
@@ -176,13 +167,9 @@ const schema = z
   })
   // The log file is the durable thing linq writes, so it lives under the data
   // volume.
-  .transform((c) => ({
+  .transform(({ LINQ_CACHE_BACKEND: _removed, ...c }) => ({
     ...c,
     LINQ_LOG_FILE: c.LINQ_LOG_FILE ?? join(c.LINQ_DATA_DIR, "logs", "linq.log"),
-    // Unset means "whichever one was configured": a Redis URL selects Redis,
-    // and nothing at all selects the in-process store. An explicit setting
-    // always wins, so a URL can be left in `.env` while trying the other one.
-    LINQ_CACHE_BACKEND: c.LINQ_CACHE_BACKEND ?? (c.LINQ_REDIS_URL ? "redis" : "memory"),
   }))
 
 export type Config = z.infer<typeof schema>

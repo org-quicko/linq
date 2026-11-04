@@ -1,6 +1,6 @@
 # linq plus Redis for the redirect cache, against an existing Postgres
 # instance you already run (managed, another host, whatever). See
-# resources/docs/adr/0009 for what the Redis and in-process cache backends differ in.
+# resources/docs/adr/0024 for why Redis is required since 2.0.
 #
 # Set DATABASE_URL to that instance and LINQ_DEFAULT_DOMAIN in .env, then:
 #   docker compose -f 06-external-postgres-redis.yml up
