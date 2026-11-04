@@ -1,8 +1,7 @@
 import { beforeAll, describe, expect, test } from "bun:test"
-import { memoryCache } from "../src/cache.ts"
-import { renderLlms } from "../src/http/llms.ts"
+import { fakeCache } from "./helpers/cache.ts"
+import { renderLlms } from "../src/redirect/llms.ts"
 import { createHarness, type Harness } from "./helpers/app.ts"
-import { testConfig } from "./helpers/db.ts"
 
 describe("renderLlms", () => {
   test("collapses whitespace and a newline, and escapes brackets", () => {
@@ -104,7 +103,7 @@ describe("GET /llms.txt", () => {
 
 describe("invalidation", () => {
   test("a new listed link appears on the next request, not after the TTL", async () => {
-    const cache = memoryCache(testConfig)
+    const cache = fakeCache()
     const cached = await createHarness({ cache })
     const owner = await cached.actor("editor")
     const domain_id = await cached.createDomain("llms-cache.test")

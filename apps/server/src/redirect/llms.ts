@@ -1,11 +1,12 @@
 import { sql } from "kysely"
 import { createFactory } from "hono/factory"
-import { domainKey, llmsKey } from "../cache.ts"
-import type { Db } from "../db/client.ts"
-import { span } from "../log.ts"
-import { shortUrl } from "./api/links.ts"
-import type { Env } from "./env.ts"
-import { findActiveDomain, through } from "./redirect.ts"
+import { domainKey, llmsKey } from "../infra/cache.ts"
+import type { Db } from "../infra/db/client.ts"
+import { span } from "../infra/log.ts"
+import { shortUrl } from "../links/service.ts"
+import type { Env } from "../app/env.ts"
+import { through } from "./handler.ts"
+import { loadDomain } from "./resolve.ts"
 
 /**
  * No llms.txt is improved by 50,000 entries, and this is an unauthenticated
@@ -88,12 +89,16 @@ export const llmsHandler = factory.createHandlers(async (c) => {
   const host = c.req.header("host") ?? new URL(c.req.url).host
   // Reads the same `domainKey` entry the redirect warms, so a live instance
   // pays zero extra queries for this route.
-  const domain = await through(c, domainKey(host), () => findActiveDomain(c.var.db, host))
+  const domain = await through(c, domainKey(host), () => loadDomain(c.var.db, host))
   if (!domain) return c.text("Not Found", 404)
 
   // The rendered string is cached as a whole, keyed by domain id: a string has
   // no `Date` problem, unlike a row array — see redirect.ts's `expired`.
-  const md = await through(c, llmsKey(domain.id), () => renderForDomain(c.var.db, domain.id, host))
+  // Version 0: the catalogue is deleted on write, never written through.
+  const md = await through(c, llmsKey(domain.id), async () => ({
+    value: await renderForDomain(c.var.db, domain.id, host),
+    version: 0,
+  }))
 
   return c.body(md ?? "", 200, {
     "content-type": "text/markdown; charset=utf-8",

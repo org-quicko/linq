@@ -1,8 +1,8 @@
-import { afterEach, beforeEach, describe, expect, test } from "bun:test"
-import type { Cache } from "../src/cache.ts"
-import { domainKey, memoryCache, targetKey } from "../src/cache.ts"
+import { afterEach, beforeEach, describe, expect, setSystemTime, test } from "bun:test"
+import type { Cache } from "../src/infra/cache.ts"
+import { domainKey, targetKey } from "../src/infra/cache.ts"
 import { createHarness, type Harness } from "./helpers/app.ts"
-import { testConfig } from "./helpers/db.ts"
+import { fakeCache } from "./helpers/cache.ts"
 
 const HOST = "cache.test"
 const UA = "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 Chrome/120"
@@ -17,12 +17,12 @@ let domain: string
  * A fresh harness and a fresh cache per test: the cache is shared mutable
  * state, so a leftover entry from one case would silently satisfy the next.
  *
- * This is the real in-memory backend, not a stand-in. It needs nothing running
- * outside the process, so there is no reason for the suite to exercise
- * anything other than the code that ships.
+ * The in-process fake keeps the Redis backend's versioned-write rule, so the
+ * suite runs with nothing else running. The Redis backend itself is covered
+ * by redis-cache.test.ts.
  */
 beforeEach(async () => {
-  cache = memoryCache(testConfig)
+  cache = fakeCache()
   h = await createHarness({ cache })
   editor = await h.actor("editor")
   admin = await h.actor("admin")
@@ -92,23 +92,42 @@ describe("reads", () => {
   })
 })
 
-describe("invalidation", () => {
-  test("creating a link clears the negative entry for its slug", async () => {
+describe("writes", () => {
+  test("creating a link replaces the negative entry for its slug", async () => {
     expect((await get("/fresh")).headers.get("location")).toBe("https://example.com/fallback")
     await h.createLink(editor.key, domain, { slug: "fresh" })
     expect((await get("/fresh")).headers.get("location")).toBe("https://example.com/")
   })
 
-  test("updating a link's destination clears its entry", async () => {
+  /**
+   * Write-through, not invalidation: the row is gone before the next request,
+   * so the new destination can only have come from an entry the write itself
+   * put in the cache.
+   */
+  test("updating a link writes its new entry through", async () => {
     const link = await h.createLink(editor.key, domain, { slug: "moved" })
     await get("/moved")
     await h.patch(`/api/v1/links/${link.id}`, editor.key, {
       destination: "https://example.com/new",
     })
+    await dropRow(link.id)
     expect((await get("/moved")).headers.get("location")).toBe("https://example.com/new")
   })
 
-  test("replacing a link's rules clears its entry", async () => {
+  test("a slower read finishing after an edit cannot put the old entry back", async () => {
+    const link = await h.createLink(editor.key, domain, { slug: "raced" })
+    const key = targetKey(domain, "raced")
+    const before = await cache.get(key)
+    await h.patch(`/api/v1/links/${link.id}`, editor.key, {
+      destination: "https://example.com/after",
+    })
+    // What a redirect that read the row before the edit would write: the old
+    // value, under the old version.
+    await cache.set(key, before?.value, new Date(link.updated_at).getTime())
+    expect((await get("/raced")).headers.get("location")).toBe("https://example.com/after")
+  })
+
+  test("replacing a link's rules writes its entry through", async () => {
     const link = await h.createLink(editor.key, domain, { slug: "rules" })
     await get("/rules")
     await h.request(`/api/v1/links/${link.id}/rules`, {
@@ -121,10 +140,11 @@ describe("invalidation", () => {
         },
       ]),
     })
+    await dropRow(link.id)
     expect((await get("/rules")).headers.get("location")).toBe("https://example.com/desktop")
   })
 
-  test("archiving a link clears its entry, so the slug falls through", async () => {
+  test("archiving a link writes a miss through, so the slug falls through", async () => {
     const link = await h.createLink(editor.key, domain, { slug: "gone" })
     await get("/gone")
     await h.request(`/api/v1/links/${link.id}`, { key: admin.key, method: "DELETE" })
@@ -139,7 +159,7 @@ describe("invalidation", () => {
     expect(await cache.get(targetKey(domain, "purged"))).toBeNull()
   })
 
-  test("changing a domain's fallback clears its entry", async () => {
+  test("changing a domain's fallback writes its entry through", async () => {
     await get("/nothing-here")
     await h.patch(`/api/v1/domains/${domain}`, admin.key, {
       fallback_url: "https://example.com/elsewhere",
@@ -149,13 +169,13 @@ describe("invalidation", () => {
     )
   })
 
-  test("archiving a domain clears its entry, so the host stops answering", async () => {
+  test("archiving a domain writes a miss through, so the host stops answering", async () => {
     await get("/nothing-here")
     await h.request(`/api/v1/domains/${domain}`, { key: admin.key, method: "DELETE" })
     expect((await get("/nothing-here")).status).toBe(404)
   })
 
-  test("creating a domain clears the negative entry for its host", async () => {
+  test("creating a domain replaces the negative entry for its host", async () => {
     expect((await h.request("/x", { host: "later.test" })).status).toBe(404)
     await h.post("/api/v1/domains", admin.key, {
       host: "later.test",
@@ -167,118 +187,40 @@ describe("invalidation", () => {
 })
 
 /**
- * The backend on its own, at the level the redirect cannot reach.
- *
- * Expiry is two separate mechanisms — exact on read, lazy on reclaim — and
- * either can break without the other noticing, so each gets its own case.
+ * The versioned write on its own, through the fake. The same comparison runs
+ * in the Redis backend's Lua script; redis-cache.test.ts checks it there.
  */
-describe("the memory backend", () => {
-  const open = (ttl = 300, max = 10_000, sweepInterval = 60) =>
-    memoryCache({
-      ...testConfig,
-      LINQ_CACHE_TTL: ttl,
-      LINQ_CACHE_MAX_ENTRIES: max,
-      LINQ_CACHE_SWEEP_INTERVAL: sweepInterval,
-    })
-
-  test("a value round trips", async () => {
-    const c = open()
-    await c.set("k", { nested: ["a", 1] })
+describe("versioned writes", () => {
+  test("a value round trips, a cached null included", async () => {
+    const c = fakeCache()
+    await c.set("k", { nested: ["a", 1] }, 1)
+    await c.set("n", null, 1)
     expect(await c.get("k")).toEqual({ value: { nested: ["a", 1] } })
-    c.stop()
-  })
-
-  test("a cached null is not a miss", async () => {
-    const c = open()
-    await c.set("k", null)
-    expect(await c.get("k")).toEqual({ value: null })
+    expect(await c.get("n")).toEqual({ value: null })
     expect(await c.get("never-written")).toBeNull()
-    c.stop()
   })
 
-  test("a second write replaces the value rather than colliding", async () => {
-    const c = open()
-    await c.set("k", "first")
-    await c.set("k", "second")
-    expect(await c.get("k")).toEqual({ value: "second" })
-    c.stop()
+  test("an older version never replaces a newer one", async () => {
+    const c = fakeCache()
+    await c.set("k", "new", 2)
+    await c.set("k", "old", 1)
+    expect(await c.get("k")).toEqual({ value: "new" })
   })
 
-  test("del removes one key and leaves its neighbours", async () => {
-    const c = open()
-    await c.set("a", 1)
-    await c.set("b", 2)
-    await c.del("a")
-    expect(await c.get("a")).toBeNull()
-    expect(await c.get("b")).toEqual({ value: 2 })
-    c.stop()
+  test("an equal or newer version replaces", async () => {
+    const c = fakeCache()
+    await c.set("k", "first", 1)
+    await c.set("k", "same", 1)
+    expect(await c.get("k")).toEqual({ value: "same" })
+    await c.set("k", "newer", 2)
+    expect(await c.get("k")).toEqual({ value: "newer" })
   })
 
-  /** The slowest test in the file, and the only one that waits on real time. */
-  test("an entry past its TTL reads as a miss, with no sweep run", async () => {
-    const c = open(1)
-    await c.set("k", "value")
-    expect(await c.get("k")).toEqual({ value: "value" })
-
-    await Bun.sleep(1100)
-    expect(await c.get("k")).toBeNull()
-    c.stop()
-  })
-
-  /**
-   * Lapsed entries keep their slot and keep counting toward `max`, so a store
-   * full of them evicts live ones. `size` counts them until something reclaims
-   * them, so with no sweep this would still read 2.
-   *
-   * Neither key is read: a read reclaims on access and would prove nothing. The
-   * A two-second sweep proves reclamation follows its own setting rather than
-   * the one-second TTL.
-   */
-  test("the sweep reclaims lapsed entries nothing has touched", async () => {
-    const c = open(1, 10_000, 2)
-    await c.set("a", 1)
-    await c.set("b", 2)
-    expect(c.size()).toBe(2)
-
-    await Bun.sleep(1200)
-    expect(c.size()).toBe(2)
-
-    await Bun.sleep(1000)
-    expect(c.size()).toBe(0)
-    c.stop()
-  })
-
-  test("the cap evicts, so a flood cannot grow the store without limit", async () => {
-    const c = open(300, 3)
-    for (const k of ["a", "b", "c", "d"]) await c.set(k, k)
-
-    expect(await c.get("a")).toBeNull()
-    expect(await c.get("d")).toEqual({ value: "d" })
-    c.stop()
-  })
-
-  /**
-   * The difference between an LRU and the eviction-by-expiry it replaced: under
-   * one uniform TTL that was first-in-first-out, so a read could not save an
-   * entry. This is the case that would have failed before.
-   */
-  test("reading an entry saves it from the next eviction", async () => {
-    const c = open(300, 3)
-    for (const k of ["a", "b", "c"]) await c.set(k, k)
-
-    await c.get("a")
-    await c.set("d", "d")
-
-    expect(await c.get("a")).toEqual({ value: "a" })
-    expect(await c.get("b")).toBeNull()
-    c.stop()
-  })
-
-  test("stop empties the store", async () => {
-    const c = open()
-    await c.set("k", "value")
-    c.stop()
-    expect(await c.get("k")).toBeNull()
+  test("a miss cached at version 0 gives way to any real row", async () => {
+    const c = fakeCache()
+    await c.set("k", null, 0)
+    await c.set("k", "created", 1)
+    expect(await c.get("k")).toEqual({ value: "created" })
   })
 })
 
@@ -289,25 +231,33 @@ describe("the memory backend", () => {
  * inside the cached value and was compared at read time.
  */
 describe("expiry inside the cache", () => {
+  // The clock is moved, never raced: a real sleep past a short expiry fails
+  // whenever creating the link alone outlasts the window, as it does under a
+  // loaded full run.
+  const HOUR = 60 * 60 * 1000
+  const inAnHour = () => new Date(Date.now() + HOUR).toISOString()
+  const pastExpiry = () => setSystemTime(new Date(Date.now() + 2 * HOUR))
+
+  afterEach(() => {
+    setSystemTime()
+  })
+
   test("a warm entry still expires on schedule, though the row is never touched", async () => {
-    const link = await h.createLink(editor.key, domain, {
-      slug: "ticking",
-      expires_at: new Date(Date.now() + 50).toISOString(),
-    })
+    const link = await h.createLink(editor.key, domain, { slug: "ticking", expires_at: inAnHour() })
     expect((await get("/ticking")).headers.get("location")).toBe(link.destination)
 
-    await Bun.sleep(60)
+    pastExpiry()
     const res = await get("/ticking")
     expect(res.headers.get("location")).toBe("https://example.com/fallback")
   })
 
-  test("clearing expires_at to null resolves immediately, proving the del reached the key", async () => {
-    const link = await h.createLink(editor.key, domain, {
-      slug: "reprieved",
-      expires_at: new Date(Date.now() + 50).toISOString(),
-    })
+  test("clearing expires_at to null resolves immediately, proving the write reached the key", async () => {
+    const link = await h.createLink(editor.key, domain, { slug: "reprieved", expires_at: inAnHour() })
     await get("/reprieved")
     await h.patch(`/api/v1/links/${link.id}`, editor.key, { expires_at: null })
+
+    // Past the old expiry, a stale entry the write missed would answer the fallback.
+    pastExpiry()
     expect((await get("/reprieved")).headers.get("location")).toBe(link.destination)
   })
 })

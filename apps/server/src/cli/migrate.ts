@@ -1,6 +1,6 @@
-import { loadConfig } from "../config.ts"
-import { createDb, destroyDb } from "../db/client.ts"
-import { runMigrations } from "../db/migrate.ts"
+import { loadConfig } from "../infra/config.ts"
+import { createDb, destroyDb } from "../infra/db/client.ts"
+import { runMigrations } from "../infra/db/migrate.ts"
 
 const config = loadConfig()
 const db = createDb(config.DATABASE_URL, config.LINQ_DB_SCHEMA)

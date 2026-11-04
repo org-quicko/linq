@@ -1,6 +1,6 @@
 # 0009 – The cache backend is a choice
 
-**Status**: accepted · 2026-09-17. Supersedes the requirement in 0008.
+**Status**: superseded by 0024 · 2026-11-04. Accepted 2026-09-17; superseded the requirement in 0008.
 
 ## Context
 

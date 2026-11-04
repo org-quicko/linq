@@ -4,7 +4,7 @@ sidebarTitle: "Configuration"
 description: "A complete reference for all LINQ_* environment variables — their types, defaults, and when to set them for local development and production deployments."
 ---
 
-linq is configured entirely through environment variables. In local development, set them in a `.env` file at the repository root (copy from `.env.example`); in Docker, pass them to the container at runtime. linq validates its configuration at startup and exits with a descriptive error if a required value is missing or invalid — there is no partial boot with a broken config. Every variable except `DATABASE_URL` has a working default, so a minimal `.env` for local development needs only one line.
+linq is configured entirely through environment variables. In local development, set them in a `.env` file at the repository root (copy from `.env.example`); in Docker, pass them to the container at runtime. linq validates its configuration at startup and exits with a descriptive error if a required value is missing or invalid — there is no partial boot with a broken config. Every variable except `DATABASE_URL` and `LINQ_REDIS_URL` has a working default, so a minimal `.env` for local development needs only those two lines.
 
 ---
 
@@ -136,36 +136,23 @@ Seeds the first domain row when the `domains` table is empty. This is a shorteni
 
 ## Redirect Cache
 
-linq caches slug-to-destination lookups to avoid a Postgres round-trip on every redirect hit. Every create, update, archive, and purge operation clears its own cache entry immediately; the TTL is a backstop for missed invalidations only.
+linq caches slug-to-destination lookups in Redis to avoid a Postgres round-trip on every redirect hit. The cache is write-through: every create, update, and archive of a link, its rules, or a domain rewrites the cached entry immediately, so the next redirect is a cache hit with the new value. Purges delete their entries. The TTL is a backstop only.
+
+<Note>
+**Upgrading to 2.0.** The in-process `memory` cache backend was removed and `LINQ_CACHE_BACKEND` is no longer a setting. `LINQ_CACHE_BACKEND=memory` or `none` now fails at boot; `redis` is accepted and ignored. `LINQ_CACHE_SWEEP_INTERVAL` and `LINQ_CACHE_MAX_ENTRIES` no longer exist. See `resources/docs/adr/0024-redis-is-the-only-cache.md`.
+</Note>
 
 <AccordionGroup>
-
-<Accordion title="LINQ_CACHE_BACKEND" icon="bolt">
-
-| | |
-|---|---|
-| **Type** | `memory` \| `redis` \| `none` |
-| **Default** | `memory` (or `redis` when `LINQ_REDIS_URL` is set) |
-
-Selects where cached lookups live. When left unset, linq infers the backend from `LINQ_REDIS_URL`: a URL present selects `redis`; nothing at all selects `memory`.
-
-| Value | Behaviour |
-|---|---|
-| `memory` | In-process LRU. Nothing else to run. Invalidations only reach this process. |
-| `redis` | Shared store across all linq processes pointing at the same Redis instance. Invalidations from one process reach all others. |
-| `none` | No caching. Every redirect reads Postgres directly. |
-
-</Accordion>
 
 <Accordion title="LINQ_REDIS_URL" icon="server">
 
 | | |
 |---|---|
 | **Type** | String (Redis connection URL) |
-| **Default** | *(unset)* |
+| **Default** | *(none — required)* |
 | **Example** | `redis://localhost:6379` |
 
-The Redis connection string. Setting this implicitly selects the `redis` cache backend unless `LINQ_CACHE_BACKEND=none` is also set. A Redis instance that is unreachable at startup causes linq to exit; one that goes down later degrades transparently to Postgres rather than failing requests.
+The Redis connection string for the redirect cache. Redis must be reachable at startup, or linq exits. One that goes down later degrades transparently to Postgres rather than failing requests. Every linq process pointing at the same Redis shares one cache, so a write on one process is visible to all.
 
 </Accordion>
 
@@ -176,29 +163,7 @@ The Redis connection string. Setting this implicitly selects the `redis` cache b
 | **Type** | Integer (seconds) |
 | **Default** | `300` |
 
-How long a cached lookup survives before linq re-reads from Postgres, on either cache backend. Five minutes is the default. Most invalidations happen eagerly (on every create, update, archive, and purge), so this value is only a backstop.
-
-</Accordion>
-
-<Accordion title="LINQ_CACHE_SWEEP_INTERVAL" icon="rotate">
-
-| | |
-|---|---|
-| **Type** | Integer (seconds, 1–3600) |
-| **Default** | `60` |
-
-How often the `memory` backend physically reclaims expired entries. This does not change when an entry expires — expiry on read is still exact — it only controls how often the background sweep frees memory. Redis ignores this setting; use `maxmemory` in `redis.conf` for Redis instead.
-
-</Accordion>
-
-<Accordion title="LINQ_CACHE_MAX_ENTRIES" icon="list-ol">
-
-| | |
-|---|---|
-| **Type** | Integer |
-| **Default** | `10000` |
-
-Maximum number of entries the `memory` backend holds before evicting the least recently used. This is a count of entries, not bytes — the actual memory footprint depends on destination URL lengths. Redis ignores this setting.
+How long a cached lookup survives before linq re-reads from Postgres. Five minutes is the default. Writes update the cache directly, so this value is only a backstop. To cap Redis memory, set `maxmemory` in `redis.conf`.
 
 </Accordion>
 
@@ -372,11 +337,12 @@ Where Caddy should reverse-proxy matched domain traffic. Required when `LINQ_CAD
 
 ## Example `.env`
 
-A realistic configuration for local development with Redis caching and Caddy integration disabled:
+A realistic configuration for local development with Caddy integration disabled:
 
 ```dotenv
 # ── Required ──────────────────────────────────────────────────────────────────
 DATABASE_URL=postgres://linq:s3cr3t@localhost:5432/linq
+LINQ_REDIS_URL=redis://localhost:6379
 
 # ── Ports & paths ─────────────────────────────────────────────────────────────
 LINQ_PORT=3000
@@ -385,10 +351,7 @@ LINQ_CLIENT_BASE_PATH=/home
 LINQ_DEFAULT_DOMAIN=localhost:3000
 
 # ── Redirect cache ────────────────────────────────────────────────────────────
-LINQ_CACHE_BACKEND=memory
 LINQ_CACHE_TTL=300
-LINQ_CACHE_SWEEP_INTERVAL=60
-LINQ_CACHE_MAX_ENTRIES=10000
 
 # ── Logging ───────────────────────────────────────────────────────────────────
 LINQ_DATA_DIR=./data
@@ -401,11 +364,12 @@ LINQ_SLUG_LENGTH=6
 # LINQ_FETCH_LINK_METADATA=true  # Only enable with SSRF-blocking egress rules
 ```
 
-And a production example with Redis, `LINQ_APP_HOST`, and Caddy sync:
+And a production example with `LINQ_APP_HOST` and Caddy sync:
 
 ```dotenv
 # ── Required ──────────────────────────────────────────────────────────────────
 DATABASE_URL=postgres://linq:s3cr3t@db.internal:5432/linq
+LINQ_REDIS_URL=redis://redis.internal:6379
 
 # ── Ports & paths ─────────────────────────────────────────────────────────────
 LINQ_PORT=3000
@@ -414,8 +378,6 @@ LINQ_DEFAULT_DOMAIN=link.example.com
 LINQ_APP_HOST=linq.example.com
 
 # ── Redirect cache ────────────────────────────────────────────────────────────
-LINQ_CACHE_BACKEND=redis
-LINQ_REDIS_URL=redis://redis.internal:6379
 LINQ_CACHE_TTL=300
 
 # ── Logging ───────────────────────────────────────────────────────────────────

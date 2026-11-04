@@ -1,7 +1,7 @@
 ---
 title: "Quickstart: Install linq and Create Your First Short Link"
 sidebarTitle: "Quickstart"
-description: "Install linq, connect it to PostgreSQL, configure your environment, and create your first short link. No Redis or extra services needed to get started."
+description: "Install linq, connect it to PostgreSQL, configure your environment, and create your first short link. You need PostgreSQL and Redis running."
 ---
 
 linq is a self-hosted SaaS platform for URL shortening, dynamic link routing, and link-tree pages — all operated through a REST API and a static Next.js web UI. This guide walks you from a fresh checkout to a running instance with a working short link you can redirect in your browser.
@@ -12,8 +12,11 @@ Before you begin, make sure the following are installed and running on your mach
 
 - **Bun 1.4+** — verify with `bun --version`. If the command is not found, Bun installs to `~/.bun/bin`; add that directory to your `PATH`.
 - **PostgreSQL 15+** — running and reachable on `localhost:5432`. linq never starts Postgres itself; if it cannot connect at boot, it exits immediately with `ERR_POSTGRES_CONNECTION_REFUSED`.
+- **Redis 7+** — running and reachable on `localhost:6379`. It holds the redirect cache, and linq refuses to start if it cannot reach Redis at boot. If you have Docker, start one with:
 
-The redirect cache runs inside the linq process on an in-memory LRU by default, so no Redis instance is needed to get started.
+  ```bash
+  docker run -d -p 6379:6379 redis:8
+  ```
 
 ---
 
@@ -49,13 +52,14 @@ Copy the example file and open it in your editor:
 cp .env.example .env
 ```
 
-The only value you must change is `DATABASE_URL`. Set it to match your Postgres credentials:
+Set `DATABASE_URL` to match your Postgres credentials, and `LINQ_REDIS_URL` to your Redis (the example file already points at `localhost:6379`):
 
 ```dotenv
 DATABASE_URL=postgres://youruser:yourpassword@localhost:5432/linq
+LINQ_REDIS_URL=redis://localhost:6379
 ```
 
-Every other variable has a working default. On a fresh database, linq seeds `localhost:3000` as the first domain, runs the redirect cache in-process, and listens on port 3000. You can leave all of that alone for local development.
+Every other variable has a working default. On a fresh database, linq seeds `localhost:3000` as the first domain and listens on port 3000. You can leave all of that alone for local development.
 
 <Note>
 `LINQ_DB_SCHEMA` selects the PostgreSQL schema linq owns and defaults to `public`. Set it when sharing a database with another application — linq creates the schema if it does not exist.
@@ -165,6 +169,7 @@ The table below uses the default port configuration. If you have changed `LINQ_P
 | URL | Purpose |
 |---|---|
 | `http://localhost:3000/api/v1` | REST API |
+| `http://localhost:3000/api/mcp` | MCP server for AI assistants (same API keys) |
 | `http://localhost:3000/home/` | Client UI (when the server serves the built export) |
 | `http://localhost:3001/home/` | Client UI during development (`bun run dev:client`) |
 | `http://localhost:3000/:slug` | Short link redirect |
@@ -177,7 +182,7 @@ The table below uses the default port configuration. If you have changed `LINQ_P
 
 ## Starting again later
 
-Steps 1–3 are one-time. On subsequent runs, start Postgres, then open two terminals:
+Steps 1–3 are one-time. On subsequent runs, start Postgres and Redis, then open two terminals:
 
 ```bash
 bun run dev         # terminal 1 — API and redirects on :3000

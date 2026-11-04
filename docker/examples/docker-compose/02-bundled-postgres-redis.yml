@@ -1,7 +1,7 @@
 # Bundled Postgres plus Redis for the redirect cache. Redis holds only cached
 # lookups, so it needs no volume: a cold Redis costs one Postgres query per
-# link until it warms back up. See resources/docs/adr/0009 for what the two backends
-# differ in. No Caddy here — bring your own TLS / reverse proxy.
+# link until it warms back up. Redis is required since 2.0; see
+# resources/docs/adr/0024. No Caddy here — bring your own TLS / reverse proxy.
 #
 # Configure POSTGRES_PASSWORD and LINQ_DEFAULT_DOMAIN in .env, then:
 #   docker compose -f 02-bundled-postgres-redis.yml up

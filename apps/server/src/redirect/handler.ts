@@ -1,92 +1,25 @@
-import { type Condition, SLUG_PATTERN } from "@linq/shared"
+import { SLUG_PATTERN } from "@linq/shared"
 import type { Context } from "hono"
 import { createFactory } from "hono/factory"
-import { domainKey, targetKey } from "../cache.ts"
-import { clientPath, isReservedSlug } from "../config.ts"
-import type { Db } from "../db/client.ts"
-import { reqLog, span } from "../log.ts"
+import { domainKey, targetKey, type Versioned } from "../infra/cache.ts"
+import { clientPath, isReservedSlug } from "../infra/config.ts"
+import type { Db } from "../infra/db/client.ts"
+import { reqLog, span } from "../infra/log.ts"
 import { matchRules } from "../rules/match.ts"
-import { listRules } from "../rules/store.ts"
 import { classifyBot, isPreviewCrawler } from "../visits/bot.ts"
 import { detectBrowser, detectOs, detectPlatform } from "../visits/platform.ts"
 import { recordVisit } from "../visits/record.ts"
-import { shortUrl } from "./api/links.ts"
-import type { Env } from "./env.ts"
-
-/** The part of a domain row the redirect needs. Null means no active domain. */
-export type ResolvedDomain = {
-  id: string
-  fallback_url: string | null
-  base_path_redirect: string | null
-  invalid_short_url_redirect: string | null
-}
-
-/**
- * Everything one slug on one domain resolves to, rules included, so a cache hit
- * answers the whole redirect. Null means no active link, i.e. an orphan visit.
- */
-export type ResolvedTarget = {
-  link_id: string
-  name: string | null
-  destination: string
-  forward_query: boolean
-  preset_params: Record<string, string>
-  rules: { destination: string; conditions: Condition[] }[]
-  /**
-   * Epoch milliseconds, not a Date and not an ISO string: this object is
-   * JSON-round-tripped by the Redis backend and stored by reference by the memory
-   * one, and a number is the only shape that survives both identically. Null means
-   * the link never expires.
-   */
-  expires_at: number | null
-}
-
-/**
- * A domain row may carry a port or not. The host is tried exactly as sent first,
- * then with its port stripped, so one `links.example.com` row also answers
- * requests on a non-standard port while `localhost:3000` still matches verbatim.
- */
-function candidateHosts(hostHeader: string): string[] {
-  const host = hostHeader.trim().toLowerCase()
-  const bare = host.replace(/:\d+$/, "")
-  return bare === host ? [host] : [host, bare]
-}
-
-export function findActiveDomain(db: Db, hostHeader: string): Promise<ResolvedDomain | null> {
-  return span(
-    "domain.findActive",
-    async () => {
-      const host = hostHeader.trim().toLowerCase()
-      const candidates = candidateHosts(hostHeader)
-
-      const rows = await db
-        .selectFrom("domains")
-        .select(["id", "host", "fallback_url", "base_path_redirect", "invalid_short_url_redirect"])
-        .where("host", "in", candidates)
-        .where("status", "=", "active")
-        .execute()
-
-      const row = rows.find((r) => r.host === host) ?? rows[0] ?? null
-      return row
-        ? {
-            id: row.id,
-            fallback_url: row.fallback_url,
-            base_path_redirect: row.base_path_redirect,
-            invalid_short_url_redirect: row.invalid_short_url_redirect,
-          }
-        : null
-    },
-    { in: { host: hostHeader }, out: (domain) => ({ domain_id: domain?.id ?? null }) },
-  )
-}
+import { shortUrl } from "../links/service.ts"
+import type { Env } from "../app/env.ts"
+import { candidateHosts, loadDomain, loadTarget, type ResolvedTarget } from "./resolve.ts"
 
 /**
  * Whether this host was ever registered as a domain at all, active or
  * archived. Used only to decide the root path's admin-UI fallback below,
  * which must fire for a host nobody registered but never for an archived
  * one — that stays a 404 for everything, root path included, same as
- * `findActiveDomain` already guarantees for a slug. Deliberately uncached
- * and only ever queried once `findActiveDomain` has already missed, since it
+ * `loadDomain` already guarantees for a slug. Deliberately uncached
+ * and only ever queried once `loadDomain` has already missed, since it
  * exists purely to cover the rare "unclaimed root path" case, not the hot
  * redirect path.
  */
@@ -107,53 +40,22 @@ function hostHasAnyDomain(db: Db, hostHeader: string): Promise<boolean> {
 }
 
 /**
- * Looks up what a slug resolves to on one domain, rules included. Archived links
- * are invisible here.
- */
-function findActiveTarget(db: Db, domain_id: string, slug: string): Promise<ResolvedTarget | null> {
-  return span(
-    "link.findActive",
-    async () => {
-      const row = await db
-        .selectFrom("links")
-        .selectAll()
-        .where("domain_id", "=", domain_id)
-        .where("slug", "=", slug)
-        .where("status", "=", "active")
-        .limit(1)
-        .executeTakeFirst()
-      if (!row) return null
-      // Rules ride inside the same entry: every hit that resolves reads them, so
-      // caching the link without them would leave a query behind on the hot path.
-      const ordered = await listRules(db, row.id)
-      return {
-        link_id: row.id,
-        name: row.name,
-        destination: row.destination,
-        forward_query: row.forward_query,
-        preset_params: row.preset_params,
-        rules: ordered.map((r) => ({ destination: r.destination, conditions: r.conditions })),
-        expires_at: row.expires_at?.getTime() ?? null,
-      }
-    },
-    { in: { domain_id, slug }, out: (target) => ({ link_id: target?.link_id ?? null }) },
-  )
-}
-
-/**
  * Reads one key through the cache, falling back to `load` on a miss and writing
  * the answer back — a `null` answer included, so an unknown host or slug costs
  * one query per TTL rather than one per request.
+ *
+ * The write carries the version `load` read, so a miss whose query started
+ * before an edit committed cannot overwrite the edit's newer entry.
  */
 export async function through<T>(
   c: Context<Env>,
   key: string,
-  load: () => Promise<T | null>,
+  load: () => Promise<Versioned<T | null>>,
 ): Promise<T | null> {
   const hit = await c.var.cache.get<T | null>(key)
   if (hit) return hit.value
-  const value = await load()
-  await c.var.cache.set(key, value)
+  const { value, version } = await load()
+  await c.var.cache.set(key, value, version)
   return value
 }
 
@@ -188,9 +90,9 @@ export function queryMap(params: URLSearchParams): Record<string, string[]> | nu
 
 /**
  * A link past its expiry is a stranger. Checked here rather than in
- * `findActiveTarget`'s WHERE clause because the cached entry outlives the moment it
- * lapses and no mutation ever arrives to invalidate it: `status` is safe in SQL only
- * because every status change also dels `targetKey`.
+ * `loadTarget` because the cached entry outlives the moment it
+ * lapses and no write ever arrives to refresh it: `status` is safe to resolve
+ * there only because every status change also writes `targetKey` through.
  */
 function expired(target: ResolvedTarget): boolean {
   return typeof target.expires_at === "number" && target.expires_at <= Date.now()
@@ -221,7 +123,7 @@ export const redirectHandler = factory.createHandlers(async (c) => {
   //    archived domain's root path stays a 404 like everything else on it
   //    (hostHasAnyDomain is what tells the two apart).
   const host = c.req.header("host") ?? url.host
-  const domain = await through(c, domainKey(host), () => findActiveDomain(c.var.db, host))
+  const domain = await through(c, domainKey(host), () => loadDomain(c.var.db, host))
   if (!domain) {
     if (slug === "" && !(await hostHasAnyDomain(c.var.db, host))) return redirectToAdmin(c)
     return c.text("Not Found", 404)
@@ -233,7 +135,7 @@ export const redirectHandler = factory.createHandlers(async (c) => {
   const bot = classifyBot(user_agent)
   const cached = slug
     ? await through(c, targetKey(domain.id, slug), () =>
-        findActiveTarget(c.var.db, domain.id, slug),
+        loadTarget(c.var.db, domain.id, slug),
       )
     : null
 

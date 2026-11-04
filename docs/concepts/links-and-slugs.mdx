@@ -41,7 +41,7 @@ A slug is the path segment after the host that uniquely identifies a link within
 The `short_url` field on every link response contains the fully assembled URL. The scheme is chosen automatically:
 
 ```ts
-// From apps/server/src/http/api/links.ts
+// From apps/server/src/links/service.ts
 export function shortUrl(host: string, slug: string): string {
   const scheme = /^(localhost|127\.0\.0\.1)(:\d+)?$/.test(host) ? "http" : "https"
   return `${scheme}://${host}/${slug}`

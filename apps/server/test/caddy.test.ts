@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test"
-import { type Caddy, guarded, reconcileCaddy, startCaddy } from "../src/caddy.ts"
+import { type Caddy, guarded, reconcileCaddy, startCaddy } from "../src/infra/caddy.ts"
 import { createTestDb, testConfig } from "./helpers/db.ts"
 
 const CADDY_CONFIG = {

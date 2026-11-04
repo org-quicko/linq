@@ -1,5 +1,5 @@
 import type { Claim } from "@linq/shared"
-import type { Db } from "../db/client.ts"
+import type { Db } from "../infra/db/client.ts"
 import { generateKey, hashKey, keyPrefix } from "./keys.ts"
 
 export async function createApiKey(

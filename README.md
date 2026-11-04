@@ -13,6 +13,7 @@ A self-hosted platform for short links.
 - **Dynamic Links**: rules that send each visitor to the right destination.
 - **Custom domains with automatic HTTPS** through optional Caddy sync.
 - **REST API** with scoped API keys (spec in `resources/openapi/`).
+- **MCP server** so AI assistants can manage links with the same keys.
 - **Link Tree** *(coming soon)*: one hosted page for all your links.
 
 ## Getting started
@@ -21,10 +22,11 @@ A self-hosted platform for short links.
 
 - [Bun](https://bun.sh) 1.4+
 - [PostgreSQL](https://www.postgresql.org) 15+
+- [Redis](https://redis.io) 7+
 
-linq never runs Postgres itself. Without it, the server exits with
-`ERR_POSTGRES_CONNECTION_REFUSED`. Redis is optional, because the redirect cache
-runs in the process by default.
+linq never runs Postgres or Redis itself. Without Postgres, the server exits
+with `ERR_POSTGRES_CONNECTION_REFUSED`; without a reachable Redis it also
+refuses to start. For a local Redis, `docker run -d -p 6379:6379 redis:8`.
 
 ### Installation
 
@@ -33,7 +35,7 @@ git clone https://github.com/org-quicko/linq.git
 cd linq
 bun install
 psql -U postgres -c "CREATE DATABASE linq;"
-cp .env.example .env   # then set DATABASE_URL to your Postgres credentials
+cp .env.example .env   # then set DATABASE_URL and LINQ_REDIS_URL
 ```
 
 linq applies its own migrations at boot, but it does not create the database.
@@ -76,15 +78,39 @@ fail with an opaque network error, check the server's CORS setup first. See
 | http://localhost:3001/home/    | Client UI (development)                  |
 | http://localhost:3000/home/    | Client UI (served from the built export) |
 | http://localhost:3000/api/v1   | REST API                                 |
+| http://localhost:3000/api/mcp  | MCP server                               |
 | http://localhost:3000/`slug` | A short link                             |
 
 The root of a domain (`http://localhost:3000/`) is not the UI. It redirects to
 that domain's fallback URL, or returns 404 if none is set.
 
+### Connecting an MCP client
+
+linq serves the [Model Context Protocol](https://modelcontextprotocol.io) at
+`/api/mcp` over Streamable HTTP, so an AI assistant can list, create, edit and
+archive links and read visit stats. It authenticates with an ordinary API key
+and counts against the same per-key rate limit as the REST API.
+
+For Claude Code:
+
+```bash
+claude mcp add --transport http linq http://localhost:3000/api/mcp \
+  --header "Authorization: Bearer linq_xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
+```
+
+Any client that speaks Streamable HTTP and can send an `Authorization` header
+works the same way.
+
+A client sees only the tools its key's claims allow: a viewer key gets the read
+tools; an editor key can also create links, edit them and replace their rules;
+an admin key can also archive and restore. Purging, key management and domain
+changes are not exposed over MCP. Give an assistant the narrowest key that does
+the job.
+
 ## Configuration
 
 Configuration is read from the repo-root `.env` (or `.env.local`). Only
-`DATABASE_URL` is required. Every variable is documented in
+`DATABASE_URL` and `LINQ_REDIS_URL` are required. Every variable is documented in
 [`.env.example`](.env.example). The ones you are most likely to change:
 
 | Variable                           | Default                    | Description                                                                                         |
@@ -96,8 +122,8 @@ Configuration is read from the repo-root `.env` (or `.env.local`). Only
 | `LINQ_CLIENT_BASE_PATH`          | `/home`                  | Where a combined deployment mounts the UI.                                                          |
 | `LINQ_APP_HOST`                  | —                         | Gives the UI a host of its own. See [UI on its own host](#ui-on-its-own-host).                        |
 | `LINQ_DEFAULT_DOMAIN`            | `localhost:${LINQ_PORT}` | Seeds the first domain on an empty database only.                                                   |
-| `LINQ_REDIS_URL`                 | —                         | Moves the redirect cache to Redis. Must be reachable at boot. See `resources/docs/adr/0009`.                 |
-| `LINQ_CACHE_TTL`                 | `300`                    | How many seconds a cached lookup lives.                                                             |
+| `LINQ_REDIS_URL`                 | —                         | Redis for the redirect cache. Must be reachable at boot. See `resources/docs/adr/0024`.             |
+| `LINQ_CACHE_TTL`                 | `300`                    | How many seconds a cached lookup lives. A backstop: writes update the cache directly.               |
 | `LINQ_FETCH_LINK_METADATA`       | `false`                  | Fetches a destination's title and icon. Enable only with egress rules that block private addresses. |
 | `LINQ_API_RATE_LIMIT_PER_MINUTE` | `1000`                   | Per-key API rate limit.                                                                             |
 | `LINQ_VISIT_MAX_PENDING`         | `1000`                   | Maximum queued analytics writes.                                                                    |
@@ -107,7 +133,12 @@ Logs are written to `./data/logs/linq.log` and rotated. In Docker this is the
 
 ## Deployment
 
-Postgres is always external to linq, and so is Redis if you use it.
+Postgres and Redis are always external to linq.
+
+> [!NOTE]
+> Upgrading to 2.0: the in-process cache is gone and `LINQ_REDIS_URL` is
+> required. `LINQ_CACHE_BACKEND=memory` or `none` now fails to boot, and
+> `LINQ_CACHE_SWEEP_INTERVAL` and `LINQ_CACHE_MAX_ENTRIES` no longer exist.
 
 ### Docker
 
@@ -117,14 +148,14 @@ The published image is `linq`, available as
 
 | You want                   | Image                                                     | UI at                      | Required                                                     |
 | -------------------------- | --------------------------------------------------------- | -------------------------- | ------------------------------------------------------------ |
-| UI on its own domain       | `linq` (published)                                      | `/` on `LINQ_APP_HOST` | `DATABASE_URL`, `LINQ_DEFAULT_DOMAIN`, `LINQ_APP_HOST` |
-| UI next to the short links | `Dockerfile` built with `LINQ_CLIENT_BASE_PATH=/home` | `/home` on every host    | `DATABASE_URL`, `LINQ_DEFAULT_DOMAIN`                    |
-| API only                   | `Dockerfile.server`                                     | —                         | `DATABASE_URL`, `LINQ_DEFAULT_DOMAIN`                    |
+| UI on its own domain       | `linq` (published)                                      | `/` on `LINQ_APP_HOST` | `DATABASE_URL`, `LINQ_REDIS_URL`, `LINQ_DEFAULT_DOMAIN`, `LINQ_APP_HOST` |
+| UI next to the short links | `Dockerfile` built with `LINQ_CLIENT_BASE_PATH=/home` | `/home` on every host    | `DATABASE_URL`, `LINQ_REDIS_URL`, `LINQ_DEFAULT_DOMAIN`  |
+| API only                   | `Dockerfile.server`                                     | —                         | `DATABASE_URL`, `LINQ_REDIS_URL`, `LINQ_DEFAULT_DOMAIN`  |
 | UI only                    | `Dockerfile.client`                                     | `/`                      | —                                                           |
 
 `docker/examples/docker-compose/` has a Compose stack for each combination:
-bundled or external Postgres, with or without Redis, with or without Caddy, and
-split client/server setups:
+bundled or external Postgres, with or without Caddy, and split client/server
+setups. Every stack runs Redis:
 
 ```sh
 docker compose -f docker/examples/docker-compose/01-bundled-postgres.yml up --build -d
@@ -184,7 +215,7 @@ Contributors and coding agents should read [`AGENTS.md`](AGENTS.md) first.
 
 ## Documentation
 
-- [`CONTEXT.md`](CONTEXT.md): the domain vocabulary. Read it before the code.
+- [`GLOSSARY.md`](GLOSSARY.md): the domain vocabulary. Read it before the code.
 - [`resources/docs/architecture.md`](resources/docs/architecture.md): how the pieces fit together.
 - [`resources/docs/repo-map.md`](resources/docs/repo-map.md): where everything lives.
 - [`resources/docs/adr/`](resources/docs/adr/): architecture decision records.

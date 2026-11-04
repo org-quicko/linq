@@ -5,7 +5,7 @@ description: Change linq's PostgreSQL schema or query types. Use when adding, re
 
 # Changing the database schema
 
-1. Add one forward-only Kysely migration to `apps/server/src/db/migrations/`,
+1. Add one forward-only Kysely migration to `apps/server/src/infra/db/migrations/`,
    named `NNNN_<description>.ts` so it sorts after the existing ones. Export
    `up(db: Kysely<unknown>)`; never import application types or helpers, and
    never change what a shipped migration executes, or its file name. The
@@ -21,7 +21,7 @@ description: Change linq's PostgreSQL schema or query types. Use when adding, re
 3. Apply it to an empty verification database with `bun run db:migrate`.
    Startup runs the same runner before bootstrap.
 4. With `DATABASE_URL` pointed at that migrated database, run
-   `bun run db:codegen` and commit `apps/server/src/db/types.generated.ts`.
+   `bun run db:codegen` and commit `apps/server/src/infra/db/types.generated.ts`.
    It describes query rows only; it never creates DDL. Keep its hand-tuned
    JSON column shapes and bigint-as-number types.
 5. Against the same database, migrated in the `public` schema, refresh the

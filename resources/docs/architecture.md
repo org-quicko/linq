@@ -1,6 +1,6 @@
 # Architecture
 
-How linq's pieces fit together today. For terms, see `CONTEXT.md`; for why a
+How linq's pieces fit together today. For terms, see `GLOSSARY.md`; for why a
 decision was made, see `resources/docs/adr/`.
 
 ## Shape
@@ -10,9 +10,9 @@ Bun's HTTP server) is the API, the redirect handler and the CLI; `apps/client`
 (Next.js, exported static) is the Client UI; `packages/shared` holds the zod
 schemas, types and permission rules both sides import, so the server's
 enforcement and the client's form validation and UI gating cannot drift apart.
-One Postgres database is the only required dependency — linq never runs
-Postgres itself. Redis and Caddy are optional and each fails loud once
-configured (`AGENTS.md`).
+Two dependencies are required: one Postgres database and one Redis, the
+redirect cache — linq runs neither itself, and refuses to boot without either.
+Caddy is optional and fails loud once configured (`AGENTS.md`).
 
 ## The server process
 
@@ -30,7 +30,7 @@ config ──► logger ──► db ──► migrations ──► bootstrap �
   └─ exits on a bad value                      └─ admin key + default domain, only when their tables are empty
 ```
 
-`createApp` (`http/app.ts`) mounts routes in an order that matters: `/api/*`
+`createApp` (`app/app.ts`) mounts routes in an order that matters: `/api/*`
 first, then `robots.txt`/`llms.txt`, then the exported Client UI at its configured
 base path, and the catch-all redirect handler last — so a reserved path can never
 be shadowed by a slug of the same name, and the UI's first segment is never read
@@ -40,6 +40,31 @@ as one either.
 /api/*  ──►  robots.txt, llms.txt  ──►  Client UI base path  ──►  catch-all redirect
 (reserved paths win — a slug can never shadow one of these)
 ```
+
+Each API resource is one folder (`links/`, `domains/`, `rules/`, `qr-codes/`,
+`keys/`, `visits/`, `analytics/`) holding a `service.ts` and a `routes.ts`. The
+service is where the resource's behaviour lives: permission checks, queries,
+transactions, cache invalidation and Caddy sync, as plain functions shaped
+`fn(deps, principal, input)` that throw `ApiError` and never see Hono's
+`Context`. `routes.ts` only validates the request and calls the service with
+`c.var`, which already carries every dependency (`Deps` in `deps.ts`). The
+MCP server (`mcp/`, at `/api/mcp`) calls the same functions, so a write cannot
+be done twice with half its invalidation forgotten (`resources/docs/adr/0023`).
+
+```
+routes.ts (validate)  ──►  service.ts (permissions, SQL, cache, Caddy)  ◄──  mcp/tools.ts (validate)
+```
+
+MCP is stateless Streamable HTTP: each request builds a fresh server holding
+only the tools the key's claims permit, so `tools/list` shows exactly what the
+key may do, and every call is checked again. It sits behind the same
+`authenticate` and the same rate limiter instance as `/api/v1`, so a key has
+one budget across both. Read tools need no claim, as REST reads need none;
+purging, key management and domain writes are not exposed.
+
+Process-wide plumbing (config, logger, database, cache, Caddy, metadata
+fetching) lives in `infra/`; the public redirect and `/llms.txt` in
+`redirect/`.
 
 ## Auth: the key is the principal
 
@@ -76,7 +101,7 @@ handler runs
 ## Data model
 
 Six tables, one migration tool (Kysely runs the ordered migrations in
-`apps/server/src/db/migrations/`; `kysely-codegen` writes `src/db/types.generated.ts`). A domain hosts links; a link belongs to a domain and
+`apps/server/src/infra/db/migrations/`; `kysely-codegen` writes `src/infra/db/types.generated.ts`). A domain hosts links; a link belongs to a domain and
 carries no reference to the key that created it (`resources/docs/adr/0016`); a link may
 carry ordered rules (alternate destinations gated on platform or query-param
 conditions, first match wins — `rules/match.ts`) and styled QR codes.
@@ -97,9 +122,9 @@ source of truth with no rollup job to fall behind (`resources/docs/adr/0007`).
 
 ## The redirect hot path
 
-`http/redirect.ts` is the one handler most requests hit. For a host it looks
+`redirect/handler.ts` is the one handler most requests hit. For a host it looks
 up the active domain, then the active link for the slug (rules bundled in, so
-one hit answers the whole redirect), through an optional cache
+one hit answers the whole redirect), through the cache
 (`through()` in the same file — cache miss falls back to the query and writes
 the answer back, including a negative "no such thing" result, so a flood of
 404s costs one query per TTL rather than one per request). An expired link is
@@ -118,7 +143,7 @@ destination's title, since fetching the destination synchronously on every
 crawler hit would make the redirect page as slow as its target
 (`resources/docs/adr/0014`). An ordinary destination gets a name, description and
 favicon in the background instead, fetched once and stored on the link
-(`link-metadata.ts`), with an SSRF guard that refuses private, loopback and
+(`infra/link-metadata.ts`), with an SSRF guard that refuses private, loopback and
 link-local IPs so a destination can't be used to probe the server's own
 network.
 
@@ -152,28 +177,45 @@ crawler user agent?  ──yes──►  OG preview HTML (link's own title, neve
 
 ## Cache, Caddy, metadata: the same shape three times
 
-Redis (`LINQ_REDIS_URL`) is optional; unset, redirect lookups cache in an
-in-process LRU instead, so nothing else has to be running. Whichever backend
-is picked, once configured it must be reachable at boot or the server refuses
-to start — a Redis that goes down *after* boot degrades to hitting Postgres
-directly rather than failing requests (`resources/docs/adr/0009`). Caddy sync
-(`LINQ_CADDY_ADMIN_URL`) is the same shape: when set, every domain
+Redis (`LINQ_REDIS_URL`) is the only cache backend, and it is required: it must
+be reachable at boot or the server refuses to start
+(`resources/docs/adr/0024-redis-is-the-only-cache.md`, superseding
+`resources/docs/adr/0009`). It holds three kinds of key (`infra/cache.ts`): a
+host's domain (`domainKey`), a slug's whole redirect answer (`targetKey`) and a
+domain's rendered `/llms.txt` (`llmsKey`).
+
+The cache is write-through. A service that creates, edits or archives a link,
+its rules or a domain rebuilds the affected entry with `writeThrough()` instead
+of deleting it, using the same loaders the redirect reads through
+(`redirect/resolve.ts`), so the next redirect is a hit carrying the new value.
+Each entry is stored with a version, the row's `updated_at`, and `set` runs a
+Lua script (`SET_IF_NEWER`) that checks and writes in one atomic step: an entry
+already holding a newer version is left alone, so two writers finishing out of
+order — on one process or several sharing the Redis — cannot leave the older
+answer cached. Replacing a link's rules bumps the link's `updated_at` for the
+same reason. `/llms.txt` is built from many rows and has no single version, so
+it is deleted on write rather than written through; a purge deletes its entries
+too. `LINQ_CACHE_TTL` is only a backstop.
+
+Caddy sync (`LINQ_CADDY_ADMIN_URL`) is optional: when set, every domain
 create/archive/reactivate/purge pushes a route to Caddy's admin API so a
 custom domain resolves over HTTPS without hand-editing Caddy's config
 (`resources/docs/adr/0012`); Caddy's own routes are wiped on its restart, so the server
 reconciles all of them once at its own boot. Link-metadata fetching
 (`LINQ_FETCH_LINK_METADATA`) follows the same pattern too.
 
-All three are wrapped by a `guarded()` function (`cache.ts`, `caddy.ts`,
-`link-metadata.ts`) that turns any failure into "act as if this feature is
+All three are wrapped by a `guarded()` function (`infra/cache.ts`, `infra/caddy.ts`,
+`infra/link-metadata.ts`) that turns any failure into "act as if this feature is
 off" rather than letting a down dependency break a route it merely
 optimises — a domain mutation, a redirect, or a link creation must all
 succeed whether or not Redis, Caddy or the destination site are currently
-reachable.
+reachable. For the cache that means a Redis that goes down *after* boot
+degrades to Postgres: a failed read is a miss, and a failed write or delete is
+logged and left to the TTL.
 
 ## Observability
 
-`log.ts` builds one process-wide pino logger, silent until `main.ts` calls
+`infra/log.ts` builds one process-wide pino logger, silent until `main.ts` calls
 `initLogger`, so importing it from a test or script writes nothing. Every
 request gets a child logger carrying a request id, held in `AsyncLocalStorage`
 rather than threaded through every function signature. `span()` wraps a named
@@ -199,7 +241,7 @@ one call site: it attaches the key, and treats "no server connected" and a
 saved server record (only the key is bad, not the URL).
 
 Two builds come from one codebase: `build:client` targets the configured
-sub-path the server serves at (`http/admin-static.ts` mounts it, path-
+sub-path the server serves at (`app/admin-static.ts` mounts it, path-
 traversal-checked, ahead of the redirect catch-all); `build:client:standalone`
 targets a domain root for hosting anywhere as plain static files. The combined
 build bakes `LINQ_CLIENT_BASE_PATH` into its static files (`/home` by default),

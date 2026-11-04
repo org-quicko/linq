@@ -16,13 +16,16 @@ gotchas that look like bugs but aren't.
   unreachable one) makes the server exit immediately with
   `ERR_POSTGRES_CONNECTION_REFUSED` — that's the expected failure mode, not a
   bug to work around.
+- **Redis 7+, already running**, reachable at `LINQ_REDIS_URL`. It is the
+  redirect cache and is required: unset, or unreachable at boot, the server
+  refuses to start. Start one locally with `docker run -d -p 6379:6379 redis:8`.
 
 ## One-time setup
 
 ```bash
 bun install
 psql -U postgres -c "CREATE DATABASE linq;"   # linq migrates the schema itself, but won't create the DB
-cp .env.example .env                           # then set DATABASE_URL in .env
+cp .env.example .env                           # then set DATABASE_URL and LINQ_REDIS_URL in .env
 ```
 
 ## Every time: two terminals
@@ -60,15 +63,15 @@ So switching or adding servers never needs a rebuild or restart.
 proxy in between** — same as a real deployment. If requests fail with an
 opaque network error, suspect CORS/server config, not a missing proxy.
 
-## Optional dependencies — don't reach for them by default
+## Redis is required; Caddy is not
 
-- **Redis**: only activates when `LINQ_REDIS_URL` is set. Once set, it must
-  be reachable at boot or the server refuses to start (`resources/docs/adr/0009`) — a
-  Redis that dies *after* boot degrades to Postgres instead of failing
-  requests. Not needed to run or test linq.
-- **Caddy**: only activates when `LINQ_CADDY_ADMIN_URL` (and
-  `LINQ_CADDY_UPSTREAM`) are set — see `resources/docs/adr/0012`. Not needed to run or
-  test linq.
-
-Don't set either just to "run the app fully" — the default (in-process LRU
-cache, no reverse-proxy sync) is the normal way to run this locally.
+- **Redis**: required to run the app at all. It must be reachable at boot or
+  the server refuses to start (`resources/docs/adr/0024-redis-is-the-only-cache.md`)
+  — a Redis that dies *after* boot degrades to Postgres instead of failing
+  requests. There is no in-process cache any more: `LINQ_CACHE_BACKEND=memory`
+  or `none` fails at boot.
+- **Tests don't need it**: `bun run test` runs against an in-process fake
+  cache. The Redis backend's own tests run only when `TEST_REDIS_URL` is set.
+- **Caddy**: optional, only activates when `LINQ_CADDY_ADMIN_URL` (and
+  `LINQ_CADDY_UPSTREAM`) are set — see `resources/docs/adr/0012`. Not needed
+  to run or test linq; don't set it just to "run the app fully".

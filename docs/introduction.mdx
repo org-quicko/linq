@@ -35,7 +35,7 @@ linq combines three tools in one self-hosted package:
 
 - **No user accounts** — the only principal is an API key. Keys carry a role (`viewer`, `editor`, `admin`) and are shown once, stored hashed. Revoking a key never touches the links it created.
 - **Privacy-first** — client IP addresses are never stored in the database or written to logs. Visit records capture platform, referrer, and user agent, but not the visitor's address.
-- **One required dependency** — PostgreSQL. Redis and Caddy are optional. The redirect cache defaults to an in-process LRU so nothing else needs to be running.
+- **Two required dependencies** — PostgreSQL for data and Redis for the redirect cache. Caddy is optional.
 - **Static UI** — the admin UI is a Next.js static export. It can be served by the linq process or deployed anywhere that serves static files. It connects to any linq instance at runtime — one UI manages many instances.
 
 ## Architecture at a glance
@@ -46,7 +46,7 @@ Browser / API client
        ▼
   Hono HTTP server  ──►  /api/v1/*   REST API
   (Bun runtime)    ──►  /<slug>      redirect handler  ──►  PostgreSQL
-                   ──►  /home/*      static Client UI        (+ optional Redis cache)
+                   ──►  /home/*      static Client UI        (+ Redis cache)
                                                               (+ optional Caddy sync)
 ```
 
