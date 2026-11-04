@@ -31,8 +31,11 @@ Steps:
    envelope. A service never touches Hono's `Context`.
 5. Use `deps.db` (`Db` from `infra/db/client.ts`) and Kysely's query builder.
    Database changes use the `linq-db-migration` workflow.
-6. Invalidate `deps.cache` after a write that affects cached redirect data
-   (`linkKeys`, `targetKey`, `domainKey` in `infra/cache.ts`).
+6. After a write that changes what a redirect resolves to, write the cache
+   entry through: `writeThrough(deps.cache, targetKey(...) or domainKey(...),
+   () => loadTarget(...) or loadDomain(...))`, using the loaders in
+   `redirect/resolve.ts`. Delete instead (`deps.cache.del`) only when the row
+   is gone (purge) and for `llmsKey`. See `resources/docs/adr/0024`.
 7. Sync Caddy with `deps.caddy.upsert` or `.remove()` when a host-serving
    change needs it. It is a no-op unless Caddy is configured.
 
