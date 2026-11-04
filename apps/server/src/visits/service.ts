@@ -1,7 +1,7 @@
 import { NOT_RECORDED, type Page, type Platform, type Visit, type visitListQuerySchema } from "@linq/shared"
 import { sql, type RawBuilder, type Selectable, type SqlBool } from "kysely"
 import type { z } from "zod"
-import type { DB } from "../db/types.generated.ts"
+import type { DB } from "../infra/db/types.generated.ts"
 import type { Deps } from "../deps.ts"
 
 type VisitListQuery = z.infer<typeof visitListQuerySchema>

@@ -1,4 +1,4 @@
-import { loadConfig } from "../config.ts"
+import { loadConfig } from "../infra/config.ts"
 
 const config = loadConfig()
 const child = Bun.spawn(
@@ -11,7 +11,7 @@ const child = Bun.spawn(
     "--default-schema",
     config.LINQ_DB_SCHEMA,
     "--out-file",
-    "src/db/types.generated.ts",
+    "src/infra/db/types.generated.ts",
   ],
   { stdout: "inherit", stderr: "inherit" },
 )

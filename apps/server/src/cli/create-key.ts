@@ -1,8 +1,8 @@
 import { claimsForPreset, PRESETS, type KeyPreset } from "@linq/shared"
 import { parseArgs } from "node:util"
 import { createApiKey } from "../auth/mint.ts"
-import { loadConfig } from "../config.ts"
-import { createDb } from "../db/client.ts"
+import { loadConfig } from "../infra/config.ts"
+import { createDb } from "../infra/db/client.ts"
 
 const { values } = parseArgs({
   options: {

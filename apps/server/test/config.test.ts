@@ -1,5 +1,5 @@
 import { describe, expect, spyOn, test } from "bun:test"
-import { clientBaseSegment, isAppHost, isReservedSlug, loadConfig } from "../src/config.ts"
+import { clientBaseSegment, isAppHost, isReservedSlug, loadConfig } from "../src/infra/config.ts"
 
 describe("cache configuration", () => {
   test("defaults the memory sweep interval to 60 seconds", () => {

@@ -1,12 +1,12 @@
 import { claimsForPreset, type KeyPreset, type Link } from "@linq/shared"
 import type { Insertable } from "kysely"
 import { generateKey, hashKey, keyPrefix } from "../../src/auth/keys.ts"
-import { type Cache, noCache } from "../../src/cache.ts"
-import { type Caddy, noCaddy } from "../../src/caddy.ts"
-import type { Db } from "../../src/db/client.ts"
-import type { DB } from "../../src/db/types.generated.ts"
+import { type Cache, noCache } from "../../src/infra/cache.ts"
+import { type Caddy, noCaddy } from "../../src/infra/caddy.ts"
+import type { Db } from "../../src/infra/db/client.ts"
+import type { DB } from "../../src/infra/db/types.generated.ts"
 import { createApp } from "../../src/http/app.ts"
-import { type MetadataFetcher, noMetadata } from "../../src/link-metadata.ts"
+import { type MetadataFetcher, noMetadata } from "../../src/infra/link-metadata.ts"
 import { createTestDb, testConfig } from "./db.ts"
 
 /** `json()` is deliberately loose: the assertion in each test does the narrowing. */

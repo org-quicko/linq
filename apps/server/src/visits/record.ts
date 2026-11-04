@@ -6,10 +6,10 @@ import {
   type LogRecordExporter,
   type ReadableLogRecord,
 } from "@opentelemetry/sdk-logs"
-import type { Config } from "../config.ts"
-import type { Db } from "../db/client.ts"
-import type { DB } from "../db/types.generated.ts"
-import { log, reqLog, span } from "../log.ts"
+import type { Config } from "../infra/config.ts"
+import type { Db } from "../infra/db/client.ts"
+import type { DB } from "../infra/db/types.generated.ts"
+import { log, reqLog, span } from "../infra/log.ts"
 
 export type VisitInput = Omit<Insertable<DB["visits"]>, "id" | "occurred_at">
 

@@ -10,11 +10,11 @@ import type { Selectable } from "kysely"
 import type { z } from "zod"
 import type { Principal } from "../auth/middleware.ts"
 import { assertCanEdit } from "../auth/permissions.ts"
-import type { Db } from "../db/client.ts"
-import type { DB } from "../db/types.generated.ts"
+import type { Db } from "../infra/db/client.ts"
+import type { DB } from "../infra/db/types.generated.ts"
 import type { Deps } from "../deps.ts"
 import { loadLink, shortUrl } from "../links/service.ts"
-import { span } from "../log.ts"
+import { span } from "../infra/log.ts"
 
 type QrCodeListQuery = z.infer<typeof qrCodeListQuerySchema>
 type QrCodeCreate = z.infer<typeof qrCodeCreateSchema>

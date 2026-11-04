@@ -1,8 +1,8 @@
-import type { Cache } from "./cache.ts"
-import type { Caddy } from "./caddy.ts"
-import type { Config } from "./config.ts"
-import type { Db } from "./db/client.ts"
-import type { MetadataFetcher } from "./link-metadata.ts"
+import type { Cache } from "./infra/cache.ts"
+import type { Caddy } from "./infra/caddy.ts"
+import type { Config } from "./infra/config.ts"
+import type { Db } from "./infra/db/client.ts"
+import type { MetadataFetcher } from "./infra/link-metadata.ts"
 
 /**
  * What a service function is handed: the process-wide resources, never a

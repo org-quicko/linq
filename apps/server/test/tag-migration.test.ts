@@ -4,7 +4,7 @@ import path from "node:path"
 import { PGlite } from "@electric-sql/pglite"
 import { Kysely, PGliteDialect, sql } from "kysely"
 import { FileMigrationProvider, Migrator } from "kysely/migration"
-import { migrationsFolder } from "../src/db/migrate.ts"
+import { migrationsFolder } from "../src/infra/db/migrate.ts"
 
 // 0003 moves live data, so it gets run against rows written under the old schema.
 test("0003 backfills link_tags from links.tags, dropping duplicates", async () => {

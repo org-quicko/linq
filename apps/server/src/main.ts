@@ -1,13 +1,13 @@
 import pkg from "../package.json" with { type: "json" }
 import { bootstrap } from "./bootstrap.ts"
-import { startCache } from "./cache.ts"
-import { guarded as guardedCaddy, reconcileCaddy, startCaddy } from "./caddy.ts"
-import { loadConfig } from "./config.ts"
-import { createDb, destroyDb } from "./db/client.ts"
-import { runMigrations } from "./db/migrate.ts"
+import { startCache } from "./infra/cache.ts"
+import { guarded as guardedCaddy, reconcileCaddy, startCaddy } from "./infra/caddy.ts"
+import { loadConfig } from "./infra/config.ts"
+import { createDb, destroyDb } from "./infra/db/client.ts"
+import { runMigrations } from "./infra/db/migrate.ts"
 import { createApp } from "./http/app.ts"
-import { guarded as guardedMetadata, startMetadata } from "./link-metadata.ts"
-import { flushLogs, initLogger, log } from "./log.ts"
+import { guarded as guardedMetadata, startMetadata } from "./infra/link-metadata.ts"
+import { flushLogs, initLogger, log } from "./infra/log.ts"
 import { flushVisits } from "./visits/record.ts"
 
 const config = loadConfig()

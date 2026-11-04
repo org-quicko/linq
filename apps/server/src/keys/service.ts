@@ -16,7 +16,7 @@ import type { z } from "zod"
 import type { Principal } from "../auth/middleware.ts"
 import { createApiKey } from "../auth/mint.ts"
 import { assertCan } from "../auth/permissions.ts"
-import type { DB } from "../db/types.generated.ts"
+import type { DB } from "../infra/db/types.generated.ts"
 import type { Deps } from "../deps.ts"
 
 type KeyCreate = z.infer<typeof keyCreateSchema>

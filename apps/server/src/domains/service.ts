@@ -9,12 +9,12 @@ import { sql, type Selectable } from "kysely"
 import type { z } from "zod"
 import type { Principal } from "../auth/middleware.ts"
 import { assertCan, assertCanPurge } from "../auth/permissions.ts"
-import { domainKey } from "../cache.ts"
-import { isAppHost } from "../config.ts"
-import type { Db } from "../db/client.ts"
-import type { DB } from "../db/types.generated.ts"
+import { domainKey } from "../infra/cache.ts"
+import { isAppHost } from "../infra/config.ts"
+import type { Db } from "../infra/db/client.ts"
+import type { DB } from "../infra/db/types.generated.ts"
 import type { Deps } from "../deps.ts"
-import { span } from "../log.ts"
+import { span } from "../infra/log.ts"
 
 type DomainCreate = z.infer<typeof domainCreateSchema>
 type DomainPatch = z.infer<typeof domainPatchSchema>

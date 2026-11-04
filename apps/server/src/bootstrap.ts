@@ -1,8 +1,8 @@
 import { createApiKey } from "./auth/mint.ts"
 import { claimsForPreset } from "@linq/shared"
-import type { Config } from "./config.ts"
-import type { Db } from "./db/client.ts"
-import { log, span } from "./log.ts"
+import type { Config } from "./infra/config.ts"
+import type { Db } from "./infra/db/client.ts"
+import { log, span } from "./infra/log.ts"
 
 /**
  * First-boot setup. Both steps are skipped once their table has any row, so

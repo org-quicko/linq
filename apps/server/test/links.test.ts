@@ -4,7 +4,7 @@ import {
   type MetadataFetcher,
   noMetadata,
   startMetadata,
-} from "../src/link-metadata.ts"
+} from "../src/infra/link-metadata.ts"
 import { createHarness, type Harness } from "./helpers/app.ts"
 import { testConfig } from "./helpers/db.ts"
 

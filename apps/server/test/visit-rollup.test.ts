@@ -1,6 +1,6 @@
 import { beforeEach, describe, expect, test } from "bun:test"
 import { sql } from "kysely"
-import type { Db } from "../src/db/client.ts"
+import type { Db } from "../src/infra/db/client.ts"
 import { flushVisits } from "../src/visits/record.ts"
 import { createHarness, type Harness } from "./helpers/app.ts"
 
