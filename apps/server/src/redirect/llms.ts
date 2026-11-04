@@ -4,8 +4,8 @@ import { domainKey, llmsKey } from "../cache.ts"
 import type { Db } from "../db/client.ts"
 import { span } from "../log.ts"
 import { shortUrl } from "../links/service.ts"
-import type { Env } from "./env.ts"
-import { findActiveDomain, through } from "./redirect.ts"
+import type { Env } from "../http/env.ts"
+import { findActiveDomain, through } from "./handler.ts"
 
 /**
  * No llms.txt is improved by 50,000 entries, and this is an unauthenticated
