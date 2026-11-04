@@ -111,7 +111,9 @@ hijacked by a new link (`resources/docs/adr/0002`). Only a `Purge`, admin-only, 
 the row and its visits for good.
 
 Visits are the one high-volume table, and the one place traffic ever touches
-the client. Recording is fire-and-forget (`visits/record.ts`) — a redirect
+the client. Recording is fire-and-forget (`visits/record.ts`): the redirect
+emits the visit into an in-process OpenTelemetry batch queue, which writes it
+to Postgres in multi-row inserts (`resources/docs/adr/0022`). A redirect
 never waits on the insert, and a failed insert never turns a working link
 into an error — and never stores the client's IP address, in the row or the
 request log (`resources/docs/adr/0001`, `resources/docs/adr/0003`). `visit_days` and

@@ -49,7 +49,7 @@ a separate Next.js project with its own config. `bun run typecheck` runs
 | `links/` | Also `slug.ts` (`randomSlug`, uniform base62) and `tagRoutes` in `routes.ts` |
 | `rules/` | Also `match.ts` (pure condition evaluation, no I/O) and `store.ts` (loads a link's rules in position order) |
 | `keys/` | Also `/me`, the calling key |
-| `visits/` | Also `record.ts` (fire-and-forget insert plus `flushVisits` for shutdown), `bot.ts` (bot and link-preview-crawler detection), `platform.ts` (platform/OS/browser parsing from the user agent) |
+| `visits/` | Also `record.ts` (the OTel batch queue and Postgres exporter that write visits, plus `flushVisits` for shutdown), `bot.ts` (bot and link-preview-crawler detection), `platform.ts` (platform/OS/browser parsing from the user agent) |
 | `redirect/` | `handler.ts`: the redirect (domain/link/rule resolution, the cache-through helper, query merging, the link-preview OG page). `llms.ts`: `GET /llms.txt`, the per-domain catalogue of opted-in links, unauthenticated. See `resources/docs/adr/0013` |
 | `mcp/` | The MCP server at `/api/mcp`. `tools.ts` (each tool: input schema, the claim it needs, the service call), `server.ts` (registers the tools a key's claims permit; maps `ApiError` to tool errors), `routes.ts` (stateless Streamable HTTP transport per request) |
 | `auth/` | `middleware.ts` (the `authenticate` Hono middleware), `keys.ts` (hash/prefix a key), `mint.ts` (`createApiKey`, shared by the HTTP route and the CLI), `permissions.ts` (the throwing `assert*` wrappers over `@linq/shared`'s `can`), `rate-limit.ts` |

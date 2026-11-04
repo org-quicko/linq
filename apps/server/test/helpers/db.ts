@@ -28,6 +28,7 @@ export const testConfig: Config = {
   LINQ_PORT: 3000,
   LINQ_API_RATE_LIMIT_PER_MINUTE: 1_000,
   LINQ_VISIT_MAX_PENDING: 1_000,
+  LINQ_VISIT_BATCH_SIZE: 100,
   LINQ_CLIENT_BASE_PATH: "/home",
   LINQ_APP_HOST: undefined,
   LINQ_DEFAULT_DOMAIN: undefined,

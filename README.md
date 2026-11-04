@@ -126,6 +126,7 @@ Configuration is read from the repo-root `.env` (or `.env.local`). Only
 | `LINQ_FETCH_LINK_METADATA`       | `false`                  | Fetches a destination's title and icon. Enable only with egress rules that block private addresses. |
 | `LINQ_API_RATE_LIMIT_PER_MINUTE` | `1000`                   | Per-key API rate limit.                                                                             |
 | `LINQ_VISIT_MAX_PENDING`         | `1000`                   | Maximum queued analytics writes.                                                                    |
+| `LINQ_VISIT_BATCH_SIZE`          | `100`                    | Most visits written per insert. At most `LINQ_VISIT_MAX_PENDING`.                                   |
 
 Logs are written to `./data/logs/linq.log` and rotated. In Docker this is the
 `/data` volume.

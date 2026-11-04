@@ -86,8 +86,13 @@ const schema = z
     LINQ_PORT: z.coerce.number().int().min(1).max(65535).default(3000),
     /** Requests one authenticated key may make in one minute, per process. */
     LINQ_API_RATE_LIMIT_PER_MINUTE: z.coerce.number().int().min(1).max(10_000).default(1_000),
-    /** Maximum visit inserts allowed to wait on the database before analytics drops excess events. */
+    /** Maximum visits allowed to wait on the database before analytics drops excess events. */
     LINQ_VISIT_MAX_PENDING: z.coerce.number().int().min(1).max(100_000).default(1_000),
+    /**
+     * Most visits written per INSERT. Batches only form from visits that queue
+     * behind a running insert; at most LINQ_VISIT_MAX_PENDING. See resources/docs/adr/0022.
+     */
+    LINQ_VISIT_BATCH_SIZE: z.coerce.number().int().min(1).max(100_000).default(100),
     /** Where a combined deployment mounts its pre-built Client UI. */
     LINQ_CLIENT_BASE_PATH: clientBasePathSchema.default("/home"),
     /**
@@ -150,6 +155,14 @@ const schema = z
         code: "custom",
         path: ["LINQ_APP_HOST"],
         message: "required when LINQ_CLIENT_BASE_PATH is /",
+      })
+    }
+    // A batch can never fill from a queue smaller than itself.
+    if (c.LINQ_VISIT_BATCH_SIZE > c.LINQ_VISIT_MAX_PENDING) {
+      ctx.addIssue({
+        code: "custom",
+        path: ["LINQ_VISIT_BATCH_SIZE"],
+        message: "must not exceed LINQ_VISIT_MAX_PENDING",
       })
     }
     // The UI would shadow every link on it.

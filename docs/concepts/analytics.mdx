@@ -4,7 +4,7 @@ sidebarTitle: "Analytics"
 description: "Every redirect is a Visit. See what linq captures per request, how Postgres-trigger rollups speed up queries, and how to use the analytics API endpoints."
 ---
 
-linq records every redirect request as a **Visit** and makes that data immediately queryable through the analytics API. Every redirect — whether it hits a rule, falls back to the default destination, or resolves to no link at all — produces a visit record the moment the 302 is issued. The recording is fire-and-forget: a visit insert never delays a redirect, and a failed insert never turns a working link into an error. The result is a complete, low-latency audit trail of link traffic that you can query, filter, and slice without ever touching raw database tables.
+linq records every redirect request as a **Visit** and makes that data immediately queryable through the analytics API. Every redirect — whether it hits a rule, falls back to the default destination, or resolves to no link at all — produces a visit record, timestamped the moment the 302 is issued. The recording is fire-and-forget: visits are written to the database as soon as it is free, several at a time under heavy traffic, so a visit insert never delays a redirect, and a failed insert never turns a working link into an error. The result is a complete, low-latency audit trail of link traffic that you can query, filter, and slice without ever touching raw database tables.
 
 ## What a Visit Captures
 
