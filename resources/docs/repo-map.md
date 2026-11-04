@@ -33,7 +33,7 @@ a separate Next.js project with its own config. `bun run typecheck` runs
 | `package.json` | Workspace root. Delegates every script (`dev`, `test`, `db:migrate`, `db:codegen`, …) to the member that owns it via `bun --filter` |
 | `AGENTS.md` | What isn't obvious from the code: running it, Redis/Caddy's fail-loud behaviour, docs conventions |
 | `CLAUDE.md` | Points Claude at `AGENTS.md` and `.agents/skills/` |
-| `CONTEXT.md` | The domain glossary — terms only, no implementation |
+| `GLOSSARY.md` | The domain glossary — terms only, no implementation |
 | `README.md` | Local setup, Docker, deploying the Client UI |
 | `biome.json` | Lint/format config (`bun run lint` / `format`) |
 | `.env.example` | Every environment variable, with a comment; `config.ts` is the schema that actually enforces them |
