@@ -1,28 +1,43 @@
 ---
 name: linq-backend
-description: Add or change an HTTP API resource in apps/server. Use when adding a route or endpoint, editing a permission check, or touching apps/server/src/http/api/, auth/permissions.ts, or a packages/shared schema.
+description: Add or change an HTTP API resource in apps/server. Use when adding a route or endpoint, editing a permission check, or touching apps/server/src/<resource>/service.ts or http.ts, auth/permissions.ts, or a packages/shared schema.
 ---
 
 # Adding or changing an API resource
 
-Each resource is one file under `apps/server/src/http/api/` (see
-`domains.ts` as the reference), mounted under `/api/v1` in `http/app.ts`.
+Each resource is one folder under `apps/server/src/` (see `domains/` as the
+reference) holding two files:
+
+- `service.ts`: the behaviour, as plain exported functions shaped
+  `fn(deps: Deps, principal: Principal, input)`. Reads with no permission
+  check take no principal.
+- `http.ts`: a Hono sub-app, mounted under `/api/v1` in `http/app.ts`, that
+  validates the request and calls the service with `c.var`. Nothing else.
+
+Steps:
 
 1. Request and response shapes live in `packages/shared/src/<resource>.ts`,
    re-exported from `index.ts`: zod schema plus TypeScript type. Both apps use
-   the same definition.
-2. Validate with `validate()` from `http/validate.ts`, then read the result
-   with `c.req.valid(...)`.
-3. Check permissions first in the handler with the `assert*` helpers from
+   the same definition. A service takes the parsed input as
+   `z.infer<typeof schema>`.
+2. In `http.ts`, validate with `validate()` from `http/validate.ts` and pass
+   `c.req.valid(...)` to the service. No queries, permission checks or cache
+   calls here.
+3. In `service.ts`, check permissions first with the `assert*` helpers from
    `auth/permissions.ts`. Add a capability once to
    `packages/shared/src/permissions.ts` when needed.
 4. Throw `ApiError.<kind>` (`notFound`, `conflict`, `forbidden`,
-   `validation`) for expected failures; `app.ts` maps them to the API envelope.
-5. Use `c.var.db` (`Db` from `db/client.ts`) and Kysely's query builder.
+   `validation`) for expected failures; `http/app.ts` maps them to the API
+   envelope. A service never touches Hono's `Context`.
+5. Use `deps.db` (`Db` from `infra/db/client.ts`) and Kysely's query builder.
    Database changes use the `linq-db-migration` workflow.
-6. Invalidate `c.var.cache` after a write that affects cached redirect data.
-7. Sync Caddy with `c.var.caddy.upsert` or `.remove()` when a host-serving
+6. Invalidate `deps.cache` after a write that affects cached redirect data
+   (`linkKeys`, `targetKey`, `domainKey` in `infra/cache.ts`).
+7. Sync Caddy with `deps.caddy.upsert` or `.remove()` when a host-serving
    change needs it. It is a no-op unless Caddy is configured.
+
+Keeping all of that in the service is what lets a second entry point reuse it
+without repeating the invalidation. See `resources/docs/adr/0023`.
 
 ## Testing
 

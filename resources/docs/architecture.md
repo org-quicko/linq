@@ -41,6 +41,24 @@ as one either.
 (reserved paths win — a slug can never shadow one of these)
 ```
 
+Each API resource is one folder (`links/`, `domains/`, `rules/`, `qr-codes/`,
+`keys/`, `visits/`, `analytics/`) holding a `service.ts` and an `http.ts`. The
+service is where the resource's behaviour lives: permission checks, queries,
+transactions, cache invalidation and Caddy sync, as plain functions shaped
+`fn(deps, principal, input)` that throw `ApiError` and never see Hono's
+`Context`. `http.ts` only validates the request and calls the service with
+`c.var`, which already carries every dependency (`Deps` in `deps.ts`). Any
+other entry point calls the same functions, so a write cannot be done twice
+with half its invalidation forgotten (`resources/docs/adr/0023`).
+
+```
+http.ts (validate)  ──►  service.ts (permissions, SQL, cache, Caddy)  ◄──  any other entry point
+```
+
+Process-wide plumbing (config, logger, database, cache, Caddy, metadata
+fetching) lives in `infra/`; the public redirect and `/llms.txt` in
+`redirect/`.
+
 ## Auth: the key is the principal
 
 There are no user accounts. An API key (`apiKeys` table) carries its own name
@@ -76,7 +94,7 @@ handler runs
 ## Data model
 
 Six tables, one migration tool (Kysely runs the ordered migrations in
-`apps/server/src/db/migrations/`; `kysely-codegen` writes `src/db/types.generated.ts`). A domain hosts links; a link belongs to a domain and
+`apps/server/src/infra/db/migrations/`; `kysely-codegen` writes `src/infra/db/types.generated.ts`). A domain hosts links; a link belongs to a domain and
 carries no reference to the key that created it (`resources/docs/adr/0016`); a link may
 carry ordered rules (alternate destinations gated on platform or query-param
 conditions, first match wins — `rules/match.ts`) and styled QR codes.
@@ -97,7 +115,7 @@ source of truth with no rollup job to fall behind (`resources/docs/adr/0007`).
 
 ## The redirect hot path
 
-`http/redirect.ts` is the one handler most requests hit. For a host it looks
+`redirect/handler.ts` is the one handler most requests hit. For a host it looks
 up the active domain, then the active link for the slug (rules bundled in, so
 one hit answers the whole redirect), through an optional cache
 (`through()` in the same file — cache miss falls back to the query and writes
@@ -118,7 +136,7 @@ destination's title, since fetching the destination synchronously on every
 crawler hit would make the redirect page as slow as its target
 (`resources/docs/adr/0014`). An ordinary destination gets a name, description and
 favicon in the background instead, fetched once and stored on the link
-(`link-metadata.ts`), with an SSRF guard that refuses private, loopback and
+(`infra/link-metadata.ts`), with an SSRF guard that refuses private, loopback and
 link-local IPs so a destination can't be used to probe the server's own
 network.
 
@@ -164,8 +182,8 @@ custom domain resolves over HTTPS without hand-editing Caddy's config
 reconciles all of them once at its own boot. Link-metadata fetching
 (`LINQ_FETCH_LINK_METADATA`) follows the same pattern too.
 
-All three are wrapped by a `guarded()` function (`cache.ts`, `caddy.ts`,
-`link-metadata.ts`) that turns any failure into "act as if this feature is
+All three are wrapped by a `guarded()` function (`infra/cache.ts`, `infra/caddy.ts`,
+`infra/link-metadata.ts`) that turns any failure into "act as if this feature is
 off" rather than letting a down dependency break a route it merely
 optimises — a domain mutation, a redirect, or a link creation must all
 succeed whether or not Redis, Caddy or the destination site are currently
@@ -173,7 +191,7 @@ reachable.
 
 ## Observability
 
-`log.ts` builds one process-wide pino logger, silent until `main.ts` calls
+`infra/log.ts` builds one process-wide pino logger, silent until `main.ts` calls
 `initLogger`, so importing it from a test or script writes nothing. Every
 request gets a child logger carrying a request id, held in `AsyncLocalStorage`
 rather than threaded through every function signature. `span()` wraps a named
