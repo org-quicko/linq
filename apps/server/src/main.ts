@@ -5,7 +5,7 @@ import { guarded as guardedCaddy, reconcileCaddy, startCaddy } from "./infra/cad
 import { loadConfig } from "./infra/config.ts"
 import { createDb, destroyDb } from "./infra/db/client.ts"
 import { runMigrations } from "./infra/db/migrate.ts"
-import { createApp } from "./http/app.ts"
+import { createApp } from "./app/app.ts"
 import { guarded as guardedMetadata, startMetadata } from "./infra/link-metadata.ts"
 import { flushLogs, initLogger, log } from "./infra/log.ts"
 import { flushVisits } from "./visits/record.ts"

@@ -1,8 +1,8 @@
 import { domainCreateSchema, domainPatchSchema, paginationSchema, uuidSchema } from "@linq/shared"
 import { Hono } from "hono"
 import { z } from "zod"
-import type { Env } from "../http/env.ts"
-import { validate } from "../http/validate.ts"
+import type { Env } from "../app/env.ts"
+import { validate } from "../app/validate.ts"
 import {
   archiveDomain,
   createDomain,

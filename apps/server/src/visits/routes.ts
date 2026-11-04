@@ -1,7 +1,7 @@
 import { visitListQuerySchema } from "@linq/shared"
 import { Hono } from "hono"
-import type { Env } from "../http/env.ts"
-import { validate } from "../http/validate.ts"
+import type { Env } from "../app/env.ts"
+import { validate } from "../app/validate.ts"
 import { listVisits } from "./service.ts"
 
 /** Mounted at /visits; the raw log, newest first. */

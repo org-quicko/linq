@@ -1,8 +1,8 @@
 import { keyCreateSchema, keyPatchSchema, paginationSchema, uuidSchema } from "@linq/shared"
 import { Hono } from "hono"
 import { z } from "zod"
-import type { Env } from "../http/env.ts"
-import { validate } from "../http/validate.ts"
+import type { Env } from "../app/env.ts"
+import { validate } from "../app/validate.ts"
 import { createKey, getCallingKey, getKey, listKeys, revokeKey, updateKey } from "./service.ts"
 
 const idParam = validate("param", z.object({ id: uuidSchema }))

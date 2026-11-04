@@ -5,7 +5,7 @@ import { type Cache, noCache } from "../../src/infra/cache.ts"
 import { type Caddy, noCaddy } from "../../src/infra/caddy.ts"
 import type { Db } from "../../src/infra/db/client.ts"
 import type { DB } from "../../src/infra/db/types.generated.ts"
-import { createApp } from "../../src/http/app.ts"
+import { createApp } from "../../src/app/app.ts"
 import { type MetadataFetcher, noMetadata } from "../../src/infra/link-metadata.ts"
 import { createTestDb, testConfig } from "./db.ts"
 

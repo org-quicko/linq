@@ -30,7 +30,7 @@ config ──► logger ──► db ──► migrations ──► bootstrap �
   └─ exits on a bad value                      └─ admin key + default domain, only when their tables are empty
 ```
 
-`createApp` (`http/app.ts`) mounts routes in an order that matters: `/api/*`
+`createApp` (`app/app.ts`) mounts routes in an order that matters: `/api/*`
 first, then `robots.txt`/`llms.txt`, then the exported Client UI at its configured
 base path, and the catch-all redirect handler last — so a reserved path can never
 be shadowed by a slug of the same name, and the UI's first segment is never read
@@ -42,17 +42,17 @@ as one either.
 ```
 
 Each API resource is one folder (`links/`, `domains/`, `rules/`, `qr-codes/`,
-`keys/`, `visits/`, `analytics/`) holding a `service.ts` and an `http.ts`. The
+`keys/`, `visits/`, `analytics/`) holding a `service.ts` and an `routes.ts`. The
 service is where the resource's behaviour lives: permission checks, queries,
 transactions, cache invalidation and Caddy sync, as plain functions shaped
 `fn(deps, principal, input)` that throw `ApiError` and never see Hono's
-`Context`. `http.ts` only validates the request and calls the service with
+`Context`. `routes.ts` only validates the request and calls the service with
 `c.var`, which already carries every dependency (`Deps` in `deps.ts`). Any
 other entry point calls the same functions, so a write cannot be done twice
 with half its invalidation forgotten (`resources/docs/adr/0023`).
 
 ```
-http.ts (validate)  ──►  service.ts (permissions, SQL, cache, Caddy)  ◄──  any other entry point
+routes.ts (validate)  ──►  service.ts (permissions, SQL, cache, Caddy)  ◄──  any other entry point
 ```
 
 Process-wide plumbing (config, logger, database, cache, Caddy, metadata
@@ -217,7 +217,7 @@ one call site: it attaches the key, and treats "no server connected" and a
 saved server record (only the key is bad, not the URL).
 
 Two builds come from one codebase: `build:client` targets the configured
-sub-path the server serves at (`http/admin-static.ts` mounts it, path-
+sub-path the server serves at (`app/admin-static.ts` mounts it, path-
 traversal-checked, ahead of the redirect catch-all); `build:client:standalone`
 targets a domain root for hosting anywhere as plain static files. The combined
 build bakes `LINQ_CLIENT_BASE_PATH` into its static files (`/home` by default),
