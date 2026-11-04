@@ -1,5 +1,5 @@
 import { beforeAll, describe, expect, test } from "bun:test"
-import type { Caddy } from "../src/caddy.ts"
+import type { Caddy } from "../src/infra/caddy.ts"
 import { createHarness, type Harness } from "./helpers/app.ts"
 
 let h: Harness

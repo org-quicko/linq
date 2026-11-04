@@ -7,9 +7,9 @@ import {
   type StatsBucket,
 } from "@linq/shared"
 import { sql, type RawBuilder, type SqlBool } from "kysely"
-import type { Db } from "../db/client.ts"
+import type { Db } from "../infra/db/client.ts"
 import type { Deps } from "../deps.ts"
-import { span } from "../log.ts"
+import { span } from "../infra/log.ts"
 import { visitFilters } from "../visits/service.ts"
 
 type Filter = RawBuilder<SqlBool>

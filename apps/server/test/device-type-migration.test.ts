@@ -4,7 +4,7 @@ import path from "node:path"
 import { PGlite } from "@electric-sql/pglite"
 import { Kysely, PGliteDialect, sql } from "kysely"
 import { FileMigrationProvider, Migrator } from "kysely/migration"
-import { migrationsFolder } from "../src/db/migrate.ts"
+import { migrationsFolder } from "../src/infra/db/migrate.ts"
 
 const IPHONE = "Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X) Mobile/15E148 Safari/604.1"
 const IPAD = "Mozilla/5.0 (iPad; CPU OS 17_0 like Mac OS X) Mobile/15E148 Safari/604.1"

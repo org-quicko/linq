@@ -1,5 +1,5 @@
 import { beforeAll, describe, expect, test } from "bun:test"
-import { memoryCache } from "../src/cache.ts"
+import { memoryCache } from "../src/infra/cache.ts"
 import { renderLlms } from "../src/redirect/llms.ts"
 import { createHarness, type Harness } from "./helpers/app.ts"
 import { testConfig } from "./helpers/db.ts"
