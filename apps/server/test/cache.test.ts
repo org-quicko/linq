@@ -1,4 +1,4 @@
-import { afterEach, beforeEach, describe, expect, test } from "bun:test"
+import { afterEach, beforeEach, describe, expect, setSystemTime, test } from "bun:test"
 import type { Cache } from "../src/cache.ts"
 import { domainKey, memoryCache, targetKey } from "../src/cache.ts"
 import { createHarness, type Harness } from "./helpers/app.ts"
@@ -289,25 +289,33 @@ describe("the memory backend", () => {
  * inside the cached value and was compared at read time.
  */
 describe("expiry inside the cache", () => {
+  // The clock is moved, never raced: a real sleep past a short expiry fails
+  // whenever creating the link alone outlasts the window, as it does under a
+  // loaded full run.
+  const HOUR = 60 * 60 * 1000
+  const inAnHour = () => new Date(Date.now() + HOUR).toISOString()
+  const pastExpiry = () => setSystemTime(new Date(Date.now() + 2 * HOUR))
+
+  afterEach(() => {
+    setSystemTime()
+  })
+
   test("a warm entry still expires on schedule, though the row is never touched", async () => {
-    const link = await h.createLink(editor.key, domain, {
-      slug: "ticking",
-      expires_at: new Date(Date.now() + 50).toISOString(),
-    })
+    const link = await h.createLink(editor.key, domain, { slug: "ticking", expires_at: inAnHour() })
     expect((await get("/ticking")).headers.get("location")).toBe(link.destination)
 
-    await Bun.sleep(60)
+    pastExpiry()
     const res = await get("/ticking")
     expect(res.headers.get("location")).toBe("https://example.com/fallback")
   })
 
   test("clearing expires_at to null resolves immediately, proving the del reached the key", async () => {
-    const link = await h.createLink(editor.key, domain, {
-      slug: "reprieved",
-      expires_at: new Date(Date.now() + 50).toISOString(),
-    })
+    const link = await h.createLink(editor.key, domain, { slug: "reprieved", expires_at: inAnHour() })
     await get("/reprieved")
     await h.patch(`/api/v1/links/${link.id}`, editor.key, { expires_at: null })
+
+    // Past the old expiry, a stale entry the del missed would answer the fallback.
+    pastExpiry()
     expect((await get("/reprieved")).headers.get("location")).toBe(link.destination)
   })
 })
