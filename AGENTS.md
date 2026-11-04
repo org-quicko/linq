@@ -19,16 +19,21 @@ covers what isn't obvious from the code.
   schema). Add a new `NNNN_<name>.ts` there, then run `bun run db:codegen`
   against a migrated PostgreSQL database to refresh query types.
 
-## Redis and Caddy are optional, and fail loud
+## Redis is required, Caddy is optional, and both fail loud
 
-- Redis only activates when `LINQ_REDIS_URL` is set. Once set, Redis must be
-  reachable at boot or the server refuses to start — that's intentional
-  (`resources/docs/adr/0009`), not a bug to smooth over. A Redis that dies *after* boot
-  degrades to Postgres instead.
+- Redis is the only cache since 2.0 (`resources/docs/adr/0024`). `LINQ_REDIS_URL`
+  is required and must be reachable at boot, or the server refuses to start;
+  that's intentional, not a bug to smooth over. A Redis that dies *after* boot
+  degrades to Postgres instead. For local runs: `docker run -d -p 6379:6379 redis:8`.
+- Writes keep the cache fresh by writing through, with versioned writes
+  (`writeThrough` and the Lua script in `infra/cache.ts`), never by deleting,
+  except purge and `/llms.txt`. A new write site must do the same; see the ADR.
 - Caddy sync only activates when `LINQ_CADDY_ADMIN_URL` is set (needs
-  `LINQ_CADDY_UPSTREAM` too). See `resources/docs/adr/0012`.
-- Neither is required to run or test linq. Don't make either a hard
-  dependency.
+  `LINQ_CADDY_UPSTREAM` too). See `resources/docs/adr/0012`. Don't make it a
+  hard dependency.
+- `bun run test` needs neither. Suites use the in-process fake in
+  `test/helpers/cache.ts`; `test/redis-cache.test.ts` runs only when
+  `TEST_REDIS_URL` is set.
 
 ## Docs conventions
 

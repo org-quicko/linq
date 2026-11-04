@@ -2,7 +2,7 @@
 # LINQ_CADDY_ADMIN_URL is set, every domain create, archive, reactivate and
 # purge is pushed to Caddy as its own route — nothing in Caddy is edited by
 # hand. See resources/docs/adr/0012 and ../dockerfiles/caddy/caddy.json, the empty skeleton Caddy boots
-# from. No Redis here — the redirect cache stays in-process.
+# from. Redis holds the redirect cache, required since 2.0.
 #
 # :2019, Caddy's admin API, is deliberately not published to the host — only
 # linq, over the compose network, ever needs to reach it. A custom domain
@@ -42,6 +42,16 @@ services:
       timeout: 5s
       retries: 10
 
+  # Required since 2.0: the redirect cache. It holds only cached lookups, so
+  # it needs no volume: a cold Redis costs one Postgres query per link.
+  redis:
+    image: redis:8
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
   linq:
     env_file:
       # Change this path to use an environment file in another location.
@@ -52,6 +62,8 @@ services:
       args:
         LINQ_CLIENT_BASE_PATH: ${LINQ_CLIENT_BASE_PATH:-/home}
     depends_on:
+      redis:
+        condition: service_healthy
       postgres:
         condition: service_healthy
       caddy:
@@ -62,7 +74,7 @@ services:
       LINQ_DB_SCHEMA: ${LINQ_DB_SCHEMA:-public}
       LINQ_DATA_DIR: /data
       LINQ_DEFAULT_DOMAIN: ${LINQ_DEFAULT_DOMAIN:-localhost:${LINQ_PORT:-3000}}
-      LINQ_CACHE_SWEEP_INTERVAL: ${LINQ_CACHE_SWEEP_INTERVAL:-60}
+      LINQ_REDIS_URL: redis://redis:6379
       LINQ_CADDY_ADMIN_URL: http://caddy:2019
       LINQ_CADDY_UPSTREAM: linq:3000
       # An admin key is minted and printed on first boot; read it from

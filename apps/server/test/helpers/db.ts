@@ -18,13 +18,11 @@ export async function createTestDb(): Promise<Db> {
 export const testConfig: Config = {
   DATABASE_URL: "memory://pglite",
   LINQ_DB_SCHEMA: "public",
-  // Every harness runs on `noCache` unless a suite asks for a real one, and the
-  // only real one a test can open without external services is the memory store.
-  LINQ_CACHE_BACKEND: "memory",
-  LINQ_REDIS_URL: undefined,
+  // Never dialled: every harness runs on `noCache` or `fakeCache()`, so the
+  // suite needs nothing running. The Redis backend itself is covered by
+  // redis-cache.test.ts, which runs only when TEST_REDIS_URL is set.
+  LINQ_REDIS_URL: "redis://unused.invalid:6379",
   LINQ_CACHE_TTL: 300,
-  LINQ_CACHE_SWEEP_INTERVAL: 60,
-  LINQ_CACHE_MAX_ENTRIES: 10_000,
   LINQ_PORT: 3000,
   LINQ_API_RATE_LIMIT_PER_MINUTE: 1_000,
   LINQ_VISIT_MAX_PENDING: 1_000,

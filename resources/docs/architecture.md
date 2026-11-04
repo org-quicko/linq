@@ -10,9 +10,9 @@ Bun's HTTP server) is the API, the redirect handler and the CLI; `apps/client`
 (Next.js, exported static) is the Client UI; `packages/shared` holds the zod
 schemas, types and permission rules both sides import, so the server's
 enforcement and the client's form validation and UI gating cannot drift apart.
-One Postgres database is the only required dependency — linq never runs
-Postgres itself. Redis and Caddy are optional and each fails loud once
-configured (`AGENTS.md`).
+Two dependencies are required: one Postgres database and one Redis, the
+redirect cache — linq runs neither itself, and refuses to boot without either.
+Caddy is optional and fails loud once configured (`AGENTS.md`).
 
 ## The server process
 
@@ -124,7 +124,7 @@ source of truth with no rollup job to fall behind (`resources/docs/adr/0007`).
 
 `redirect/handler.ts` is the one handler most requests hit. For a host it looks
 up the active domain, then the active link for the slug (rules bundled in, so
-one hit answers the whole redirect), through an optional cache
+one hit answers the whole redirect), through the cache
 (`through()` in the same file — cache miss falls back to the query and writes
 the answer back, including a negative "no such thing" result, so a flood of
 404s costs one query per TTL rather than one per request). An expired link is
@@ -177,12 +177,27 @@ crawler user agent?  ──yes──►  OG preview HTML (link's own title, neve
 
 ## Cache, Caddy, metadata: the same shape three times
 
-Redis (`LINQ_REDIS_URL`) is optional; unset, redirect lookups cache in an
-in-process LRU instead, so nothing else has to be running. Whichever backend
-is picked, once configured it must be reachable at boot or the server refuses
-to start — a Redis that goes down *after* boot degrades to hitting Postgres
-directly rather than failing requests (`resources/docs/adr/0009`). Caddy sync
-(`LINQ_CADDY_ADMIN_URL`) is the same shape: when set, every domain
+Redis (`LINQ_REDIS_URL`) is the only cache backend, and it is required: it must
+be reachable at boot or the server refuses to start
+(`resources/docs/adr/0024-redis-is-the-only-cache.md`, superseding
+`resources/docs/adr/0009`). It holds three kinds of key (`infra/cache.ts`): a
+host's domain (`domainKey`), a slug's whole redirect answer (`targetKey`) and a
+domain's rendered `/llms.txt` (`llmsKey`).
+
+The cache is write-through. A service that creates, edits or archives a link,
+its rules or a domain rebuilds the affected entry with `writeThrough()` instead
+of deleting it, using the same loaders the redirect reads through
+(`redirect/resolve.ts`), so the next redirect is a hit carrying the new value.
+Each entry is stored with a version, the row's `updated_at`, and `set` runs a
+Lua script (`SET_IF_NEWER`) that checks and writes in one atomic step: an entry
+already holding a newer version is left alone, so two writers finishing out of
+order — on one process or several sharing the Redis — cannot leave the older
+answer cached. Replacing a link's rules bumps the link's `updated_at` for the
+same reason. `/llms.txt` is built from many rows and has no single version, so
+it is deleted on write rather than written through; a purge deletes its entries
+too. `LINQ_CACHE_TTL` is only a backstop.
+
+Caddy sync (`LINQ_CADDY_ADMIN_URL`) is optional: when set, every domain
 create/archive/reactivate/purge pushes a route to Caddy's admin API so a
 custom domain resolves over HTTPS without hand-editing Caddy's config
 (`resources/docs/adr/0012`); Caddy's own routes are wiped on its restart, so the server
@@ -194,7 +209,9 @@ All three are wrapped by a `guarded()` function (`infra/cache.ts`, `infra/caddy.
 off" rather than letting a down dependency break a route it merely
 optimises — a domain mutation, a redirect, or a link creation must all
 succeed whether or not Redis, Caddy or the destination site are currently
-reachable.
+reachable. For the cache that means a Redis that goes down *after* boot
+degrades to Postgres: a failed read is a miss, and a failed write or delete is
+logged and left to the TTL.
 
 ## Observability
 
