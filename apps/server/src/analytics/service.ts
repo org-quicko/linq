@@ -4,18 +4,13 @@ import {
   type AnalyticsDimension,
   type AnalyticsQuery,
   type AnalyticsSummary,
-  analyticsBreakdownQuerySchema,
-  analyticsSummaryQuerySchema,
-  analyticsTimeseriesQuerySchema,
   type StatsBucket,
 } from "@linq/shared"
 import { sql, type RawBuilder, type SqlBool } from "kysely"
-import { Hono } from "hono"
-import type { Db } from "../../db/client.ts"
-import { span } from "../../log.ts"
-import type { Env } from "../env.ts"
-import { validate } from "../validate.ts"
-import { visitFilters } from "./visits.ts"
+import type { Db } from "../db/client.ts"
+import type { Deps } from "../deps.ts"
+import { span } from "../log.ts"
+import { visitFilters } from "../visits/service.ts"
 
 type Filter = RawBuilder<SqlBool>
 
@@ -183,40 +178,30 @@ async function detailBreakdown(db: Db, q: AnalyticsBreakdownQuery): Promise<Stat
     .then((rows) => rows.map((row) => ({ ...row, human: Number(row.human), bot: Number(row.bot) })))
 }
 
-/** Mounted at /analytics. Dimension filters read the raw log; otherwise the
- * pre-aggregated day rollup answers the request. */
-export const analyticsRoutes = new Hono<Env>()
-  .get("/summary", validate("query", analyticsSummaryQuerySchema), async (c) => {
-    const q = c.req.valid("query")
-    const detail = needsDetail(q)
-    const result = await span(
-      "analytics.summary",
-      () => (detail ? detailSummary(c.var.db, q) : rollupSummary(c.var.db, q)),
-      { in: { source: detail ? "detail" : "rollup" } },
-    )
-    return c.json(result)
+// Dimension filters read the raw log; otherwise the pre-aggregated day rollup
+// answers the request.
+
+export function getSummary({ db }: Deps, q: AnalyticsQuery): Promise<AnalyticsSummary> {
+  const detail = needsDetail(q)
+  return span("analytics.summary", () => (detail ? detailSummary(db, q) : rollupSummary(db, q)), {
+    in: { source: detail ? "detail" : "rollup" },
   })
-  .get("/timeseries", validate("query", analyticsTimeseriesQuerySchema), async (c) => {
-    const q = c.req.valid("query")
-    const detail = needsDetail(q)
-    const buckets = await span(
-      "analytics.timeseries",
-      () =>
-        detail ? detailTimeseries(c.var.db, q) : aggregateVisits(c.var.db, rollupScope(q), "day"),
-      { in: { source: detail ? "detail" : "rollup" } },
-    )
-    return c.json(buckets)
-  })
-  .get("/breakdown", validate("query", analyticsBreakdownQuerySchema), async (c) => {
-    const q = c.req.valid("query")
-    const detail = needsDetail(q)
-    const buckets = await span(
-      "analytics.breakdown",
-      () =>
-        detail
-          ? detailBreakdown(c.var.db, q)
-          : aggregateVisits(c.var.db, rollupScope(q), q.dimension),
-      { in: { source: detail ? "detail" : "rollup" } },
-    )
-    return c.json(buckets)
-  })
+}
+
+export function getTimeseries({ db }: Deps, q: AnalyticsQuery): Promise<StatsBucket[]> {
+  const detail = needsDetail(q)
+  return span(
+    "analytics.timeseries",
+    () => (detail ? detailTimeseries(db, q) : aggregateVisits(db, rollupScope(q), "day")),
+    { in: { source: detail ? "detail" : "rollup" } },
+  )
+}
+
+export function getBreakdown({ db }: Deps, q: AnalyticsBreakdownQuery): Promise<StatsBucket[]> {
+  const detail = needsDetail(q)
+  return span(
+    "analytics.breakdown",
+    () => (detail ? detailBreakdown(db, q) : aggregateVisits(db, rollupScope(q), q.dimension)),
+    { in: { source: detail ? "detail" : "rollup" } },
+  )
+}
