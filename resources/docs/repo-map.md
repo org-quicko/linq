@@ -36,7 +36,7 @@ a separate Next.js project with its own config. `bun run typecheck` runs
 | `GLOSSARY.md` | The domain glossary — terms only, no implementation |
 | `README.md` | Local setup, Docker, deploying the Client UI |
 | `biome.json` | Lint/format config (`bun run lint` / `format`) |
-| `.env.example` | Every environment variable, with a comment; `config.ts` is the schema that actually enforces them |
+| `.env.example` | Every environment variable, with a comment; `apps/server/src/infra/config.ts` is the schema that actually enforces them |
 
 ## `apps/server/src/`
 
@@ -44,23 +44,21 @@ a separate Next.js project with its own config. `bun run typecheck` runs
 |------|----------------|
 | `main.ts` | Boot sequence: config → logger → db → migrations → bootstrap → cache/Caddy/metadata → app → listen. Owns shutdown draining |
 | `bootstrap.ts` | First-boot admin key mint and default-domain seed, each gated on its table being empty |
-| `config.ts` | The zod schema for every `LINQ_*`/`DATABASE_URL` env var; exits the process on a bad one |
-| `cache.ts` | The `Cache` port, its memory (LRU) and Redis backends, and `guarded()`, which makes a cache failure act like a miss instead of an error. See `resources/docs/adr/0009` |
-| `caddy.ts` | Syncs the `domains` table to Caddy's admin API for automatic HTTPS per custom domain, and the boot-time reconcile after Caddy's own restart. See `resources/docs/adr/0012` |
-| `link-metadata.ts` | Fetches a destination's title/description/favicon in the background, with an SSRF guard against private/loopback IPs |
-| `log.ts` | The pino logger, per-request child logger via `AsyncLocalStorage`, the `span()` timing helper, and secret scrubbing |
-| `slug.ts` | `randomSlug` — uniform base62 generation for a link's slug |
-| `auth/` | `middleware.ts` (the `authenticate` Hono middleware), `keys.ts` (hash/prefix a key), `mint.ts` (`createApiKey`, shared by the HTTP route and the CLI), `permissions.ts` (the throwing `assert*` wrappers over `@linq/shared`'s `can`) |
-| `db/` | `types.generated.ts` (Kysely query types), `client.ts` (the Postgres/PGlite `Db` boundary), `migrate.ts` (runs migrations in `LINQ_DB_SCHEMA` at boot) |
-| `http/app.ts` | `createApp` — mounts every route, in the order that keeps the redirect catch-all from shadowing anything reserved |
-| `http/redirect.ts` | The redirect handler: domain/link/rule resolution, the cache-through helper, query merging, and the link-preview OG page |
-| `http/admin-static.ts` | Serves the exported Client UI at `LINQ_CLIENT_BASE_PATH` (`/home` by default), path-traversal-checked; only on `LINQ_APP_HOST` when that is set |
-| `http/llms.ts` | `GET /llms.txt` — the per-domain catalogue of opted-in links, unauthenticated. See `resources/docs/adr/0013` |
-| `http/env.ts` | The Hono `Env` type — what `c.var` and `c.get`/`c.set` carry (db, config, cache, caddy, metadata, principal) |
-| `http/validate.ts` | The zod-body/query/param validation middleware every route uses |
-| `http/api/` | One file per resource: `analytics.ts`, `domains.ts`, `keys.ts`, `links.ts` (+ `tagRoutes`), `me.ts`, `qr-codes.ts`, `rules.ts`, `visits.ts` — each a Hono sub-app mounted under `/api/v1` in `app.ts` |
-| `rules/` | `match.ts` (pure condition evaluation, no I/O), `store.ts` (loads a link's rules in position order) |
-| `visits/` | `record.ts` (the OTel batch queue and Postgres exporter that write visits, plus `flushVisits` for shutdown), `bot.ts` (bot and link-preview-crawler detection), `platform.ts` (platform/OS/browser parsing from the user agent) |
+| `deps.ts` | The `Deps` type every service function takes: db, config, cache, caddy, metadata. `c.var` satisfies it, so routes pass it straight through. See `resources/docs/adr/0023` |
+| `links/` `domains/` `rules/` `qr-codes/` `keys/` `visits/` `analytics/` | One folder per resource. `service.ts` holds the behaviour as plain functions `fn(deps, principal, input)`: permission checks, queries, transactions, cache invalidation, Caddy sync. `http.ts` is the Hono sub-app mounted under `/api/v1` in `http/app.ts`; it only validates and calls the service |
+| `links/` | Also `slug.ts` (`randomSlug`, uniform base62) and `tagRoutes` in `http.ts` |
+| `rules/` | Also `match.ts` (pure condition evaluation, no I/O) and `store.ts` (loads a link's rules in position order) |
+| `keys/` | Also `/me`, the calling key |
+| `visits/` | Also `record.ts` (the OTel batch queue and Postgres exporter that write visits, plus `flushVisits` for shutdown), `bot.ts` (bot and link-preview-crawler detection), `platform.ts` (platform/OS/browser parsing from the user agent) |
+| `redirect/` | `handler.ts`: the redirect (domain/link/rule resolution, the cache-through helper, query merging, the link-preview OG page). `llms.ts`: `GET /llms.txt`, the per-domain catalogue of opted-in links, unauthenticated. See `resources/docs/adr/0013` |
+| `auth/` | `middleware.ts` (the `authenticate` Hono middleware), `keys.ts` (hash/prefix a key), `mint.ts` (`createApiKey`, shared by the HTTP route and the CLI), `permissions.ts` (the throwing `assert*` wrappers over `@linq/shared`'s `can`), `rate-limit.ts` |
+| `http/` | `app.ts` (`createApp`: mounts every route, in the order that keeps the redirect catch-all from shadowing anything reserved), `admin-static.ts` (serves the exported Client UI at `LINQ_CLIENT_BASE_PATH`, path-traversal-checked; only on `LINQ_APP_HOST` when set), `env.ts` (the Hono `Env`: `Deps` plus the principal), `validate.ts` (the zod validation middleware every route uses) |
+| `infra/config.ts` | The zod schema for every `LINQ_*`/`DATABASE_URL` env var; exits the process on a bad one |
+| `infra/cache.ts` | The `Cache` port, its memory (LRU) and Redis backends, and `guarded()`, which makes a cache failure act like a miss instead of an error. See `resources/docs/adr/0009` |
+| `infra/caddy.ts` | Syncs the `domains` table to Caddy's admin API for automatic HTTPS per custom domain, and the boot-time reconcile after Caddy's own restart. See `resources/docs/adr/0012` |
+| `infra/link-metadata.ts` | Fetches a destination's title/description/favicon in the background, with an SSRF guard against private/loopback IPs |
+| `infra/log.ts` | The pino logger, per-request child logger via `AsyncLocalStorage`, the `span()` timing helper, and secret scrubbing |
+| `infra/db/` | `types.generated.ts` (Kysely query types), `client.ts` (the Postgres/PGlite `Db` boundary), `migrate.ts` (runs migrations in `LINQ_DB_SCHEMA` at boot), `migrations/` |
 | `cli/create-key.ts` | `bun run key:create` — mints a key without a restart, same path as the HTTP route |
 
 ## `apps/client/`
