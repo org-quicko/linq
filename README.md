@@ -13,6 +13,7 @@ A self-hosted platform for short links.
 - **Dynamic Links**: rules that send each visitor to the right destination.
 - **Custom domains with automatic HTTPS** through optional Caddy sync.
 - **REST API** with scoped API keys (spec in `resources/openapi/`).
+- **MCP server** so AI assistants can manage links with the same keys.
 - **Link Tree** *(coming soon)*: one hosted page for all your links.
 
 ## Getting started
@@ -76,10 +77,34 @@ fail with an opaque network error, check the server's CORS setup first. See
 | http://localhost:3001/home/    | Client UI (development)                  |
 | http://localhost:3000/home/    | Client UI (served from the built export) |
 | http://localhost:3000/api/v1   | REST API                                 |
+| http://localhost:3000/api/mcp  | MCP server                               |
 | http://localhost:3000/`slug` | A short link                             |
 
 The root of a domain (`http://localhost:3000/`) is not the UI. It redirects to
 that domain's fallback URL, or returns 404 if none is set.
+
+### Connecting an MCP client
+
+linq serves the [Model Context Protocol](https://modelcontextprotocol.io) at
+`/api/mcp` over Streamable HTTP, so an AI assistant can list, create, edit and
+archive links and read visit stats. It authenticates with an ordinary API key
+and counts against the same per-key rate limit as the REST API.
+
+For Claude Code:
+
+```bash
+claude mcp add --transport http linq http://localhost:3000/api/mcp \
+  --header "Authorization: Bearer linq_xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
+```
+
+Any client that speaks Streamable HTTP and can send an `Authorization` header
+works the same way.
+
+A client sees only the tools its key's claims allow: a viewer key gets the read
+tools; an editor key can also create links, edit them and replace their rules;
+an admin key can also archive and restore. Purging, key management and domain
+changes are not exposed over MCP. Give an assistant the narrowest key that does
+the job.
 
 ## Configuration
 
@@ -184,7 +209,7 @@ Contributors and coding agents should read [`AGENTS.md`](AGENTS.md) first.
 
 ## Documentation
 
-- [`CONTEXT.md`](CONTEXT.md): the domain vocabulary. Read it before the code.
+- [`GLOSSARY.md`](GLOSSARY.md): the domain vocabulary. Read it before the code.
 - [`resources/docs/architecture.md`](resources/docs/architecture.md): how the pieces fit together.
 - [`resources/docs/repo-map.md`](resources/docs/repo-map.md): where everything lives.
 - [`resources/docs/adr/`](resources/docs/adr/): architecture decision records.

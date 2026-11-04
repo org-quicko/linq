@@ -1,7 +1,7 @@
-import type { Db } from "../db/client.ts"
+import type { Db } from "../infra/db/client.ts"
 import type { Insertable } from "kysely"
-import type { DB } from "../db/types.generated.ts"
-import { reqLog, span } from "../log.ts"
+import type { DB } from "../infra/db/types.generated.ts"
+import { reqLog, span } from "../infra/log.ts"
 
 export type VisitInput = Omit<Insertable<DB["visits"]>, "id" | "occurred_at">
 

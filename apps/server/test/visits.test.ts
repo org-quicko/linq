@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test"
-import { mergeQuery, queryMap } from "../src/http/redirect.ts"
+import { mergeQuery, queryMap } from "../src/redirect/handler.ts"
 import { classifyBot, detectBot } from "../src/visits/bot.ts"
 import { detectPlatform } from "../src/visits/platform.ts"
 

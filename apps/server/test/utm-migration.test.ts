@@ -4,7 +4,7 @@ import path from "node:path"
 import { PGlite } from "@electric-sql/pglite"
 import { Kysely, PGliteDialect, sql } from "kysely"
 import { FileMigrationProvider, Migrator } from "kysely/migration"
-import { migrationsFolder } from "../src/db/migrate.ts"
+import { migrationsFolder } from "../src/infra/db/migrate.ts"
 
 // 0004 backfills the utm rollup from visits recorded before it existed.
 test("0004 derives utm columns and backfills their rollup rows", async () => {

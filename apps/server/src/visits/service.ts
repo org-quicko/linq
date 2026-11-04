@@ -1,9 +1,10 @@
-import { NOT_RECORDED, type Platform, type Visit, visitListQuerySchema } from "@linq/shared"
+import { NOT_RECORDED, type Page, type Platform, type Visit, type visitListQuerySchema } from "@linq/shared"
 import { sql, type RawBuilder, type Selectable, type SqlBool } from "kysely"
-import { Hono } from "hono"
-import type { DB } from "../../db/types.generated.ts"
-import type { Env } from "../env.ts"
-import { validate } from "../validate.ts"
+import type { z } from "zod"
+import type { DB } from "../infra/db/types.generated.ts"
+import type { Deps } from "../deps.ts"
+
+type VisitListQuery = z.infer<typeof visitListQuerySchema>
 
 type VisitFilter = RawBuilder<SqlBool>
 
@@ -115,28 +116,23 @@ export function visitFilters(q: {
   return filters
 }
 
-/** Mounted at /visits; the raw log, newest first. */
-export const visitRoutes = new Hono<Env>().get(
-  "/",
-  validate("query", visitListQuerySchema),
-  async (c) => {
-    const q = c.req.valid("query")
-    const scope = visitFilters(q)
-    const rows = await c.var.db
-      .selectFrom("visits")
-      .selectAll()
-      .where((eb) => eb.and(scope))
-      .orderBy("occurred_at", "desc")
-      .orderBy("id", "desc")
-      .limit(q.limit)
-      .offset(q.offset)
-      .execute()
-    const total = await c.var.db
-      .selectFrom("visits")
-      .select((eb) => eb.fn.countAll<number>().as("total"))
-      .where((eb) => eb.and(scope))
-      .executeTakeFirstOrThrow()
+/** The raw log, newest first. */
+export async function listVisits({ db }: Deps, q: VisitListQuery): Promise<Page<Visit>> {
+  const scope = visitFilters(q)
+  const rows = await db
+    .selectFrom("visits")
+    .selectAll()
+    .where((eb) => eb.and(scope))
+    .orderBy("occurred_at", "desc")
+    .orderBy("id", "desc")
+    .limit(q.limit)
+    .offset(q.offset)
+    .execute()
+  const total = await db
+    .selectFrom("visits")
+    .select((eb) => eb.fn.countAll<number>().as("total"))
+    .where((eb) => eb.and(scope))
+    .executeTakeFirstOrThrow()
 
-    return c.json({ data: rows.map(toVisit), total: total.total, limit: q.limit, offset: q.offset })
-  },
-)
+  return { data: rows.map(toVisit), total: total.total, limit: q.limit, offset: q.offset }
+}

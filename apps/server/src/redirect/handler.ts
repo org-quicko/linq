@@ -1,17 +1,17 @@
 import { type Condition, SLUG_PATTERN } from "@linq/shared"
 import type { Context } from "hono"
 import { createFactory } from "hono/factory"
-import { domainKey, targetKey } from "../cache.ts"
-import { clientPath, isReservedSlug } from "../config.ts"
-import type { Db } from "../db/client.ts"
-import { reqLog, span } from "../log.ts"
+import { domainKey, targetKey } from "../infra/cache.ts"
+import { clientPath, isReservedSlug } from "../infra/config.ts"
+import type { Db } from "../infra/db/client.ts"
+import { reqLog, span } from "../infra/log.ts"
 import { matchRules } from "../rules/match.ts"
 import { listRules } from "../rules/store.ts"
 import { classifyBot, isPreviewCrawler } from "../visits/bot.ts"
 import { detectBrowser, detectOs, detectPlatform } from "../visits/platform.ts"
 import { recordVisit } from "../visits/record.ts"
-import { shortUrl } from "./api/links.ts"
-import type { Env } from "./env.ts"
+import { shortUrl } from "../links/service.ts"
+import type { Env } from "../app/env.ts"
 
 /** The part of a domain row the redirect needs. Null means no active domain. */
 export type ResolvedDomain = {

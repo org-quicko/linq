@@ -5,9 +5,9 @@ import { ApiError } from "@linq/shared"
 import type { Context, Next } from "hono"
 import pino, { type Logger } from "pino"
 import pinoRoll from "pino-roll"
-import type { Principal } from "./auth/middleware.ts"
+import type { Principal } from "../auth/middleware.ts"
 import { type Config, clientPath } from "./config.ts"
-import type { Env } from "./http/env.ts"
+import type { Env } from "../app/env.ts"
 
 /** Anything a serialised log line can be handed to. Tests pass an array-backed one. */
 export type Sink = { write(line: string): void }

@@ -2,7 +2,7 @@ import { createHash } from "node:crypto"
 import { dirname, isAbsolute, join, relative as relativePath, resolve } from "node:path"
 import { fileURLToPath } from "node:url"
 import type { Context, Hono } from "hono"
-import { clientPath, isAppHost } from "../config.ts"
+import { clientPath, isAppHost } from "../infra/config.ts"
 import type { Env } from "./env.ts"
 
 /**

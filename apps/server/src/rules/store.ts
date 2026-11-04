@@ -1,5 +1,5 @@
-import type { Db } from "../db/client.ts"
-import { span } from "../log.ts"
+import type { Db } from "../infra/db/client.ts"
+import { span } from "../infra/log.ts"
 
 /**
  * Reads every rule of one link in `position` order.

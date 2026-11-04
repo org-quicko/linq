@@ -1,7 +1,7 @@
 import { beforeAll, describe, expect, test } from "bun:test"
 import { existsSync, readdirSync } from "node:fs"
 import { join } from "node:path"
-import { adminRoot } from "../src/http/admin-static.ts"
+import { adminRoot } from "../src/app/admin-static.ts"
 import { createHarness, type Harness } from "./helpers/app.ts"
 
 /** The export is a build artefact, so these only run once the UI has been built. */
