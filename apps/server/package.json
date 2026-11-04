@@ -13,6 +13,7 @@
   "dependencies": {
     "@hono/zod-validator": "^0.7.4",
     "@linq/shared": "workspace:*",
+    "@modelcontextprotocol/sdk": "1.32.2",
     "hono": "^4.10.6",
     "isbot": "^5.1.32",
     "kysely": "^0.29.6",

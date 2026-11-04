@@ -42,18 +42,25 @@ as one either.
 ```
 
 Each API resource is one folder (`links/`, `domains/`, `rules/`, `qr-codes/`,
-`keys/`, `visits/`, `analytics/`) holding a `service.ts` and an `routes.ts`. The
+`keys/`, `visits/`, `analytics/`) holding a `service.ts` and a `routes.ts`. The
 service is where the resource's behaviour lives: permission checks, queries,
 transactions, cache invalidation and Caddy sync, as plain functions shaped
 `fn(deps, principal, input)` that throw `ApiError` and never see Hono's
 `Context`. `routes.ts` only validates the request and calls the service with
-`c.var`, which already carries every dependency (`Deps` in `deps.ts`). Any
-other entry point calls the same functions, so a write cannot be done twice
-with half its invalidation forgotten (`resources/docs/adr/0023`).
+`c.var`, which already carries every dependency (`Deps` in `deps.ts`). The
+MCP server (`mcp/`, at `/api/mcp`) calls the same functions, so a write cannot
+be done twice with half its invalidation forgotten (`resources/docs/adr/0023`).
 
 ```
-routes.ts (validate)  ──►  service.ts (permissions, SQL, cache, Caddy)  ◄──  any other entry point
+routes.ts (validate)  ──►  service.ts (permissions, SQL, cache, Caddy)  ◄──  mcp/tools.ts (validate)
 ```
+
+MCP is stateless Streamable HTTP: each request builds a fresh server holding
+only the tools the key's claims permit, so `tools/list` shows exactly what the
+key may do, and every call is checked again. It sits behind the same
+`authenticate` and the same rate limiter instance as `/api/v1`, so a key has
+one budget across both. Read tools need no claim, as REST reads need none;
+purging, key management and domain writes are not exposed.
 
 Process-wide plumbing (config, logger, database, cache, Caddy, metadata
 fetching) lives in `infra/`; the public redirect and `/llms.txt` in
