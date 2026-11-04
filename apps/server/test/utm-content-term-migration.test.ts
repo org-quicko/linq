@@ -4,7 +4,7 @@ import path from "node:path"
 import { PGlite } from "@electric-sql/pglite"
 import { Kysely, PGliteDialect, sql } from "kysely"
 import { FileMigrationProvider, Migrator } from "kysely/migration"
-import { migrationsFolder } from "../src/db/migrate.ts"
+import { migrationsFolder } from "../src/infra/db/migrate.ts"
 
 const DIMENSIONS = ["utm_source", "utm_medium", "utm_campaign", "utm_content", "utm_term"] as const
 const random = (n: number) =>

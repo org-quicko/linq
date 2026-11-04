@@ -6,24 +6,24 @@ import type { ContentfulStatusCode } from "hono/utils/http-status"
 import pkg from "../../package.json" with { type: "json" }
 import { authenticate } from "../auth/middleware.ts"
 import { limitByKey } from "../auth/rate-limit.ts"
-import { type Cache, guarded, noCache } from "../cache.ts"
-import { type Caddy, guarded as guardedCaddy, noCaddy } from "../caddy.ts"
-import { type Config, isAppHost } from "../config.ts"
-import type { Db } from "../db/client.ts"
-import { guarded as guardedMetadata, type MetadataFetcher, noMetadata } from "../link-metadata.ts"
-import { reqLog, withRequestLog } from "../log.ts"
+import { type Cache, guarded, noCache } from "../infra/cache.ts"
+import { type Caddy, guarded as guardedCaddy, noCaddy } from "../infra/caddy.ts"
+import { type Config, isAppHost } from "../infra/config.ts"
+import type { Db } from "../infra/db/client.ts"
+import { guarded as guardedMetadata, type MetadataFetcher, noMetadata } from "../infra/link-metadata.ts"
+import { reqLog, withRequestLog } from "../infra/log.ts"
 import { mountAdmin } from "./admin-static.ts"
-import { analyticsRoutes } from "./api/analytics.ts"
-import { domainRoutes } from "./api/domains.ts"
-import { keyRoutes } from "./api/keys.ts"
-import { linkRoutes, tagRoutes } from "./api/links.ts"
-import { meRoutes } from "./api/me.ts"
-import { qrCodeRoutes } from "./api/qr-codes.ts"
-import { ruleRoutes } from "./api/rules.ts"
-import { visitRoutes } from "./api/visits.ts"
+import { analyticsRoutes } from "../analytics/routes.ts"
+import { domainRoutes } from "../domains/routes.ts"
+import { keyRoutes, meRoutes } from "../keys/routes.ts"
+import { linkRoutes, tagRoutes } from "../links/routes.ts"
+import { mcpRoutes } from "../mcp/routes.ts"
+import { qrCodeRoutes } from "../qr-codes/routes.ts"
+import { ruleRoutes } from "../rules/routes.ts"
+import { visitRoutes } from "../visits/routes.ts"
 import type { Env } from "./env.ts"
-import { llmsHandler } from "./llms.ts"
-import { redirectHandler } from "./redirect.ts"
+import { llmsHandler } from "../redirect/llms.ts"
+import { redirectHandler } from "../redirect/handler.ts"
 
 export type AppDeps = {
   db: Db
@@ -95,8 +95,12 @@ export function createApp({
 
   app.get("/api/health", (c) => c.json({ status: "ok", version: pkg.version }))
 
+  // One limiter for REST and MCP alike, so a key has one budget per minute
+  // whichever protocol it speaks.
+  const limit = limitByKey(config.LINQ_API_RATE_LIMIT_PER_MINUTE)
+
   const v1 = new Hono<Env>()
-  v1.use("*", authenticate, limitByKey(config.LINQ_API_RATE_LIMIT_PER_MINUTE))
+  v1.use("*", authenticate, limit)
   v1.route("/analytics", analyticsRoutes)
   v1.route("/me", meRoutes)
   v1.route("/domains", domainRoutes)
@@ -107,6 +111,12 @@ export function createApp({
   v1.route("/tags", tagRoutes)
   v1.route("/keys", keyRoutes)
   app.route("/api/v1", v1)
+
+  // Under /api, so it claims no slug: `api` is already reserved.
+  const mcp = new Hono<Env>()
+  mcp.use("*", authenticate, limit)
+  mcp.route("/", mcpRoutes)
+  app.route("/api/mcp", mcp)
 
   // `.on([...])`, not `.get()`: GET-only left HEAD falling through to the
   // catch-all's 404. Both text routes take the same fix.

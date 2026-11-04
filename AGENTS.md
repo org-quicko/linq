@@ -15,7 +15,7 @@ covers what isn't obvious from the code.
   (PGlite, see `apps/server/test/helpers/db.ts`) per suite, never the real
   database or `DATABASE_URL`.
 - Database DDL lives in ordered, frozen Kysely migrations under
-  `apps/server/src/db/migrations/` (`0001_initial.ts` is the whole baseline
+  `apps/server/src/infra/db/migrations/` (`0001_initial.ts` is the whole baseline
   schema). Add a new `NNNN_<name>.ts` there, then run `bun run db:codegen`
   against a migrated PostgreSQL database to refresh query types.
 
@@ -32,12 +32,12 @@ covers what isn't obvious from the code.
 
 ## Docs conventions
 
-- `CONTEXT.md` is glossary only: terms, no implementation detail.
+- `GLOSSARY.md` is glossary only: terms, no implementation detail.
 
 ## Where things live
 
 - `README.md` — local setup, Docker, Redis/Caddy, deploying the Client UI.
-- `CONTEXT.md` — domain vocabulary.
+- `GLOSSARY.md` — domain vocabulary.
 - `resources/docs/architecture.md` — how the pieces fit together today.
 - `resources/docs/repo-map.md` — where everything lives, in more detail than this list.
 - `resources/docs/adr/` — decisions that are hard to reverse, and why.

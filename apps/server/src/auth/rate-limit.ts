@@ -1,6 +1,6 @@
 import { ApiError } from "@linq/shared"
 import { createMiddleware } from "hono/factory"
-import type { Env } from "../http/env.ts"
+import type { Env } from "../app/env.ts"
 
 type Window = { count: number; resetAt: number }
 

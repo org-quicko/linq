@@ -1,5 +1,5 @@
-import { describe, expect, test } from "bun:test"
-import { clientBaseSegment, isAppHost, isReservedSlug, loadConfig } from "../src/config.ts"
+import { describe, expect, spyOn, test } from "bun:test"
+import { clientBaseSegment, isAppHost, isReservedSlug, loadConfig } from "../src/infra/config.ts"
 
 describe("cache configuration", () => {
   test("defaults the memory sweep interval to 60 seconds", () => {
@@ -15,6 +15,32 @@ describe("cache configuration", () => {
 
     expect(config.LINQ_CACHE_TTL).toBe(300)
     expect(config.LINQ_CACHE_SWEEP_INTERVAL).toBe(15)
+  })
+})
+
+describe("visit batching configuration", () => {
+  test("defaults to batches of at most 100", () => {
+    expect(loadConfig({ DATABASE_URL: "memory://pglite" }).LINQ_VISIT_BATCH_SIZE).toBe(100)
+  })
+
+  test("rejects a batch larger than the pending cap", () => {
+    const exit = spyOn(process, "exit").mockImplementation((() => {
+      throw new Error("exit")
+    }) as never)
+    const error = spyOn(console, "error").mockImplementation(() => {})
+    try {
+      expect(() =>
+        loadConfig({
+          DATABASE_URL: "memory://pglite",
+          LINQ_VISIT_MAX_PENDING: "10",
+          LINQ_VISIT_BATCH_SIZE: "11",
+        }),
+      ).toThrow("exit")
+      expect(error.mock.calls[0]?.[0]).toContain("LINQ_VISIT_BATCH_SIZE")
+    } finally {
+      exit.mockRestore()
+      error.mockRestore()
+    }
   })
 })
 

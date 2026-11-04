@@ -1,11 +1,11 @@
 import { sql } from "kysely"
 import { createFactory } from "hono/factory"
-import { domainKey, llmsKey } from "../cache.ts"
-import type { Db } from "../db/client.ts"
-import { span } from "../log.ts"
-import { shortUrl } from "./api/links.ts"
-import type { Env } from "./env.ts"
-import { findActiveDomain, through } from "./redirect.ts"
+import { domainKey, llmsKey } from "../infra/cache.ts"
+import type { Db } from "../infra/db/client.ts"
+import { span } from "../infra/log.ts"
+import { shortUrl } from "../links/service.ts"
+import type { Env } from "../app/env.ts"
+import { findActiveDomain, through } from "./handler.ts"
 
 /**
  * No llms.txt is improved by 50,000 entries, and this is an unauthenticated

@@ -1,9 +1,9 @@
 import { PGlite } from "@electric-sql/pglite"
 import { Kysely, PGliteDialect } from "kysely"
-import type { Config } from "../../src/config.ts"
-import type { Db } from "../../src/db/client.ts"
-import { runMigrations } from "../../src/db/migrate.ts"
-import type { DB } from "../../src/db/types.generated.ts"
+import type { Config } from "../../src/infra/config.ts"
+import type { Db } from "../../src/infra/db/client.ts"
+import { runMigrations } from "../../src/infra/db/migrate.ts"
+import type { DB } from "../../src/infra/db/types.generated.ts"
 
 /**
  * An in-memory Postgres per suite. PGlite runs the same generated migrations as
@@ -28,6 +28,7 @@ export const testConfig: Config = {
   LINQ_PORT: 3000,
   LINQ_API_RATE_LIMIT_PER_MINUTE: 1_000,
   LINQ_VISIT_MAX_PENDING: 1_000,
+  LINQ_VISIT_BATCH_SIZE: 100,
   LINQ_CLIENT_BASE_PATH: "/home",
   LINQ_APP_HOST: undefined,
   LINQ_DEFAULT_DOMAIN: undefined,

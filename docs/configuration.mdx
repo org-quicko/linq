@@ -325,10 +325,22 @@ Maximum API requests per key per minute. Unset means no per-process rate limit i
 | | |
 |---|---|
 | **Type** | Integer |
-| **Default** | *(unset — no limit)* |
+| **Default** | `1000` |
 | **Example** | `1000` |
 
-Maximum number of visit analytics events queued in-process waiting to be written to Postgres. Limits memory growth under redirect traffic spikes. Unset means unbounded.
+Maximum number of visits queued in-process waiting to be written to Postgres. Limits memory growth under redirect traffic spikes; once the queue is full, further visits are dropped (and a warning is logged) until it drains.
+
+</Accordion>
+
+<Accordion title="LINQ_VISIT_BATCH_SIZE" icon="layer-group">
+
+| | |
+|---|---|
+| **Type** | Integer |
+| **Default** | `100` |
+| **Example** | `100` |
+
+Most visits written per database insert. Visits are never held back to fill a batch: each one is written as soon as no other visit insert is running, and those that arrived in the meantime go in together. Must not exceed `LINQ_VISIT_MAX_PENDING`; linq refuses to start otherwise.
 
 </Accordion>
 
