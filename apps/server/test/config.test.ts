@@ -1,4 +1,4 @@
-import { describe, expect, test } from "bun:test"
+import { describe, expect, spyOn, test } from "bun:test"
 import { clientBaseSegment, isAppHost, isReservedSlug, loadConfig } from "../src/infra/config.ts"
 
 const REDIS = "redis://localhost:6379"
