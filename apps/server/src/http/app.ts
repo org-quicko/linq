@@ -21,8 +21,8 @@ import { qrCodeRoutes } from "../qr-codes/http.ts"
 import { ruleRoutes } from "../rules/http.ts"
 import { visitRoutes } from "../visits/http.ts"
 import type { Env } from "./env.ts"
-import { llmsHandler } from "./llms.ts"
-import { redirectHandler } from "./redirect.ts"
+import { llmsHandler } from "../redirect/llms.ts"
+import { redirectHandler } from "../redirect/handler.ts"
 
 export type AppDeps = {
   db: Db
