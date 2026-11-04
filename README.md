@@ -184,7 +184,7 @@ Contributors and coding agents should read [`AGENTS.md`](AGENTS.md) first.
 
 ## Documentation
 
-- [`CONTEXT.md`](CONTEXT.md): the domain vocabulary. Read it before the code.
+- [`GLOSSARY.md`](GLOSSARY.md): the domain vocabulary. Read it before the code.
 - [`resources/docs/architecture.md`](resources/docs/architecture.md): how the pieces fit together.
 - [`resources/docs/repo-map.md`](resources/docs/repo-map.md): where everything lives.
 - [`resources/docs/adr/`](resources/docs/adr/): architecture decision records.
