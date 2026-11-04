@@ -10,7 +10,7 @@ import { listRules } from "../rules/store.ts"
 import { classifyBot, isPreviewCrawler } from "../visits/bot.ts"
 import { detectBrowser, detectOs, detectPlatform } from "../visits/platform.ts"
 import { recordVisit } from "../visits/record.ts"
-import { shortUrl } from "./api/links.ts"
+import { shortUrl } from "../links/service.ts"
 import type { Env } from "./env.ts"
 
 /** The part of a domain row the redirect needs. Null means no active domain. */

@@ -8,7 +8,7 @@ import type { DB } from "../../db/types.generated.ts"
 import { listRules } from "../../rules/store.ts"
 import type { Env } from "../env.ts"
 import { validate } from "../validate.ts"
-import { loadLink } from "./links.ts"
+import { loadLink } from "../../links/service.ts"
 
 const idParam = validate("param", z.object({ id: uuidSchema }))
 

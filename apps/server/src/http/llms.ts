@@ -3,7 +3,7 @@ import { createFactory } from "hono/factory"
 import { domainKey, llmsKey } from "../cache.ts"
 import type { Db } from "../db/client.ts"
 import { span } from "../log.ts"
-import { shortUrl } from "./api/links.ts"
+import { shortUrl } from "../links/service.ts"
 import type { Env } from "./env.ts"
 import { findActiveDomain, through } from "./redirect.ts"
 
