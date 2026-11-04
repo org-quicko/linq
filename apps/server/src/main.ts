@@ -35,7 +35,7 @@ const server = Bun.serve({
 log.info({ port: config.LINQ_PORT, version: pkg.version }, "linq listening")
 
 /**
- * Visits are inserted fire-and-forget and log writes are buffered, so both are
+ * Visits are queued for batched inserts and log writes are buffered, so both are
  * drained before exit or `docker stop` silently loses the last of each.
  */
 async function shutdown(signal: string): Promise<void> {

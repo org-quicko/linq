@@ -278,7 +278,7 @@ export const redirectHandler = factory.createHandlers(async (c) => {
       recordVisit(
         c.var.db,
         { ...visit, link_id: null, destination },
-        c.var.config.LINQ_VISIT_MAX_PENDING,
+        c.var.config,
       )
     if (!destination) return c.text("Not Found", 404)
     return isPreviewCrawler(user_agent)
@@ -317,7 +317,7 @@ export const redirectHandler = factory.createHandlers(async (c) => {
     recordVisit(
       c.var.db,
       { ...visit, link_id: link.link_id, destination: chosen },
-      c.var.config.LINQ_VISIT_MAX_PENDING,
+      c.var.config,
     )
 
   return isPreviewCrawler(user_agent) ? ogPreview(c, host, slug, link) : sendRedirect(c, sendTo)

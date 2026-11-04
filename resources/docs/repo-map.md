@@ -60,7 +60,7 @@ a separate Next.js project with its own config. `bun run typecheck` runs
 | `http/validate.ts` | The zod-body/query/param validation middleware every route uses |
 | `http/api/` | One file per resource: `analytics.ts`, `domains.ts`, `keys.ts`, `links.ts` (+ `tagRoutes`), `me.ts`, `qr-codes.ts`, `rules.ts`, `visits.ts` — each a Hono sub-app mounted under `/api/v1` in `app.ts` |
 | `rules/` | `match.ts` (pure condition evaluation, no I/O), `store.ts` (loads a link's rules in position order) |
-| `visits/` | `record.ts` (fire-and-forget insert plus `flushVisits` for shutdown), `bot.ts` (bot and link-preview-crawler detection), `platform.ts` (platform/OS/browser parsing from the user agent) |
+| `visits/` | `record.ts` (the OTel batch queue and Postgres exporter that write visits, plus `flushVisits` for shutdown), `bot.ts` (bot and link-preview-crawler detection), `platform.ts` (platform/OS/browser parsing from the user agent) |
 | `cli/create-key.ts` | `bun run key:create` — mints a key without a restart, same path as the HTTP route |
 
 ## `apps/client/`
