@@ -7,14 +7,18 @@ import {
   periodStart,
   smoothPath,
 } from "../components/analytics-overview"
-import { isWindowWithinYear, presetWindow, rangeLabel, rangeValidation } from "../lib/hooks"
+import {
+  isWindowWithinYear,
+  presetWindow,
+  presetYear,
+  rangeLabel,
+  rangeValidation,
+} from "../lib/hooks"
 
 describe("analytics ranges", () => {
   test("describes filtered empty analytics without implying there are no visits at all", () => {
-    expect(analyticsEmptyMessage(true, "No visits recorded yet.")).toBe(
-      "No visits match the applied filters.",
-    )
-    expect(analyticsEmptyMessage(false, "No visits recorded yet.")).toBe("No visits recorded yet.")
+    expect(analyticsEmptyMessage(true, "No visits.")).toBe("No visits match the applied filters.")
+    expect(analyticsEmptyMessage(false, "No visits.")).toBe("No visits.")
   })
 
   test("preset windows include today", () => {
@@ -22,6 +26,33 @@ describe("analytics ranges", () => {
       from: "2026-09-16",
       to: "2026-09-22",
     })
+  })
+
+  test("this year runs from Jan 1 (UTC) through today", () => {
+    expect(presetWindow("this_year", new Date("2026-11-15T12:00:00Z"))).toEqual({
+      from: "2026-01-01",
+      to: "2026-11-15",
+    })
+  })
+
+  test("last year is the whole previous UTC calendar year", () => {
+    expect(presetWindow("last_year", new Date("2026-11-15T12:00:00Z"))).toEqual({
+      from: "2025-01-01",
+      to: "2025-12-31",
+    })
+  })
+
+  test("calendar years follow UTC, not the local clock", () => {
+    // 23:30 UTC on Dec 31 is already Jan 1 in Asia/Kolkata; linq's year has not turned.
+    expect(presetWindow("this_year", new Date("2026-12-31T23:30:00Z")).from).toBe("2026-01-01")
+    expect(presetYear("last_year", new Date("2027-01-01T00:00:00Z"))).toBe(2026)
+    expect(presetYear("30")).toBeNull()
+  })
+
+  test("a leap year still fits the API's one-year cap", () => {
+    const leap = presetWindow("last_year", new Date("2025-03-01T00:00:00Z"))
+    expect(leap).toEqual({ from: "2024-01-01", to: "2024-12-31" })
+    expect(isWindowWithinYear(leap.from, leap.to)).toBe(true)
   })
 
   test("labels custom windows", () => {

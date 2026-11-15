@@ -135,7 +135,8 @@ export function AnalyticsOverview() {
     setSegments((current) => current.filter((item) => item !== segment))
   const selected = (dim: Segment["dim"]) => segments.filter((segment) => segment.dim === dim)
   const totals = summary.data ?? { visits: 0, human: 0, bot: 0, orphans: 0 }
-  const hasAppliedFilters = Boolean(link_id || segments.length || preset !== "7")
+  // A link or a segment narrows the report; the date range only picks the window, so it is not a filter.
+  const hasAppliedFilters = Boolean(link_id || segments.length)
 
   return (
     <div className="analytics-page-enter flex flex-col gap-4">
@@ -319,7 +320,7 @@ function BreakdownCard({
         </div>
       ) : (
         <p className="py-4 text-center text-sm text-muted-foreground">
-          {analyticsEmptyMessage(hasAppliedFilters, "No data yet.")}
+          {analyticsEmptyMessage(hasAppliedFilters, "No visits.")}
         </p>
       )}
     </div>
@@ -608,7 +609,7 @@ function VisitsChart({
         <div className="h-32 animate-pulse rounded bg-muted motion-reduce:animate-none" />
       ) : !chart ? (
         <p className="py-10 text-center text-sm text-muted-foreground">
-          {analyticsEmptyMessage(hasAppliedFilters, "No visits recorded yet.")}
+          {analyticsEmptyMessage(hasAppliedFilters, "No visits.")}
         </p>
       ) : (
         <>

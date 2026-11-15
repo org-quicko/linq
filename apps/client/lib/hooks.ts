@@ -19,11 +19,18 @@ export function useDebounced<T>(value: T, delay = 300): T {
   return settled
 }
 
-/** How far back to read. Analytics always sends a bounded whole-day window. */
+/**
+ * How far back to read. Analytics always sends a bounded whole-day window.
+ * `rolling` presets count back from today; `calendar` ones are UTC calendar
+ * years. Every one stays within the API's 366-day cap, so each also works with
+ * a dimension filter (Dec 31 is 365 days after Jan 1 even in a leap year).
+ */
 export const RANGES = [
-  { value: "7", label: "Last 7 days" },
-  { value: "30", label: "Last 30 days" },
-  { value: "90", label: "Last 90 days" },
+  { value: "7", label: "Last 7 days", group: "rolling" },
+  { value: "30", label: "Last 30 days", group: "rolling" },
+  { value: "90", label: "Last 90 days", group: "rolling" },
+  { value: "this_year", label: "This year", group: "calendar" },
+  { value: "last_year", label: "Last year", group: "calendar" },
 ] as const
 export type Range = (typeof RANGES)[number]["value"]
 
@@ -33,8 +40,19 @@ function utcDay(date: Date): string {
   return date.toISOString().slice(0, 10)
 }
 
+/** The UTC year a calendar preset covers, for the menu's hint. Null for rolling presets. */
+export function presetYear(range: Range, today = new Date()): number | null {
+  if (range === "this_year") return today.getUTCFullYear()
+  if (range === "last_year") return today.getUTCFullYear() - 1
+  return null
+}
+
 export function presetWindow(range: Range, today = new Date()): DayWindow {
   const end = utcDay(today)
+  const year = presetYear(range, today)
+  // This year runs to today (no empty future months); last year is all of it.
+  if (range === "this_year") return { from: `${year}-01-01`, to: end }
+  if (range === "last_year") return { from: `${year}-01-01`, to: `${year}-12-31` }
   const start = new Date(`${end}T00:00:00Z`)
   start.setUTCDate(start.getUTCDate() - (Number(range) - 1))
   return { from: utcDay(start), to: end }
@@ -45,7 +63,11 @@ export function rangeLabel(preset: Range | "custom", custom: DayWindow | null): 
     return RANGES.find((range) => range.value === preset)?.label ?? "Last 7 days"
   if (!custom) return "Custom range"
   const format = (day: string) =>
-    new Date(`${day}T00:00:00Z`).toLocaleDateString(undefined, { month: "short", day: "numeric" })
+    new Date(`${day}T00:00:00Z`).toLocaleDateString(undefined, {
+      month: "short",
+      day: "numeric",
+      timeZone: "UTC",
+    })
   return `${format(custom.from)} – ${format(custom.to)}`
 }
 
