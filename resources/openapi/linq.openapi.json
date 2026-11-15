@@ -1197,13 +1197,16 @@
           "Analytics"
         ],
         "operationId": "getAnalyticsTimeseries",
-        "summary": "Daily visit totals",
+        "summary": "Visit totals over time, by day, week or month",
         "parameters": [
           {
             "$ref": "#/components/parameters/AnalyticsFrom"
           },
           {
             "$ref": "#/components/parameters/AnalyticsTo"
+          },
+          {
+            "$ref": "#/components/parameters/AnalyticsGranularity"
           },
           {
             "$ref": "#/components/parameters/AnalyticsLinkId"
@@ -1930,6 +1933,20 @@
             "any"
           ],
           "default": "any"
+        }
+      },
+      "AnalyticsGranularity": {
+        "name": "granularity",
+        "in": "query",
+        "description": "Bucket width. Each bucket's `key` is the UTC date its period starts on: the day, the Monday of its ISO week, or the first of its month. The first bucket can start before `from` but only counts visits inside the window.",
+        "schema": {
+          "type": "string",
+          "enum": [
+            "day",
+            "week",
+            "month"
+          ],
+          "default": "day"
         }
       },
       "AnalyticsReferer": {

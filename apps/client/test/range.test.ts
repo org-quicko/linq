@@ -1,8 +1,10 @@
 import { describe, expect, test } from "bun:test"
 import {
   analyticsEmptyMessage,
+  bucketLabel,
   chartPoints,
-  foldWeeks,
+  fillBuckets,
+  periodStart,
   smoothPath,
 } from "../components/analytics-overview"
 import { isWindowWithinYear, presetWindow, rangeLabel, rangeValidation } from "../lib/hooks"
@@ -40,15 +42,55 @@ describe("analytics ranges", () => {
     expect(rangeValidation("2026-09-01", "2026-09-18")).toBeNull()
   })
 
-  test("folds dense days into Monday weeks", () => {
-    const days = Array.from({ length: 121 }, (_, i) => ({
-      key: new Date(Date.UTC(2026, 0, i + 1)).toISOString().slice(0, 10),
+  test("period starts match the server's keys: Monday weeks, first-of-month", () => {
+    expect(periodStart("2026-03-01", "day")).toBe("2026-03-01")
+    expect(periodStart("2026-03-01", "week")).toBe("2026-02-23") // a Sunday
+    expect(periodStart("2026-03-02", "week")).toBe("2026-03-02") // a Monday
+    expect(periodStart("2026-03-31", "month")).toBe("2026-03-01")
+  })
+
+  test("zero-fills every period through `to`", () => {
+    const filled = fillBuckets(
+      [{ key: "2026-03-02", human: 2, bot: 0 }],
+      "2026-03-01",
+      "2026-03-04",
+      "day",
+    )
+    expect(filled.map((b) => b.key)).toEqual([
+      "2026-03-01",
+      "2026-03-02",
+      "2026-03-03",
+      "2026-03-04",
+    ])
+    expect(filled[1]).toEqual({ key: "2026-03-02", human: 2, bot: 0 })
+  })
+
+  test("folds daily buckets from a server that ignored granularity", () => {
+    const days = Array.from({ length: 14 }, (_, i) => ({
+      key: new Date(Date.UTC(2026, 2, i + 1)).toISOString().slice(0, 10),
       human: 1,
       bot: 0,
     }))
-    const weeks = foldWeeks(days)
-    expect(weeks.length).toBeLessThan(days.length)
-    expect(weeks[0]).toEqual({ key: "2025-12-29", human: 4, bot: 0 })
+    const weeks = fillBuckets(days, "2026-03-01", "2026-03-14", "week")
+    expect(weeks).toEqual([
+      { key: "2026-02-23", human: 1, bot: 0 },
+      { key: "2026-03-02", human: 7, bot: 0 },
+      { key: "2026-03-09", human: 6, bot: 0 },
+    ])
+    expect(fillBuckets(days, "2026-03-01", "2026-03-14", "month")).toEqual([
+      { key: "2026-03-01", human: 14, bot: 0 },
+    ])
+  })
+
+  test("labels a bucket with the days it actually counts", () => {
+    const window = { from: "2026-03-01", to: "2026-03-10" }
+    // The week of Feb 23 overlaps the window by one day, Mar 1, and says so.
+    expect(bucketLabel("2026-02-23", "week", window)).not.toContain("Feb")
+    expect(bucketLabel("2026-02-23", "week", window)).not.toContain("–")
+    expect(bucketLabel("2026-03-09", "week", window)).toContain("–")
+    expect(bucketLabel("2026-03-01", "month", { from: "2026-03-01", to: "2026-03-31" })).toContain(
+      "2026",
+    )
   })
 
   test("renders the trend as a continuous line", () => {

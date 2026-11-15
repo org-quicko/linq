@@ -2,11 +2,13 @@ import {
   ANALYTICS_FILTERS,
   type AnalyticsBreakdownQuery,
   type AnalyticsDimension,
+  type AnalyticsGranularity,
   type AnalyticsQuery,
   type AnalyticsSummary,
+  type AnalyticsTimeseriesQuery,
   type StatsBucket,
 } from "@linq/shared"
-import { type SqlBool, sql } from "kysely"
+import { type RawBuilder, type SqlBool, sql } from "kysely"
 import { type Db, span } from "../libs/index.ts"
 import { type VisitFilter, visitFilters } from "./VisitService.ts"
 
@@ -16,9 +18,27 @@ import { type VisitFilter, visitFilters } from "./VisitService.ts"
  * rollup does not keep, so the raw `visits` log answers instead.
  */
 
+/**
+ * The timeseries bucket key per granularity, on each read path: the UTC date
+ * its period starts on. `date_trunc('week', …)` is ISO, so weeks start on
+ * Monday. The rollup's `day` is cast to a plain `timestamp` first, so the
+ * session time zone never shifts a bucket. Fixed fragments rather than a bound
+ * parameter, because GROUP BY must repeat the SELECT expression exactly, and two
+ * separately numbered parameters would not match.
+ */
+const ROLLUP_BUCKET: Record<AnalyticsGranularity, RawBuilder<string>> = {
+  day: sql<string>`to_char(day, 'YYYY-MM-DD')`,
+  week: sql<string>`to_char(date_trunc('week', day::timestamp), 'YYYY-MM-DD')`,
+  month: sql<string>`to_char(date_trunc('month', day::timestamp), 'YYYY-MM-DD')`,
+}
+const DETAIL_BUCKET: Record<AnalyticsGranularity, RawBuilder<string>> = {
+  day: sql<string>`to_char(visited_at at time zone 'UTC', 'YYYY-MM-DD')`,
+  week: sql<string>`to_char(date_trunc('week', visited_at at time zone 'UTC'), 'YYYY-MM-DD')`,
+  month: sql<string>`to_char(date_trunc('month', visited_at at time zone 'UTC'), 'YYYY-MM-DD')`,
+}
+
 /** The bucket key each breakdown dimension groups the raw log by. */
 const DETAIL_KEY = {
-  day: sql<string>`to_char(visited_at at time zone 'UTC', 'YYYY-MM-DD')`,
   platform: sql<string>`platform::text`,
   os: sql<string>`coalesce(os, '')`,
   browser: sql<string>`coalesce(browser, '')`,
@@ -68,20 +88,16 @@ function detailFilters(q: AnalyticsQuery): VisitFilter[] {
 function aggregateRollup(
   db: Db,
   scope: VisitFilter[],
-  dimension: AnalyticsDimension | "day",
+  dimension: AnalyticsDimension,
 ): Promise<StatsBucket[]> {
-  const key =
-    dimension === "day" ? sql<string>`to_char(day, 'YYYY-MM-DD')` : sql<string>`${sql.ref("value")}`
+  const key = sql<string>`${sql.ref("value")}`
   return db
     .selectFrom("visit_days")
     .select([key.as("key"), rollupHuman.as("human"), rollupBot.as("bot")])
-    .where("dimension", "=", dimension === "day" ? "total" : dimension)
+    .where("dimension", "=", dimension)
     .where((eb) => eb.and(scope))
     .groupBy(key)
-    .orderBy(
-      dimension === "day" ? key : sql<number>`sum(count)`,
-      dimension === "day" ? "asc" : "desc",
-    )
+    .orderBy(sql<number>`sum(count)`, "desc")
     .execute()
     .then(toBuckets)
 }
@@ -136,13 +152,24 @@ export function getSummary(db: Db, q: AnalyticsQuery): Promise<AnalyticsSummary>
   )
 }
 
-export function getTimeseries(db: Db, q: AnalyticsQuery): Promise<StatsBucket[]> {
+export function getTimeseries(db: Db, q: AnalyticsTimeseriesQuery): Promise<StatsBucket[]> {
   const detail = needsDetail(q)
   return span(
     "analytics.timeseries",
     () => {
-      if (!detail) return aggregateRollup(db, rollupScope(q), "day")
-      const key = DETAIL_KEY.day
+      if (!detail) {
+        const key = ROLLUP_BUCKET[q.granularity]
+        return db
+          .selectFrom("visit_days")
+          .select([key.as("key"), rollupHuman.as("human"), rollupBot.as("bot")])
+          .where("dimension", "=", "total")
+          .where((eb) => eb.and(rollupScope(q)))
+          .groupBy(key)
+          .orderBy(key, "asc")
+          .execute()
+          .then(toBuckets)
+      }
+      const key = DETAIL_BUCKET[q.granularity]
       return db
         .selectFrom("visits")
         .select([key.as("key"), human.as("human"), bot.as("bot")])
@@ -152,7 +179,7 @@ export function getTimeseries(db: Db, q: AnalyticsQuery): Promise<StatsBucket[]>
         .execute()
         .then(toBuckets)
     },
-    { in: { source: detail ? "detail" : "rollup" } },
+    { in: { source: detail ? "detail" : "rollup", granularity: q.granularity } },
   )
 }
 

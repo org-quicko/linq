@@ -142,6 +142,46 @@ describe("GET /api/v1/analytics/timeseries", () => {
     const buckets: StatsBucket[] = await json("/timeseries?from=2026-02-01&to=2026-03-02&os=ios")
     expect(buckets).toEqual([{ key: "2026-03-02", human: 1, bot: 0 }])
   })
+
+  test("granularity defaults to day", async () => {
+    expect(await json(`/timeseries?${WINDOW}&granularity=day`)).toEqual(
+      await json(`/timeseries?${WINDOW}`),
+    )
+  })
+
+  // 2026-03-01 is a Sunday and 2026-03-02 a Monday, so the fixture straddles a week boundary.
+  test("weekly buckets are ISO weeks keyed by their Monday", async () => {
+    const buckets: StatsBucket[] = await json(`/timeseries?${WINDOW}&granularity=week`)
+    expect(buckets).toEqual([
+      { key: "2026-02-23", human: 2, bot: 1 },
+      { key: "2026-03-02", human: 3, bot: 0 },
+    ])
+  })
+
+  test("monthly buckets are keyed by the first of the month", async () => {
+    const buckets: StatsBucket[] = await json(`/timeseries?${WINDOW}&granularity=month`)
+    expect(buckets).toEqual([{ key: "2026-03-01", human: 5, bot: 1 }])
+  })
+
+  test("a bucket that starts before `from` still counts only the window", async () => {
+    const buckets: StatsBucket[] = await json(
+      "/timeseries?from=2026-03-02&to=2026-03-31&granularity=month",
+    )
+    expect(buckets).toEqual([{ key: "2026-03-01", human: 3, bot: 0 }])
+  })
+
+  test("path equivalence: every granularity agrees across rollup and detail", async () => {
+    const everything = "os=android,ios,windows,(none)"
+    for (const granularity of ["day", "week", "month"]) {
+      const rollup = await json(`/timeseries?${WINDOW}&granularity=${granularity}`)
+      const detail = await json(`/timeseries?${WINDOW}&granularity=${granularity}&${everything}`)
+      expect(detail).toEqual(rollup)
+    }
+  })
+
+  test("rejects an unknown granularity", async () => {
+    expect((await analytics("/timeseries?granularity=hour")).status).toBe(400)
+  })
 })
 
 describe("GET /api/v1/analytics/breakdown", () => {

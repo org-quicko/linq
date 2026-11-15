@@ -119,13 +119,23 @@ function withWindowRules<T extends WindowedQuery>(schema: z.ZodType<T>) {
     )
 }
 
+/** How wide one timeseries bucket is. A bucket's key is the UTC date its
+ *  period starts on: the day itself, the Monday of its ISO week, or the first
+ *  of its month. The first bucket can therefore start before `from`; it still
+ *  counts only visits inside the window. */
+export const ANALYTICS_GRANULARITIES = ["day", "week", "month"] as const
+export type AnalyticsGranularity = (typeof ANALYTICS_GRANULARITIES)[number]
+
 export const analyticsSummaryQuerySchema = withWindowRules(z.object(analyticsQueryShape))
-export const analyticsTimeseriesQuerySchema = withWindowRules(z.object(analyticsQueryShape))
+export const analyticsTimeseriesQuerySchema = withWindowRules(
+  z.object({ ...analyticsQueryShape, granularity: z.enum(ANALYTICS_GRANULARITIES).default("day") }),
+)
 export const analyticsBreakdownQuerySchema = withWindowRules(
   z.object({ ...analyticsQueryShape, dimension: z.enum(ANALYTICS_DIMENSIONS) }),
 )
 
 export type AnalyticsQuery = z.infer<typeof analyticsSummaryQuerySchema>
+export type AnalyticsTimeseriesQuery = z.infer<typeof analyticsTimeseriesQuerySchema>
 export type AnalyticsBreakdownQuery = z.infer<typeof analyticsBreakdownQuerySchema>
 
 export type AnalyticsSummary = {

@@ -1,6 +1,11 @@
 "use client"
 
-import { NOT_RECORDED, type StatsBucket } from "@linq/shared"
+import {
+  ANALYTICS_GRANULARITIES,
+  type AnalyticsGranularity,
+  NOT_RECORDED,
+  type StatsBucket,
+} from "@linq/shared"
 import { skipToken } from "@reduxjs/toolkit/query/react"
 import { Check, ChevronDown, Globe, Megaphone, Monitor, Smartphone, Tablet, X } from "lucide-react"
 import { useRouter, useSearchParams } from "next/navigation"
@@ -60,6 +65,12 @@ const UTM_OPTIONS: Record<TrackingView, string> = {
   utm_term: "Term",
 }
 
+/** Focus ring, as the shadcn primitives draw it, for the hand-rolled controls on this screen. */
+const FOCUS_RING = "outline-none focus-visible:ring-[3px] focus-visible:ring-ring/50"
+/** The quiet "view" dropdown in each card header. It answers hover, press and focus;
+ *  `transform` and `color` are its only transitioned properties. */
+const SELECTOR_TRIGGER = `flex cursor-pointer items-center gap-1 rounded-sm text-[13px] text-muted-foreground transition-[color,transform] duration-150 ease-out hover:text-foreground active:scale-[0.97] data-[state=open]:text-foreground motion-reduce:active:scale-100 ${FOCUS_RING}`
+
 export function AnalyticsOverview() {
   const router = useRouter()
   const search = useSearchParams()
@@ -77,6 +88,10 @@ export function AnalyticsOverview() {
   const [legacyDevices, setLegacyDevices] = useState(false)
   const deviceDimension = deviceView === "device_type" && legacyDevices ? "platform" : deviceView
   const [sourceView, setSourceView] = useState<SourceView>("referer")
+  const [granularity, setGranularity] = useState<AnalyticsGranularity>(() => {
+    const requested = search.get("granularity")
+    return ANALYTICS_GRANULARITIES.find((g) => g === requested) ?? "day"
+  })
   const linked = useGetLinkQuery(link_id || skipToken)
   const { preset, custom, setPreset, setCustom, from, to, label } = useRange()
   const params = useMemo(() => {
@@ -96,11 +111,12 @@ export function AnalyticsOverview() {
     if (link_id) query.set("link_id", link_id)
     for (const [key, value] of Object.entries(params))
       if (key !== "from" && key !== "to" && value) query.set(key, value)
+    if (granularity !== "day") query.set("granularity", granularity)
     router.replace(`/analytics/${query.size ? `?${query}` : ""}`)
-  }, [link_id, params, router])
+  }, [link_id, params, granularity, router])
 
   const summary = useGetAnalyticsSummaryQuery(params)
-  const timeseries = useGetAnalyticsTimeseriesQuery(params)
+  const timeseries = useGetAnalyticsTimeseriesQuery({ ...params, granularity })
   const sources = useGetAnalyticsBreakdownQuery({ ...params, dimension: sourceView })
   const devices = useGetAnalyticsBreakdownQuery({ ...params, dimension: deviceDimension })
   const devicesStatus = (devices.error as { status?: number } | undefined)?.status
@@ -136,7 +152,7 @@ export function AnalyticsOverview() {
             <button
               key={`${segment.dim}:${segment.value}`}
               type="button"
-              className="flex shrink-0 cursor-pointer items-center gap-1 whitespace-nowrap rounded-full border px-2 py-1 text-xs"
+              className={`flex shrink-0 cursor-pointer items-center gap-1 whitespace-nowrap rounded-full border px-2 py-1 text-xs transition-[background-color,transform] duration-150 ease-out hover:bg-muted active:scale-[0.97] motion-reduce:active:scale-100 ${FOCUS_RING}`}
               onClick={() => remove(segment)}
             >
               {segmentLabel(segment)}
@@ -182,9 +198,12 @@ export function AnalyticsOverview() {
         ) : null}
       </div>
       <VisitsChart
-        buckets={timeseries.data ?? []}
+        buckets={timeseries.currentData ?? []}
         from={from}
-        loading={timeseries.isLoading}
+        to={to}
+        granularity={granularity}
+        onGranularity={setGranularity}
+        loading={timeseries.isFetching && !timeseries.currentData}
         hasAppliedFilters={hasAppliedFilters}
       />
       <div className="grid gap-3 sm:grid-cols-2">
@@ -269,7 +288,7 @@ function BreakdownCard({
         {selector}
       </div>
       {loading ? (
-        <div className="h-28 animate-pulse rounded bg-muted" />
+        <div className="h-28 animate-pulse rounded bg-muted motion-reduce:animate-none" />
       ) : shown.length ? (
         <div className="space-y-1.5">
           {shown.map((row) => {
@@ -278,7 +297,7 @@ function BreakdownCard({
               <button
                 key={row.key}
                 type="button"
-                className="group flex w-full cursor-pointer items-center gap-2"
+                className={`group flex w-full cursor-pointer items-center gap-2 rounded ${FOCUS_RING}`}
                 onClick={() => onClick(dimension, row.key)}
               >
                 <span className="relative flex h-8 min-w-0 flex-1 overflow-hidden rounded text-left">
@@ -356,10 +375,7 @@ function SourceSelector({
   return (
     <DropdownMenu>
       <DropdownMenuTrigger asChild>
-        <button
-          type="button"
-          className="flex cursor-pointer items-center gap-1 text-[13px] text-muted-foreground"
-        >
+        <button type="button" className={SELECTOR_TRIGGER}>
           {value === "referer" ? "Referrer" : TRACKING_LABELS[value]}
           <ChevronDown className="size-3" />
         </button>
@@ -397,10 +413,7 @@ function ViewSelector<T extends string>({
   return (
     <DropdownMenu>
       <DropdownMenuTrigger asChild>
-        <button
-          type="button"
-          className="flex cursor-pointer items-center gap-1 text-[13px] text-muted-foreground"
-        >
+        <button type="button" className={SELECTOR_TRIGGER}>
           {labels[value]}
           <ChevronDown className="size-3" />
         </button>
@@ -417,32 +430,47 @@ function ViewSelector<T extends string>({
   )
 }
 
-export function fillDays(buckets: StatsBucket[], from: string): StatsBucket[] {
-  if (!buckets.length) return buckets
-  const found = new Map(buckets.map((bucket) => [bucket.key, bucket]))
-  const end = buckets[buckets.length - 1].key
-  const result: StatsBucket[] = []
-  for (
-    let day = new Date(`${from}T00:00:00Z`);
-    utc(day) <= end;
-    day.setUTCDate(day.getUTCDate() + 1)
-  )
-    result.push(found.get(utc(day)) ?? { key: utc(day), human: 0, bot: 0 })
-  return result
+/** The UTC date the period containing `day` starts on: itself, its ISO
+ *  week's Monday, or the first of its month — the server's bucket keys. */
+export function periodStart(day: string, granularity: AnalyticsGranularity): string {
+  const date = new Date(`${day}T00:00:00Z`)
+  if (granularity === "week") date.setUTCDate(date.getUTCDate() - ((date.getUTCDay() + 6) % 7))
+  if (granularity === "month") date.setUTCDate(1)
+  return utc(date)
 }
-export function foldWeeks(days: StatsBucket[]): StatsBucket[] {
-  if (days.length <= 120) return days
-  const weeks = new Map<string, StatsBucket>()
-  for (const day of days) {
-    const date = new Date(`${day.key}T00:00:00Z`)
-    date.setUTCDate(date.getUTCDate() - ((date.getUTCDay() + 6) % 7))
-    const key = utc(date)
-    const current = weeks.get(key) ?? { key, human: 0, bot: 0 }
-    current.human += day.human
-    current.bot += day.bot
-    weeks.set(key, current)
+function nextPeriod(start: string, granularity: AnalyticsGranularity): string {
+  const date = new Date(`${start}T00:00:00Z`)
+  if (granularity === "month") date.setUTCMonth(date.getUTCMonth() + 1)
+  else date.setUTCDate(date.getUTCDate() + (granularity === "week" ? 7 : 1))
+  return utc(date)
+}
+
+/**
+ * One bucket per period from `from` through `to`, zero-filled, so a quiet
+ * stretch reads as a flat line rather than being skipped. Buckets are re-keyed
+ * to their period start before summing, which is a no-op for a server that
+ * already grouped them and folds daily buckets from one that predates
+ * `granularity` and ignored it.
+ */
+export function fillBuckets(
+  buckets: StatsBucket[],
+  from: string,
+  to: string,
+  granularity: AnalyticsGranularity,
+): StatsBucket[] {
+  if (!buckets.length) return []
+  const found = new Map<string, StatsBucket>()
+  for (const bucket of buckets) {
+    const key = periodStart(bucket.key, granularity)
+    const current = found.get(key) ?? { key, human: 0, bot: 0 }
+    current.human += bucket.human
+    current.bot += bucket.bot
+    found.set(key, current)
   }
-  return [...weeks.values()]
+  const result: StatsBucket[] = []
+  for (let key = periodStart(from, granularity); key <= to; key = nextPeriod(key, granularity))
+    result.push(found.get(key) ?? { key, human: 0, bot: 0 })
+  return result
 }
 function utc(date: Date) {
   return date.toISOString().slice(0, 10)
@@ -502,25 +530,69 @@ function TipRow({ label, value, strong }: { label: string; value: number; strong
   )
 }
 
-function formatDay(day: string) {
+function formatDay(day: string, options: Intl.DateTimeFormatOptions = {}) {
   return new Date(`${day}T00:00:00Z`).toLocaleDateString(undefined, {
     month: "short",
     day: "numeric",
+    timeZone: "UTC",
+    ...options,
   })
+}
+
+/** An axis tick: the period's first day inside the window (a week that began
+ *  before `from` is labelled from `from`), or its month for a monthly series. */
+export function axisLabel(key: string, granularity: AnalyticsGranularity, from: string): string {
+  if (granularity === "month") return formatDay(key, { day: undefined, year: "numeric" })
+  return formatDay(key < from ? from : key)
+}
+
+/**
+ * The tooltip's heading: the days a bucket actually counts. A week or month
+ * that runs past either end of the window is clipped to it, so the first
+ * bucket of "Last 7 days" never claims days it did not read.
+ */
+export function bucketLabel(
+  key: string,
+  granularity: AnalyticsGranularity,
+  window: { from: string; to: string },
+): string {
+  if (granularity === "day") return formatDay(key, { weekday: "short" })
+  const next = new Date(`${nextPeriod(key, granularity)}T00:00:00Z`)
+  next.setUTCDate(next.getUTCDate() - 1)
+  const start = key < window.from ? window.from : key
+  const end = utc(next) > window.to ? window.to : utc(next)
+  if (granularity === "month" && start === key && end === utc(next))
+    return formatDay(key, { day: undefined, month: "long", year: "numeric" })
+  return start === end ? formatDay(start) : `${formatDay(start)} – ${formatDay(end)}`
+}
+
+const GRANULARITY_LABELS: Record<AnalyticsGranularity, string> = {
+  day: "Daily",
+  week: "Weekly",
+  month: "Monthly",
 }
 
 function VisitsChart({
   buckets,
   from,
+  to,
+  granularity,
+  onGranularity,
   loading,
   hasAppliedFilters,
 }: {
   buckets: StatsBucket[]
   from: string
+  to: string
+  granularity: AnalyticsGranularity
+  onGranularity: (granularity: AnalyticsGranularity) => void
   loading: boolean
   hasAppliedFilters: boolean
 }) {
-  const days = useMemo(() => foldWeeks(fillDays(buckets, from)), [buckets, from])
+  const days = useMemo(
+    () => fillBuckets(buckets, from, to, granularity),
+    [buckets, from, to, granularity],
+  )
   const chart = useMemo(() => chartPoints(days), [days])
   const gradientId = useId()
   // `index` is kept after the pointer leaves so the card can fade out in place.
@@ -528,9 +600,12 @@ function VisitsChart({
   const active = chart?.points[Math.min(hover.index, (chart?.points.length ?? 1) - 1)]
   return (
     <div className="rounded-lg border bg-card p-4">
-      <p className="mb-4 text-sm font-semibold">Visits over time</p>
+      <div className="mb-4 flex items-center justify-between">
+        <p className="text-sm font-semibold">Visits over time</p>
+        <ViewSelector labels={GRANULARITY_LABELS} value={granularity} onChange={onGranularity} />
+      </div>
       {loading ? (
-        <div className="h-32 animate-pulse rounded bg-muted" />
+        <div className="h-32 animate-pulse rounded bg-muted motion-reduce:animate-none" />
       ) : !chart ? (
         <p className="py-10 text-center text-sm text-muted-foreground">
           {analyticsEmptyMessage(hasAppliedFilters, "No visits recorded yet.")}
@@ -579,35 +654,40 @@ function VisitsChart({
                 onMouseEnter={() => setHover({ index, on: true })}
               />
             ))}
-            {/* One marker + card shared by all columns, so it glides between points. */}
+            {/* One marker + card shared by all columns, so it glides between points.
+                The layer fills the chart, so translating it by x%/y% of its own size
+                lands on the point: a compositor-only move, never left/top. */}
             {active ? (
               <div
-                className="pointer-events-none absolute transition-[left,top,opacity] duration-150 ease-out"
+                className="pointer-events-none absolute inset-0 transition-[transform,opacity] duration-150 ease-[cubic-bezier(0.23,1,0.32,1)] motion-reduce:transition-opacity"
                 style={{
-                  left: `${active.x}%`,
-                  top: `${active.y}%`,
+                  transform: `translate(${active.x}%, ${active.y}%)`,
                   opacity: hover.on ? 1 : 0,
                 }}
               >
-                <div className="absolute size-1.5 -translate-x-1/2 -translate-y-1/2 rounded-full bg-[var(--chart-1)]" />
-                <div
-                  className="absolute bottom-3 min-w-32 whitespace-nowrap rounded-lg bg-foreground px-3 py-2 text-xs text-background shadow-lg transition-transform duration-150 ease-out"
-                  // Slides from left-aligned (x=0) to right-aligned (x=100) so the card stays inside the chart.
-                  style={{ transform: `translateX(-${active.x}%)` }}
-                >
-                  <div className="mb-1.5 font-medium opacity-75">
-                    {days.length > 120 ? `Week of ${formatDay(active.key)}` : formatDay(active.key)}
+                <div className="absolute top-0 left-0">
+                  <div className="absolute size-1.5 -translate-x-1/2 -translate-y-1/2 rounded-full bg-chart-1" />
+                  <div
+                    className="absolute bottom-3 min-w-32 whitespace-nowrap rounded-lg bg-foreground px-3 py-2 text-xs text-background shadow-lg transition-transform duration-150 ease-[cubic-bezier(0.23,1,0.32,1)] motion-reduce:transition-none"
+                    // Slides from left-aligned (x=0) to right-aligned (x=100) so the card stays inside the chart.
+                    style={{ transform: `translateX(-${active.x}%)` }}
+                  >
+                    <div className="mb-1.5 font-medium opacity-75">
+                      {bucketLabel(active.key, granularity, { from, to })}
+                    </div>
+                    <TipRow label="Total" value={active.total} strong />
+                    <TipRow label="Human" value={active.human} />
+                    <TipRow label="Bot" value={active.bot} />
                   </div>
-                  <TipRow label="Total" value={active.total} strong />
-                  <TipRow label="Human" value={active.human} />
-                  <TipRow label="Bot" value={active.bot} />
                 </div>
               </div>
             ) : null}
           </div>
           <div className="mt-2 flex justify-between text-xs text-muted-foreground">
-            <span>{formatDay(days[0].key)}</span>
-            <span>{formatDay(days[days.length - 1].key)}</span>
+            <span>{axisLabel(days[0].key, granularity, from)}</span>
+            {days.length > 1 ? (
+              <span>{axisLabel(days[days.length - 1].key, granularity, from)}</span>
+            ) : null}
           </div>
         </>
       )}
