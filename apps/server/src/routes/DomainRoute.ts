@@ -1,18 +1,22 @@
 import { ApiError, domainCreateSchema, domainPatchSchema, paginationSchema } from "@linq/shared"
 import { Hono } from "hono"
 import { isAppHost } from "../config.ts"
-import { domainKey, type Env } from "../libs/index.ts"
+import { domainKey, type Env, writeThrough } from "../libs/index.ts"
 import { authorize, idParam, validate } from "../middleware/index.ts"
 import {
   archiveDomain,
   createDomain,
+  findActiveDomain,
   getDomain,
   listDomains,
   purgeDomain,
   updateDomain,
 } from "../services/index.ts"
 
-/** Routes for `/domains`. Writes clear the host's cached domain entry and sync Caddy. */
+/**
+ * Routes for `/domains`. A create or edit rewrites the host's cached domain
+ * entry in place, an archive or purge clears it, and every write syncs Caddy.
+ */
 export const domainRoute = new Hono<Env>()
   .get("/", validate("query", paginationSchema), async (c) => {
     const { limit, offset } = c.req.valid("query")
@@ -28,8 +32,8 @@ export const domainRoute = new Hono<Env>()
       throw ApiError.validation(`${body.host} is LINQ_APP_HOST and cannot be a domain`)
     }
     const domain = await createDomain(c.var.db, body)
-    // Clears the negative entry a request to this host left behind while it 404'd.
-    await c.var.cache.del(domainKey(domain.host))
+    // Replaces the negative entry a request to this host left behind while it 404'd.
+    await refreshDomain(c.var, domain.host)
     await c.var.caddy.upsert(domain.id, domain.host)
     return c.json(domain, 201)
   })
@@ -42,8 +46,10 @@ export const domainRoute = new Hono<Env>()
     const patch = c.req.valid("json")
     const before = await getDomain(c.var.db, id)
     await updateDomain(c.var.db, id, patch)
-    // The three redirect URLs are what the redirect handler reads out of the cached entry.
-    await c.var.cache.del(domainKey(before.host))
+    // The three redirect URLs are what the redirect handler reads out of the cached
+    // entry. Host is not patchable, so the key is unchanged; an archive through
+    // `status` caches the 404 the host will now give.
+    await refreshDomain(c.var, before.host)
     // A redirect-only patch changes nothing Caddy needs to know about.
     if (patch.status === "archived") await c.var.caddy.remove(id)
     else if (patch.status !== undefined) await c.var.caddy.upsert(id, before.host)
@@ -71,3 +77,15 @@ export const domainRoute = new Hono<Env>()
     await c.var.caddy.remove(domain.id)
     return c.body(null, 204)
   })
+
+/**
+ * Writes a host's new domain answer through to the cache. Only the host exactly
+ * as stored is refreshed: a port-carrying variant of it (see `domainKey`) is
+ * cleared by the TTL, as it always was.
+ */
+async function refreshDomain(
+  { cache, db }: Pick<Env["Variables"], "cache" | "db">,
+  host: string,
+): Promise<void> {
+  await writeThrough(cache, domainKey(host), () => findActiveDomain(db, host))
+}

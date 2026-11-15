@@ -1,6 +1,6 @@
 import { afterEach, beforeEach, describe, expect, test } from "bun:test"
 import type { Cache } from "../src/libs/cache.ts"
-import { domainKey, memoryCache, targetKey } from "../src/libs/cache.ts"
+import { domainKey, memoryCache, targetKey, writeThrough } from "../src/libs/cache.ts"
 import { createHarness, type Harness } from "./helpers/app.ts"
 import { testConfig } from "./helpers/db.ts"
 
@@ -92,14 +92,14 @@ describe("reads", () => {
   })
 })
 
-describe("invalidation", () => {
-  test("creating a link clears the negative entry for its slug", async () => {
+describe("invalidation and refresh", () => {
+  test("creating a link replaces the negative entry for its slug", async () => {
     expect((await get("/fresh")).headers.get("location")).toBe("https://example.com/fallback")
     await h.createLink(editor.key, domain, { slug: "fresh" })
     expect((await get("/fresh")).headers.get("location")).toBe("https://example.com/")
   })
 
-  test("updating a link's destination clears its entry", async () => {
+  test("updating a link's destination refreshes its entry", async () => {
     const link = await h.createLink(editor.key, domain, { slug: "moved" })
     await get("/moved")
     await h.patch(`/api/v1/links/${link.id}`, editor.key, {
@@ -108,7 +108,7 @@ describe("invalidation", () => {
     expect((await get("/moved")).headers.get("location")).toBe("https://example.com/new")
   })
 
-  test("replacing a link's rules clears its entry", async () => {
+  test("replacing a link's rules refreshes its entry", async () => {
     const link = await h.createLink(editor.key, domain, { slug: "rules" })
     await get("/rules")
     await h.request(`/api/v1/links/${link.id}/rules`, {
@@ -139,7 +139,7 @@ describe("invalidation", () => {
     expect(await cache.get(targetKey(domain, "purged"))).toBeNull()
   })
 
-  test("changing a domain's fallback clears its entry", async () => {
+  test("changing a domain's fallback refreshes its entry", async () => {
     await get("/nothing-here")
     await h.patch(`/api/v1/domains/${domain}`, admin.key, {
       fallback_url: "https://example.com/elsewhere",
@@ -155,7 +155,7 @@ describe("invalidation", () => {
     expect((await get("/nothing-here")).status).toBe(404)
   })
 
-  test("creating a domain clears the negative entry for its host", async () => {
+  test("creating a domain replaces the negative entry for its host", async () => {
     expect((await h.request("/x", { host: "later.test" })).status).toBe(404)
     await h.post("/api/v1/domains", admin.key, {
       host: "later.test",
@@ -163,6 +163,107 @@ describe("invalidation", () => {
     })
     const res = await h.request("/x", { host: "later.test" })
     expect(res.headers.get("location")).toBe("https://example.com/later")
+  })
+})
+
+/**
+ * Write-through, proven the same way as a cache hit: the entry is read straight
+ * out of the cache after the write, with no redirect in between to fill it, and
+ * where it matters the row is then dropped so only the cache can answer.
+ */
+describe("write-through", () => {
+  const target = async (slug: string) =>
+    (await cache.get<{ destination: string; rules: unknown[] } | null>(targetKey(domain, slug)))
+      ?.value
+
+  test("an edit writes the new destination before anything reads it", async () => {
+    const link = await h.createLink(editor.key, domain, { slug: "edited" })
+    await get("/edited")
+    await h.patch(`/api/v1/links/${link.id}`, editor.key, {
+      destination: "https://example.com/next",
+    })
+    expect((await target("edited"))?.destination).toBe("https://example.com/next")
+
+    await dropRow(link.id)
+    expect((await get("/edited")).headers.get("location")).toBe("https://example.com/next")
+  })
+
+  test("a create writes the link over the slug's cached 404", async () => {
+    await get("/born")
+    expect(await cache.get(targetKey(domain, "born"))).toEqual({ value: null })
+    await h.createLink(editor.key, domain, { slug: "born" })
+    expect((await target("born"))?.destination).toBe("https://example.com/")
+  })
+
+  test("replacing rules writes them into the link's entry", async () => {
+    const link = await h.createLink(editor.key, domain, { slug: "ruleset" })
+    await h.request(`/api/v1/links/${link.id}/rules`, {
+      key: editor.key,
+      method: "PUT",
+      body: JSON.stringify([
+        {
+          destination: "https://example.com/ios",
+          conditions: [{ type: "platform", value: "ios" }],
+        },
+      ]),
+    })
+    expect((await target("ruleset"))?.rules).toHaveLength(1)
+  })
+
+  test("archiving through PATCH caches the 404 the slug now gives", async () => {
+    const link = await h.createLink(editor.key, domain, { slug: "shelved" })
+    await get("/shelved")
+    await h.patch(`/api/v1/links/${link.id}`, admin.key, { status: "archived" })
+    expect(await cache.get(targetKey(domain, "shelved"))).toEqual({ value: null })
+  })
+
+  test("a domain edit writes the new fallback into the host's entry", async () => {
+    await h.patch(`/api/v1/domains/${domain}`, admin.key, {
+      fallback_url: "https://example.com/written",
+    })
+    const hit = await cache.get<{ fallback_url: string }>(domainKey(HOST))
+    expect(hit?.value.fallback_url).toBe("https://example.com/written")
+  })
+
+  test("a domain create writes the domain over the host's cached 404", async () => {
+    await h.request("/x", { host: "written.test" })
+    await h.post("/api/v1/domains", admin.key, { host: "written.test" })
+    const hit = await cache.get<{ id: string } | null>(domainKey("written.test"))
+    expect(hit?.value?.id).toBeString()
+  })
+})
+
+/** The helper on its own, at the failures the routes cannot stage. */
+describe("writeThrough", () => {
+  test("a set that fails leaves a miss, never the previous answer", async () => {
+    const store = memoryCache(testConfig)
+    await store.set("k", "old")
+    const failingSet: Cache = {
+      ...store,
+      set: async () => {
+        throw new Error("set failed")
+      },
+    }
+    await writeThrough(failingSet, "k", async () => "new").catch(() => {})
+    expect(await store.get("k")).toBeNull()
+    store.stop()
+  })
+
+  test("a load that fails leaves the key cleared and does not throw", async () => {
+    const store = memoryCache(testConfig)
+    await store.set("k", "old")
+    await writeThrough(store, "k", async () => {
+      throw new Error("database down")
+    })
+    expect(await store.get("k")).toBeNull()
+    store.stop()
+  })
+
+  test("a null answer is written, not skipped", async () => {
+    const store = memoryCache(testConfig)
+    await writeThrough(store, "k", async () => null)
+    expect(await store.get("k")).toEqual({ value: null })
+    store.stop()
   })
 })
 
@@ -301,7 +402,7 @@ describe("expiry inside the cache", () => {
     expect(res.headers.get("location")).toBe("https://example.com/fallback")
   })
 
-  test("clearing expires_at to null resolves immediately, proving the del reached the key", async () => {
+  test("clearing expires_at to null resolves immediately, proving the write reached the key", async () => {
     const link = await h.createLink(editor.key, domain, {
       slug: "reprieved",
       expires_at: new Date(Date.now() + 50).toISOString(),

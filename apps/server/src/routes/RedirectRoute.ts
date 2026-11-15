@@ -103,7 +103,7 @@ export const redirectHandler = createFactory<Env>().createHandlers(async (c) => 
   //     link_id, same fallback. Checked here rather than in SQL because the
   //     cached entry outlives the moment it lapses and no mutation ever arrives
   //     to invalidate it: `status` is safe in SQL only because every status
-  //     change also dels `targetKey`.
+  //     change also rewrites or dels `targetKey`.
   const isExpired = typeof cached?.expires_at === "number" && cached.expires_at <= Date.now()
   if (isExpired) reqLog().debug({ link_id: cached?.link_id, slug }, "link expired")
   const link = isExpired ? null : cached

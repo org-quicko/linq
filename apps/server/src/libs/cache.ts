@@ -72,6 +72,37 @@ export async function readThrough<T>(
 }
 
 /**
+ * Refreshes one key after the database write that changed it, so the next read
+ * is a hit on the new answer instead of a miss. `load` must be the same loader
+ * the read path hands `readThrough`, so the entry is exactly what a miss would
+ * have cached — a `null` included, which is how an archive lands as a 404.
+ *
+ * The key is deleted before it is rewritten. Behind `guardedCache` a failed
+ * `set` is swallowed, and without the delete it would leave the *previous*
+ * answer serving until the TTL; with it, a failed write is only a miss. Only a
+ * cache that fails both calls is left stale, and that `del` failure is logged
+ * as an error, the same as before write-through existed.
+ *
+ * A failing `load` leaves the key deleted rather than failing the request: the
+ * database write it follows has already committed. See resources/docs/adr/0023.
+ */
+export async function writeThrough<T>(
+  cache: Cache,
+  key: string,
+  load: () => Promise<T | null>,
+): Promise<void> {
+  await cache.del(key)
+  let value: T | null
+  try {
+    value = await load()
+  } catch (err) {
+    reqLog().error({ err, key }, "cache refresh failed, entry left cleared")
+    return
+  }
+  await cache.set(key, value)
+}
+
+/**
  * Makes a cache unable to fail its caller.
  *
  * A read that throws is a miss, and a write or an invalidation that throws is

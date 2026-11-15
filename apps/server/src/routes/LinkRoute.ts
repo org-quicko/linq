@@ -7,12 +7,13 @@ import {
 } from "@linq/shared"
 import { Hono } from "hono"
 import { isReservedSlug } from "../config.ts"
-import { type Env, linkKeys } from "../libs/index.ts"
+import { type Env, linkKeys, llmsKey, targetKey, writeThrough } from "../libs/index.ts"
 import { authorize, idParam, validate } from "../middleware/index.ts"
 import {
   archiveLink,
   countLinks,
   createLink,
+  findActiveTarget,
   getLink,
   listLinks,
   listTags,
@@ -22,7 +23,11 @@ import {
   updateLink,
 } from "../services/index.ts"
 
-/** Routes for `/links`. Every write clears the link's cached redirect and its domain's llms.txt. */
+/**
+ * Routes for `/links`. A create or edit rewrites the link's cached redirect in
+ * place; an archive or purge clears it. Either way the domain's llms.txt is
+ * cleared, since re-rendering a whole catalogue per edit is not worth it.
+ */
 export const linkRoute = new Hono<Env>()
   .get("/", validate("query", linkListQuerySchema), async (c) => {
     const q = c.req.valid("query")
@@ -49,8 +54,8 @@ export const linkRoute = new Hono<Env>()
     }
     const fetched = await c.var.metadata.fetch(body.destination)
     const row = await createLink(c.var.db, body, fetched, { slugLength, clientBasePath })
-    // Clears the negative entry left behind while this slug was 404ing.
-    await c.var.cache.del(...linkKeys(row.domain_id, row.slug))
+    // Replaces the negative entry left behind while this slug was 404ing.
+    await refreshLink(c.var, row.domain_id, row.slug)
     return c.json(await getLink(c.var.db, row.id), 201)
   })
 
@@ -66,7 +71,9 @@ export const linkRoute = new Hono<Env>()
     const fetched =
       patch.destination !== undefined ? await c.var.metadata.fetch(patch.destination) : null
     await updateLink(c.var.db, existing, patch, fetched)
-    await c.var.cache.del(...linkKeys(existing.domain_id, existing.slug))
+    // Slug and domain are not patchable, so the key is the one it always was.
+    // An archive through `status` caches the 404 the redirect will now give.
+    await refreshLink(c.var, existing.domain_id, existing.slug)
     return c.json(await getLink(c.var.db, id))
   })
 
@@ -102,3 +109,16 @@ export const linkRoute = new Hono<Env>()
 
 /** `/tags`: tags in use on active links, most used first. */
 export const tagRoute = new Hono<Env>().get("/", async (c) => c.json(await listTags(c.var.db)))
+
+/**
+ * Writes a link's new redirect answer through to the cache, and clears its
+ * domain's llms.txt for the next request to re-render.
+ */
+async function refreshLink(
+  { cache, db }: Pick<Env["Variables"], "cache" | "db">,
+  domainId: string,
+  slug: string,
+): Promise<void> {
+  await writeThrough(cache, targetKey(domainId, slug), () => findActiveTarget(db, domainId, slug))
+  await cache.del(llmsKey(domainId))
+}

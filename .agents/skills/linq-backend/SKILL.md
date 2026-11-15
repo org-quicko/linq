@@ -34,8 +34,10 @@ barrel; import from it rather than reaching into single files.
 5. Throw `ApiError.<kind>` (`notFound`, `conflict`, `forbidden`,
    `validation`) for expected failures, from either layer; `app.ts` maps them
    to the API envelope.
-6. Invalidate `c.var.cache` in the route after a write that affects cached
-   redirect data (key builders in `libs/cache.ts`).
+6. After a write that affects cached redirect data, update `c.var.cache` in
+   the route: `writeThrough(cache, key, loader)` with the read path's own
+   loader for a create or edit, `cache.del` for an archive or purge (key
+   builders and the helper are in `libs/cache.ts`, see ADR 0023).
 7. Sync Caddy with `c.var.caddy.upsert` or `.remove()` when a host-serving
    change needs it. It is a no-op unless Caddy is configured.
 8. Mount a new route in `app.ts` under `/api/v1`, and export it from

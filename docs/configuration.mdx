@@ -136,7 +136,7 @@ Seeds the first domain row when the `domains` table is empty. This is a shorteni
 
 ## Redirect Cache
 
-linq caches slug-to-destination lookups to avoid a Postgres round-trip on every redirect hit. Every create, update, archive, and purge operation clears its own cache entry immediately; the TTL is a backstop for missed invalidations only.
+linq caches slug-to-destination lookups to avoid a Postgres round-trip on every redirect hit. Every create and update writes the new answer into its cache entry immediately, and every archive and purge clears its entry; the TTL is a backstop for missed writes only.
 
 <AccordionGroup>
 
@@ -176,7 +176,7 @@ The Redis connection string. Setting this implicitly selects the `redis` cache b
 | **Type** | Integer (seconds) |
 | **Default** | `300` |
 
-How long a cached lookup survives before linq re-reads from Postgres, on either cache backend. Five minutes is the default. Most invalidations happen eagerly (on every create, update, archive, and purge), so this value is only a backstop.
+How long a cached lookup survives before linq re-reads from Postgres, on either cache backend. Five minutes is the default. Cache entries are refreshed or cleared eagerly (on every create, update, archive, and purge), so this value is only a backstop.
 
 </Accordion>
 

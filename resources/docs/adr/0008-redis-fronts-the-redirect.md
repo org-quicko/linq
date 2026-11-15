@@ -1,7 +1,8 @@
 # 0008 – Redis fronts the redirect, and is required
 
 **Status**: accepted · 2026-09-17. The requirement is superseded by 0009;
-Redis is now one of two backends. Everything below is still the argument for
+Redis is now one of two backends, and 0023 has creates and edits rewrite
+their entry rather than clear it. Everything below is still the argument for
 choosing it.
 
 ## Context
