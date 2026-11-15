@@ -1,6 +1,6 @@
 import { rulesPutSchema } from "@linq/shared"
 import { Hono } from "hono"
-import { type Env, targetKey, writeThrough } from "../libs/index.ts"
+import { type Env, refreshCache, targetKey } from "../libs/index.ts"
 import { authorize, idParam, validate } from "../middleware/index.ts"
 import { findActiveTarget, listRules, loadLink, replaceRules, toRule } from "../services/index.ts"
 
@@ -25,7 +25,7 @@ export const ruleRoute = new Hono<Env>()
     await c.var.db.transaction().execute((tx) => replaceRules(tx, id, rules))
     // The redirect caches a link's rules inside its target entry, so replacing
     // them rewrites it just as editing the link itself does.
-    await writeThrough(c.var.cache, targetKey(link.domain_id, link.slug), () =>
+    await refreshCache(c.var.cache, targetKey(link.domain_id, link.slug), () =>
       findActiveTarget(c.var.db, link.domain_id, link.slug),
     )
     return c.json((await listRules(c.var.db, id)).map(toRule))

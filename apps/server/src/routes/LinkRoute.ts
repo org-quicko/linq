@@ -7,7 +7,7 @@ import {
 } from "@linq/shared"
 import { Hono } from "hono"
 import { isReservedSlug } from "../config.ts"
-import { type Env, linkKeys, llmsKey, targetKey, writeThrough } from "../libs/index.ts"
+import { type Env, linkKeys, llmsKey, refreshCache, targetKey } from "../libs/index.ts"
 import { authorize, idParam, validate } from "../middleware/index.ts"
 import {
   archiveLink,
@@ -119,6 +119,6 @@ async function refreshLink(
   domainId: string,
   slug: string,
 ): Promise<void> {
-  await writeThrough(cache, targetKey(domainId, slug), () => findActiveTarget(db, domainId, slug))
+  await refreshCache(cache, targetKey(domainId, slug), () => findActiveTarget(db, domainId, slug))
   await cache.del(llmsKey(domainId))
 }

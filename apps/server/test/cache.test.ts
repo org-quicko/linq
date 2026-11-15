@@ -1,6 +1,6 @@
 import { afterEach, beforeEach, describe, expect, test } from "bun:test"
 import type { Cache } from "../src/libs/cache.ts"
-import { domainKey, memoryCache, targetKey, writeThrough } from "../src/libs/cache.ts"
+import { domainKey, memoryCache, refreshCache, targetKey } from "../src/libs/cache.ts"
 import { createHarness, type Harness } from "./helpers/app.ts"
 import { testConfig } from "./helpers/db.ts"
 
@@ -234,7 +234,7 @@ describe("write-through", () => {
 })
 
 /** The helper on its own, at the failures the routes cannot stage. */
-describe("writeThrough", () => {
+describe("refreshCache", () => {
   test("a set that fails leaves a miss, never the previous answer", async () => {
     const store = memoryCache(testConfig)
     await store.set("k", "old")
@@ -244,7 +244,7 @@ describe("writeThrough", () => {
         throw new Error("set failed")
       },
     }
-    await writeThrough(failingSet, "k", async () => "new").catch(() => {})
+    await refreshCache(failingSet, "k", async () => "new").catch(() => {})
     expect(await store.get("k")).toBeNull()
     store.stop()
   })
@@ -252,7 +252,7 @@ describe("writeThrough", () => {
   test("a load that fails leaves the key cleared and does not throw", async () => {
     const store = memoryCache(testConfig)
     await store.set("k", "old")
-    await writeThrough(store, "k", async () => {
+    await refreshCache(store, "k", async () => {
       throw new Error("database down")
     })
     expect(await store.get("k")).toBeNull()
@@ -261,7 +261,7 @@ describe("writeThrough", () => {
 
   test("a null answer is written, not skipped", async () => {
     const store = memoryCache(testConfig)
-    await writeThrough(store, "k", async () => null)
+    await refreshCache(store, "k", async () => null)
     expect(await store.get("k")).toEqual({ value: null })
     store.stop()
   })

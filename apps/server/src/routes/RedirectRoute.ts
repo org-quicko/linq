@@ -8,8 +8,8 @@ import {
   detectPlatform,
   domainKey,
   type Env,
+  getOrSetCache,
   isPreviewCrawler,
-  readThrough,
   reqLog,
   targetKey,
 } from "../libs/index.ts"
@@ -78,7 +78,7 @@ export const redirectHandler = createFactory<Env>().createHandlers(async (c) => 
   //    tells the two apart). That fallback is not cached, for the same reason
   //    as `sendRedirect`; with LINQ_APP_HOST set the UI answers only there.
   const host = c.req.header("host") ?? url.host
-  const domain = await readThrough(cache, domainKey(host), () => findActiveDomain(db, host))
+  const domain = await getOrSetCache(cache, domainKey(host), () => findActiveDomain(db, host))
   if (!domain) {
     if (slug === "" && !(await hostHasAnyDomain(db, host))) {
       const adminPath = clientPath(config.LINQ_CLIENT_BASE_PATH, "/")
@@ -94,7 +94,7 @@ export const redirectHandler = createFactory<Env>().createHandlers(async (c) => 
   const tracked = c.req.method === "GET"
   const userAgent = c.req.header("user-agent") ?? null
   const cached = slug
-    ? await readThrough(cache, targetKey(domain.id, slug), () =>
+    ? await getOrSetCache(cache, targetKey(domain.id, slug), () =>
         findActiveTarget(db, domain.id, slug),
       )
     : null

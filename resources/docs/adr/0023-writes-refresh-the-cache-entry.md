@@ -16,7 +16,7 @@ writes applies to Redis and to the in-memory LRU alike.
 ## Decision
 
 A create or an edit *rewrites* the entry instead of deleting it, through
-`writeThrough(cache, key, load)` in `libs/cache.ts`:
+`refreshCache(cache, key, load)` in `libs/cache.ts`:
 
 - `load` is the read path's own loader (`findActiveTarget`,
   `findActiveDomain`), so a written entry is exactly what a miss would have

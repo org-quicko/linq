@@ -1,7 +1,7 @@
 import { ApiError, domainCreateSchema, domainPatchSchema, paginationSchema } from "@linq/shared"
 import { Hono } from "hono"
 import { isAppHost } from "../config.ts"
-import { domainKey, type Env, writeThrough } from "../libs/index.ts"
+import { domainKey, type Env, refreshCache } from "../libs/index.ts"
 import { authorize, idParam, validate } from "../middleware/index.ts"
 import {
   archiveDomain,
@@ -87,5 +87,5 @@ async function refreshDomain(
   { cache, db }: Pick<Env["Variables"], "cache" | "db">,
   host: string,
 ): Promise<void> {
-  await writeThrough(cache, domainKey(host), () => findActiveDomain(db, host))
+  await refreshCache(cache, domainKey(host), () => findActiveDomain(db, host))
 }

@@ -36,15 +36,14 @@ export const noCache: Cache = {
  * than by an invalidation. Every host linq is actually configured for clears
  * immediately.
  */
-export const domainKey = (host: string): string => `linq:domain:${host.trim().toLowerCase()}`
+export const domainKey = (host: string): string => `domain:${host.trim().toLowerCase()}`
 
 /** The whole redirect answer for one slug on one domain: link, rules and all. */
-export const targetKey = (domainId: string, slug: string): string =>
-  `linq:target:${domainId}:${slug}`
+export const targetKey = (domainId: string, slug: string): string => `target:${domainId}:${slug}`
 
 /** The whole rendered /llms.txt for one domain. A string round-trips through
  *  both backends unchanged, so unlike a row array it needs no date handling. */
-export const llmsKey = (domainId: string): string => `linq:llms:${domainId}`
+export const llmsKey = (domainId: string): string => `llms:${domainId}`
 
 /** Everything a link mutation makes stale: its redirect entry and its
  *  domain's published catalogue. One call, so a new mutation cannot forget
@@ -59,7 +58,7 @@ export const linkKeys = (domainId: string, slug: string): string[] => [
  * the answer back — a `null` answer included, so an unknown host or slug costs
  * one query per TTL rather than one per request.
  */
-export async function readThrough<T>(
+export async function getOrSetCache<T>(
   cache: Cache,
   key: string,
   load: () => Promise<T | null>,
@@ -74,7 +73,7 @@ export async function readThrough<T>(
 /**
  * Refreshes one key after the database write that changed it, so the next read
  * is a hit on the new answer instead of a miss. `load` must be the same loader
- * the read path hands `readThrough`, so the entry is exactly what a miss would
+ * the read path hands `getOrSetCache`, so the entry is exactly what a miss would
  * have cached — a `null` included, which is how an archive lands as a 404.
  *
  * The key is deleted before it is rewritten. Behind `guardedCache` a failed
@@ -86,7 +85,7 @@ export async function readThrough<T>(
  * A failing `load` leaves the key deleted rather than failing the request: the
  * database write it follows has already committed. See resources/docs/adr/0023.
  */
-export async function writeThrough<T>(
+export async function refreshCache<T>(
   cache: Cache,
   key: string,
   load: () => Promise<T | null>,

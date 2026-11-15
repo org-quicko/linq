@@ -1,5 +1,5 @@
 import { createFactory } from "hono/factory"
-import { domainKey, type Env, llmsKey, readThrough } from "../libs/index.ts"
+import { domainKey, type Env, getOrSetCache, llmsKey } from "../libs/index.ts"
 import { findActiveDomain, renderLlmsForDomain } from "../services/index.ts"
 
 /**
@@ -11,14 +11,14 @@ export const llmsHandler = createFactory<Env>().createHandlers(async (c) => {
   const host = c.req.header("host") ?? new URL(c.req.url).host
   // Reads the same `domainKey` entry the redirect warms, so a live instance
   // pays zero extra queries for this route.
-  const domain = await readThrough(c.var.cache, domainKey(host), () =>
+  const domain = await getOrSetCache(c.var.cache, domainKey(host), () =>
     findActiveDomain(c.var.db, host),
   )
   if (!domain) return c.text("Not Found", 404)
 
   // The rendered string is cached as a whole, keyed by domain id: a string has
   // no `Date` problem, unlike a row array.
-  const markdown = await readThrough(c.var.cache, llmsKey(domain.id), () =>
+  const markdown = await getOrSetCache(c.var.cache, llmsKey(domain.id), () =>
     renderLlmsForDomain(c.var.db, domain.id, host),
   )
 
