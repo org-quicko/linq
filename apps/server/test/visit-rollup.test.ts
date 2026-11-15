@@ -1,7 +1,7 @@
 import { beforeEach, describe, expect, test } from "bun:test"
 import { sql } from "kysely"
-import type { Db } from "../src/db/client.ts"
-import { flushVisits } from "../src/visits/record.ts"
+import type { Db } from "../src/libs/db.ts"
+import { flushVisits } from "../src/services/VisitService.ts"
 import { createHarness, type Harness } from "./helpers/app.ts"
 
 const HOST = "rollup.test"
@@ -93,7 +93,11 @@ async function traffic() {
   const one = await h.createLink(editor.key, domain, { slug: "one" })
   const two = await h.createLink(editor.key, domain, { slug: "two" })
   for (const [slug, agent, referer] of [
-    ["one?utm_source=News&utm_medium=email&utm_content=Hero&utm_term=Short%20Links", DESKTOP, "https://news.test/"],
+    [
+      "one?utm_source=News&utm_medium=email&utm_content=Hero&utm_term=Short%20Links",
+      DESKTOP,
+      "https://news.test/",
+    ],
     ["one?utm_source=news&utm_source=other", DESKTOP, "https://news.test/"],
     ["one?utm_campaign=Launch&utm_source=%20", ANDROID, null],
     ["one", BOT, null],
@@ -124,7 +128,9 @@ describe("the day-wise rollup", () => {
       .select(sql<number>`coalesce(sum(count), 0)`.as("rolled"))
       .where("dimension", "=", "total")
       .executeTakeFirstOrThrow()
-    expect(Number(rolled.rolled)).toBe((await h.db.selectFrom("visits").selectAll().execute()).length)
+    expect(Number(rolled.rolled)).toBe(
+      (await h.db.selectFrom("visits").selectAll().execute()).length,
+    )
   })
 
   test("a second visit increments the row rather than adding one", async () => {
@@ -132,10 +138,18 @@ describe("the day-wise rollup", () => {
     const hit = () => h.request("/again", { host: HOST, headers: { "user-agent": DESKTOP } })
     await hit()
     await flushVisits()
-    const after1 = await h.db.selectFrom("visit_days").selectAll().where("dimension", "=", "total").execute()
+    const after1 = await h.db
+      .selectFrom("visit_days")
+      .selectAll()
+      .where("dimension", "=", "total")
+      .execute()
     await hit()
     await flushVisits()
-    const after2 = await h.db.selectFrom("visit_days").selectAll().where("dimension", "=", "total").execute()
+    const after2 = await h.db
+      .selectFrom("visit_days")
+      .selectAll()
+      .where("dimension", "=", "total")
+      .execute()
     expect(after1).toHaveLength(1)
     expect(after2).toHaveLength(1)
     expect(after2[0]?.count).toBe(2)
@@ -178,7 +192,11 @@ describe("the summary counts", () => {
     await h.request("/nowhere", { host: HOST, headers: { "user-agent": DESKTOP } })
     await h.request("/elsewhere", { host: HOST, headers: { "user-agent": DESKTOP } })
     await flushVisits()
-    const rows = await h.db.selectFrom("visit_counts").selectAll().where("link_id", "is", null).execute()
+    const rows = await h.db
+      .selectFrom("visit_counts")
+      .selectAll()
+      .where("link_id", "is", null)
+      .execute()
     expect(rows).toHaveLength(1)
     expect(rows[0]?.human).toBe(2)
   })
@@ -200,7 +218,9 @@ describe("purge", () => {
     for (const dimension of Object.keys(DIMENSIONS) as (keyof typeof DIMENSIONS)[])
       expect(await rolledDays(h.db, dimension)).toEqual(await liveDays(h.db, dimension))
     expect(await rolledCounts(h.db)).toEqual(await liveCounts(h.db))
-    expect(await h.db.selectFrom("visit_days").selectAll().where("link_id", "=", one.id).execute()).toHaveLength(0)
+    expect(
+      await h.db.selectFrom("visit_days").selectAll().where("link_id", "=", one.id).execute(),
+    ).toHaveLength(0)
     const orphanAfter = await h.db
       .selectFrom("visit_counts")
       .selectAll()
@@ -216,7 +236,9 @@ describe("purge", () => {
     await h.request("/doomed", { host: "spare.test", headers: { "user-agent": DESKTOP } })
     await h.recordVisits(null, spare, { human: 1 })
     await flushVisits()
-    expect(await h.db.selectFrom("visit_days").selectAll().where("domain_id", "=", spare).execute()).not.toHaveLength(0)
+    expect(
+      await h.db.selectFrom("visit_days").selectAll().where("domain_id", "=", spare).execute(),
+    ).not.toHaveLength(0)
     await h.request(`/api/v1/links/${link.id}`, { key: admin.key, method: "DELETE" })
     await h.request(`/api/v1/links/${link.id}/purge`, { key: admin.key, method: "DELETE" })
     const orphanAfterLinkPurge = await h.db
@@ -228,7 +250,9 @@ describe("purge", () => {
     expect(orphanAfterLinkPurge).not.toHaveLength(0)
     await h.request(`/api/v1/domains/${spare}`, { key: admin.key, method: "DELETE" })
     await h.request(`/api/v1/domains/${spare}/purge`, { key: admin.key, method: "DELETE" })
-    expect(await h.db.selectFrom("visit_days").selectAll().where("domain_id", "=", spare).execute()).toHaveLength(0)
+    expect(
+      await h.db.selectFrom("visit_days").selectAll().where("domain_id", "=", spare).execute(),
+    ).toHaveLength(0)
     expect(
       await h.db
         .selectFrom("visit_counts")
@@ -259,8 +283,20 @@ describe("utm columns", () => {
         utm_content: "hero",
         utm_term: "short links",
       },
-      { utm_source: "news", utm_medium: null, utm_campaign: null, utm_content: null, utm_term: null },
-      { utm_source: null, utm_medium: null, utm_campaign: "launch", utm_content: null, utm_term: null },
+      {
+        utm_source: "news",
+        utm_medium: null,
+        utm_campaign: null,
+        utm_content: null,
+        utm_term: null,
+      },
+      {
+        utm_source: null,
+        utm_medium: null,
+        utm_campaign: "launch",
+        utm_content: null,
+        utm_term: null,
+      },
     ])
   })
 })
@@ -268,15 +304,17 @@ describe("utm columns", () => {
 describe("device_type column", () => {
   test("is derived from the user agent: tablet before mobile, blank is null", async () => {
     const agents = {
-      "iphone": "Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X) Mobile/15E148 Safari/604.1",
+      iphone: "Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X) Mobile/15E148 Safari/604.1",
       "android phone": ANDROID,
-      "ipad": "Mozilla/5.0 (iPad; CPU OS 17_0 like Mac OS X) Mobile/15E148 Safari/604.1",
-      "android tablet": "Mozilla/5.0 (Linux; Android 14; SM-X710) AppleWebKit/537.36 Chrome/120 Safari/537.36",
-      "kindle": "Mozilla/5.0 (Linux; Android 9; KFTRWI) AppleWebKit/537.36 Silk/120.3 like Chrome/120 Safari/537.36",
-      "mac": DESKTOP,
-      "bot": BOT,
-      "blank": " ",
-      "absent": null,
+      ipad: "Mozilla/5.0 (iPad; CPU OS 17_0 like Mac OS X) Mobile/15E148 Safari/604.1",
+      "android tablet":
+        "Mozilla/5.0 (Linux; Android 14; SM-X710) AppleWebKit/537.36 Chrome/120 Safari/537.36",
+      kindle:
+        "Mozilla/5.0 (Linux; Android 9; KFTRWI) AppleWebKit/537.36 Silk/120.3 like Chrome/120 Safari/537.36",
+      mac: DESKTOP,
+      bot: BOT,
+      blank: " ",
+      absent: null,
     }
     for (const [slug, user_agent] of Object.entries(agents))
       await h.recordVisits(null, domain, { human: 1 }, { slug_requested: slug, user_agent })

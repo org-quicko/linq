@@ -1,10 +1,10 @@
 import { beforeAll, describe, expect, test } from "bun:test"
 import {
-  httpMetadataFetcher,
+  fetchMetadata,
   type MetadataFetcher,
   noMetadata,
   startMetadata,
-} from "../src/link-metadata.ts"
+} from "../src/libs/linkMetadata.ts"
 import { createHarness, type Harness } from "./helpers/app.ts"
 import { testConfig } from "./helpers/db.ts"
 
@@ -663,8 +663,8 @@ describe("link preview metadata", () => {
 })
 
 describe("SSRF guard", () => {
-  test("httpMetadataFetcher blocks loopback and cloud metadata", async () => {
-    const fetcher = httpMetadataFetcher()
+  test("fetchMetadata blocks loopback and cloud metadata", async () => {
+    const fetcher = { fetch: fetchMetadata }
     const meta1 = await fetcher.fetch("http://169.254.169.254/")
     expect(meta1).toEqual({ name: null, description: null, icon_url: null })
 

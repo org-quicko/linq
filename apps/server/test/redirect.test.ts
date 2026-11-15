@@ -1,5 +1,5 @@
 import { beforeAll, describe, expect, test } from "bun:test"
-import { flushVisits } from "../src/visits/record.ts"
+import { flushVisits } from "../src/services/VisitService.ts"
 import { createHarness, type Harness } from "./helpers/app.ts"
 
 const HOST = "links.test"

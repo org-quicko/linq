@@ -1,7 +1,7 @@
 import { describe, expect, test } from "bun:test"
-import { claimsForPreset, defineAbility, type Actor, type KeyPreset } from "@linq/shared"
-import type { Principal } from "../src/auth/middleware.ts"
-import { assertCan, assertCanArchive, assertCanEdit } from "../src/auth/permissions.ts"
+import { type Actor, claimsForPreset, defineAbility, type KeyPreset } from "@linq/shared"
+import type { Principal } from "../src/libs/context.ts"
+import { assertCan } from "../src/middleware/authorize.ts"
 
 const principal = (preset: KeyPreset, keyId = "k1"): Principal => {
   const claims = [...claimsForPreset[preset]]
@@ -19,12 +19,12 @@ const allows = (fn: () => void) => {
 describe("CASL authorization", () => {
   test("editor claims create and update links, viewer claims do not", () => {
     expect(allows(() => assertCan(principal("editor"), "create", "Link"))).toBe(true)
-    expect(allows(() => assertCanEdit(principal("editor")))).toBe(true)
+    expect(allows(() => assertCan(principal("editor"), "update", "Link"))).toBe(true)
     expect(allows(() => assertCan(principal("viewer"), "create", "Link"))).toBe(false)
   })
   test("archive is a distinct admin claim", () => {
-    expect(allows(() => assertCanArchive(principal("admin")))).toBe(true)
-    expect(allows(() => assertCanArchive(principal("editor")))).toBe(false)
+    expect(allows(() => assertCan(principal("admin"), "archive", "Link"))).toBe(true)
+    expect(allows(() => assertCan(principal("editor"), "archive", "Link"))).toBe(false)
   })
   test("a custom claim list grants only its exact CASL action and subject", () => {
     const claims = [{ action: "create", subject: "Domain" }] as const

@@ -63,7 +63,8 @@ beforeAll(async () => {
       platform: "ios",
       os: "ios",
       browser: "safari",
-      user_agent: "Mozilla/5.0 (iPad; CPU OS 17_0 like Mac OS X) Version/17.0 Mobile/15E148 Safari/604.1",
+      user_agent:
+        "Mozilla/5.0 (iPad; CPU OS 17_0 like Mac OS X) Version/17.0 Mobile/15E148 Safari/604.1",
       referer: "https://shop.test/",
       destination: "https://example.com/b",
       query: { utm_source: ["twitter"], utm_medium: ["social"], utm_content: ["Hero"] },
@@ -215,7 +216,10 @@ describe("GET /api/v1/analytics/breakdown", () => {
       "": { human: 3, bot: 1 },
     })
     const bySource = await json(`/breakdown?dimension=utm_source&${WINDOW}&utm_content=HERO`)
-    expect(byKey(bySource)).toEqual({ newsletter: { human: 2, bot: 0 }, twitter: { human: 1, bot: 0 } })
+    expect(byKey(bySource)).toEqual({
+      newsletter: { human: 2, bot: 0 },
+      twitter: { human: 1, bot: 0 },
+    })
     const both = await json(`/summary?${WINDOW}&utm_content=hero&utm_term=shortener`)
     expect(both).toMatchObject({ visits: 2, human: 2 })
   })

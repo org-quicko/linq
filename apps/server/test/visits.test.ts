@@ -1,7 +1,6 @@
 import { describe, expect, test } from "bun:test"
-import { mergeQuery, queryMap } from "../src/http/redirect.ts"
-import { classifyBot, detectBot } from "../src/visits/bot.ts"
-import { detectPlatform } from "../src/visits/platform.ts"
+import { classifyBot, detectPlatform } from "../src/libs/userAgent.ts"
+import { mergeQuery, queryMap } from "../src/services/RedirectService.ts"
 
 describe("detectPlatform", () => {
   test("maps the three families", () => {
@@ -23,21 +22,21 @@ describe("detectPlatform", () => {
   })
 })
 
-describe("detectBot", () => {
+describe("classifyBot().is_bot", () => {
   test("flags crawlers", () => {
-    expect(detectBot("Mozilla/5.0 (compatible; Googlebot/2.1)")).toBe(true)
-    expect(detectBot("Twitterbot/1.0")).toBe(true)
+    expect(classifyBot("Mozilla/5.0 (compatible; Googlebot/2.1)").is_bot).toBe(true)
+    expect(classifyBot("Twitterbot/1.0").is_bot).toBe(true)
   })
 
   test("leaves real browsers alone", () => {
-    expect(detectBot("Mozilla/5.0 (Macintosh) AppleWebKit/537.36 Chrome/120 Safari/537.36")).toBe(
-      false,
-    )
+    expect(
+      classifyBot("Mozilla/5.0 (Macintosh) AppleWebKit/537.36 Chrome/120 Safari/537.36").is_bot,
+    ).toBe(false)
   })
 
   test("a request with no user agent counts as a bot", () => {
-    expect(detectBot(null)).toBe(true)
-    expect(detectBot("")).toBe(true)
+    expect(classifyBot(null).is_bot).toBe(true)
+    expect(classifyBot("").is_bot).toBe(true)
   })
 })
 
@@ -49,7 +48,9 @@ describe("classifyBot", () => {
     })
     expect(classifyBot(null)).toEqual({ is_bot: true, bot_classification: "missing_user_agent" })
     expect(classifyBot("")).toEqual({ is_bot: true, bot_classification: "missing_user_agent" })
-    expect(classifyBot("Mozilla/5.0 (Macintosh) AppleWebKit/537.36 Chrome/120 Safari/537.36")).toEqual({
+    expect(
+      classifyBot("Mozilla/5.0 (Macintosh) AppleWebKit/537.36 Chrome/120 Safari/537.36"),
+    ).toEqual({
       is_bot: false,
       bot_classification: "unknown",
     })

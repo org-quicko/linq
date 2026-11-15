@@ -1,7 +1,7 @@
 import { beforeAll, describe, expect, test } from "bun:test"
 import type { Condition } from "@linq/shared"
-import { matchRules, ruleMatches } from "../src/rules/match.ts"
-import { flushVisits } from "../src/visits/record.ts"
+import { matchRules, ruleMatches } from "../src/services/RuleService.ts"
+import { flushVisits } from "../src/services/VisitService.ts"
 import { createHarness, type Harness } from "./helpers/app.ts"
 
 const ANDROID = "Mozilla/5.0 (Linux; Android 14; Pixel 8) AppleWebKit/537.36 Chrome/120 Mobile"

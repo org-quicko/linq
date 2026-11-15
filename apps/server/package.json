@@ -8,7 +8,7 @@
     "start": "bun src/main.ts",
     "db:codegen": "bun src/cli/codegen.ts",
     "db:migrate": "bun src/cli/migrate.ts",
-    "key:create": "bun src/cli/create-key.ts"
+    "key:create": "bun src/cli/createKey.ts"
   },
   "dependencies": {
     "@hono/zod-validator": "^0.7.4",

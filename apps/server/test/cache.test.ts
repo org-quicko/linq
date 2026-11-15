@@ -1,6 +1,6 @@
 import { afterEach, beforeEach, describe, expect, test } from "bun:test"
-import type { Cache } from "../src/cache.ts"
-import { domainKey, memoryCache, targetKey } from "../src/cache.ts"
+import type { Cache } from "../src/libs/cache.ts"
+import { domainKey, memoryCache, targetKey } from "../src/libs/cache.ts"
 import { createHarness, type Harness } from "./helpers/app.ts"
 import { testConfig } from "./helpers/db.ts"
 

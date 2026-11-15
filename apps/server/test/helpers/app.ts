@@ -1,12 +1,12 @@
 import { claimsForPreset, type KeyPreset, type Link } from "@linq/shared"
 import type { Insertable } from "kysely"
-import { generateKey, hashKey, keyPrefix } from "../../src/auth/keys.ts"
-import { type Cache, noCache } from "../../src/cache.ts"
-import { type Caddy, noCaddy } from "../../src/caddy.ts"
-import type { Db } from "../../src/db/client.ts"
+import { createApp } from "../../src/app.ts"
 import type { DB } from "../../src/db/types.generated.ts"
-import { createApp } from "../../src/http/app.ts"
-import { type MetadataFetcher, noMetadata } from "../../src/link-metadata.ts"
+import { type Cache, noCache } from "../../src/libs/cache.ts"
+import { type Caddy, noCaddy } from "../../src/libs/caddy.ts"
+import type { Db } from "../../src/libs/db.ts"
+import { type MetadataFetcher, noMetadata } from "../../src/libs/linkMetadata.ts"
+import { createApiKey } from "../../src/services/ApiKeyService.ts"
 import { createTestDb, testConfig } from "./db.ts"
 
 /** `json()` is deliberately loose: the assertion in each test does the narrowing. */
@@ -22,20 +22,20 @@ export type Harness = {
   ) => Promise<TestResponse>
   post: (path: string, key: string, body: unknown) => Promise<TestResponse>
   patch: (path: string, key: string, body: unknown) => Promise<TestResponse>
-  createKey: (opts: { preset: KeyPreset; name?: string; expires_at?: Date }) => Promise<{
+  createKey: (opts: { preset: KeyPreset; name?: string; expiresAt?: Date }) => Promise<{
     keyId: string
     key: string
   }>
   /** A key of a named claim preset. The key is the principal. */
   actor: (preset: KeyPreset) => Promise<{ keyId: string; key: string }>
   /** Inserted directly: most suites need a domain without exercising its API. */
-  createDomain: (host: string, fallback_url?: string) => Promise<string>
+  createDomain: (host: string, fallbackUrl?: string) => Promise<string>
   /** Goes through the API, so slug generation and ownership are the real thing. */
-  createLink: (key: string, domain_id: string, body?: Record<string, unknown>) => Promise<Link>
+  createLink: (key: string, domainId: string, body?: Record<string, unknown>) => Promise<Link>
   /** Visit rows written straight to the table; the redirect handler lands in milestone 4. */
   recordVisits: (
-    link_id: string | null,
-    domain_id: string,
+    linkId: string | null,
+    domainId: string,
     counts: { human?: number; bot?: number },
     overrides?: Partial<Insertable<DB["visits"]>>,
   ) => Promise<void>
@@ -71,21 +71,13 @@ export async function createHarness(options: HarnessOptions = {}): Promise<Harne
     return await app.fetch(new Request(`http://${host}${path}`, { ...rest, headers }))
   }
 
-  const createKey: Harness["createKey"] = async ({ preset, name = preset, expires_at }) => {
-    const secret = generateKey()
-    const keyId = Bun.randomUUIDv7()
-    await db
-      .insertInto("api_keys")
-      .values({
-      id: keyId,
+  const createKey: Harness["createKey"] = async ({ preset, name = preset, expiresAt }) => {
+    const { row, secret } = await createApiKey(db, {
       name,
-      claims: JSON.stringify(claimsForPreset[preset]),
-      key_hash: hashKey(secret),
-      prefix: keyPrefix(secret),
-      expires_at: expires_at ?? null,
-      })
-      .execute()
-    return { keyId, key: secret }
+      claims: claimsForPreset[preset],
+      expiresAt: expiresAt ?? null,
+    })
+    return { keyId: row.id, key: secret }
   }
 
   return {
@@ -95,34 +87,34 @@ export async function createHarness(options: HarnessOptions = {}): Promise<Harne
     post: (path, key, body) => request(path, { key, method: "POST", body: JSON.stringify(body) }),
     patch: (path, key, body) => request(path, { key, method: "PATCH", body: JSON.stringify(body) }),
     actor: (preset) => createKey({ preset }),
-    createDomain: async (host, fallback_url) => {
+    createDomain: async (host, fallbackUrl) => {
       const id = Bun.randomUUIDv7()
       await db
         .insertInto("domains")
-        .values({ id, host, fallback_url: fallback_url ?? null })
+        .values({ id, host, fallback_url: fallbackUrl ?? null })
         .execute()
       return id
     },
-    createLink: async (key, domain_id, body = {}) => {
+    createLink: async (key, domainId, body = {}) => {
       const res = await request("/api/v1/links", {
         key,
         method: "POST",
-        body: JSON.stringify({ domain_id, destination: "https://example.com/", ...body }),
+        body: JSON.stringify({ domain_id: domainId, destination: "https://example.com/", ...body }),
       })
       if (res.status !== 201)
         throw new Error(`createLink failed: ${res.status} ${await res.text()}`)
       return (await res.json()) as Link
     },
-    recordVisits: async (link_id, domain_id, counts, overrides = {}) => {
+    recordVisits: async (linkId, domainId, counts, overrides = {}) => {
       const rows = [
         ...Array.from({ length: counts.human ?? 0 }, () => false),
         ...Array.from({ length: counts.bot ?? 0 }, () => true),
-      ].map((is_bot) => ({
+      ].map((isBot) => ({
         id: Bun.randomUUIDv7(),
-        link_id,
-        domain_id,
+        link_id: linkId,
+        domain_id: domainId,
         slug_requested: "test",
-        is_bot,
+        is_bot: isBot,
         platform: "desktop" as const,
         ...overrides,
       }))

@@ -1,5 +1,6 @@
 import { describe, expect, test } from "bun:test"
-import { type Caddy, guarded, reconcileCaddy, startCaddy } from "../src/caddy.ts"
+import { type Caddy, guardedCaddy, startCaddy } from "../src/libs/caddy.ts"
+import { reconcileCaddy } from "../src/services/DomainService.ts"
 import { createTestDb, testConfig } from "./helpers/db.ts"
 
 const CADDY_CONFIG = {
@@ -81,7 +82,7 @@ describe("startCaddy", () => {
   })
 })
 
-describe("guarded", () => {
+describe("guardedCaddy", () => {
   /** A Caddy sync is never allowed to fail its caller. */
   const broken: Caddy = {
     upsert: async () => {
@@ -93,7 +94,7 @@ describe("guarded", () => {
   }
 
   test("swallows a failing upsert and remove", async () => {
-    const safe = guarded(broken)
+    const safe = guardedCaddy(broken)
     await safe.upsert("d1", "x.test")
     await safe.remove("d1")
   })

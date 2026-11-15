@@ -20,7 +20,9 @@ test("0004 derives utm columns and backfills their rollup rows", async () => {
   await sql`INSERT INTO visits (id, domain_id, slug_requested, occurred_at, is_bot, platform, query) VALUES
     ('00000000-0000-7000-8000-0000000000a1', ${domain}, 'a', '2026-03-01T10:00:00Z', false, 'desktop', '{"utm_source":["Mail"],"utm_campaign":["q1"]}'),
     ('00000000-0000-7000-8000-0000000000a2', ${domain}, 'a', '2026-03-01T11:00:00Z', false, 'desktop', '{"utm_source":["mail"]}'),
-    ('00000000-0000-7000-8000-0000000000a3', ${domain}, 'a', '2026-03-02T10:00:00Z', true, 'desktop', NULL)`.execute(db)
+    ('00000000-0000-7000-8000-0000000000a3', ${domain}, 'a', '2026-03-02T10:00:00Z', true, 'desktop', NULL)`.execute(
+    db,
+  )
 
   // Stops at 0004: later migrations have their own tests.
   expect((await migrator.migrateTo("0004_utm_dimensions")).error).toBeUndefined()

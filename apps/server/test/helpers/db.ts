@@ -1,9 +1,9 @@
 import { PGlite } from "@electric-sql/pglite"
 import { Kysely, PGliteDialect } from "kysely"
 import type { Config } from "../../src/config.ts"
-import type { Db } from "../../src/db/client.ts"
 import { runMigrations } from "../../src/db/migrate.ts"
 import type { DB } from "../../src/db/types.generated.ts"
+import type { Db } from "../../src/libs/db.ts"
 
 /**
  * An in-memory Postgres per suite. PGlite runs the same generated migrations as

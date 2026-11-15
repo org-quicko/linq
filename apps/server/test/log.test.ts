@@ -4,8 +4,9 @@ import { tmpdir } from "node:os"
 import { join } from "node:path"
 import { Hono } from "hono"
 import type { Config } from "../src/config.ts"
-import type { Env } from "../src/http/env.ts"
-import { flushLogs, initLogger, log, reqLog, span, withRequestLog } from "../src/log.ts"
+import type { Env } from "../src/libs/context.ts"
+import { flushLogs, initLogger, log, reqLog, span } from "../src/libs/logger.ts"
+import { requestLogger } from "../src/middleware/requestLogger.ts"
 import { createHarness } from "./helpers/app.ts"
 import { testConfig } from "./helpers/db.ts"
 
@@ -159,7 +160,7 @@ describe("spans", () => {
     // A bare app rather than the harness: nothing in the real one throws a
     // non-ApiError on demand, and the wiring is what is under test.
     const app = new Hono<Env>()
-    app.use("*", withRequestLog)
+    app.use("*", requestLogger)
     app.onError((err, c) => {
       reqLog().error({ err }, "unhandled error")
       // `c.text`, not a bare Response: only a context-built response carries the

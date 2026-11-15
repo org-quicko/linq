@@ -20,11 +20,6 @@ const postgresSchemaSchema = z
   .string()
   .regex(/^[a-z_][a-z0-9_]{0,62}$/, "must be a lowercase PostgreSQL identifier")
 
-/** The top-level slug claimed by the configured Client UI mount. */
-export function clientBaseSegment(basePath: string): string {
-  return basePath.slice(1).split("/")[0] ?? ""
-}
-
 /**
  * A path under the Client UI mount. A root mount has no prefix, so `/` + `/x`
  * must not become the protocol-relative `//x`.
@@ -34,13 +29,13 @@ export function clientPath(basePath: string, path: string): string {
 }
 
 /**
- * Static server paths plus the deployment-specific Client UI mount. A root
- * mount claims no slug: it only ever answers on LINQ_APP_HOST, never on a
+ * Static server paths plus the top-level slug the Client UI mount claims. A
+ * root mount claims no slug: it only ever answers on LINQ_APP_HOST, never on a
  * shortening domain.
  */
 export function isReservedSlug(slug: string, clientBasePath: string): boolean {
   const normalised = slug.toLowerCase()
-  const segment = clientBaseSegment(clientBasePath)
+  const segment = clientBasePath.slice(1).split("/")[0] ?? ""
   return RESERVED_SLUGS.has(normalised) || (segment !== "" && normalised === segment)
 }
 

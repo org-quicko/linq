@@ -111,7 +111,9 @@ describe("the QR codes API", () => {
       const byLinkName = await (
         await h.request("/api/v1/qr-codes?search=Campaign+Launch", { key: editor.key })
       ).json()
-      expect(byLinkName.data.some((row: { link_id: string }) => row.link_id === named.id)).toBe(true)
+      expect(byLinkName.data.some((row: { link_id: string }) => row.link_id === named.id)).toBe(
+        true,
+      )
 
       const bySlug = await (
         await h.request("/api/v1/qr-codes?search=distinct-slug-zzz", { key: editor.key })

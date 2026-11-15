@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test"
-import { clientBaseSegment, isAppHost, isReservedSlug, loadConfig } from "../src/config.ts"
+import { isAppHost, isReservedSlug, loadConfig } from "../src/config.ts"
 
 describe("cache configuration", () => {
   test("defaults the memory sweep interval to 60 seconds", () => {
@@ -55,7 +55,6 @@ describe("Client UI base path configuration", () => {
     })
 
     expect(config.LINQ_CLIENT_BASE_PATH).toBe("/admin/example")
-    expect(clientBaseSegment(config.LINQ_CLIENT_BASE_PATH)).toBe("admin")
     expect(isReservedSlug("ADMIN", config.LINQ_CLIENT_BASE_PATH)).toBe(true)
     expect(isReservedSlug("campaign", config.LINQ_CLIENT_BASE_PATH)).toBe(false)
   })

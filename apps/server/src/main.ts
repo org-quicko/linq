@@ -1,14 +1,19 @@
 import pkg from "../package.json" with { type: "json" }
+import { createApp } from "./app.ts"
 import { bootstrap } from "./bootstrap.ts"
-import { startCache } from "./cache.ts"
-import { guarded as guardedCaddy, reconcileCaddy, startCaddy } from "./caddy.ts"
 import { loadConfig } from "./config.ts"
-import { createDb, destroyDb } from "./db/client.ts"
 import { runMigrations } from "./db/migrate.ts"
-import { createApp } from "./http/app.ts"
-import { guarded as guardedMetadata, startMetadata } from "./link-metadata.ts"
-import { flushLogs, initLogger, log } from "./log.ts"
-import { flushVisits } from "./visits/record.ts"
+import {
+  createDb,
+  flushLogs,
+  guardedCaddy,
+  initLogger,
+  log,
+  startCache,
+  startCaddy,
+  startMetadata,
+} from "./libs/index.ts"
+import { flushVisits, reconcileCaddy } from "./services/index.ts"
 
 const config = loadConfig()
 // Before anything else logs: the logger is silent until this runs.
@@ -20,13 +25,13 @@ await runMigrations(db, { advisoryLock: true, schema: config.LINQ_DB_SCHEMA })
 await bootstrap(db, config)
 
 const cache = await startCache(config)
-const caddy = guardedCaddy(startCaddy(config))
-const metadata = guardedMetadata(startMetadata(config))
-const app = createApp({ db, config, cache, caddy, metadata })
+const caddy = startCaddy(config)
+const app = createApp({ db, config, cache, caddy, metadata: startMetadata(config) })
 
 // Repairs Caddy's routes after its own restart, or a first boot alongside a
-// fresh Caddy container whose skeleton config has no routes yet.
-await reconcileCaddy(db, caddy, config.LINQ_APP_HOST)
+// fresh Caddy container whose skeleton config has no routes yet. Guarded so an
+// unreachable Caddy never stops the boot.
+await reconcileCaddy(db, guardedCaddy(caddy), config.LINQ_APP_HOST)
 
 const server = Bun.serve({
   port: config.LINQ_PORT,
@@ -44,7 +49,7 @@ async function shutdown(signal: string): Promise<void> {
   await flushVisits()
   cache.stop()
   await flushLogs()
-  await destroyDb(db)
+  await db.destroy()
   process.exit(0)
 }
 

@@ -1,0 +1,11 @@
+/** Barrel export for every route. `app.ts` mounts them, in an order that matters. */
+export * from "./AdminRoute.ts"
+export * from "./AnalyticsRoute.ts"
+export * from "./DomainRoute.ts"
+export * from "./KeyRoute.ts"
+export * from "./LinkRoute.ts"
+export * from "./LlmsRoute.ts"
+export * from "./QrCodeRoute.ts"
+export * from "./RedirectRoute.ts"
+export * from "./RuleRoute.ts"
+export * from "./VisitRoute.ts"

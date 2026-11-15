@@ -30,7 +30,7 @@ config ──► logger ──► db ──► migrations ──► bootstrap �
   └─ exits on a bad value                      └─ admin key + default domain, only when their tables are empty
 ```
 
-`createApp` (`http/app.ts`) mounts routes in an order that matters: `/api/*`
+`createApp` (`app.ts`) mounts routes in an order that matters: `/api/*`
 first, then `robots.txt`/`llms.txt`, then the exported Client UI at its configured
 base path, and the catch-all redirect handler last — so a reserved path can never
 be shadowed by a slug of the same name, and the UI's first segment is never read
@@ -45,14 +45,14 @@ as one either.
 
 There are no user accounts. An API key (`apiKeys` table) carries its own name
 and role directly, so authenticating is one indexed lookup and no join
-(`resources/docs/adr/0011`). `authenticate` (`auth/middleware.ts`) reads
+(`resources/docs/adr/0011`). `authenticate` (`middleware/authenticate.ts`) reads
 `Authorization: Bearer <key>` or `X-Api-Key`, hashes it, and looks up the row;
 a missing, unknown or expired key is a 401. Only the key's sha256 is stored —
 a lost key cannot be recovered, only reissued.
 
 Roles are linear — `viewer < editor < admin` — and every check goes through
 `@linq/shared`'s `can`/`roleAtLeast`, wrapped on the server by
-`auth/permissions.ts`'s `assert*` functions. An editor creates and edits any
+`middleware/authorize.ts`'s `assertCan`. An editor creates and edits any
 link; archiving, restoring and purging a link are admin-only. Links carry no
 reference to the key that created them, so revoking a key never touches its
 links (`resources/docs/adr/0016`).
@@ -79,14 +79,14 @@ Six tables, one migration tool (Kysely runs the ordered migrations in
 `apps/server/src/db/migrations/`; `kysely-codegen` writes `src/db/types.generated.ts`). A domain hosts links; a link belongs to a domain and
 carries no reference to the key that created it (`resources/docs/adr/0016`); a link may
 carry ordered rules (alternate destinations gated on platform or query-param
-conditions, first match wins — `rules/match.ts`) and styled QR codes.
+conditions, first match wins — `services/RuleService.ts`) and styled QR codes.
 Archiving a link or domain is a status flip, never a delete: a slug is
 reserved for as long as its row exists, so an archived slug can never be
 hijacked by a new link (`resources/docs/adr/0002`). Only a `Purge`, admin-only, destroys
 the row and its visits for good.
 
 Visits are the one high-volume table, and the one place traffic ever touches
-the client. Recording is fire-and-forget (`visits/record.ts`) — a redirect
+the client. Recording is fire-and-forget (`services/VisitService.ts`) — a redirect
 never waits on the insert, and a failed insert never turns a working link
 into an error — and never stores the client's IP address, in the row or the
 request log (`resources/docs/adr/0001`, `resources/docs/adr/0003`). `visit_days` and
@@ -97,7 +97,7 @@ source of truth with no rollup job to fall behind (`resources/docs/adr/0007`).
 
 ## The redirect hot path
 
-`http/redirect.ts` is the one handler most requests hit. For a host it looks
+`routes/RedirectRoute.ts` is the one handler most requests hit. For a host it looks
 up the active domain, then the active link for the slug (rules bundled in, so
 one hit answers the whole redirect), through an optional cache
 (`through()` in the same file — cache miss falls back to the query and writes
@@ -107,7 +107,7 @@ treated as an orphan rather than filtered in SQL, because a cached entry can
 outlive its own expiry with nothing to invalidate it. Reserved paths (`/api`,
 the configured Client UI first segment, …) are checked before any of this, by
 first path segment.
-Rule matching (`rules/match.ts`) is synchronous and ANDs a rule's conditions;
+Rule matching (`services/RuleService.ts`) is synchronous and ANDs a rule's conditions;
 the first rule that matches wins, otherwise the link's own destination is
 used. If the link forwards its query, the caller's query merges in and the
 link's own preset params overwrite anything that collides on either side.
@@ -118,7 +118,7 @@ destination's title, since fetching the destination synchronously on every
 crawler hit would make the redirect page as slow as its target
 (`resources/docs/adr/0014`). An ordinary destination gets a name, description and
 favicon in the background instead, fetched once and stored on the link
-(`link-metadata.ts`), with an SSRF guard that refuses private, loopback and
+(`libs/linkMetadata.ts`), with an SSRF guard that refuses private, loopback and
 link-local IPs so a destination can't be used to probe the server's own
 network.
 
@@ -138,7 +138,7 @@ resolve domain (Host)  ──unknown / archived──►  untracked 404         
 resolve link (slug, rules bundled in)  ──unknown / archived / expired──►  orphan visit ──► domain's fallback_url or 404
   │ active                                                                      │
   ▼                                                                             │
-rule matching (rules/match.ts, first hold wins)  ──►  destination  ◄────────────┘
+rule matching (RuleService.ts, first hold wins)  ──►  destination  ◄────────────┘
   │
   ▼
 forward_query?  ──yes──►  merge caller's query, link's preset params win on collision
@@ -164,8 +164,8 @@ custom domain resolves over HTTPS without hand-editing Caddy's config
 reconciles all of them once at its own boot. Link-metadata fetching
 (`LINQ_FETCH_LINK_METADATA`) follows the same pattern too.
 
-All three are wrapped by a `guarded()` function (`cache.ts`, `caddy.ts`,
-`link-metadata.ts`) that turns any failure into "act as if this feature is
+All three are wrapped by a guard (`guardedCache`, `guardedCaddy`,
+`guardedMetadata`, in `libs/`) that turns any failure into "act as if this feature is
 off" rather than letting a down dependency break a route it merely
 optimises — a domain mutation, a redirect, or a link creation must all
 succeed whether or not Redis, Caddy or the destination site are currently
@@ -173,7 +173,7 @@ reachable.
 
 ## Observability
 
-`log.ts` builds one process-wide pino logger, silent until `main.ts` calls
+`libs/logger.ts` builds one process-wide pino logger, silent until `main.ts` calls
 `initLogger`, so importing it from a test or script writes nothing. Every
 request gets a child logger carrying a request id, held in `AsyncLocalStorage`
 rather than threaded through every function signature. `span()` wraps a named
@@ -199,7 +199,7 @@ one call site: it attaches the key, and treats "no server connected" and a
 saved server record (only the key is bad, not the URL).
 
 Two builds come from one codebase: `build:client` targets the configured
-sub-path the server serves at (`http/admin-static.ts` mounts it, path-
+sub-path the server serves at (`routes/AdminRoute.ts` mounts it, path-
 traversal-checked, ahead of the redirect catch-all); `build:client:standalone`
 targets a domain root for hosting anywhere as plain static files. The combined
 build bakes `LINQ_CLIENT_BASE_PATH` into its static files (`/home` by default),

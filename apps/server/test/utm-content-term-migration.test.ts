@@ -8,7 +8,9 @@ import { migrationsFolder } from "../src/db/migrate.ts"
 
 const DIMENSIONS = ["utm_source", "utm_medium", "utm_campaign", "utm_content", "utm_term"] as const
 const random = (n: number) =>
-  Array.from(crypto.getRandomValues(new Uint8Array(n)), (b) => b.toString(36).padStart(2, "0")).join("")
+  Array.from(crypto.getRandomValues(new Uint8Array(n)), (b) =>
+    b.toString(36).padStart(2, "0"),
+  ).join("")
 
 // 0005 rewrites visits and rebuilds the rollup, so it runs against rows written under 0004.
 test("0005 adds content and term, caps every utm value, and rebuilds the rollup", async () => {
@@ -27,13 +29,22 @@ test("0005 adds content and term, caps every utm value, and rebuilds the rollup"
       '{"utm_source":["Mail"],"utm_content":["Hero"],"utm_term":["Short"]}'),
     ('00000000-0000-7000-8000-0000000000a2', ${domain}, 'a', '2026-03-01T11:00:00Z', false, 'desktop',
       ${JSON.stringify({ utm_source: [long], utm_term: ["short"] })}::jsonb),
-    ('00000000-0000-7000-8000-0000000000a3', ${domain}, 'a', '2026-03-02T10:00:00Z', true, 'desktop', NULL)`.execute(db)
+    ('00000000-0000-7000-8000-0000000000a3', ${domain}, 'a', '2026-03-02T10:00:00Z', true, 'desktop', NULL)`.execute(
+    db,
+  )
 
   expect((await migrator.migrateToLatest()).error).toBeUndefined()
 
   // Backfilled from `query`, lowercased, and capped.
-  const { rows } = await sql<{ id: string; utm_source: string | null; utm_content: string | null; utm_term: string | null }>`
-    SELECT right(id::text, 2) AS id, utm_source, utm_content, utm_term FROM visits ORDER BY id`.execute(db)
+  const { rows } = await sql<{
+    id: string
+    utm_source: string | null
+    utm_content: string | null
+    utm_term: string | null
+  }>`
+    SELECT right(id::text, 2) AS id, utm_source, utm_content, utm_term FROM visits ORDER BY id`.execute(
+    db,
+  )
   expect(rows.map((r) => [r.id, r.utm_content, r.utm_term])).toEqual([
     ["a1", "hero", "short"],
     ["a2", null, "short"],
@@ -60,8 +71,12 @@ test("0005 adds content and term, caps every utm value, and rebuilds the rollup"
   const huge = random(3000)
   await sql`INSERT INTO visits (id, domain_id, slug_requested, occurred_at, is_bot, platform, query) VALUES
     ('00000000-0000-7000-8000-0000000000a4', ${domain}, 'a', '2026-03-02T12:00:00Z', false, 'desktop',
-      ${JSON.stringify({ utm_term: [huge], utm_campaign: [huge], utm_content: ["Hero"] })}::jsonb)`.execute(db)
-  const stored = await sql<{ n: number }>`SELECT length(utm_term)::int AS n FROM visits WHERE right(id::text, 2) = 'a4'`.execute(db)
+      ${JSON.stringify({ utm_term: [huge], utm_campaign: [huge], utm_content: ["Hero"] })}::jsonb)`.execute(
+    db,
+  )
+  const stored = await sql<{
+    n: number
+  }>`SELECT length(utm_term)::int AS n FROM visits WHERE right(id::text, 2) = 'a4'`.execute(db)
   expect(stored.rows).toEqual([{ n: 200 }])
   await compare()
 })
