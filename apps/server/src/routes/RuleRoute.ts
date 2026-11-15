@@ -1,7 +1,7 @@
 import { rulesPutSchema } from "@linq/shared"
 import { Hono } from "hono"
 import { type Env, targetKey } from "../libs/index.ts"
-import { assertCan, idParam, validate } from "../middleware/index.ts"
+import { authorize, idParam, validate } from "../middleware/index.ts"
 import { listRules, loadLink, replaceRules, toRule } from "../services/index.ts"
 
 /**
@@ -20,7 +20,7 @@ export const ruleRoute = new Hono<Env>()
   .put("/:id/rules", idParam, validate("json", rulesPutSchema), async (c) => {
     const { id } = c.req.valid("param")
     const link = await loadLink(c.var.db, id)
-    assertCan(c.var.principal, "update", "Link")
+    authorize(c.var.principal, "update", "Link")
     const rules = c.req.valid("json")
     await c.var.db.transaction().execute((tx) => replaceRules(tx, id, rules))
     // The redirect caches a link's rules inside its target entry, so replacing

@@ -6,7 +6,7 @@ import {
 } from "@linq/shared"
 import { Hono } from "hono"
 import type { Env } from "../libs/index.ts"
-import { assertCan, idParam, validate } from "../middleware/index.ts"
+import { authorize, idParam, validate } from "../middleware/index.ts"
 import {
   createQrCode,
   deleteQrCode,
@@ -32,7 +32,7 @@ export const qrCodeRoute = new Hono<Env>()
     const body = c.req.valid("json")
     // Unknown link first: a missing link is a 404, not a permission question.
     const link = await loadLink(c.var.db, body.link_id)
-    assertCan(c.var.principal, "update", "Link")
+    authorize(c.var.principal, "update", "Link")
     if (link.status === "archived")
       throw ApiError.conflict("cannot attach a QR code to an archived link")
     return c.json(await createQrCode(c.var.db, body), 201)
@@ -43,14 +43,14 @@ export const qrCodeRoute = new Hono<Env>()
   .patch("/:id", idParam, validate("json", qrCodePatchSchema), async (c) => {
     const { id } = c.req.valid("param")
     await loadQrCode(c.var.db, id)
-    assertCan(c.var.principal, "update", "Link")
+    authorize(c.var.principal, "update", "Link")
     return c.json(await updateQrCode(c.var.db, id, c.req.valid("json")))
   })
 
   .delete("/:id", idParam, async (c) => {
     const { id } = c.req.valid("param")
     await loadQrCode(c.var.db, id)
-    assertCan(c.var.principal, "update", "Link")
+    authorize(c.var.principal, "update", "Link")
     await deleteQrCode(c.var.db, id)
     return c.body(null, 204)
   })

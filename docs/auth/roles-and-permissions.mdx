@@ -199,7 +199,7 @@ linq distinguishes two authorization failure modes:
 | `401 Unauthorized` | The request carries no valid key | Key is missing, unrecognised, or expired |
 | `403 Forbidden` | The key is valid but lacks the required claim | Correct key, insufficient role for this operation |
 
-The server enforces this via two layers: the `authenticate` middleware (`auth/middleware.ts`) rejects unknown or expired keys with 401 before any handler runs; then each handler calls `assertCan(principal, action, subject)` (`auth/permissions.ts`) which throws 403 if the key's CASL ability does not include the required claim.
+The server enforces this via two layers: the `authenticate` middleware (`apps/server/src/middleware/authenticate.ts`) rejects unknown or expired keys with 401 before any handler runs; then each handler calls `authorize(principal, action, subject)` (`apps/server/src/middleware/authorize.ts`) which throws 403 if the key's CASL ability does not include the required claim.
 
 ```
 request
@@ -211,7 +211,7 @@ authenticate — hash + look up api_keys ──miss/expired──► 401
 principal { keyId, claims, ability, name }
   │
   ▼
-assertCan(principal, action, subject) ──fails──► 403
+authorize(principal, action, subject) ──fails──► 403
   │ passes
   ▼
 handler runs
@@ -239,7 +239,7 @@ if (can.manageKeys(actor)) {
 The `can` object exposes named helpers: `createLink`, `editLink`, `archiveLink`,
 `purge`, `manageDomains`, `manageKeys`, `changeRoleOf`, and `revokeKey`. Each
 evaluates the CASL ability built from the key's claims — the same evaluation the
-server performs in `assertCan`.
+server performs in `authorize`.
 
 <Tip>
   Use a `viewer` key for analytics dashboards, monitoring scripts, or any

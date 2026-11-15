@@ -7,7 +7,7 @@ import {
 } from "@linq/shared"
 import { Hono } from "hono"
 import type { Env } from "../libs/index.ts"
-import { assertCan, idParam, validate } from "../middleware/index.ts"
+import { authorize, idParam, validate } from "../middleware/index.ts"
 import {
   createApiKey,
   deleteApiKey,
@@ -24,14 +24,14 @@ import {
  */
 export const keyRoute = new Hono<Env>()
   .get("/", validate("query", paginationSchema), async (c) => {
-    assertCan(c.var.principal, "read", "Key")
+    authorize(c.var.principal, "read", "Key")
     const { limit, offset } = c.req.valid("query")
     const canManage = c.var.principal.ability.can("create", "Key")
     const { data, total } = await listApiKeys(c.var.db, { limit, offset, canManage })
     return c.json({ data, total, limit, offset })
   })
   .post("/", validate("json", keyCreateSchema), async (c) => {
-    assertCan(c.var.principal, "create", "Key")
+    authorize(c.var.principal, "create", "Key")
     const body = c.req.valid("json")
     const { row, secret } = await createApiKey(c.var.db, {
       name: body.name,
@@ -41,13 +41,13 @@ export const keyRoute = new Hono<Env>()
     return c.json({ ...toApiKey(row), secret } satisfies ApiKeyCreated, 201)
   })
   .get("/:id", idParam, async (c) => {
-    assertCan(c.var.principal, "read", "Key")
+    authorize(c.var.principal, "read", "Key")
     const key = await getApiKey(c.var.db, c.req.valid("param").id)
     if (!key) throw ApiError.notFound("key")
     return c.json(key)
   })
   .patch("/:id", idParam, validate("json", keyPatchSchema), async (c) => {
-    assertCan(c.var.principal, "update", "Key")
+    authorize(c.var.principal, "update", "Key")
     const { id } = c.req.valid("param")
     const patch = c.req.valid("json")
     const changesClaims = patch.claims !== undefined || patch.preset !== undefined
@@ -67,7 +67,7 @@ export const keyRoute = new Hono<Env>()
     return c.json(key)
   })
   .delete("/:id", idParam, async (c) => {
-    assertCan(c.var.principal, "delete", "Key")
+    authorize(c.var.principal, "delete", "Key")
     const { id } = c.req.valid("param")
     if (id === c.var.principal.keyId)
       throw ApiError.forbidden("you cannot revoke the key you are using")

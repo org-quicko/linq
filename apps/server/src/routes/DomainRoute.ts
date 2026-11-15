@@ -2,7 +2,7 @@ import { ApiError, domainCreateSchema, domainPatchSchema, paginationSchema } fro
 import { Hono } from "hono"
 import { isAppHost } from "../config.ts"
 import { domainKey, type Env } from "../libs/index.ts"
-import { assertCan, idParam, validate } from "../middleware/index.ts"
+import { authorize, idParam, validate } from "../middleware/index.ts"
 import {
   archiveDomain,
   createDomain,
@@ -21,7 +21,7 @@ export const domainRoute = new Hono<Env>()
   })
 
   .post("/", validate("json", domainCreateSchema), async (c) => {
-    assertCan(c.var.principal, "create", "Domain")
+    authorize(c.var.principal, "create", "Domain")
     const body = c.req.valid("json")
     // The Client UI claims every path on the app host, so no link there could resolve.
     if (isAppHost(c.var.config, body.host)) {
@@ -37,7 +37,7 @@ export const domainRoute = new Hono<Env>()
   .get("/:id", idParam, async (c) => c.json(await getDomain(c.var.db, c.req.valid("param").id)))
 
   .patch("/:id", idParam, validate("json", domainPatchSchema), async (c) => {
-    assertCan(c.var.principal, "update", "Domain")
+    authorize(c.var.principal, "update", "Domain")
     const { id } = c.req.valid("param")
     const patch = c.req.valid("json")
     const before = await getDomain(c.var.db, id)
@@ -52,7 +52,7 @@ export const domainRoute = new Hono<Env>()
 
   /** DELETE is an alias for archiving; domains are never dropped. See resources/docs/adr/0002. */
   .delete("/:id", idParam, async (c) => {
-    assertCan(c.var.principal, "archive", "Domain")
+    authorize(c.var.principal, "archive", "Domain")
     const { id } = c.req.valid("param")
     const before = await getDomain(c.var.db, id)
     await archiveDomain(c.var.db, id)
@@ -63,7 +63,7 @@ export const domainRoute = new Hono<Env>()
 
   /** Admin only, and archived-first. */
   .delete("/:id/purge", idParam, async (c) => {
-    assertCan(c.var.principal, "purge", "Link")
+    authorize(c.var.principal, "purge", "Link")
     const domain = await getDomain(c.var.db, c.req.valid("param").id)
     await purgeDomain(c.var.db, domain)
     await c.var.cache.del(domainKey(domain.host))

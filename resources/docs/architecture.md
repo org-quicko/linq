@@ -52,7 +52,7 @@ a lost key cannot be recovered, only reissued.
 
 Roles are linear — `viewer < editor < admin` — and every check goes through
 `@linq/shared`'s `can`/`roleAtLeast`, wrapped on the server by
-`middleware/authorize.ts`'s `assertCan`. An editor creates and edits any
+`middleware/authorize.ts`'s `authorize`. An editor creates and edits any
 link; archiving, restoring and purging a link are admin-only. Links carry no
 reference to the key that created them, so revoking a key never touches its
 links (`resources/docs/adr/0016`).

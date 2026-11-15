@@ -8,7 +8,7 @@ import {
 import { Hono } from "hono"
 import { isReservedSlug } from "../config.ts"
 import { type Env, linkKeys } from "../libs/index.ts"
-import { assertCan, idParam, validate } from "../middleware/index.ts"
+import { authorize, idParam, validate } from "../middleware/index.ts"
 import {
   archiveLink,
   countLinks,
@@ -39,7 +39,7 @@ export const linkRoute = new Hono<Env>()
   )
 
   .post("/", validate("json", linkCreateSchema), async (c) => {
-    assertCan(c.var.principal, "create", "Link")
+    authorize(c.var.principal, "create", "Link")
     const body = c.req.valid("json")
     const { LINQ_CLIENT_BASE_PATH: clientBasePath, LINQ_SLUG_LENGTH: slugLength } = c.var.config
     if (body.slug && isReservedSlug(body.slug, clientBasePath)) {
@@ -62,7 +62,7 @@ export const linkRoute = new Hono<Env>()
     const existing = await loadLink(c.var.db, id)
     // Archiving or restoring (a status change) is admin-only; every other
     // field is an ordinary edit. See resources/docs/adr/0016.
-    assertCan(c.var.principal, patch.status !== undefined ? "archive" : "update", "Link")
+    authorize(c.var.principal, patch.status !== undefined ? "archive" : "update", "Link")
     const fetched =
       patch.destination !== undefined ? await c.var.metadata.fetch(patch.destination) : null
     await updateLink(c.var.db, existing, patch, fetched)
@@ -75,7 +75,7 @@ export const linkRoute = new Hono<Env>()
    * of `/:id` for the same reason as `/count`.
    */
   .delete("/purge", async (c) => {
-    assertCan(c.var.principal, "purge", "Link")
+    authorize(c.var.principal, "purge", "Link")
     const rows = await purgeArchivedLinks(c.var.db)
     await c.var.cache.del(...rows.flatMap((row) => linkKeys(row.domain_id, row.slug)))
     return c.json({ purged: rows.length })
@@ -85,7 +85,7 @@ export const linkRoute = new Hono<Env>()
   .delete("/:id", idParam, async (c) => {
     const { id } = c.req.valid("param")
     const existing = await loadLink(c.var.db, id)
-    assertCan(c.var.principal, "archive", "Link")
+    authorize(c.var.principal, "archive", "Link")
     await archiveLink(c.var.db, id)
     await c.var.cache.del(...linkKeys(existing.domain_id, existing.slug))
     return c.json(await getLink(c.var.db, id))
@@ -93,7 +93,7 @@ export const linkRoute = new Hono<Env>()
 
   /** Admin only, and archived-first, so a live short URL can never be destroyed by one call. */
   .delete("/:id/purge", idParam, async (c) => {
-    assertCan(c.var.principal, "purge", "Link")
+    authorize(c.var.principal, "purge", "Link")
     const existing = await loadLink(c.var.db, c.req.valid("param").id)
     await purgeLink(c.var.db, existing)
     await c.var.cache.del(...linkKeys(existing.domain_id, existing.slug))

@@ -27,7 +27,7 @@ barrel; import from it rather than reaching into single files.
    `services/index.ts`.
 3. In the route, validate with `validate()` (or `idParam` for `/:id`) from
    `middleware/validate.ts`, then read the result with `c.req.valid(...)`.
-4. Check permissions with `assertCan(principal, action, subject)` from
+4. Check permissions with `authorize(principal, action, subject)` from
    `middleware/authorize.ts`. Load the resource first when an unknown id
    should 404 before the permission question. Add a capability once to
    `packages/shared/src/permissions.ts` when needed.
