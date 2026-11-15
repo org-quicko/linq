@@ -20,10 +20,10 @@ SET client_min_messages = warning;
 SET row_security = off;
 
 --
--- Name: bot_classification; Type: TYPE; Schema: public; Owner: -
+-- Name: bot_classification_reason; Type: TYPE; Schema: public; Owner: -
 --
 
-CREATE TYPE public.bot_classification AS ENUM (
+CREATE TYPE public.bot_classification_reason AS ENUM (
     'missing_user_agent',
     'isbot_match',
     'pattern_match',
@@ -106,7 +106,7 @@ CREATE FUNCTION public.record_visit_rollup() RETURNS trigger
     LANGUAGE plpgsql
     AS $$
 DECLARE
-  d date := (new.occurred_at AT TIME ZONE 'UTC')::date;
+  d date := (new.visited_at AT TIME ZONE 'UTC')::date;
 BEGIN
   INSERT INTO "visit_days" ("day", "domain_id", "link_id", "dimension", "value", "is_bot", "count")
   SELECT d, new.domain_id, new.link_id, dims.dim, dims.val, new.is_bot, 1
@@ -133,7 +133,7 @@ BEGIN
     new.link_id,
     CASE WHEN new.is_bot THEN 0 ELSE 1 END,
     CASE WHEN new.is_bot THEN 1 ELSE 0 END,
-    new.occurred_at
+    new.visited_at
   )
   ON CONFLICT ("domain_id", "link_id") DO UPDATE SET
     "human" = "visit_counts"."human" + excluded."human",
@@ -300,7 +300,7 @@ CREATE TABLE public.visits (
     link_id uuid,
     domain_id uuid NOT NULL,
     slug_requested text NOT NULL,
-    occurred_at timestamp with time zone DEFAULT now() NOT NULL,
+    visited_at timestamp with time zone DEFAULT now() NOT NULL,
     is_bot boolean NOT NULL,
     platform public.platform NOT NULL,
     os text,
@@ -309,13 +309,13 @@ CREATE TABLE public.visits (
     referer text,
     referer_host text GENERATED ALWAYS AS (public.referer_host(referer)) STORED,
     destination text,
-    query jsonb,
-    bot_classification public.bot_classification,
-    utm_source text GENERATED ALWAYS AS (NULLIF("left"(lower(btrim(((query -> 'utm_source'::text) ->> 0))), 200), ''::text)) STORED,
-    utm_medium text GENERATED ALWAYS AS (NULLIF("left"(lower(btrim(((query -> 'utm_medium'::text) ->> 0))), 200), ''::text)) STORED,
-    utm_campaign text GENERATED ALWAYS AS (NULLIF("left"(lower(btrim(((query -> 'utm_campaign'::text) ->> 0))), 200), ''::text)) STORED,
-    utm_content text GENERATED ALWAYS AS (NULLIF("left"(lower(btrim(((query -> 'utm_content'::text) ->> 0))), 200), ''::text)) STORED,
-    utm_term text GENERATED ALWAYS AS (NULLIF("left"(lower(btrim(((query -> 'utm_term'::text) ->> 0))), 200), ''::text)) STORED,
+    query_params jsonb,
+    bot_classification_reason public.bot_classification_reason,
+    utm_source text GENERATED ALWAYS AS (NULLIF("left"(lower(btrim(((query_params -> 'utm_source'::text) ->> 0))), 200), ''::text)) STORED,
+    utm_medium text GENERATED ALWAYS AS (NULLIF("left"(lower(btrim(((query_params -> 'utm_medium'::text) ->> 0))), 200), ''::text)) STORED,
+    utm_campaign text GENERATED ALWAYS AS (NULLIF("left"(lower(btrim(((query_params -> 'utm_campaign'::text) ->> 0))), 200), ''::text)) STORED,
+    utm_content text GENERATED ALWAYS AS (NULLIF("left"(lower(btrim(((query_params -> 'utm_content'::text) ->> 0))), 200), ''::text)) STORED,
+    utm_term text GENERATED ALWAYS AS (NULLIF("left"(lower(btrim(((query_params -> 'utm_term'::text) ->> 0))), 200), ''::text)) STORED,
     device_type text GENERATED ALWAYS AS (
 CASE
     WHEN (NULLIF(btrim(user_agent), ''::text) IS NULL) THEN NULL::text
@@ -507,28 +507,28 @@ CREATE INDEX visit_days_link_idx ON public.visit_days USING btree (link_id, dime
 -- Name: visits_analytics_idx; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX visits_analytics_idx ON public.visits USING btree (occurred_at DESC NULLS LAST, is_bot, platform, link_id, domain_id, os, browser, referer_host, slug_requested, utm_source, utm_medium, utm_campaign, utm_content, utm_term, device_type);
+CREATE INDEX visits_analytics_idx ON public.visits USING btree (visited_at DESC NULLS LAST, is_bot, platform, link_id, domain_id, os, browser, referer_host, slug_requested, utm_source, utm_medium, utm_campaign, utm_content, utm_term, device_type);
 
 
 --
--- Name: visits_domain_occurred_idx; Type: INDEX; Schema: public; Owner: -
+-- Name: visits_domain_visited_idx; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX visits_domain_occurred_idx ON public.visits USING btree (domain_id, occurred_at DESC NULLS LAST);
-
-
---
--- Name: visits_link_occurred_idx; Type: INDEX; Schema: public; Owner: -
---
-
-CREATE INDEX visits_link_occurred_idx ON public.visits USING btree (link_id, occurred_at DESC NULLS LAST);
+CREATE INDEX visits_domain_visited_idx ON public.visits USING btree (domain_id, visited_at DESC NULLS LAST);
 
 
 --
--- Name: visits_orphan_occurred_idx; Type: INDEX; Schema: public; Owner: -
+-- Name: visits_link_visited_idx; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX visits_orphan_occurred_idx ON public.visits USING btree (occurred_at DESC NULLS LAST) WHERE (link_id IS NULL);
+CREATE INDEX visits_link_visited_idx ON public.visits USING btree (link_id, visited_at DESC NULLS LAST);
+
+
+--
+-- Name: visits_orphan_visited_idx; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX visits_orphan_visited_idx ON public.visits USING btree (visited_at DESC NULLS LAST) WHERE (link_id IS NULL);
 
 
 --

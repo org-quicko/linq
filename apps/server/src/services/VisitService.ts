@@ -3,7 +3,7 @@ import { type Insertable, type RawBuilder, type Selectable, type SqlBool, sql } 
 import type { DB } from "../db/types.generated.ts"
 import { type Db, reqLog, span } from "../libs/index.ts"
 
-export type VisitInput = Omit<Insertable<DB["visits"]>, "id" | "occurred_at">
+export type VisitInput = Omit<Insertable<DB["visits"]>, "id" | "visited_at">
 export type VisitFilter = RawBuilder<SqlBool>
 
 /** Every narrowing the raw log accepts. Multi-valued filters are OR-ed within themselves. */
@@ -48,16 +48,16 @@ function toVisit(row: Selectable<DB["visits"]>): Visit {
     link_id: row.link_id,
     domain_id: row.domain_id,
     slug_requested: row.slug_requested,
-    occurred_at: row.occurred_at.toISOString(),
+    visited_at: row.visited_at.toISOString(),
     is_bot: row.is_bot,
-    bot_classification: row.bot_classification,
+    bot_classification_reason: row.bot_classification_reason,
     platform: row.platform,
     os: row.os,
     browser: row.browser,
     user_agent: row.user_agent,
     referer: row.referer,
     destination: row.destination,
-    query: row.query,
+    query_params: row.query_params,
   }
 }
 
@@ -116,13 +116,13 @@ export function visitFilters(q: VisitFilterQuery): VisitFilter[] {
   const filters: VisitFilter[] = []
   if (q.from) {
     const from = new Date(q.from.includes("T") ? q.from : `${q.from}T00:00:00Z`)
-    filters.push(sql<SqlBool>`occurred_at >= ${from}`)
+    filters.push(sql<SqlBool>`visited_at >= ${from}`)
   }
   if (q.to) {
     filters.push(
       q.to.includes("T")
-        ? sql<SqlBool>`occurred_at <= ${new Date(q.to)}`
-        : sql<SqlBool>`occurred_at < (${q.to}::date + 1)`,
+        ? sql<SqlBool>`visited_at <= ${new Date(q.to)}`
+        : sql<SqlBool>`visited_at < (${q.to}::date + 1)`,
     )
   }
   if (q.bot && q.bot !== "any") filters.push(sql<SqlBool>`is_bot = ${q.bot === "true"}`)
@@ -160,7 +160,7 @@ export async function listVisits(
     .selectFrom("visits")
     .selectAll()
     .where((eb) => eb.and(filters))
-    .orderBy("occurred_at", "desc")
+    .orderBy("visited_at", "desc")
     .orderBy("id", "desc")
     .limit(limit)
     .offset(offset)

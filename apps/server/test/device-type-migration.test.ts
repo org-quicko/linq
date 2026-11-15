@@ -29,7 +29,7 @@ test("0006 backfills device_type from the user agent and rolls it up", async () 
     db,
   )
 
-  expect((await migrator.migrateToLatest()).error).toBeUndefined()
+  expect((await migrator.migrateTo("0006_device_type")).error).toBeUndefined()
 
   const { rows } = await sql<{ id: string; device_type: string | null }>`
     SELECT right(id::text, 2) AS id, device_type FROM visits ORDER BY id`.execute(db)

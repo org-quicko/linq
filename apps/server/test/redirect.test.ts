@@ -172,7 +172,7 @@ describe("redirecting an active link", () => {
       slug_requested: "hello",
       destination: "https://example.com/landing",
       is_bot: false,
-      bot_classification: "unknown",
+      bot_classification_reason: "unknown",
       platform: "desktop",
       referer: "https://news.test/post",
     })
@@ -403,7 +403,7 @@ describe("query forwarding", () => {
 
     const res = await get("/sealed?b=2")
     expect(res.headers.get("location")).toBe("https://example.com/?a=1")
-    expect((await lastVisit()).query).toEqual({ b: ["2"] })
+    expect((await lastVisit()).query_params).toEqual({ b: ["2"] })
   })
 
   test("a link with no incoming query keeps its destination byte for byte", async () => {
@@ -413,7 +413,7 @@ describe("query forwarding", () => {
     })
     const res = await get("/plain")
     expect(res.headers.get("location")).toBe("https://example.com/path?x=1#frag")
-    expect((await lastVisit()).query).toBeNull()
+    expect((await lastVisit()).query_params).toBeNull()
   })
 })
 
@@ -506,12 +506,15 @@ describe("visitor detection", () => {
     await h.createLink(editor.key, domain, { slug: "crawled" })
 
     await get("/crawled", { headers: { "user-agent": BOT } })
-    expect(await lastVisit()).toMatchObject({ is_bot: true, bot_classification: "isbot_match" })
+    expect(await lastVisit()).toMatchObject({
+      is_bot: true,
+      bot_classification_reason: "isbot_match",
+    })
 
     await h.request("/crawled", { host: HOST })
     expect(await lastVisit()).toMatchObject({
       is_bot: true,
-      bot_classification: "missing_user_agent",
+      bot_classification_reason: "missing_user_agent",
       user_agent: null,
     })
   })

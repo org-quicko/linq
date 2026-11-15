@@ -19,9 +19,9 @@ import {
   hostHasAnyDomain,
   matchRules,
   mergeQuery,
-  queryMap,
   recordVisit,
   shortUrl,
+  toQueryParams,
 } from "../services/index.ts"
 
 /** Always 302, never cached: the destination can change under a live slug. */
@@ -116,7 +116,7 @@ export const redirectHandler = createFactory<Env>().createHandlers(async (c) => 
     ...detectOsAndBrowser(userAgent),
     user_agent: userAgent,
     referer: c.req.header("referer") ?? null,
-    query: queryMap(url.searchParams),
+    query_params: toQueryParams(url.searchParams),
   }
 
   // 3. Root path, unknown slug or archived link: an orphan visit on a live domain.

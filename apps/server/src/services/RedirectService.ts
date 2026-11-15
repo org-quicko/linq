@@ -147,7 +147,7 @@ export function mergeQuery(destination: string, overrides: URLSearchParams): str
 }
 
 /** The visit's record of what the caller asked for, before any merging. */
-export function queryMap(params: URLSearchParams): Record<string, string[]> | null {
+export function toQueryParams(params: URLSearchParams): Record<string, string[]> | null {
   const out: Record<string, string[]> = {}
   for (const [key, value] of params) {
     const seen = out[key]

@@ -27,7 +27,7 @@ async function liveDays(db: Db, dimension: keyof typeof DIMENSIONS) {
   const rows = await db
     .selectFrom("visits")
     .select([
-      sql<string>`to_char(occurred_at at time zone 'UTC', 'YYYY-MM-DD')`.as("day"),
+      sql<string>`to_char(visited_at at time zone 'UTC', 'YYYY-MM-DD')`.as("day"),
       "domain_id",
       "link_id",
       DIMENSIONS[dimension].as("value"),

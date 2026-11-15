@@ -1,6 +1,6 @@
 import { describe, expect, test } from "bun:test"
 import { classifyBot, detectPlatform } from "../src/libs/userAgent.ts"
-import { mergeQuery, queryMap } from "../src/services/RedirectService.ts"
+import { mergeQuery, toQueryParams } from "../src/services/RedirectService.ts"
 
 describe("detectPlatform", () => {
   test("maps the three families", () => {
@@ -44,15 +44,21 @@ describe("classifyBot", () => {
   test("records why each user agent was classified", () => {
     expect(classifyBot("Mozilla/5.0 (compatible; Googlebot/2.1)")).toEqual({
       is_bot: true,
-      bot_classification: "isbot_match",
+      bot_classification_reason: "isbot_match",
     })
-    expect(classifyBot(null)).toEqual({ is_bot: true, bot_classification: "missing_user_agent" })
-    expect(classifyBot("")).toEqual({ is_bot: true, bot_classification: "missing_user_agent" })
+    expect(classifyBot(null)).toEqual({
+      is_bot: true,
+      bot_classification_reason: "missing_user_agent",
+    })
+    expect(classifyBot("")).toEqual({
+      is_bot: true,
+      bot_classification_reason: "missing_user_agent",
+    })
     expect(
       classifyBot("Mozilla/5.0 (Macintosh) AppleWebKit/537.36 Chrome/120 Safari/537.36"),
     ).toEqual({
       is_bot: false,
-      bot_classification: "unknown",
+      bot_classification_reason: "unknown",
     })
   })
 
@@ -64,7 +70,10 @@ describe("classifyBot", () => {
       "Mozilla/5.0 (Linux; Android 15; Pixel 9) AppleWebKit/537.36 Chrome/131.0.0.0 Mobile Safari/537.36",
     ]
     for (const user_agent of browsers)
-      expect(classifyBot(user_agent)).toEqual({ is_bot: false, bot_classification: "unknown" })
+      expect(classifyBot(user_agent)).toEqual({
+        is_bot: false,
+        bot_classification_reason: "unknown",
+      })
   })
 })
 
@@ -95,16 +104,16 @@ describe("mergeQuery", () => {
   })
 })
 
-describe("queryMap", () => {
+describe("toQueryParams", () => {
   test("groups repeats under one key", () => {
-    expect(queryMap(new URLSearchParams("a=1&a=2&b=3"))).toEqual({ a: ["1", "2"], b: ["3"] })
+    expect(toQueryParams(new URLSearchParams("a=1&a=2&b=3"))).toEqual({ a: ["1", "2"], b: ["3"] })
   })
 
   test("an empty query is stored as null, not an empty object", () => {
-    expect(queryMap(new URLSearchParams(""))).toBeNull()
+    expect(toQueryParams(new URLSearchParams(""))).toBeNull()
   })
 
   test("a valueless parameter is kept as an empty string", () => {
-    expect(queryMap(new URLSearchParams("flag"))).toEqual({ flag: [""] })
+    expect(toQueryParams(new URLSearchParams("flag"))).toEqual({ flag: [""] })
   })
 })

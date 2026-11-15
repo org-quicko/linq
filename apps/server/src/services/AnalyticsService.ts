@@ -18,7 +18,7 @@ import { type VisitFilter, visitFilters } from "./VisitService.ts"
 
 /** The bucket key each breakdown dimension groups the raw log by. */
 const DETAIL_KEY = {
-  day: sql<string>`to_char(occurred_at at time zone 'UTC', 'YYYY-MM-DD')`,
+  day: sql<string>`to_char(visited_at at time zone 'UTC', 'YYYY-MM-DD')`,
   platform: sql<string>`platform::text`,
   os: sql<string>`coalesce(os, '')`,
   browser: sql<string>`coalesce(browser, '')`,

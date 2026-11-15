@@ -33,7 +33,7 @@ test("0005 adds content and term, caps every utm value, and rebuilds the rollup"
     db,
   )
 
-  expect((await migrator.migrateToLatest()).error).toBeUndefined()
+  expect((await migrator.migrateTo("0005_utm_content_term")).error).toBeUndefined()
 
   // Backfilled from `query`, lowercased, and capped.
   const { rows } = await sql<{

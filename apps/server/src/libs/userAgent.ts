@@ -1,4 +1,4 @@
-import type { BotClassification, Browser, Os, Platform } from "@linq/shared"
+import type { BotClassificationReason, Browser, Os, Platform } from "@linq/shared"
 import { isbot } from "isbot"
 import { UAParser } from "ua-parser-js"
 
@@ -16,13 +16,13 @@ const supplementalBotPatterns: readonly RegExp[] = []
  */
 export function classifyBot(userAgent: string | null | undefined): {
   is_bot: boolean
-  bot_classification: BotClassification
+  bot_classification_reason: BotClassificationReason
 } {
-  if (!userAgent) return { is_bot: true, bot_classification: "missing_user_agent" }
-  if (isbot(userAgent)) return { is_bot: true, bot_classification: "isbot_match" }
+  if (!userAgent) return { is_bot: true, bot_classification_reason: "missing_user_agent" }
+  if (isbot(userAgent)) return { is_bot: true, bot_classification_reason: "isbot_match" }
   if (supplementalBotPatterns.some((pattern) => pattern.test(userAgent)))
-    return { is_bot: true, bot_classification: "pattern_match" }
-  return { is_bot: false, bot_classification: "unknown" }
+    return { is_bot: true, bot_classification_reason: "pattern_match" }
+  return { is_bot: false, bot_classification_reason: "unknown" }
 }
 
 /**

@@ -26,14 +26,14 @@ beforeAll(async () => {
     domain,
     { human: 2 },
     {
-      occurred_at: at("2026-03-01T10:00:00Z"),
+      visited_at: at("2026-03-01T10:00:00Z"),
       platform: "android",
       os: "android",
       browser: "chrome",
       user_agent: "Mozilla/5.0 (Linux; Android 14; Pixel 8) Chrome/120 Mobile Safari/537.36",
       referer: "https://news.test/path?q=1",
       destination: "https://example.com/a",
-      query: {
+      query_params: {
         utm_source: ["newsletter"],
         utm_campaign: ["launch"],
         utm_content: ["hero"],
@@ -46,7 +46,7 @@ beforeAll(async () => {
     domain,
     { bot: 1 },
     {
-      occurred_at: at("2026-03-01T11:00:00Z"),
+      visited_at: at("2026-03-01T11:00:00Z"),
       platform: "android",
       os: "android",
       browser: "chrome",
@@ -59,7 +59,7 @@ beforeAll(async () => {
     domain,
     { human: 1 },
     {
-      occurred_at: at("2026-03-02T23:30:00Z"),
+      visited_at: at("2026-03-02T23:30:00Z"),
       platform: "ios",
       os: "ios",
       browser: "safari",
@@ -67,7 +67,7 @@ beforeAll(async () => {
         "Mozilla/5.0 (iPad; CPU OS 17_0 like Mac OS X) Version/17.0 Mobile/15E148 Safari/604.1",
       referer: "https://shop.test/",
       destination: "https://example.com/b",
-      query: { utm_source: ["twitter"], utm_medium: ["social"], utm_content: ["Hero"] },
+      query_params: { utm_source: ["twitter"], utm_medium: ["social"], utm_content: ["Hero"] },
     },
   )
   // Day 2: one human on `two`, windows/edge, no referer.
@@ -76,7 +76,7 @@ beforeAll(async () => {
     domain,
     { human: 1 },
     {
-      occurred_at: at("2026-03-02T09:00:00Z"),
+      visited_at: at("2026-03-02T09:00:00Z"),
       platform: "desktop",
       os: "windows",
       browser: "edge",
@@ -89,7 +89,7 @@ beforeAll(async () => {
     null,
     domain,
     { human: 1 },
-    { occurred_at: at("2026-03-02T12:00:00Z"), slug_requested: "missing", platform: "desktop" },
+    { visited_at: at("2026-03-02T12:00:00Z"), slug_requested: "missing", platform: "desktop" },
   )
 })
 
@@ -137,7 +137,7 @@ describe("GET /api/v1/analytics/timeseries", () => {
   })
 
   test("the detail path includes the same last day, even late in it", async () => {
-    // Forces the detail path; occurred_at up to 23:30 on the 2nd must still
+    // Forces the detail path; visited_at up to 23:30 on the 2nd must still
     // land in the window, not be cut at midnight.
     const buckets: StatsBucket[] = await json("/timeseries?from=2026-02-01&to=2026-03-02&os=ios")
     expect(buckets).toEqual([{ key: "2026-03-02", human: 1, bot: 0 }])

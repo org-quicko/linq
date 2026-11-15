@@ -1352,7 +1352,7 @@
           {
             "name": "from",
             "in": "query",
-            "description": "Inclusive lower bound on `occurred_at`.",
+            "description": "Inclusive lower bound on `visited_at`.",
             "schema": {
               "type": "string",
               "format": "date-time"
@@ -1361,7 +1361,7 @@
           {
             "name": "to",
             "in": "query",
-            "description": "Inclusive upper bound on `occurred_at`.",
+            "description": "Inclusive upper bound on `visited_at`.",
             "schema": {
               "type": "string",
               "format": "date-time"
@@ -2894,16 +2894,16 @@
           "link_id",
           "domain_id",
           "slug_requested",
-          "occurred_at",
+          "visited_at",
           "is_bot",
-          "bot_classification",
+          "bot_classification_reason",
           "platform",
           "os",
           "browser",
           "user_agent",
           "referer",
           "destination",
-          "query"
+          "query_params"
         ],
         "properties": {
           "id": {
@@ -2926,7 +2926,7 @@
             "type": "string",
             "description": "What the caller asked for, empty for the root path."
           },
-          "occurred_at": {
+          "visited_at": {
             "type": "string",
             "format": "date-time"
           },
@@ -2934,7 +2934,7 @@
             "type": "boolean",
             "description": "Decided once at ingest. False means no known automation matched; it is not proof of a human visit. A request with no user agent at all counts as a bot."
           },
-          "bot_classification": {
+          "bot_classification_reason": {
             "type": [
               "string",
               "null"
@@ -2984,7 +2984,7 @@
             ],
             "description": "The URL actually chosen, after rules and query merging."
           },
-          "query": {
+          "query_params": {
             "type": [
               "object",
               "null"

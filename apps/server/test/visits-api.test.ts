@@ -11,8 +11,8 @@ beforeAll(async () => {
   domain = await h.createDomain("visits-api.test")
 
   // A nullable classification preserves rows written before the feature.
-  await h.recordVisits(null, domain, { human: 1 }, { bot_classification: null })
-  await h.recordVisits(null, domain, { bot: 1 }, { bot_classification: "isbot_match" })
+  await h.recordVisits(null, domain, { human: 1 }, { bot_classification_reason: null })
+  await h.recordVisits(null, domain, { bot: 1 }, { bot_classification_reason: "isbot_match" })
 })
 
 describe("GET /api/v1/visits", () => {
@@ -22,7 +22,7 @@ describe("GET /api/v1/visits", () => {
 
     const body = await res.json()
     const classifications = body.data.map(
-      (visit: { bot_classification: string | null }) => visit.bot_classification,
+      (visit: { bot_classification_reason: string | null }) => visit.bot_classification_reason,
     )
     expect(classifications).toContain("isbot_match")
     expect(classifications).toContain(null)

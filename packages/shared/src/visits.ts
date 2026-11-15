@@ -20,13 +20,13 @@ const scope = {
 const openFilter = z.string().min(1).toLowerCase().optional()
 
 /** How a newer visit was classified. `unknown` is not proof of a human. Null predates the field. */
-export const BOT_CLASSIFICATIONS = [
+export const BOT_CLASSIFICATION_REASONS = [
   "missing_user_agent",
   "isbot_match",
   "pattern_match",
   "unknown",
 ] as const
-export type BotClassification = (typeof BOT_CLASSIFICATIONS)[number]
+export type BotClassificationReason = (typeof BOT_CLASSIFICATION_REASONS)[number]
 
 /**
  * The raw log filters on instants, because that is what a visit row carries.
@@ -48,16 +48,16 @@ export type Visit = {
   link_id: string | null
   domain_id: string
   slug_requested: string
-  occurred_at: string
+  visited_at: string
   is_bot: boolean
-  bot_classification: BotClassification | null
+  bot_classification_reason: BotClassificationReason | null
   platform: Platform
   os: Os | null
   browser: Browser | null
   user_agent: string | null
   referer: string | null
   destination: string | null
-  query: Record<string, string[]> | null
+  query_params: Record<string, string[]> | null
 }
 
 /** One row of a grouped stats result. */
