@@ -119,10 +119,13 @@ export function visitFilters(q: VisitFilterQuery): VisitFilter[] {
     filters.push(sql<SqlBool>`visited_at >= ${from}`)
   }
   if (q.to) {
+    // A bare date ends at the next UTC midnight, computed here as an instant.
+    // `${to}::date + 1` would be cast to timestamptz in the session's TimeZone,
+    // cutting the day short (or running it long) on a non-UTC database.
     filters.push(
       q.to.includes("T")
         ? sql<SqlBool>`visited_at <= ${new Date(q.to)}`
-        : sql<SqlBool>`visited_at < (${q.to}::date + 1)`,
+        : sql<SqlBool>`visited_at < ${new Date(Date.parse(`${q.to}T00:00:00Z`) + 86_400_000)}`,
     )
   }
   if (q.bot && q.bot !== "any") filters.push(sql<SqlBool>`is_bot = ${q.bot === "true"}`)

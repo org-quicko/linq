@@ -1,5 +1,6 @@
 import { beforeAll, describe, expect, test } from "bun:test"
 import { ANALYTICS_FILTERS, type StatsBucket } from "@linq/shared"
+import { sql } from "kysely"
 import { createHarness, type Harness } from "./helpers/app.ts"
 
 let h: Harness
@@ -300,5 +301,32 @@ describe("validation", () => {
     expect((await analytics("/summary", viewer.key)).status).toBe(200)
     expect((await analytics("/timeseries", viewer.key)).status).toBe(200)
     expect((await analytics("/breakdown?dimension=os", viewer.key)).status).toBe(200)
+  })
+})
+
+describe("days are UTC days whatever the session time zone", () => {
+  test("a non-UTC session neither cuts nor stretches the window", async () => {
+    const local = await createHarness()
+    // +05:30: UTC midnight is 05:30 local, so any implicit date→timestamptz
+    // conversion would move the window's edges by five and a half hours.
+    await sql`set time zone 'Asia/Kolkata'`.execute(local.db)
+    const { key } = await local.actor("editor")
+    const domainId = await local.createDomain("tz.test")
+    const link = await local.createLink(key, domainId, { slug: "tz" })
+    const visit = (iso: string) =>
+      local.recordVisits(link.id, domainId, { human: 1 }, { visited_at: at(iso), os: "ios" })
+    await visit("2026-03-01T22:00:00Z") // late on Mar 1 UTC, already Mar 2 in Kolkata
+    await visit("2026-03-02T00:30:00Z") // just after UTC midnight: outside a Mar 1 window
+    const get = async (path: string) =>
+      (await local.request(`/api/v1/analytics${path}`, { key })).json()
+
+    const window = "from=2026-03-01&to=2026-03-01"
+    const rollup = await get(`/summary?${window}`)
+    const detail = await get(`/summary?${window}&os=ios`)
+    expect(rollup.visits).toBe(1)
+    expect(detail).toEqual(rollup)
+    expect(await get(`/timeseries?${window}&os=ios`)).toEqual([
+      { key: "2026-03-01", human: 1, bot: 0 },
+    ])
   })
 })
