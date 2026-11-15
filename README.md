@@ -1,4 +1,4 @@
-<h1>
+Visit inserts in flight before new visits are dropped. |<h1>
   <picture>
     <source media="(prefers-color-scheme: dark)" srcset="logo/linq-wordmark-dark.svg">
     <img src="logo/linq-wordmark-light.svg" alt="linq" height="64">
@@ -100,7 +100,7 @@ Configuration is read from the repo-root `.env` (or `.env.local`). Only
 | `LINQ_CACHE_TTL`                 | `300`                    | How many seconds a cached lookup lives.                                                             |
 | `LINQ_FETCH_LINK_METADATA`       | `false`                  | Fetches a destination's title and icon. Enable only with egress rules that block private addresses. |
 | `LINQ_API_RATE_LIMIT_PER_MINUTE` | `1000`                   | Per-key API rate limit.                                                                             |
-| `LINQ_VISIT_MAX_PENDING`         | `1000`                   | Maximum queued analytics writes.                                                                    |
+| `LINQ_VISIT_MAX_PENDING`         | `1000`                   | Visit inserts in flight before new visits are dropped.                                              |
 
 Logs are written to `./data/logs/linq.log` and rotated. In Docker this is the
 `/data` volume.

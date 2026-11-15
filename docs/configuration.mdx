@@ -325,10 +325,10 @@ Maximum API requests per key per minute. Unset means no per-process rate limit i
 | | |
 |---|---|
 | **Type** | Integer |
-| **Default** | *(unset — no limit)* |
-| **Example** | `1000` |
+| **Default** | `1000` |
+| **Range** | `1` – `100000` |
 
-Maximum number of visit analytics events queued in-process waiting to be written to Postgres. Limits memory growth under redirect traffic spikes. Unset means unbounded.
+Maximum number of visit inserts in flight at once. Each visit is written to Postgres as soon as it arrives; while this many writes are still running, further visits are dropped (with one warning per episode) rather than delaying redirects or growing memory under a traffic spike. Recording resumes as soon as the backlog drains below the limit.
 
 </Accordion>
 

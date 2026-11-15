@@ -1,4 +1,12 @@
 import { NOT_RECORDED, type Platform, type Visit } from "@linq/shared"
+import type { AnyValue, Logger } from "@opentelemetry/api"
+import { type ExportResult, ExportResultCode, hrTimeToMilliseconds } from "@opentelemetry/core"
+import {
+  LoggerProvider,
+  type LogRecordExporter,
+  type ReadableLogRecord,
+  SimpleLogRecordProcessor,
+} from "@opentelemetry/sdk-logs"
 import { type Insertable, type RawBuilder, type Selectable, type SqlBool, sql } from "kysely"
 import type { DB } from "../db/types.generated.ts"
 import { type Db, reqLog, span } from "../libs/index.ts"
@@ -61,14 +69,93 @@ function toVisit(row: Selectable<DB["visits"]>): Visit {
   }
 }
 
+/** The cap `recordVisit` was last given, so an insert settling can re-arm the warning. */
+let capacity = Number.POSITIVE_INFINITY
+
 /**
+ * The end of the visit pipeline: an OpenTelemetry log exporter whose "backend"
+ * is the `visits` table. Each record's body is one visit; exporting it is the
+ * INSERT. The rollup trigger then runs exactly as for any other insert.
+ *
+ * `SimpleLogRecordProcessor` calls `export` synchronously from `emit`, one record
+ * at a time, so a visit is written the moment it arrives, still inside the
+ * redirect request's async scope (which is what lets `reqLog()` below correlate a
+ * failure to it). The processor's own `forceFlush` does not wait on exports, so
+ * in-flight inserts are tracked in `pending`, which `flushVisits` drains.
+ */
+class VisitTableExporter implements LogRecordExporter {
+  constructor(private readonly db: Db) {}
+
+  export(records: ReadableLogRecord[], done: (result: ExportResult) => void): void {
+    const rows = records.map((record) => ({
+      id: Bun.randomUUIDv7(),
+      ...(record.body as unknown as VisitInput),
+      // The click's own time, stamped at emit, rather than the insert's `now()`.
+      visited_at: new Date(hrTimeToMilliseconds(record.hrTime)),
+    }))
+    const first = rows[0]
+    const insert = span("visit.record", () => this.db.insertInto("visits").values(rows).execute(), {
+      in: {
+        link_id: first?.link_id ?? null,
+        domain_id: first?.domain_id,
+        slug: first?.slug_requested,
+      },
+    })
+      .then(
+        () => done({ code: ExportResultCode.SUCCESS }),
+        (error: Error) => {
+          // Logged here, once, with the request's context. The processor hands the
+          // failure to OpenTelemetry's global error handler, which is silent unless
+          // a diag logger is installed.
+          reqLog().error({ err: error, link_id: first?.link_id ?? null }, "visit insert failed")
+          done({ code: ExportResultCode.FAILED, error })
+        },
+      )
+      .finally(() => {
+        pending.delete(insert)
+        if (pending.size < capacity) warnedAtCapacity = false
+      })
+    pending.add(insert)
+  }
+
+  forceFlush(): Promise<void> {
+    return flushVisits()
+  }
+
+  shutdown(): Promise<void> {
+    return flushVisits()
+  }
+}
+
+/** One OpenTelemetry logger per database handle. Weakly held, so a test suite's
+ *  PGlite instance can still be collected once the suite is done with it. */
+const visitLoggers = new WeakMap<Db, Logger>()
+
+function visitLogger(db: Db): Logger {
+  let logger = visitLoggers.get(db)
+  if (!logger) {
+    const provider = new LoggerProvider({
+      processors: [new SimpleLogRecordProcessor({ exporter: new VisitTableExporter(db) })],
+    })
+    logger = provider.getLogger("linq.visits")
+    visitLoggers.set(db, logger)
+  }
+  return logger
+}
+
+/**
+ * Hands one visit to the OpenTelemetry pipeline, which writes it to `visits`
+ * immediately (see `VisitTableExporter`).
+ *
  * Fire-and-forget on purpose: a visit must never delay a redirect, and a failed
  * insert must never turn a working link into an error.
  */
 export function recordVisit(db: Db, visit: VisitInput, maxPending: number): void {
   // Visits enrich analytics but must never let a traffic spike build an
   // unbounded database backlog or delay a redirect. Resume recording once the
-  // backlog drains below the configured cap.
+  // backlog drains below the configured cap. The Simple processor has no queue
+  // limit of its own, so this check is the only one.
+  capacity = maxPending
   if (pending.size >= maxPending) {
     if (!warnedAtCapacity) {
       warnedAtCapacity = true
@@ -77,29 +164,11 @@ export function recordVisit(db: Db, visit: VisitInput, maxPending: number): void
     return
   }
 
-  const insert = span(
-    "visit.record",
-    () =>
-      db
-        .insertInto("visits")
-        .values({ id: Bun.randomUUIDv7(), ...visit })
-        .execute(),
-    {
-      in: {
-        link_id: visit.link_id ?? null,
-        domain_id: visit.domain_id,
-        slug: visit.slug_requested,
-      },
-    },
-  )
-    // `reqLog()` still resolves here: the insert is not awaited, but it starts
-    // inside the redirect request's async scope, so a failure correlates to it.
-    .catch((err) => reqLog().error({ err, link_id: visit.link_id ?? null }, "visit insert failed"))
-    .finally(() => {
-      pending.delete(insert)
-      if (pending.size < maxPending) warnedAtCapacity = false
-    })
-  pending.add(insert)
+  visitLogger(db).emit({
+    eventName: "linq.visit",
+    timestamp: new Date(),
+    body: visit as unknown as AnyValue,
+  })
 }
 
 /** Waits for every visit already handed to `recordVisit`. */

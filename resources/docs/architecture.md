@@ -88,7 +88,10 @@ the row and its visits for good.
 Visits are the one high-volume table, and the one place traffic ever touches
 the client. Recording is fire-and-forget (`services/VisitService.ts`) — a redirect
 never waits on the insert, and a failed insert never turns a working link
-into an error — and never stores the client's IP address, in the row or the
+into an error. Each visit is emitted as an OpenTelemetry log record whose only
+exporter writes it to `visits` the moment it arrives (`resources/docs/adr/0022`),
+capped by `LINQ_VISIT_MAX_PENDING` inserts in flight. It never stores the
+client's IP address, in the row or the
 request log (`resources/docs/adr/0001`, `resources/docs/adr/0003`). `visit_days` and
 `visit_counts` are pre-aggregated rollups that every list and overview reads
 instead of scanning `visits`; they're maintained entirely by Postgres
@@ -147,7 +150,8 @@ forward_query?  ──yes──►  merge caller's query, link's preset params w
 crawler user agent?  ──yes──►  OG preview HTML (link's own title, never fetched from the destination)
   │ no
   ▼
-302 redirect  +  fire-and-forget visit insert (never blocks the response)
+302 redirect  +  fire-and-forget visit (never blocks the response):
+                 OTel log record ──► VisitTableExporter ──► INSERT INTO visits
 ```
 
 ## Cache, Caddy, metadata: the same shape three times
