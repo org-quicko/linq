@@ -36,6 +36,7 @@ import {
   RedirectService,
   VisitService,
 } from "./services/index.ts"
+import { VisitPipeline } from "./telemetry/index.ts"
 import { UrlUtil } from "./utils/index.ts"
 
 export type AppDeps = {
@@ -77,7 +78,7 @@ export function createApp({
   const linkService = new LinkService(db, safeCache, safeMetadata, config)
   const domainService = new DomainService(db, safeCache, safeCaddy, config)
   const qrCodeService = new QrCodeService(db)
-  const visitService = new VisitService(db, config)
+  const visitService = new VisitService(db, new VisitPipeline(db, config))
   const analyticsService = new AnalyticsService(db)
   const redirectService = new RedirectService(db, safeCache)
   const llmsService = new LlmsService(db, safeCache)

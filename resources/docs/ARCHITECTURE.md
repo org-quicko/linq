@@ -101,8 +101,9 @@ the client. Recording is fire-and-forget (`VisitService.record`) — a redirect
 never waits on the insert, and a failed insert never turns a working link
 into an error. Each visit is emitted as an OpenTelemetry log record whose only
 exporter writes it to `visits` the moment it arrives (`resources/docs/adr/0022`),
-capped by `LINQ_VISIT_MAX_PENDING` inserts in flight; the app's one
-`VisitService` owns that pipeline and its in-flight inserts, and `flush()` drains them. It never stores the
+capped by `LINQ_VISIT_MAX_PENDING` inserts in flight. That pipeline is the
+app's one `VisitPipeline` (`telemetry/visits/`), which owns the in-flight inserts;
+`VisitService` records through it, and its `flush()` drains them. It never stores the
 client's IP address, in the row or the
 request log (`resources/docs/adr/0001`, `resources/docs/adr/0003`). `visit_days` and
 `visit_counts` are pre-aggregated rollups that every list and overview reads

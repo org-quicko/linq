@@ -7,7 +7,8 @@ description: Add or change an HTTP API resource in apps/server. Use when adding 
 
 The server is layered `routes → controllers → services`, with clients of
 external systems (database, cache, Caddy, link metadata) in `clients/`, the
-logger and `HttpError` in `libs/`, and Hono middleware in `middleware/`. Each
+logger and `HttpError` in `libs/`, OpenTelemetry in `telemetry/` (one folder
+per source, e.g. `telemetry/visits/`), and Hono middleware in `middleware/`. Each
 folder has an `index.ts` barrel; import from it rather than reaching into
 single files. `controllers/LinkController.ts` and `DomainController.ts` are the
 references.

@@ -5,7 +5,7 @@ import type { ReadableLogRecord } from "@opentelemetry/sdk-logs"
 /**
  * Turns one OpenTelemetry visit log record into the `visits` row it is written as.
  *
- * @param record - A record emitted by `VisitService.record`, whose body is a `VisitInput`.
+ * @param record - A record emitted by `VisitPipeline.record`, whose body is a `VisitInput`.
  * @returns The row to insert, stamped with the click's own time rather than the insert's `now()`.
  */
 export class LogRecordToVisitInsertConverter {

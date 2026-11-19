@@ -1,18 +1,18 @@
 import { beforeAll, describe, expect, test } from "bun:test"
-import { VisitService } from "../src/services/VisitService.ts"
+import { VisitPipeline } from "../src/telemetry/index.ts"
 import { createHarness, type Harness } from "./helpers/app.ts"
 
 let h: Harness
 let domainId: string
-/** One service per cap, as `createApp` would build from LINQ_VISIT_MAX_PENDING. */
-let visits: VisitService
-let capped: VisitService
+/** One pipeline per cap, as `createApp` would build from LINQ_VISIT_MAX_PENDING. */
+let visits: VisitPipeline
+let capped: VisitPipeline
 
 beforeAll(async () => {
   h = await createHarness()
   domainId = await h.createDomain("pipeline.test")
-  visits = new VisitService(h.db, { LINQ_VISIT_MAX_PENDING: 1_000 })
-  capped = new VisitService(h.db, { LINQ_VISIT_MAX_PENDING: 1 })
+  visits = new VisitPipeline(h.db, { LINQ_VISIT_MAX_PENDING: 1_000 })
+  capped = new VisitPipeline(h.db, { LINQ_VISIT_MAX_PENDING: 1 })
 })
 
 const visit = (slug: string) => ({
