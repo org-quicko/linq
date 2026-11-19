@@ -1,8 +1,14 @@
-import { domainCreateSchema, domainPatchSchema, paginationSchema } from "@linq/shared"
+import {
+  domainCreateSchema,
+  domainPatchSchema,
+  idParamSchema,
+  paginationSchema,
+} from "@linq/shared"
 import type { Context } from "hono"
 import { Log } from "../libs/index.ts"
-import { authorize, idParamSchema, parseRequest } from "../middleware/index.ts"
+import { authorize } from "../middleware/index.ts"
 import type { DomainService } from "../services/index.ts"
+import { RequestUtil } from "../utils/index.ts"
 
 /**
  * HTTP layer for `/domains`. Validates the request, asks the permission
@@ -25,7 +31,7 @@ export class DomainController {
    */
   @Log("domainController.list")
   list = async (c: Context) => {
-    const { limit, offset } = await parseRequest(c, "query", paginationSchema)
+    const { limit, offset } = await RequestUtil.parse(c, "query", paginationSchema)
     const { data, total } = await this.domainService.list({ limit, offset })
     return c.json({ data, total, limit, offset })
   }
@@ -42,7 +48,7 @@ export class DomainController {
    */
   @Log("domainController.create")
   create = async (c: Context) => {
-    const body = await parseRequest(c, "json", domainCreateSchema)
+    const body = await RequestUtil.parse(c, "json", domainCreateSchema)
     authorize(c.var.principal, "create", "Domain")
     return c.json(await this.domainService.create(body), 201)
   }
@@ -58,7 +64,7 @@ export class DomainController {
    */
   @Log("domainController.get")
   get = async (c: Context) => {
-    const { id } = await parseRequest(c, "param", idParamSchema)
+    const { id } = await RequestUtil.parse(c, "param", idParamSchema)
     return c.json(await this.domainService.get(id))
   }
 
@@ -75,8 +81,8 @@ export class DomainController {
    */
   @Log("domainController.update")
   update = async (c: Context) => {
-    const { id } = await parseRequest(c, "param", idParamSchema)
-    const patch = await parseRequest(c, "json", domainPatchSchema)
+    const { id } = await RequestUtil.parse(c, "param", idParamSchema)
+    const patch = await RequestUtil.parse(c, "json", domainPatchSchema)
     authorize(c.var.principal, "update", "Domain")
     return c.json(await this.domainService.update(id, patch))
   }
@@ -95,7 +101,7 @@ export class DomainController {
    */
   @Log("domainController.archive")
   archive = async (c: Context) => {
-    const { id } = await parseRequest(c, "param", idParamSchema)
+    const { id } = await RequestUtil.parse(c, "param", idParamSchema)
     authorize(c.var.principal, "archive", "Domain")
     return c.json(await this.domainService.archive(id))
   }
@@ -113,7 +119,7 @@ export class DomainController {
    */
   @Log("domainController.purge")
   purge = async (c: Context) => {
-    const { id } = await parseRequest(c, "param", idParamSchema)
+    const { id } = await RequestUtil.parse(c, "param", idParamSchema)
     authorize(c.var.principal, "purge", "Link")
     await this.domainService.purge(await this.domainService.get(id))
     return c.body(null, 204)

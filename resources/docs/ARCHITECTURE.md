@@ -36,7 +36,7 @@ no per-request construction, nothing global), and returns the app with the two
 services the process still needs after boot: `DomainService` to reconcile
 Caddy and `VisitService` to drain visits on shutdown. Each request flows
 `route → controller → service`: a route function maps paths to controller
-methods, a controller validates (`parseRequest`), loads what the permission
+methods, a controller validates (`RequestUtil.parse`), loads what the permission
 question needs, calls `authorize`, and hands the rest to its service, which
 owns every query, business rule and side effect (cache invalidation, Caddy
 sync). Only the authenticated `principal` rides on the request context.

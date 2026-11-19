@@ -17,7 +17,7 @@ references.
   sub-app(s) mapping each path to a controller method. Nothing else.
 - **Controller** (`controllers/<Resource>Controller.ts`): a class taking its
   services in the constructor, one arrow-function property per endpoint taking
-  a plain Hono `Context`. Each endpoint: `parseRequest` → load the resource if
+  a plain Hono `Context`. Each endpoint: `RequestUtil.parse` → load the resource if
   an unknown id should 404 first → `authorize` → service call → `c.json(...)`.
   JSDoc each endpoint with the method and path, `@param c`, `@returns`, `@throws`,
   and decorate it with `@Log("<resource>Controller.<endpoint>")`.
@@ -70,10 +70,10 @@ Only `principal` rides on the request context (`c.var.principal`, typed in
   `clients/`. `CacheAdapter.start` / `XClient.start(config)` picks one, and
   `createApp` wraps it in its `Guarded…` decorator, so a down dependency never
   fails a request.
-- **Request reading.** `parseRequest(c, target, schema)` in
-  `middleware/requestParser.ts` validates a body, query or params with zod in
-  linq's error envelope, reading them through `RequestUtil.read` exactly as
-  Hono's validator would. Use `idParamSchema` for `/:id`.
+- **Request reading.** `RequestUtil.parse(c, target, schema)` in
+  `utils/RequestUtil.ts` reads a body, query or params exactly as Hono's
+  validator would, validates it with zod in linq's error envelope, and returns
+  the schema's typed output. Use `idParamSchema` from `@linq/shared` for `/:id`.
 
 ## Steps
 
@@ -83,7 +83,7 @@ Only `principal` rides on the request context (`c.var.principal`, typed in
    `"@linq/shared"`. Both apps use the same definition.
 2. Add the queries and rules to the resource's service class; export a new
    file from `services/index.ts`.
-3. Add the endpoint to the controller: validate with `parseRequest`, then
+3. Add the endpoint to the controller: validate with `RequestUtil.parse`, then
    check permissions with `authorize(c.var.principal, action, subject)` from
    `middleware/authorize.ts`. Load the resource first when an unknown id should
    404 before the permission question. Add a capability once to

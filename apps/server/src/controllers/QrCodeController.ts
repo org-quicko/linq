@@ -1,8 +1,14 @@
-import { qrCodeCreateSchema, qrCodeListQuerySchema, qrCodePatchSchema } from "@linq/shared"
+import {
+  idParamSchema,
+  qrCodeCreateSchema,
+  qrCodeListQuerySchema,
+  qrCodePatchSchema,
+} from "@linq/shared"
 import type { Context } from "hono"
 import { Log } from "../libs/index.ts"
-import { authorize, idParamSchema, parseRequest } from "../middleware/index.ts"
+import { authorize } from "../middleware/index.ts"
 import type { LinkService, QrCodeService } from "../services/index.ts"
+import { RequestUtil } from "../utils/index.ts"
 
 /**
  * HTTP layer for `/qr-codes`, mounted top-level because the list view spans
@@ -28,7 +34,7 @@ export class QrCodeController {
    */
   @Log("qrCodeController.list")
   list = async (c: Context) => {
-    const q = await parseRequest(c, "query", qrCodeListQuerySchema)
+    const q = await RequestUtil.parse(c, "query", qrCodeListQuerySchema)
     const { data, total } = await this.qrCodeService.list(q)
     return c.json({ data, total, limit: q.limit, offset: q.offset })
   }
@@ -47,7 +53,7 @@ export class QrCodeController {
    */
   @Log("qrCodeController.create")
   create = async (c: Context) => {
-    const body = await parseRequest(c, "json", qrCodeCreateSchema)
+    const body = await RequestUtil.parse(c, "json", qrCodeCreateSchema)
     const link = await this.linkService.load(body.link_id)
     authorize(c.var.principal, "update", "Link")
     return c.json(await this.qrCodeService.create(link, body), 201)
@@ -64,7 +70,7 @@ export class QrCodeController {
    */
   @Log("qrCodeController.get")
   get = async (c: Context) => {
-    const { id } = await parseRequest(c, "param", idParamSchema)
+    const { id } = await RequestUtil.parse(c, "param", idParamSchema)
     return c.json(await this.qrCodeService.get(id))
   }
 
@@ -80,8 +86,8 @@ export class QrCodeController {
    */
   @Log("qrCodeController.update")
   update = async (c: Context) => {
-    const { id } = await parseRequest(c, "param", idParamSchema)
-    const patch = await parseRequest(c, "json", qrCodePatchSchema)
+    const { id } = await RequestUtil.parse(c, "param", idParamSchema)
+    const patch = await RequestUtil.parse(c, "json", qrCodePatchSchema)
     await this.qrCodeService.load(id)
     authorize(c.var.principal, "update", "Link")
     return c.json(await this.qrCodeService.update(id, patch))
@@ -99,7 +105,7 @@ export class QrCodeController {
    */
   @Log("qrCodeController.delete")
   delete = async (c: Context) => {
-    const { id } = await parseRequest(c, "param", idParamSchema)
+    const { id } = await RequestUtil.parse(c, "param", idParamSchema)
     await this.qrCodeService.load(id)
     authorize(c.var.principal, "update", "Link")
     await this.qrCodeService.delete(id)

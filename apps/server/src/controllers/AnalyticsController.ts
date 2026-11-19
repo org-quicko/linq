@@ -5,8 +5,8 @@ import {
 } from "@linq/shared"
 import type { Context } from "hono"
 import { Log } from "../libs/index.ts"
-import { parseRequest } from "../middleware/index.ts"
 import type { AnalyticsService } from "../services/index.ts"
+import { RequestUtil } from "../utils/index.ts"
 
 /** HTTP layer for `/analytics`: counts over the rollup or the raw log. */
 export class AnalyticsController {
@@ -25,7 +25,7 @@ export class AnalyticsController {
    */
   @Log("analyticsController.summary")
   summary = async (c: Context) => {
-    const q = await parseRequest(c, "query", analyticsSummaryQuerySchema)
+    const q = await RequestUtil.parse(c, "query", analyticsSummaryQuerySchema)
     return c.json(await this.analyticsService.summary(q))
   }
 
@@ -39,7 +39,7 @@ export class AnalyticsController {
    */
   @Log("analyticsController.timeseries")
   timeseries = async (c: Context) => {
-    const q = await parseRequest(c, "query", analyticsTimeseriesQuerySchema)
+    const q = await RequestUtil.parse(c, "query", analyticsTimeseriesQuerySchema)
     return c.json(await this.analyticsService.timeseries(q))
   }
 
@@ -53,7 +53,7 @@ export class AnalyticsController {
    */
   @Log("analyticsController.breakdown")
   breakdown = async (c: Context) => {
-    const q = await parseRequest(c, "query", analyticsBreakdownQuerySchema)
+    const q = await RequestUtil.parse(c, "query", analyticsBreakdownQuerySchema)
     return c.json(await this.analyticsService.breakdown(q))
   }
 }

@@ -1,4 +1,10 @@
-import { type ApiKeyCreated, keyCreateSchema, keyPatchSchema, paginationSchema } from "@linq/shared"
+import {
+  type ApiKeyCreated,
+  idParamSchema,
+  keyCreateSchema,
+  keyPatchSchema,
+  paginationSchema,
+} from "@linq/shared"
 import type { Context } from "hono"
 import {
   ApiKeyCreateBodyToApiKeyCreateInputConverter,
@@ -6,8 +12,9 @@ import {
   ApiKeyRowToApiKeyConverter,
 } from "../converters/index.ts"
 import { HttpError, Log } from "../libs/index.ts"
-import { authorize, idParamSchema, parseRequest } from "../middleware/index.ts"
+import { authorize } from "../middleware/index.ts"
 import type { ApiKeyService } from "../services/index.ts"
+import { RequestUtil } from "../utils/index.ts"
 
 /**
  * HTTP layer for `/keys` and `/me`. Adds two self-guards a claim cannot
@@ -40,7 +47,7 @@ export class ApiKeyController {
    */
   @Log("apiKeyController.list")
   list = async (c: Context) => {
-    const { limit, offset } = await parseRequest(c, "query", paginationSchema)
+    const { limit, offset } = await RequestUtil.parse(c, "query", paginationSchema)
     authorize(c.var.principal, "read", "Key")
     const canManage = c.var.principal.ability.can("create", "Key")
     const { data, total } = await this.apiKeyService.list({ limit, offset, canManage })
@@ -58,7 +65,7 @@ export class ApiKeyController {
    */
   @Log("apiKeyController.create")
   create = async (c: Context) => {
-    const body = await parseRequest(c, "json", keyCreateSchema)
+    const body = await RequestUtil.parse(c, "json", keyCreateSchema)
     authorize(c.var.principal, "create", "Key")
     const { row, secret } = await this.apiKeyService.create(
       this.apiKeyCreateBodyToApiKeyCreateInputConverter.convertFrom(body),
@@ -81,7 +88,7 @@ export class ApiKeyController {
    */
   @Log("apiKeyController.get")
   get = async (c: Context) => {
-    const { id } = await parseRequest(c, "param", idParamSchema)
+    const { id } = await RequestUtil.parse(c, "param", idParamSchema)
     authorize(c.var.principal, "read", "Key")
     const key = await this.apiKeyService.get(id)
     if (!key) throw HttpError.notFound("key")
@@ -100,8 +107,8 @@ export class ApiKeyController {
    */
   @Log("apiKeyController.update")
   update = async (c: Context) => {
-    const { id } = await parseRequest(c, "param", idParamSchema)
-    const body = await parseRequest(c, "json", keyPatchSchema)
+    const { id } = await RequestUtil.parse(c, "param", idParamSchema)
+    const body = await RequestUtil.parse(c, "json", keyPatchSchema)
     authorize(c.var.principal, "update", "Key")
     const patch = this.apiKeyPatchBodyToApiKeyPatchInputConverter.convertFrom(body)
     if (patch.claims !== undefined && id === c.var.principal.keyId)
@@ -123,7 +130,7 @@ export class ApiKeyController {
    */
   @Log("apiKeyController.delete")
   delete = async (c: Context) => {
-    const { id } = await parseRequest(c, "param", idParamSchema)
+    const { id } = await RequestUtil.parse(c, "param", idParamSchema)
     authorize(c.var.principal, "delete", "Key")
     if (id === c.var.principal.keyId)
       throw HttpError.forbidden("you cannot revoke the key you are using")

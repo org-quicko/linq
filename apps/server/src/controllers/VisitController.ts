@@ -1,8 +1,8 @@
 import { visitListQuerySchema } from "@linq/shared"
 import type { Context } from "hono"
 import { Log } from "../libs/index.ts"
-import { parseRequest } from "../middleware/index.ts"
 import type { VisitService } from "../services/index.ts"
+import { RequestUtil } from "../utils/index.ts"
 
 /** HTTP layer for `/visits`: the raw log. */
 export class VisitController {
@@ -21,7 +21,7 @@ export class VisitController {
    */
   @Log("visitController.list")
   list = async (c: Context) => {
-    const q = await parseRequest(c, "query", visitListQuerySchema)
+    const q = await RequestUtil.parse(c, "query", visitListQuerySchema)
     const { data, total } = await this.visitService.list(q)
     return c.json({ data, total, limit: q.limit, offset: q.offset })
   }

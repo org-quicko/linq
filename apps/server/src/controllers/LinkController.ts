@@ -1,4 +1,5 @@
 import {
+  idParamSchema,
   linkCountQuerySchema,
   linkCreateSchema,
   linkListQuerySchema,
@@ -7,8 +8,9 @@ import {
 } from "@linq/shared"
 import type { Context } from "hono"
 import { Log } from "../libs/index.ts"
-import { authorize, idParamSchema, parseRequest } from "../middleware/index.ts"
+import { authorize } from "../middleware/index.ts"
 import type { LinkService } from "../services/index.ts"
+import { RequestUtil } from "../utils/index.ts"
 
 /**
  * HTTP layer for links, their rules (`/links/:id/rules`) and the tags in use
@@ -32,7 +34,7 @@ export class LinkController {
    */
   @Log("linkController.list")
   list = async (c: Context) => {
-    const q = await parseRequest(c, "query", linkListQuerySchema)
+    const q = await RequestUtil.parse(c, "query", linkListQuerySchema)
     const { data, total } = await this.linkService.list(q)
     return c.json({ data, total, limit: q.limit, offset: q.offset })
   }
@@ -47,7 +49,7 @@ export class LinkController {
    */
   @Log("linkController.count")
   count = async (c: Context) => {
-    const { status } = await parseRequest(c, "query", linkCountQuerySchema)
+    const { status } = await RequestUtil.parse(c, "query", linkCountQuerySchema)
     return c.json({ total: await this.linkService.count(status) })
   }
 
@@ -64,7 +66,7 @@ export class LinkController {
    */
   @Log("linkController.create")
   create = async (c: Context) => {
-    const body = await parseRequest(c, "json", linkCreateSchema)
+    const body = await RequestUtil.parse(c, "json", linkCreateSchema)
     authorize(c.var.principal, "create", "Link")
     return c.json(await this.linkService.create(body), 201)
   }
@@ -80,7 +82,7 @@ export class LinkController {
    */
   @Log("linkController.get")
   get = async (c: Context) => {
-    const { id } = await parseRequest(c, "param", idParamSchema)
+    const { id } = await RequestUtil.parse(c, "param", idParamSchema)
     return c.json(await this.linkService.get(id))
   }
 
@@ -97,8 +99,8 @@ export class LinkController {
    */
   @Log("linkController.update")
   update = async (c: Context) => {
-    const { id } = await parseRequest(c, "param", idParamSchema)
-    const patch = await parseRequest(c, "json", linkPatchSchema)
+    const { id } = await RequestUtil.parse(c, "param", idParamSchema)
+    const patch = await RequestUtil.parse(c, "json", linkPatchSchema)
     const existing = await this.linkService.load(id)
     authorize(c.var.principal, patch.status !== undefined ? "archive" : "update", "Link")
     return c.json(await this.linkService.update(existing, patch))
@@ -117,7 +119,7 @@ export class LinkController {
    */
   @Log("linkController.archive")
   archive = async (c: Context) => {
-    const { id } = await parseRequest(c, "param", idParamSchema)
+    const { id } = await RequestUtil.parse(c, "param", idParamSchema)
     const existing = await this.linkService.load(id)
     authorize(c.var.principal, "archive", "Link")
     return c.json(await this.linkService.archive(existing))
@@ -137,7 +139,7 @@ export class LinkController {
    */
   @Log("linkController.purge")
   purge = async (c: Context) => {
-    const { id } = await parseRequest(c, "param", idParamSchema)
+    const { id } = await RequestUtil.parse(c, "param", idParamSchema)
     authorize(c.var.principal, "purge", "Link")
     await this.linkService.purge(await this.linkService.load(id))
     return c.body(null, 204)
@@ -168,7 +170,7 @@ export class LinkController {
    */
   @Log("linkController.listRules")
   listRules = async (c: Context) => {
-    const { id } = await parseRequest(c, "param", idParamSchema)
+    const { id } = await RequestUtil.parse(c, "param", idParamSchema)
     return c.json(await this.linkService.listRules(id))
   }
 
@@ -184,8 +186,8 @@ export class LinkController {
    */
   @Log("linkController.replaceRules")
   replaceRules = async (c: Context) => {
-    const { id } = await parseRequest(c, "param", idParamSchema)
-    const rules = await parseRequest(c, "json", rulesPutSchema)
+    const { id } = await RequestUtil.parse(c, "param", idParamSchema)
+    const rules = await RequestUtil.parse(c, "json", rulesPutSchema)
     const link = await this.linkService.load(id)
     authorize(c.var.principal, "update", "Link")
     return c.json(await this.linkService.replaceRules(link, rules))

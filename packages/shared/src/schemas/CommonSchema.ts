@@ -5,6 +5,9 @@ export const platformSchema = z.enum(PLATFORMS)
 
 export const uuidSchema = z.uuid()
 
+/** The `:id` route param every resource uses: a UUID. */
+export const idParamSchema = z.object({ id: uuidSchema })
+
 export const slugSchema = z
   .string()
   .trim()
