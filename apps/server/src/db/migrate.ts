@@ -4,8 +4,8 @@ import path from "node:path"
 import { fileURLToPath } from "node:url"
 import { sql } from "kysely"
 import { FileMigrationProvider, Migrator } from "kysely/migration"
-import type { Db } from "../libs/db.ts"
-import { span } from "../libs/logger.ts"
+import type { Db } from "../clients/DbClient.ts"
+import { Logger } from "../libs/logger.ts"
 
 /** Absolute path to the ordered Kysely migrations, resolved relative to this file. */
 export const migrationsFolder = path.join(
@@ -25,7 +25,7 @@ export async function runMigrations(
   const schema = options.schema ?? "public"
   // One pinned connection: a session advisory lock must be released on the
   // pooled connection that took it, or it leaks and blocks the next instance.
-  await span("db.migrate", () =>
+  await Logger.operation("db.migrate", () =>
     db.connection().execute(async (conn) => {
       if (options.advisoryLock)
         await sql`select pg_advisory_lock(${migrationLockKey(schema)})`.execute(conn)

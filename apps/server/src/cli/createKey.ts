@@ -1,8 +1,8 @@
 import { parseArgs } from "node:util"
 import { claimsForPreset, type KeyPreset, PRESETS } from "@linq/shared"
+import { DbClient } from "../clients/index.ts"
 import { loadConfig } from "../config.ts"
-import { createDb } from "../libs/index.ts"
-import { createApiKey } from "../services/index.ts"
+import { ApiKeyService } from "../services/index.ts"
 
 const { values } = parseArgs({
   options: {
@@ -29,9 +29,13 @@ if (expiresAt && Number.isNaN(expiresAt.getTime())) {
   process.exit(1)
 }
 const config = loadConfig()
-const db = createDb(config.DATABASE_URL, config.LINQ_DB_SCHEMA)
+const db = DbClient.start(config)
 try {
-  const { secret } = await createApiKey(db, { name, claims: claimsForPreset[preset], expiresAt })
+  const { secret } = await new ApiKeyService(db).create({
+    name,
+    claims: claimsForPreset[preset],
+    expiresAt,
+  })
   console.log(`\n  linq ${preset} API key: ${secret}\n  Store it now; it is not recoverable.\n`)
 } finally {
   await db.destroy()

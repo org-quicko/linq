@@ -28,6 +28,7 @@
     "enabled": true,
     "rules": {
       "preset": "recommended",
+      "complexity": { "noStaticOnlyClass": "off" },
       "style": { "noNonNullAssertion": "off", "useImportType": "error" },
       "suspicious": { "noExplicitAny": "warn" }
     }

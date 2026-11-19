@@ -1,6 +1,5 @@
-import { ApiError } from "@linq/shared"
 import { createMiddleware } from "hono/factory"
-import type { Env } from "../libs/index.ts"
+import { HttpError } from "../libs/index.ts"
 
 type Window = { count: number; resetAt: number }
 
@@ -13,7 +12,7 @@ export function limitByKey(maxRequests: number, windowMs = 60_000) {
   const windows = new Map<string, Window>()
   let nextSweep = 0
 
-  return createMiddleware<Env>(async (c, next) => {
+  return createMiddleware(async (c, next) => {
     const now = Date.now()
     if (now >= nextSweep) {
       for (const [keyId, window] of windows) {
@@ -28,7 +27,7 @@ export function limitByKey(maxRequests: number, windowMs = 60_000) {
       !existing || existing.resetAt <= now ? { count: 0, resetAt: now + windowMs } : existing
     if (window.count >= maxRequests) {
       c.header("retry-after", String(Math.max(1, Math.ceil((window.resetAt - now) / 1000))))
-      throw ApiError.rateLimited("API rate limit exceeded")
+      throw HttpError.rateLimited("API rate limit exceeded")
     }
 
     window.count++

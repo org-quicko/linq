@@ -1,74 +1,103 @@
+import type { Cache, LlmsEntry } from "@linq/shared"
 import { sql } from "kysely"
-import { type Db, span } from "../libs/index.ts"
-import { shortUrl } from "./LinkService.ts"
+import { CacheAdapter } from "../adapters/index.ts"
+import type { Db } from "../clients/index.ts"
+import { LinkRowToLlmsEntryConverter } from "../converters/index.ts"
+import { Log } from "../libs/index.ts"
+import { CacheKeyUtil, MarkdownUtil } from "../utils/index.ts"
+
+const linkRowToLlmsEntryConverter = new LinkRowToLlmsEntryConverter()
 
 /**
- * No llms.txt is improved by 50,000 entries, and this is an unauthenticated
- * endpoint whose response is built in memory. A module constant, not config —
- * one fewer knob.
+ * The llms.txt catalogue of one domain's listed, live links. See
+ * resources/docs/adr/0013.
  */
-const MAX_LISTED = 500
+export class LlmsService {
+  /**
+   * No llms.txt is improved by 50,000 entries, and this is an unauthenticated
+   * endpoint whose response is built in memory. A constant, not config — one
+   * fewer knob.
+   */
+  private static readonly MAX_LISTED = 500
 
-export type LlmsEntry = { name: string; url: string; destination: string }
+  /**
+   * @param db - The database.
+   * @param cache - Holds each domain's rendered document; cleared by link writes.
+   */
+  constructor(
+    private readonly db: Db,
+    private readonly cache: Cache,
+  ) {}
 
-/**
- * Collapses whitespace to a single space and escapes the two characters that
- * would break a markdown link label. The target URL needs no escaping:
- * `shortUrl` is built from `hostSchema` and `SLUG_PATTERN`, neither of which
- * can produce `(`, `)` or whitespace.
- */
-function escapeText(text: string): string {
-  return text.replace(/\s+/g, " ").trim().replace(/\[/g, "\\[").replace(/\]/g, "\\]")
-}
+  /**
+   * Renders the llms.txt document. Pure, so escaping, capping, ordering and the
+   * empty case are unit-testable without a database or a request. Link targets
+   * need no escaping: `shortUrl` is built from `hostSchema` and `SLUG_PATTERN`,
+   * neither of which can produce `(`, `)` or whitespace.
+   *
+   * @param host - The domain the document describes.
+   * @param entries - The links to list, already ordered and capped.
+   * @param truncated - Whether more links exist than are listed.
+   * @returns The markdown document.
+   */
+  static render(host: string, entries: LlmsEntry[], truncated: boolean): string {
+    const lines = [
+      `# ${host}`,
+      "",
+      `> Short links published on ${host}. Each entry is a redirect; the URL after the colon is where it leads.`,
+      "",
+      "## Links",
+      "",
+      ...entries.map(
+        (e) =>
+          `- [${MarkdownUtil.escapeMarkdownText(e.name)}](${e.url}): ${MarkdownUtil.escapeMarkdownText(e.destination)}`,
+      ),
+    ]
+    if (truncated) lines.push("", `_Showing the first ${LlmsService.MAX_LISTED} links only._`)
+    return `${lines.join("\n")}\n`
+  }
 
-/**
- * Renders the llms.txt document. Pure, so escaping, capping, ordering and the
- * empty case are unit-testable without a database or a request.
- */
-export function renderLlms(host: string, entries: LlmsEntry[], truncated: boolean): string {
-  const lines = [
-    `# ${host}`,
-    "",
-    `> Short links published on ${host}. Each entry is a redirect; the URL after the colon is where it leads.`,
-    "",
-    "## Links",
-    "",
-    ...entries.map((e) => `- [${escapeText(e.name)}](${e.url}): ${escapeText(e.destination)}`),
-  ]
-  if (truncated) lines.push("", `_Showing the first ${MAX_LISTED} links only._`)
-  return `${lines.join("\n")}\n`
-}
+  /**
+   * One domain's catalogue, alphabetical by display name, tiebroken by id. A
+   * catalogue is not a feed: this order changes only when its contents change,
+   * so it stays diff-friendly and a crawler's conditional fetch remains
+   * meaningful. The rendered string is cached as a whole, keyed by domain id: a
+   * string has no `Date` problem, unlike a row array.
+   *
+   * @param domainId - The domain to list.
+   * @param host - The domain's host, as requested.
+   * @returns The rendered llms.txt.
+   */
+  async renderForDomain(domainId: string, host: string): Promise<string> {
+    const markdown = await CacheAdapter.readThrough(
+      this.cache,
+      CacheKeyUtil.llmsKey(domainId),
+      () => this.loadMarkdown(domainId, host),
+    )
+    return markdown ?? ""
+  }
 
-/**
- * The catalogue of one domain's listed, live links. Alphabetical by display
- * name, tiebroken by id. A catalogue is not a feed: this order changes only
- * when its contents change, so it stays diff-friendly and a crawler's
- * conditional fetch remains meaningful.
- */
-export function renderLlmsForDomain(db: Db, domainId: string, host: string): Promise<string> {
-  return span(
-    "llms.render",
-    async () => {
-      const now = new Date()
-      const rows = await db
-        .selectFrom("links")
-        .select(["name", "slug", "destination"])
-        .where("domain_id", "=", domainId)
-        .where("status", "=", "active")
-        .where("listed", "=", true)
-        .where((eb) => eb.or([eb("expires_at", "is", null), eb("expires_at", ">", now)]))
-        .orderBy(sql`coalesce(name, slug)`)
-        .orderBy("id")
-        .limit(MAX_LISTED + 1)
-        .execute()
+  @Log("llms.render", {
+    in: (domainId: string) => ({ domain_id: domainId }),
+    out: (markdown: string) => ({ bytes: markdown.length }),
+  })
+  private async loadMarkdown(domainId: string, host: string) {
+    const now = new Date()
+    const rows = await this.db
+      .selectFrom("links")
+      .select(["name", "slug", "destination"])
+      .where("domain_id", "=", domainId)
+      .where("status", "=", "active")
+      .where("listed", "=", true)
+      .where((eb) => eb.or([eb("expires_at", "is", null), eb("expires_at", ">", now)]))
+      .orderBy(sql`coalesce(name, slug)`)
+      .orderBy("id")
+      .limit(LlmsService.MAX_LISTED + 1)
+      .execute()
 
-      const entries = rows.slice(0, MAX_LISTED).map((row) => ({
-        name: row.name ?? row.slug,
-        url: shortUrl(host, row.slug),
-        destination: row.destination,
-      }))
-      return renderLlms(host, entries, rows.length > MAX_LISTED)
-    },
-    { in: { domain_id: domainId }, out: (markdown) => ({ bytes: markdown.length }) },
-  )
+    const entries = rows
+      .slice(0, LlmsService.MAX_LISTED)
+      .map((row) => linkRowToLlmsEntryConverter.convertFrom(row, host))
+    return LlmsService.render(host, entries, rows.length > LlmsService.MAX_LISTED)
+  }
 }

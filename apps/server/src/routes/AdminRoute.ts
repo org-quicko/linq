@@ -2,8 +2,8 @@ import { createHash } from "node:crypto"
 import { dirname, isAbsolute, join, relative as relativePath, resolve } from "node:path"
 import { fileURLToPath } from "node:url"
 import type { Context, Hono } from "hono"
-import { clientPath, isAppHost } from "../config.ts"
-import type { Env } from "../libs/index.ts"
+import type { Config } from "../config.ts"
+import { UrlUtil } from "../utils/index.ts"
 
 /**
  * The Next.js static export, resolved from this file rather than the working
@@ -19,7 +19,7 @@ export const adminRoot = resolve(
  * Next bootstrap blocks are hashed per document, so CSP allows exactly the
  * build's scripts without allowing arbitrary inline script.
  */
-function setAdminSecurityHeaders(c: Context<Env>, html: string) {
+function setAdminSecurityHeaders(c: Context, html: string) {
   const scriptHashes = new Set<string>()
   for (const match of html.matchAll(/<script(?:\s[^>]*)?>([\s\S]*?)<\/script>/gi)) {
     if (/\bsrc\s*=/i.test(match[0])) continue
@@ -66,20 +66,30 @@ function setAdminSecurityHeaders(c: Context<Env>, html: string) {
  *
  * With LINQ_APP_HOST set, every other host falls through to the redirect
  * handler, which is what lets a root mount (`/`) coexist with slugs.
+ *
+ * Static-file wiring with no service behind it, so it stays a function rather
+ * than a controller.
+ *
+ * @param app - The app to mount on, before its catch-all.
+ * @param options - The mount path, LINQ_APP_HOST, and the export directory.
  */
 export function mountAdmin(
-  app: Hono<Env>,
-  { basePath, root = adminRoot }: { basePath: string; root?: string },
+  app: Hono,
+  {
+    basePath,
+    config,
+    root = adminRoot,
+  }: { basePath: string; config: Pick<Config, "LINQ_APP_HOST">; root?: string },
 ): void {
-  const onThisHost = (c: Context<Env>) =>
-    !c.var.config.LINQ_APP_HOST ||
-    isAppHost(c.var.config, c.req.header("host") ?? new URL(c.req.url).host)
+  const onThisHost = (c: Context) =>
+    !config.LINQ_APP_HOST ||
+    UrlUtil.isAppHost(config, c.req.header("host") ?? new URL(c.req.url).host)
 
   if (basePath !== "/") {
     app.get(basePath, (c, next) => (onThisHost(c) ? c.redirect(`${basePath}/`, 302) : next()))
   }
 
-  app.get(clientPath(basePath, "/*"), async (c, next) => {
+  app.get(UrlUtil.clientPath(basePath, "/*"), async (c, next) => {
     if (!onThisHost(c)) return next()
     const relative = basePath === "/" ? c.req.path : c.req.path.slice(basePath.length) || "/"
 

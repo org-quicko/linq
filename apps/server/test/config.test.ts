@@ -1,5 +1,6 @@
 import { describe, expect, test } from "bun:test"
-import { isAppHost, isReservedSlug, loadConfig } from "../src/config.ts"
+import { loadConfig } from "../src/config.ts"
+import { SlugUtil, UrlUtil } from "../src/utils/index.ts"
 
 describe("cache configuration", () => {
   test("defaults the memory sweep interval to 60 seconds", () => {
@@ -55,8 +56,8 @@ describe("Client UI base path configuration", () => {
     })
 
     expect(config.LINQ_CLIENT_BASE_PATH).toBe("/admin/example")
-    expect(isReservedSlug("ADMIN", config.LINQ_CLIENT_BASE_PATH)).toBe(true)
-    expect(isReservedSlug("campaign", config.LINQ_CLIENT_BASE_PATH)).toBe(false)
+    expect(SlugUtil.isReservedSlug("ADMIN", config.LINQ_CLIENT_BASE_PATH)).toBe(true)
+    expect(SlugUtil.isReservedSlug("campaign", config.LINQ_CLIENT_BASE_PATH)).toBe(false)
   })
 
   test("accepts a root mount with an app host, and reserves no slug for it", () => {
@@ -67,8 +68,8 @@ describe("Client UI base path configuration", () => {
     })
 
     expect(config.LINQ_APP_HOST).toBe("app.example.com")
-    expect(isAppHost(config, "app.example.com:443")).toBe(true)
-    expect(isAppHost(config, "links.example.com")).toBe(false)
-    expect(isReservedSlug("", config.LINQ_CLIENT_BASE_PATH)).toBe(false)
+    expect(UrlUtil.isAppHost(config, "app.example.com:443")).toBe(true)
+    expect(UrlUtil.isAppHost(config, "links.example.com")).toBe(false)
+    expect(SlugUtil.isReservedSlug("", config.LINQ_CLIENT_BASE_PATH)).toBe(false)
   })
 })

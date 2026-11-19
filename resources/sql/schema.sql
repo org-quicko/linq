@@ -4,8 +4,8 @@
 
 \restrict linq
 
--- Dumped from database version 17.11 (Debian 17.11-1.pgdg13+2)
--- Dumped by pg_dump version 17.11 (Debian 17.11-1.pgdg13+2)
+-- Dumped from database version 18.6
+-- Dumped by pg_dump version 18.6
 
 SET statement_timeout = 0;
 SET lock_timeout = 0;
@@ -300,7 +300,7 @@ CREATE TABLE public.visits (
     link_id uuid,
     domain_id uuid NOT NULL,
     slug_requested text NOT NULL,
-    visited_at timestamp with time zone DEFAULT now() NOT NULL,
+    visited_at timestamp with time zone DEFAULT now() CONSTRAINT visits_occurred_at_not_null NOT NULL,
     is_bot boolean NOT NULL,
     platform public.platform NOT NULL,
     os text,
@@ -529,6 +529,13 @@ CREATE INDEX visits_link_visited_idx ON public.visits USING btree (link_id, visi
 --
 
 CREATE INDEX visits_orphan_visited_idx ON public.visits USING btree (visited_at DESC NULLS LAST) WHERE (link_id IS NULL);
+
+
+--
+-- Name: visits_visited_id_idx; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX visits_visited_id_idx ON public.visits USING btree (visited_at DESC, id DESC);
 
 
 --

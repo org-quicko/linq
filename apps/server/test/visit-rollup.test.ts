@@ -1,7 +1,6 @@
 import { beforeEach, describe, expect, test } from "bun:test"
 import { sql } from "kysely"
-import type { Db } from "../src/libs/db.ts"
-import { flushVisits } from "../src/services/VisitService.ts"
+import type { Db } from "../src/clients/DbClient.ts"
 import { createHarness, type Harness } from "./helpers/app.ts"
 
 const HOST = "rollup.test"
@@ -110,7 +109,7 @@ async function traffic() {
     if (referer) headers.referer = referer
     await h.request(`/${slug}`, { host: HOST, headers })
   }
-  await flushVisits()
+  await h.flushVisits()
   return { one, two }
 }
 
@@ -137,14 +136,14 @@ describe("the day-wise rollup", () => {
     await h.createLink(editor.key, domain, { slug: "again" })
     const hit = () => h.request("/again", { host: HOST, headers: { "user-agent": DESKTOP } })
     await hit()
-    await flushVisits()
+    await h.flushVisits()
     const after1 = await h.db
       .selectFrom("visit_days")
       .selectAll()
       .where("dimension", "=", "total")
       .execute()
     await hit()
-    await flushVisits()
+    await h.flushVisits()
     const after2 = await h.db
       .selectFrom("visit_days")
       .selectAll()
@@ -158,7 +157,7 @@ describe("the day-wise rollup", () => {
   test("an unrecorded dimension is stored as an empty value, not a word", async () => {
     await h.createLink(editor.key, domain, { slug: "bare" })
     await h.request("/bare", { host: HOST, headers: { "user-agent": DESKTOP } })
-    await flushVisits()
+    await h.flushVisits()
     const row = await h.db
       .selectFrom("visit_days")
       .selectAll()
@@ -178,7 +177,7 @@ describe("the summary counts", () => {
     const link = await h.createLink(editor.key, domain, { slug: "split" })
     for (const agent of [DESKTOP, DESKTOP, BOT])
       await h.request("/split", { host: HOST, headers: { "user-agent": agent } })
-    await flushVisits()
+    await h.flushVisits()
     const row = await h.db
       .selectFrom("visit_counts")
       .selectAll()
@@ -191,7 +190,7 @@ describe("the summary counts", () => {
   test("orphans get one row per domain, not one per slug", async () => {
     await h.request("/nowhere", { host: HOST, headers: { "user-agent": DESKTOP } })
     await h.request("/elsewhere", { host: HOST, headers: { "user-agent": DESKTOP } })
-    await flushVisits()
+    await h.flushVisits()
     const rows = await h.db
       .selectFrom("visit_counts")
       .selectAll()
@@ -235,7 +234,7 @@ describe("purge", () => {
     const link = await h.createLink(editor.key, spare, { slug: "doomed" })
     await h.request("/doomed", { host: "spare.test", headers: { "user-agent": DESKTOP } })
     await h.recordVisits(null, spare, { human: 1 })
-    await flushVisits()
+    await h.flushVisits()
     expect(
       await h.db.selectFrom("visit_days").selectAll().where("domain_id", "=", spare).execute(),
     ).not.toHaveLength(0)

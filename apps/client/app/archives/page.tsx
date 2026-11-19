@@ -1,6 +1,6 @@
 "use client"
 
-import { can, type Link } from "@linq/shared"
+import { type Link, PermissionUtil } from "@linq/shared"
 import { Archive, Link2, RotateCcw, Trash2 } from "lucide-react"
 import { AppShell } from "@/components/app-shell"
 import { ConfirmButton, When } from "@/components/common"
@@ -28,12 +28,12 @@ import {
  * copy of that flow here would just be a duplicate trash can for the same
  * rows).
  *
- * `requires={can.purge}` is unchanged from before: archived rows are kept
+ * `requires={PermissionUtil.can.purge}` is unchanged from before: archived rows are kept
  * forever (resources/docs/adr/0002) and purge is the only way to remove one, so
  * reaching this page at all is already an admin-only action.
  */
 export default function ArchivesPage() {
-  return <AppShell requires={can.purge}>{() => <Archives />}</AppShell>
+  return <AppShell requires={PermissionUtil.can.purge}>{() => <Archives />}</AppShell>
 }
 
 function Archives() {

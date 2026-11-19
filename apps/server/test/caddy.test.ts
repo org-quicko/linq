@@ -1,6 +1,8 @@
 import { describe, expect, test } from "bun:test"
-import { type Caddy, guardedCaddy, startCaddy } from "../src/libs/caddy.ts"
-import { reconcileCaddy } from "../src/services/DomainService.ts"
+import type { Caddy } from "@linq/shared"
+import { NoopCacheAdapter } from "../src/adapters/index.ts"
+import { CaddyClient, GuardedCaddy, NoopCaddyClient } from "../src/clients/index.ts"
+import { DomainService } from "../src/services/DomainService.ts"
 import { createTestDb, testConfig } from "./helpers/db.ts"
 
 const CADDY_CONFIG = {
@@ -25,11 +27,12 @@ function mockFetch(handler: (url: string, init?: RequestInit) => Response) {
   }
 }
 
-describe("startCaddy", () => {
+describe("CaddyClient.start", () => {
   test("with no admin URL, never calls fetch", async () => {
     const mock = mockFetch(() => new Response(null, { status: 200 }))
     try {
-      const caddy = startCaddy(testConfig)
+      const caddy = CaddyClient.start(testConfig)
+      expect(caddy).toBeInstanceOf(NoopCaddyClient)
       await caddy.upsert("d1", "x.test")
       await caddy.remove("d1")
       expect(mock.calls).toHaveLength(0)
@@ -41,7 +44,7 @@ describe("startCaddy", () => {
   test("upsert deletes then posts a route tagged with the domain's id", async () => {
     const mock = mockFetch(() => new Response(null, { status: 200 }))
     try {
-      const caddy = startCaddy(CADDY_CONFIG)
+      const caddy = CaddyClient.start(CADDY_CONFIG)
       await caddy.upsert("d1", "example.com:8080")
 
       expect(mock.calls).toHaveLength(2)
@@ -64,7 +67,7 @@ describe("startCaddy", () => {
   test("remove treats a 404 as already-gone, not a failure", async () => {
     const mock = mockFetch(() => new Response(null, { status: 404 }))
     try {
-      const caddy = startCaddy(CADDY_CONFIG)
+      const caddy = CaddyClient.start(CADDY_CONFIG)
       await caddy.remove("never-was")
     } finally {
       mock.restore()
@@ -74,7 +77,7 @@ describe("startCaddy", () => {
   test("remove throws on a real failure", async () => {
     const mock = mockFetch(() => new Response("boom", { status: 500 }))
     try {
-      const caddy = startCaddy(CADDY_CONFIG)
+      const caddy = CaddyClient.start(CADDY_CONFIG)
       await expect(caddy.remove("d1")).rejects.toThrow()
     } finally {
       mock.restore()
@@ -82,7 +85,7 @@ describe("startCaddy", () => {
   })
 })
 
-describe("guardedCaddy", () => {
+describe("GuardedCaddy", () => {
   /** A Caddy sync is never allowed to fail its caller. */
   const broken: Caddy = {
     upsert: async () => {
@@ -94,7 +97,7 @@ describe("guardedCaddy", () => {
   }
 
   test("swallows a failing upsert and remove", async () => {
-    const safe = guardedCaddy(broken)
+    const safe = new GuardedCaddy(broken)
     await safe.upsert("d1", "x.test")
     await safe.remove("d1")
   })
@@ -120,7 +123,9 @@ describe("reconcileCaddy", () => {
       upsert: async (domain_id, host) => void upserts.push([domain_id, host]),
       remove: async () => {},
     }
-    await reconcileCaddy(db, spy, "app.test")
+    await new DomainService(db, new NoopCacheAdapter(), spy, {
+      LINQ_APP_HOST: "app.test",
+    }).reconcileCaddy()
 
     expect(upserts).toHaveLength(3)
     expect(upserts).toContainEqual([active1, "active-one.test"])

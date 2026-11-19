@@ -1,5 +1,4 @@
 import { beforeAll, describe, expect, test } from "bun:test"
-import { flushVisits } from "../src/services/VisitService.ts"
 import { createHarness, type Harness } from "./helpers/app.ts"
 
 const HOST = "links.test"
@@ -15,13 +14,13 @@ let domain: string
 
 /** The redirect never awaits its insert, so tests drain it before asserting. */
 async function lastVisit() {
-  await flushVisits()
+  await h.flushVisits()
   return await h.db.selectFrom("visits").selectAll().orderBy("id", "desc").executeTakeFirstOrThrow()
 }
 
 /** Total rows in `visits`, drained first so nothing is still in flight. */
 async function visitCount() {
-  await flushVisits()
+  await h.flushVisits()
   return (await h.db.selectFrom("visits").selectAll().execute()).length
 }
 
@@ -259,7 +258,7 @@ describe("orphan visits", () => {
     const res = await get("/missing", { host: "bare.test" })
     expect(res.status).toBe(404)
 
-    await flushVisits()
+    await h.flushVisits()
     const row = await h.db
       .selectFrom("visits")
       .selectAll()
@@ -270,7 +269,7 @@ describe("orphan visits", () => {
   })
 
   test("orphan visits are the rows with a null link", async () => {
-    await flushVisits()
+    await h.flushVisits()
     const orphans = await h.db
       .selectFrom("visits")
       .selectAll()
@@ -557,7 +556,7 @@ describe("link expiry", () => {
 
     const res = await get("/lapsed", { host: "expiry-bare.test" })
     expect(res.status).toBe(404)
-    await flushVisits()
+    await h.flushVisits()
     const row = await h.db
       .selectFrom("visits")
       .selectAll()

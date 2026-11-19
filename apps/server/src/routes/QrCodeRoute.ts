@@ -1,56 +1,27 @@
-import {
-  ApiError,
-  qrCodeCreateSchema,
-  qrCodeListQuerySchema,
-  qrCodePatchSchema,
-} from "@linq/shared"
 import { Hono } from "hono"
-import type { Env } from "../libs/index.ts"
-import { authorize, idParam, validate } from "../middleware/index.ts"
-import {
-  createQrCode,
-  deleteQrCode,
-  getQrCode,
-  listQrCodes,
-  loadLink,
-  loadQrCode,
-  updateQrCode,
-} from "../services/index.ts"
+import { QrCodeController } from "../controllers/index.ts"
+import type { LinkService, QrCodeService } from "../services/index.ts"
 
 /**
- * Mounted top-level (`/v1/qr-codes`), because the list view spans every link.
- * Writes need `update Link` — there is no separate QR code permission.
+ * Builds the QR code routes, mounted on `/qr-codes`. Called once, by `createApp`.
+ *
+ * - GET    /     - list QR codes.
+ * - POST   /     - create a QR code for a link.
+ * - GET    /:id  - fetch a QR code.
+ * - PATCH  /:id  - partially update a QR code.
+ * - DELETE /:id  - delete a QR code.
+ *
+ * @param qrCodeService - The app's one `QrCodeService`.
+ * @param linkService - The app's one `LinkService`.
+ * @returns The `/qr-codes` sub-app.
  */
-export const qrCodeRoute = new Hono<Env>()
-  .get("/", validate("query", qrCodeListQuerySchema), async (c) => {
-    const q = c.req.valid("query")
-    const { data, total } = await listQrCodes(c.var.db, q)
-    return c.json({ data, total, limit: q.limit, offset: q.offset })
-  })
+export function qrCodeRoutes(qrCodeService: QrCodeService, linkService: LinkService) {
+  const qrCodeController = new QrCodeController(qrCodeService, linkService)
 
-  .post("/", validate("json", qrCodeCreateSchema), async (c) => {
-    const body = c.req.valid("json")
-    // Unknown link first: a missing link is a 404, not a permission question.
-    const link = await loadLink(c.var.db, body.link_id)
-    authorize(c.var.principal, "update", "Link")
-    if (link.status === "archived")
-      throw ApiError.conflict("cannot attach a QR code to an archived link")
-    return c.json(await createQrCode(c.var.db, body), 201)
-  })
-
-  .get("/:id", idParam, async (c) => c.json(await getQrCode(c.var.db, c.req.valid("param").id)))
-
-  .patch("/:id", idParam, validate("json", qrCodePatchSchema), async (c) => {
-    const { id } = c.req.valid("param")
-    await loadQrCode(c.var.db, id)
-    authorize(c.var.principal, "update", "Link")
-    return c.json(await updateQrCode(c.var.db, id, c.req.valid("json")))
-  })
-
-  .delete("/:id", idParam, async (c) => {
-    const { id } = c.req.valid("param")
-    await loadQrCode(c.var.db, id)
-    authorize(c.var.principal, "update", "Link")
-    await deleteQrCode(c.var.db, id)
-    return c.body(null, 204)
-  })
+  return new Hono()
+    .get("/", qrCodeController.list)
+    .post("/", qrCodeController.create)
+    .get("/:id", qrCodeController.get)
+    .patch("/:id", qrCodeController.update)
+    .delete("/:id", qrCodeController.delete)
+}

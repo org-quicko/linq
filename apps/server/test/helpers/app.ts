@@ -1,12 +1,16 @@
-import { claimsForPreset, type KeyPreset, type Link } from "@linq/shared"
+import {
+  type Cache,
+  type Caddy,
+  claimsForPreset,
+  type KeyPreset,
+  type Link,
+  type MetadataFetcher,
+} from "@linq/shared"
 import type { Insertable } from "kysely"
 import { createApp } from "../../src/app.ts"
+import type { Db } from "../../src/clients/index.ts"
 import type { DB } from "../../src/db/types.generated.ts"
-import { type Cache, noCache } from "../../src/libs/cache.ts"
-import { type Caddy, noCaddy } from "../../src/libs/caddy.ts"
-import type { Db } from "../../src/libs/db.ts"
-import { type MetadataFetcher, noMetadata } from "../../src/libs/linkMetadata.ts"
-import { createApiKey } from "../../src/services/ApiKeyService.ts"
+import { ApiKeyService } from "../../src/services/ApiKeyService.ts"
 import { createTestDb, testConfig } from "./db.ts"
 
 /** `json()` is deliberately loose: the assertion in each test does the narrowing. */
@@ -15,6 +19,8 @@ export type TestResponse = Omit<Response, "json"> & { json: () => Promise<any> }
 
 export type Harness = {
   db: Db
+  /** Waits for every visit the redirect has handed to this app's `VisitService`. */
+  flushVisits: () => Promise<void>
   /** Calls the app over `fetch`, no socket involved. */
   request: (
     path: string,
@@ -55,12 +61,12 @@ export type HarnessOptions = {
 export async function createHarness(options: HarnessOptions = {}): Promise<Harness> {
   const db = await createTestDb()
   const config = { ...testConfig, ...options.config }
-  const app = createApp({
+  const { app, visitService } = createApp({
     db,
     config,
-    cache: options.cache ?? noCache,
-    caddy: options.caddy ?? noCaddy,
-    metadata: options.metadata ?? noMetadata,
+    cache: options.cache,
+    caddy: options.caddy,
+    metadata: options.metadata,
   })
 
   const request: Harness["request"] = async (path, init = {}) => {
@@ -72,7 +78,7 @@ export async function createHarness(options: HarnessOptions = {}): Promise<Harne
   }
 
   const createKey: Harness["createKey"] = async ({ preset, name = preset, expiresAt }) => {
-    const { row, secret } = await createApiKey(db, {
+    const { row, secret } = await new ApiKeyService(db).create({
       name,
       claims: claimsForPreset[preset],
       expiresAt: expiresAt ?? null,
@@ -82,6 +88,7 @@ export async function createHarness(options: HarnessOptions = {}): Promise<Harne
 
   return {
     db,
+    flushVisits: () => visitService.flush(),
     request,
     createKey,
     post: (path, key, body) => request(path, { key, method: "POST", body: JSON.stringify(body) }),

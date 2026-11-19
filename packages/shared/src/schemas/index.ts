@@ -1,0 +1,10 @@
+/** Barrel export for every zod schema and schema builder: request bodies, queries and shared primitives. */
+export * from "./AnalyticsSchema.ts"
+export * from "./ApiKeySchema.ts"
+export * from "./CommonSchema.ts"
+export * from "./DomainSchema.ts"
+export * from "./LinkSchema.ts"
+export * from "./PermissionSchema.ts"
+export * from "./QrCodeSchema.ts"
+export * from "./RuleSchema.ts"
+export * from "./VisitSchema.ts"

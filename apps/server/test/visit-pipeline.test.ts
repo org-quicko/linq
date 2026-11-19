@@ -1,13 +1,18 @@
 import { beforeAll, describe, expect, test } from "bun:test"
-import { flushVisits, recordVisit } from "../src/services/VisitService.ts"
+import { VisitService } from "../src/services/VisitService.ts"
 import { createHarness, type Harness } from "./helpers/app.ts"
 
 let h: Harness
 let domainId: string
+/** One service per cap, as `createApp` would build from LINQ_VISIT_MAX_PENDING. */
+let visits: VisitService
+let capped: VisitService
 
 beforeAll(async () => {
   h = await createHarness()
   domainId = await h.createDomain("pipeline.test")
+  visits = new VisitService(h.db, { LINQ_VISIT_MAX_PENDING: 1_000 })
+  capped = new VisitService(h.db, { LINQ_VISIT_MAX_PENDING: 1 })
 })
 
 const visit = (slug: string) => ({
@@ -33,8 +38,8 @@ const count = async (slug: string) =>
 describe("the OpenTelemetry visit pipeline", () => {
   test("a recorded visit reaches the visits table, stamped with its click time", async () => {
     const before = Date.now()
-    recordVisit(h.db, visit("written"), 1_000)
-    await flushVisits()
+    visits.record(visit("written"))
+    await visits.flush()
     const row = await h.db
       .selectFrom("visits")
       .select(["visited_at"])
@@ -45,26 +50,26 @@ describe("the OpenTelemetry visit pipeline", () => {
   })
 
   // The insert must be in flight the moment `emit` returns: that is what the
-  // cap counts and what `flushVisits` waits on. If the export ever became
+  // cap counts and what `flush` waits on. If the export ever became
   // asynchronous, the second call here would slip past the cap.
   test("the cap counts an emitted visit immediately, and drops past it", async () => {
-    recordVisit(h.db, visit("capped"), 1)
-    recordVisit(h.db, visit("capped"), 1)
-    await flushVisits()
+    capped.record(visit("capped"))
+    capped.record(visit("capped"))
+    await capped.flush()
     expect(await count("capped")).toBe(1)
   })
 
   test("recording resumes once the backlog drains", async () => {
-    recordVisit(h.db, visit("resumed"), 1)
-    await flushVisits()
-    recordVisit(h.db, visit("resumed"), 1)
-    await flushVisits()
+    capped.record(visit("resumed"))
+    await capped.flush()
+    capped.record(visit("resumed"))
+    await capped.flush()
     expect(await count("resumed")).toBe(2)
   })
 
   test("a visit lands in the daily rollup like any other insert", async () => {
-    recordVisit(h.db, visit("rolled"), 1_000)
-    await flushVisits()
+    visits.record(visit("rolled"))
+    await visits.flush()
     const rolled = await h.db
       .selectFrom("visit_days")
       .select(["count"])

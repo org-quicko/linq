@@ -1,8 +1,4 @@
-/** Barrel export for shared infrastructure: database, logger, cache, Caddy, metadata, user agents. */
-export * from "./cache.ts"
-export * from "./caddy.ts"
-export * from "./context.ts"
-export * from "./db.ts"
-export * from "./linkMetadata.ts"
+/** Barrel export for shared infrastructure: the logger and `HttpError`. */
+
+export * from "./errors.ts"
 export * from "./logger.ts"
-export * from "./userAgent.ts"

@@ -1,11 +1,16 @@
 import { describe, expect, test } from "bun:test"
-import { type Actor, claimsForPreset, defineAbility, type KeyPreset } from "@linq/shared"
-import type { Principal } from "../src/libs/context.ts"
+import {
+  type Actor,
+  claimsForPreset,
+  type KeyPreset,
+  PermissionUtil,
+  type Principal,
+} from "@linq/shared"
 import { authorize } from "../src/middleware/authorize.ts"
 
 const principal = (preset: KeyPreset, keyId = "k1"): Principal => {
   const claims = [...claimsForPreset[preset]]
-  return { keyId, claims, ability: defineAbility(claims), name: "test" }
+  return { keyId, claims, ability: PermissionUtil.defineAbility(claims), name: "test" }
 }
 const allows = (fn: () => void) => {
   try {
@@ -32,7 +37,7 @@ describe("CASL authorization", () => {
       keyId: "custom",
       name: "custom",
       claims: [...claims],
-      ability: defineAbility(claims),
+      ability: PermissionUtil.defineAbility(claims),
     }
     expect(allows(() => authorize(custom, "create", "Domain"))).toBe(true)
     expect(allows(() => authorize(custom, "update", "Domain"))).toBe(false)

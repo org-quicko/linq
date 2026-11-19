@@ -1,12 +1,12 @@
 import { beforeAll, describe, expect, test } from "bun:test"
-import { memoryCache } from "../src/libs/cache.ts"
-import { renderLlms } from "../src/services/LlmsService.ts"
+import { MemoryCacheAdapter } from "../src/adapters/index.ts"
+import { LlmsService } from "../src/services/LlmsService.ts"
 import { createHarness, type Harness } from "./helpers/app.ts"
 import { testConfig } from "./helpers/db.ts"
 
-describe("renderLlms", () => {
+describe("LlmsService.render", () => {
   test("collapses whitespace and a newline, and escapes brackets", () => {
-    const md = renderLlms(
+    const md = LlmsService.render(
       "links.test",
       [
         {
@@ -21,7 +21,7 @@ describe("renderLlms", () => {
   })
 
   test("falls back to the slug when name is null", () => {
-    const md = renderLlms(
+    const md = LlmsService.render(
       "links.test",
       [{ name: "abc123", url: "https://links.test/abc123", destination: "https://x.test/" }],
       false,
@@ -31,12 +31,12 @@ describe("renderLlms", () => {
 
   test("appends a truncation note only when truncated", () => {
     const entry = { name: "a", url: "https://links.test/a", destination: "https://x.test/" }
-    expect(renderLlms("links.test", [entry], true)).toContain("Showing the first")
-    expect(renderLlms("links.test", [entry], false)).not.toContain("Showing the first")
+    expect(LlmsService.render("links.test", [entry], true)).toContain("Showing the first")
+    expect(LlmsService.render("links.test", [entry], false)).not.toContain("Showing the first")
   })
 
   test("renders the heading and an empty section for no entries", () => {
-    const md = renderLlms("links.test", [], false)
+    const md = LlmsService.render("links.test", [], false)
     expect(md).toContain("# links.test")
     expect(md).toContain("## Links")
   })
@@ -104,7 +104,7 @@ describe("GET /llms.txt", () => {
 
 describe("invalidation", () => {
   test("a new listed link appears on the next request, not after the TTL", async () => {
-    const cache = memoryCache(testConfig)
+    const cache = new MemoryCacheAdapter(testConfig)
     const cached = await createHarness({ cache })
     const owner = await cached.actor("editor")
     const domain_id = await cached.createDomain("llms-cache.test")

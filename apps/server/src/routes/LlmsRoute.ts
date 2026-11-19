@@ -1,29 +1,23 @@
-import { createFactory } from "hono/factory"
-import { domainKey, type Env, llmsKey, readThrough } from "../libs/index.ts"
-import { findActiveDomain, renderLlmsForDomain } from "../services/index.ts"
+import { Hono } from "hono"
+import type { Config } from "../config.ts"
+import { LlmsController } from "../controllers/index.ts"
+import type { LlmsService, RedirectService } from "../services/index.ts"
 
 /**
- * `GET|HEAD /llms.txt`. No auth, by design: the route sits outside `/api/v1`,
- * which is the whole point, and also the reason `listed` defaults to false.
- * See resources/docs/adr/0013.
+ * Builds `/llms.txt`, mounted outside `/api/v1`. Called once, by `createApp`.
+ *
+ * - GET|HEAD /  - the requested domain's catalogue.
+ *
+ * @param llmsService - The app's one `LlmsService`.
+ * @param redirectService - The app's one `RedirectService`.
+ * @param config - LINQ_CACHE_TTL.
+ * @returns The `/llms.txt` sub-app.
  */
-export const llmsHandler = createFactory<Env>().createHandlers(async (c) => {
-  const host = c.req.header("host") ?? new URL(c.req.url).host
-  // Reads the same `domainKey` entry the redirect warms, so a live instance
-  // pays zero extra queries for this route.
-  const domain = await readThrough(c.var.cache, domainKey(host), () =>
-    findActiveDomain(c.var.db, host),
-  )
-  if (!domain) return c.text("Not Found", 404)
-
-  // The rendered string is cached as a whole, keyed by domain id: a string has
-  // no `Date` problem, unlike a row array.
-  const markdown = await readThrough(c.var.cache, llmsKey(domain.id), () =>
-    renderLlmsForDomain(c.var.db, domain.id, host),
-  )
-
-  return c.body(markdown ?? "", 200, {
-    "content-type": "text/markdown; charset=utf-8",
-    "cache-control": `public, max-age=${c.var.config.LINQ_CACHE_TTL}`,
-  })
-})
+export function llmsRoutes(
+  llmsService: LlmsService,
+  redirectService: RedirectService,
+  config: Pick<Config, "LINQ_CACHE_TTL">,
+) {
+  const llmsController = new LlmsController(llmsService, redirectService, config)
+  return new Hono().on(["GET", "HEAD"], "/", llmsController.get)
+}

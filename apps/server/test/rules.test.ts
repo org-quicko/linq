@@ -1,7 +1,6 @@
 import { beforeAll, describe, expect, test } from "bun:test"
 import type { Condition } from "@linq/shared"
-import { matchRules, ruleMatches } from "../src/services/RuleService.ts"
-import { flushVisits } from "../src/services/VisitService.ts"
+import { RuleMatchUtil } from "../src/utils/RuleMatchUtil.ts"
 import { createHarness, type Harness } from "./helpers/app.ts"
 
 const ANDROID = "Mozilla/5.0 (Linux; Android 14; Pixel 8) AppleWebKit/537.36 Chrome/120 Mobile"
@@ -22,45 +21,54 @@ describe("ruleMatches", () => {
       { type: "query_param", key: "utm_source", value: "ads" },
     ]
     expect(
-      ruleMatches({ conditions: both }, ctx({ platform: "android", query: "utm_source=ads" })),
+      RuleMatchUtil.ruleMatches(
+        { conditions: both },
+        ctx({ platform: "android", query: "utm_source=ads" }),
+      ),
     ).toBe(true)
     expect(
-      ruleMatches({ conditions: both }, ctx({ platform: "android", query: "utm_source=x" })),
+      RuleMatchUtil.ruleMatches(
+        { conditions: both },
+        ctx({ platform: "android", query: "utm_source=x" }),
+      ),
     ).toBe(false)
     expect(
-      ruleMatches({ conditions: both }, ctx({ platform: "ios", query: "utm_source=ads" })),
+      RuleMatchUtil.ruleMatches(
+        { conditions: both },
+        ctx({ platform: "ios", query: "utm_source=ads" }),
+      ),
     ).toBe(false)
   })
 
   test("a rule with no conditions never matches", () => {
-    expect(ruleMatches({ conditions: [] }, ctx())).toBe(false)
-    expect(ruleMatches({ conditions: [] }, ctx({ platform: "android", query: "promo=1" }))).toBe(
-      false,
-    )
+    expect(RuleMatchUtil.ruleMatches({ conditions: [] }, ctx())).toBe(false)
+    expect(
+      RuleMatchUtil.ruleMatches({ conditions: [] }, ctx({ platform: "android", query: "promo=1" })),
+    ).toBe(false)
   })
 
   describe("query_param", () => {
     test("without a value it only needs the key present", () => {
       const c: Condition[] = [{ type: "query_param", key: "beta" }]
-      expect(ruleMatches({ conditions: c }, ctx({ query: "beta=1" }))).toBe(true)
-      expect(ruleMatches({ conditions: c }, ctx({ query: "beta=" }))).toBe(true)
-      expect(ruleMatches({ conditions: c }, ctx({ query: "beta" }))).toBe(true)
-      expect(ruleMatches({ conditions: c }, ctx({ query: "other=1" }))).toBe(false)
-      expect(ruleMatches({ conditions: c }, ctx())).toBe(false)
+      expect(RuleMatchUtil.ruleMatches({ conditions: c }, ctx({ query: "beta=1" }))).toBe(true)
+      expect(RuleMatchUtil.ruleMatches({ conditions: c }, ctx({ query: "beta=" }))).toBe(true)
+      expect(RuleMatchUtil.ruleMatches({ conditions: c }, ctx({ query: "beta" }))).toBe(true)
+      expect(RuleMatchUtil.ruleMatches({ conditions: c }, ctx({ query: "other=1" }))).toBe(false)
+      expect(RuleMatchUtil.ruleMatches({ conditions: c }, ctx())).toBe(false)
     })
 
     test("with a value it must match exactly", () => {
       const c: Condition[] = [{ type: "query_param", key: "v", value: "2" }]
-      expect(ruleMatches({ conditions: c }, ctx({ query: "v=2" }))).toBe(true)
-      expect(ruleMatches({ conditions: c }, ctx({ query: "v=20" }))).toBe(false)
-      expect(ruleMatches({ conditions: c }, ctx({ query: "v=" }))).toBe(false)
-      expect(ruleMatches({ conditions: c }, ctx({ query: "v" }))).toBe(false)
+      expect(RuleMatchUtil.ruleMatches({ conditions: c }, ctx({ query: "v=2" }))).toBe(true)
+      expect(RuleMatchUtil.ruleMatches({ conditions: c }, ctx({ query: "v=20" }))).toBe(false)
+      expect(RuleMatchUtil.ruleMatches({ conditions: c }, ctx({ query: "v=" }))).toBe(false)
+      expect(RuleMatchUtil.ruleMatches({ conditions: c }, ctx({ query: "v" }))).toBe(false)
     })
 
     test("a repeated key matches when any copy matches", () => {
       const c: Condition[] = [{ type: "query_param", key: "t", value: "b" }]
-      expect(ruleMatches({ conditions: c }, ctx({ query: "t=a&t=b" }))).toBe(true)
-      expect(ruleMatches({ conditions: c }, ctx({ query: "t=a&t=c" }))).toBe(false)
+      expect(RuleMatchUtil.ruleMatches({ conditions: c }, ctx({ query: "t=a&t=b" }))).toBe(true)
+      expect(RuleMatchUtil.ruleMatches({ conditions: c }, ctx({ query: "t=a&t=c" }))).toBe(false)
     })
   })
 })
@@ -73,19 +81,19 @@ describe("matchRules", () => {
 
   test("the first rule in order wins, even when a later one also matches", () => {
     const both = ctx({ platform: "android", query: "promo=1" })
-    expect(matchRules(rules, both)).toBe("https://example.com/android")
+    expect(RuleMatchUtil.matchRules(rules, both)).toBe("https://example.com/android")
 
     // Reversing the order reverses the winner: position is the only tiebreak.
-    expect(matchRules([...rules].reverse(), both)).toBe("https://example.com/promo")
+    expect(RuleMatchUtil.matchRules([...rules].reverse(), both)).toBe("https://example.com/promo")
   })
 
   test("returns null when nothing matches, so the default destination is used", () => {
-    expect(matchRules(rules, ctx({ platform: "desktop" }))).toBeNull()
-    expect(matchRules([], ctx({ platform: "android" }))).toBeNull()
+    expect(RuleMatchUtil.matchRules(rules, ctx({ platform: "desktop" }))).toBeNull()
+    expect(RuleMatchUtil.matchRules([], ctx({ platform: "android" }))).toBeNull()
   })
 
   test("skips a non-matching rule to reach a later match", () => {
-    expect(matchRules(rules, ctx({ platform: "ios", query: "promo=1" }))).toBe(
+    expect(RuleMatchUtil.matchRules(rules, ctx({ platform: "ios", query: "promo=1" }))).toBe(
       "https://example.com/promo",
     )
   })
@@ -331,7 +339,7 @@ describe("rules in the redirect", () => {
     })
 
     await get("/tracked", ANDROID)
-    await flushVisits()
+    await h.flushVisits()
     const row = await h.db
       .selectFrom("visits")
       .selectAll()

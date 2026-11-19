@@ -4,8 +4,7 @@ import { tmpdir } from "node:os"
 import { join } from "node:path"
 import { Hono } from "hono"
 import type { Config } from "../src/config.ts"
-import type { Env } from "../src/libs/context.ts"
-import { flushLogs, initLogger, log, reqLog, span } from "../src/libs/logger.ts"
+import { Log, Logger } from "../src/libs/logger.ts"
 import { requestLogger } from "../src/middleware/requestLogger.ts"
 import { createHarness } from "./helpers/app.ts"
 import { testConfig } from "./helpers/db.ts"
@@ -25,7 +24,7 @@ type Captured = {
 /** Points the process logger at an in-memory sink instead of stdout. */
 async function capture(overrides: Partial<Config> = {}): Promise<Captured> {
   const lines: string[] = []
-  await initLogger(
+  await Logger.init(
     { ...testConfig, ...SECRETS, LINQ_LOG_LEVEL: "debug", LINQ_LOG_FILE: "", ...overrides },
     { write: (line) => lines.push(line) },
   )
@@ -40,7 +39,7 @@ async function capture(overrides: Partial<Config> = {}): Promise<Captured> {
 
 // Back to the silent default, so a later suite in the same process stays quiet.
 afterEach(async () => {
-  await initLogger(testConfig, { write: () => {} })
+  await Logger.init(testConfig, { write: () => {} })
 })
 
 describe("plumbing", () => {
@@ -125,13 +124,22 @@ describe("plumbing", () => {
   })
 })
 
-describe("spans", () => {
-  test("a span brackets its work with a duration", async () => {
+describe("logged methods", () => {
+  test("a decorator preserves the receiver and brackets its work with a duration", async () => {
     const out = await capture()
-    const value = await span("demo", async () => 42, {
-      in: { a: 1 },
-      out: (v) => ({ answer: v }),
-    })
+    class Demo {
+      private readonly base = 41
+
+      @Log("demo", {
+        in: (a: number) => ({ a }),
+        out: (value: number) => ({ answer: value }),
+      })
+      async answer(a: number) {
+        await Promise.resolve()
+        return this.base + a
+      }
+    }
+    const value = await new Demo().answer(1)
 
     expect(value).toBe(42)
     const [start, end] = out.entries()
@@ -140,15 +148,17 @@ describe("spans", () => {
     expect(typeof end?.ms).toBe("number")
   })
 
-  test("a failing span records the failure and rethrows without serialising it", async () => {
+  test("a failing method rethrows the original error without serialising it", async () => {
     const out = await capture()
     const boom = new Error("boom: this stack must not be logged here")
 
-    await expect(
-      span("demo", async () => {
+    class Demo {
+      @Log("demo")
+      async fail() {
         throw boom
-      }),
-    ).rejects.toThrow("boom")
+      }
+    }
+    await expect(new Demo().fail()).rejects.toBe(boom)
 
     expect(out.find("demo end")).toMatchObject({ ok: false })
     expect(out.text()).not.toContain("this stack must not be logged here")
@@ -158,11 +168,11 @@ describe("spans", () => {
     const out = await capture()
 
     // A bare app rather than the harness: nothing in the real one throws a
-    // non-ApiError on demand, and the wiring is what is under test.
-    const app = new Hono<Env>()
-    app.use("*", requestLogger)
+    // non-HttpError on demand, and the wiring is what is under test.
+    const app = new Hono()
+    app.use("*", requestLogger("/home"))
     app.onError((err, c) => {
-      reqLog().error({ err }, "unhandled error")
+      Logger.forRequest().error({ err }, "unhandled error")
       // `c.text`, not a bare Response: only a context-built response carries the
       // headers the middleware set, the request id among them.
       return c.text("boom", 500)
@@ -183,7 +193,7 @@ describe("spans", () => {
     expect(out.find("response")).toMatchObject({ status: 500 })
   })
 
-  test("an ApiError is an answer, not a fault, so no error line is written", async () => {
+  test("an HttpError is an answer, not a fault, so no error line is written", async () => {
     const out = await capture()
     const h = await createHarness()
     const res = await h.request("/api/v1/links")
@@ -193,10 +203,48 @@ describe("spans", () => {
     expect(out.find("response")).toMatchObject({ status: 401 })
   })
 
-  test("a span below the configured level costs nothing", async () => {
+  test("a method below the configured level runs without evaluating projections", async () => {
     const out = await capture({ LINQ_LOG_LEVEL: "info" })
-    await span("quiet", async () => 1, { level: "debug" })
+    class Demo {
+      @Log("quiet", {
+        level: "debug",
+        in: () => {
+          throw new Error("input projection must not run")
+        },
+        out: () => {
+          throw new Error("output projection must not run")
+        },
+      })
+      static async answer() {
+        return 1
+      }
+    }
+    expect(await Demo.answer()).toBe(1)
     expect(out.lines).toHaveLength(0)
+  })
+
+  test("info logs omit projections and use the method name by default", async () => {
+    const out = await capture({ LINQ_LOG_LEVEL: "info" })
+    class Demo {
+      @Log(undefined, {
+        in: () => {
+          throw new Error("input projection must not run")
+        },
+        out: () => {
+          throw new Error("output projection must not run")
+        },
+      })
+      async answer() {
+        return 42
+      }
+    }
+    expect(await new Demo().answer()).toBe(42)
+    expect(out.entries()).toHaveLength(2)
+    expect(out.find("answer end")).toMatchObject({ op: "answer", ok: true })
+    for (const entry of out.entries()) {
+      expect(entry).not.toHaveProperty("params")
+      expect(entry).not.toHaveProperty("result")
+    }
   })
 })
 
@@ -226,8 +274,8 @@ describe("secrets never reach the log", () => {
 
   test("not the config object, even when something dumps it wholesale", async () => {
     const out = await capture()
-    log.info({ config: { ...testConfig, ...SECRETS } }, "careless")
-    log.info({ inner: { config: { ...testConfig, ...SECRETS } } }, "careless, nested")
+    Logger.info({ config: { ...testConfig, ...SECRETS } }, "careless")
+    Logger.info({ inner: { config: { ...testConfig, ...SECRETS } } }, "careless, nested")
 
     const text = out.text()
     for (const secret of Object.values(SECRETS)) expect(text).not.toContain(secret)
@@ -236,7 +284,7 @@ describe("secrets never reach the log", () => {
 
   test("not the DSN password smuggled inside a driver error", async () => {
     const out = await capture()
-    log.error(
+    Logger.error(
       { err: new Error(`failed to connect to ${SECRETS.DATABASE_URL}`) },
       "visit insert failed",
     )
@@ -291,7 +339,7 @@ describe("rotation", () => {
     const dir = mkdtempSync(join(tmpdir(), "link-log-"))
     try {
       // A discarding sink stands in for stdout, so the file is the only output.
-      await initLogger(
+      await Logger.init(
         {
           ...testConfig,
           LINQ_LOG_LEVEL: "info",
@@ -302,8 +350,8 @@ describe("rotation", () => {
         { write: () => {} },
       )
 
-      for (let i = 0; i < 400; i++) log.info({ i }, "filling the file up")
-      await flushLogs()
+      for (let i = 0; i < 400; i++) Logger.info({ i }, "filling the file up")
+      await Logger.flush()
       await Bun.sleep(200)
 
       const files = readdirSync(dir)

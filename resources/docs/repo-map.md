@@ -1,7 +1,7 @@
 # Repo map
 
 Where everything lives. The pieces and how they fit are in
-[architecture.md](architecture.md).
+[ARCHITECTURE.md](ARCHITECTURE.md).
 
 ## The workspace
 
@@ -40,24 +40,61 @@ a separate Next.js project with its own config. `bun run typecheck` runs
 
 ## `apps/server/src/`
 
-Layered `routes → services`: routes are thin Hono
-wiring, services hold every query and business rule, and neither reaches
-around the other. `libs/`, `middleware/`, `routes/` and `services/` each
-export through an `index.ts` barrel.
+Layered `routes → controllers → services`, with clients of external systems in
+`clients/`. A route file is a function (`linkRoutes(linkService)`, …) that
+builds its controller once and maps each path to a controller method. A
+controller class has one arrow-function property per endpoint taking a Hono
+`Context`: it validates with `parseRequest`, loads what the permission question
+needs, calls `authorize`, and calls its service. A service class holds every
+query, business rule and side effect (cache invalidation, Caddy sync).
+`createApp` builds every service and controller exactly once and injects them
+through constructors; a service that needs another service gets that same
+instance. Only `principal` rides on the request context. Every conversion from
+one shape to another (a database row to its API type, and so on) lives in
+`converters/`. `converters/`, `utils/`, `clients/`, `libs/`, `middleware/`,
+`routes/`, `controllers/` and `services/` each export through an `index.ts`
+barrel.
+
+Inside any class (services, controllers, clients, the visit exporter, utils), a
+helper only that class uses is a `private` method (`private static` when it
+reads no instance state), placed after every public method; not a
+module-level function.
+
+```
+apps/server/src/
+├─ main.ts  app.ts  bootstrap.ts  config.ts
+├─ routes/        AdminRoute AnalyticsRoute DomainRoute KeyRoute LinkRoute LlmsRoute QrCodeRoute RedirectRoute VisitRoute
+├─ controllers/   AnalyticsController ApiKeyController DomainController LinkController LlmsController QrCodeController RedirectController VisitController
+├─ services/      AnalyticsService ApiKeyService DomainService LinkService LlmsService QrCodeService RedirectService RuleService VisitService
+├─ adapters/      cache/ CacheAdapter GuardedCache {Redis,Memory,Noop}CacheAdapter
+├─ clients/       DbClient RedisClient CaddyClient LinkMetadataClient
+├─ middleware/    authenticate authorize rateLimit requestLogger requestParser
+├─ converters/    one folder per resource
+├─ utils/         one static class per file
+├─ libs/          logger errors
+├─ db/            migrations/ migrate.ts types.generated.ts
+├─ cli/           createKey migrate codegen
+└─ types/         pino-roll.d.ts
+```
 
 | Path | What it holds |
 |------|----------------|
-| `main.ts` | Boot sequence: config → logger → db → migrations → bootstrap → cache/Caddy/metadata → app → listen. Owns shutdown draining |
-| `app.ts` | `createApp`: wires dependencies onto `c.var`, the error envelope, CORS/body limit, `/api/v1`, robots.txt, llms.txt, the Client UI, and the catch-all redirect, in the order that keeps the catch-all from shadowing anything reserved |
-| `bootstrap.ts` | First-boot admin key mint and default-domain seed, each gated on its table being empty |
-| `config.ts` | The zod schema for every `LINQ_*`/`DATABASE_URL` env var; exits the process on a bad one. Also `isReservedSlug`, `isAppHost`, `clientPath` |
-| `routes/` | One Hono sub-app per resource (`AnalyticsRoute`, `DomainRoute`, `KeyRoute` (+ `meRoute`), `LinkRoute` (+ `tagRoute`), `QrCodeRoute`, `RuleRoute`, `VisitRoute`), plus `RedirectRoute` (the hot-path redirect handler and link-preview OG page), `LlmsRoute` (`GET /llms.txt`, see `resources/docs/adr/0013`), and `AdminRoute` (serves the exported Client UI at `LINQ_CLIENT_BASE_PATH`, path-traversal-checked, only on `LINQ_APP_HOST` when that is set) |
-| `services/` | Business rules and Kysely queries as plain functions taking `db` first: `ApiKeyService` (mint, look up by token, CRUD), `LinkService` (links, tags, slug generation, `shortUrl`), `DomainService` (domains, the archive lock, `reconcileCaddy`), `RuleService` (pure rule matching plus rule storage), `RedirectService` (domain/target resolution, query merging), `VisitService` (fire-and-forget recording through an OpenTelemetry log pipeline whose exporter inserts into `visits`, `flushVisits`, raw-log filters; see `resources/docs/adr/0022`), `AnalyticsService` (rollup vs. raw-log reads), `QrCodeService`, `LlmsService` |
-| `middleware/` | `authenticate.ts` (resolves the key, sets `c.var.principal`), `authorize.ts` (`authorize`), `rateLimit.ts` (per-key limit), `validate.ts` (zod validation in linq's error envelope, plus `idParam`), `requestLogger.ts` (the request/response log pair and the per-request async logging scope) |
-| `libs/` | `db.ts` (the Postgres/PGlite `Db` boundary), `logger.ts` (pino, `reqLog()`, `span()`, secret scrubbing), `cache.ts` (the `Cache` port, memory and Redis backends, key builders, `readThrough`, `guardedCache`; see `resources/docs/adr/0009`), `caddy.ts` (Caddy admin API sync, `guardedCaddy`; see `resources/docs/adr/0012`), `linkMetadata.ts` (destination title/description/favicon with an SSRF guard), `userAgent.ts` (bot, preview-crawler, platform, OS and browser detection), `context.ts` (the Hono `Env` and `Principal` types) |
+| `main.ts` | Boot sequence: config → logger → db → migrations → bootstrap → cache/Caddy/metadata → app → Caddy reconcile → listen. Owns shutdown draining (`visitService.flush()`) |
+| `app.ts` | `createApp`: builds every service and controller once, guards the clients, the error envelope, CORS/body limit, `/api/v1`, robots.txt, llms.txt, the Client UI, and the catch-all redirect, in the order that keeps the catch-all from shadowing anything reserved. Returns `{ app, domainService, visitService }` |
+| `bootstrap.ts` | First-boot admin key mint and default-domain seed, each gated on its table being empty. Runs before `createApp`, so it builds its own `ApiKeyService` |
+| `config.ts` | The zod schema for every `LINQ_*`/`DATABASE_URL` env var; exits the process on a bad one. |
+| `routes/` | One function per resource returning its Hono sub-app(s): `analyticsRoutes`, `domainRoutes`, `keyRoutes` (`/keys` and `/me`), `linkRoutes` (`/links`, its `/:id/rules`, and `/tags`), `qrCodeRoutes`, `visitRoutes`, `llmsRoutes` (`GET /llms.txt`, see `resources/docs/adr/0013`), `redirectRoutes` (the catch-all hot-path redirect and link-preview OG page). `AdminRoute`'s `mountAdmin` stays a plain function: it is static-file wiring (the exported Client UI at `LINQ_CLIENT_BASE_PATH`, path-traversal-checked, only on `LINQ_APP_HOST` when that is set) with no service behind it |
+| `controllers/` | One class per resource, one arrow-function property per endpoint taking a Hono `Context`: `AnalyticsController`, `ApiKeyController` (keys and `/me`), `DomainController`, `LinkController` (links, their rules, tags), `LlmsController`, `QrCodeController`, `RedirectController`, `VisitController` |
+| `services/` | Business rules and Kysely queries, classes taking their dependencies in the constructor: `ApiKeyService` (mint, look up by token, CRUD), `LinkService` (links, tags, rules, slug generation, cache invalidation), `DomainService` (domains, the archive lock, cache and Caddy sync, `reconcileCaddy`), `RuleService` (rule storage, bound to a db or a transaction: `new RuleService(tx)`), `RedirectService` (domain/target resolution, read through the cache), `VisitService` (fire-and-forget `record` through an OpenTelemetry log pipeline whose exporter inserts into `visits`, `flush`, the raw-log list; see `resources/docs/adr/0022`), `AnalyticsService` (rollup vs. raw-log reads), `QrCodeService`, `LlmsService` |
+| `converters/` | One folder per resource (`link/`, `domain/`, `apiKey/`, `rule/`, `qrCode/`, `visit/`, `analytics/`, `redirect/`, `llms/`), one class per file with the same name, e.g. `link/LinkJoinedRowToLinkConverter.ts`. Instance `convertFrom` and `convertTo` methods cover only the directions needed. |
+| `utils/` | Helpers, one static class per file, named like the file, with only `static` methods (call them as `SlugUtil.generateSlug(...)`): `UrlUtil` (`shortUrl`, `clientPath`, `isAppHost`, `mergeQuery`), `SlugUtil` (`generateSlug`, `isReservedSlug`), `FilterUtil` (link, QR code and visit list filters), `DateTimeUtil`, `CacheKeyUtil`, `HtmlUtil`, `MarkdownUtil`, `HashUtil`, `RuleMatchUtil`, `UserAgentUtil` (bot, preview-crawler, platform, OS and browser detection), `RequestUtil` (`read`: a request's `json` body, `query` or `param`s exactly as Hono's validator reads them, malformed-JSON 400 included). None touches the database; only `RequestUtil` reads a Hono `Context` |
+| `middleware/` | `authenticate.ts` (`authenticate(apiKeyService)`: resolves the key and sets `c.var.principal`, which is typed globally here), `authorize.ts` (`authorize`), `rateLimit.ts` (per-key limit), `requestParser.ts` (`parseRequest`, zod validation in linq's error envelope, and `idParamSchema`), `requestLogger.ts` (`requestLogger(clientBasePath)`: the request/response log pair and the per-request async logging scope) |
+| `adapters/` | linq's ports implemented over clients. Services depend on adapters, never on a client directly. `cache/`: the `Cache` port with `CacheAdapter.start` and `CacheAdapter.readThrough`, the `GuardedCache` decorator, and one adapter per backend: `RedisCacheAdapter` (over `RedisClient`), `MemoryCacheAdapter`, `NoopCacheAdapter`; see `resources/docs/adr/0009` |
+| `clients/` | Clients of external systems, each a port with class implementations. `DbClient.ts` (the `Db` type, a plain Kysely instance, and `DbClient.start(config)`), `RedisClient.ts` (one Redis connection that stores strings; only `RedisCacheAdapter` uses it), `CaddyClient.ts` (the `Caddy` port, `CaddyClient`, `NoopCaddyClient`, `GuardedCaddy`; see `resources/docs/adr/0012`), `LinkMetadataClient.ts` (the `MetadataFetcher` port, `LinkMetadataClient` with its SSRF guard, `NoopLinkMetadataClient`, `GuardedLinkMetadataClient`) |
+| `libs/` | `logger.ts` (pino, `Logger.forRequest()`, `@Log()`, secret scrubbing) and `errors.ts` (`HttpError`, Hono's `HTTPException` rendering linq's error envelope) |
 | `db/` | `migrations/` (ordered Kysely migrations), `types.generated.ts` (Kysely query types), `migrate.ts` (runs migrations in `LINQ_DB_SCHEMA` at boot) |
-| `cli/` | `createKey.ts` (`bun run key:create`, mints a key without a restart through the same `createApiKey`), `migrate.ts`, `codegen.ts` |
-| `types/` | Ambient declarations for untyped dependencies (`pino-roll`) |
+| `cli/` | `createKey.ts` (`bun run key:create`, mints a key without a restart through `ApiKeyService.create`), `migrate.ts`, `codegen.ts` |
+| `types/` | Ambient declarations for untyped dependencies (`pino-roll.d.ts`) |
 
 ## `apps/client/`
 
@@ -73,13 +110,19 @@ export through an `index.ts` barrel.
 
 ## `packages/shared/src/`
 
-One file per domain concept, all re-exported from `index.ts`: `links.ts`,
-`domains.ts`, `rules.ts`, `qr-codes.ts`, `visits.ts`, `analytics.ts`,
-`keys.ts`, `roles.ts` (the role ladder and `roleAtLeast`), `permissions.ts`
-(`can` — the rules both `middleware/authorize.ts` on the server and the Client
-UI's gating read), `primitives.ts` (shared zod primitives like slug/host
-patterns), `errors.ts` (`ApiError`, thrown on the server and reconstructed
-from a JSON body on the client). Nothing here imports from either app.
+Four folders, one PascalCase file per area, each with an `index.ts` barrel;
+`src/index.ts` re-exports all four. Both apps import only from
+`"@linq/shared"`, never a deep path. Nothing here imports from either app.
+
+| Path | What it holds |
+|------|----------------|
+| `constants/` | Fixed vocabularies and limits, `<Area>Constant.ts`: `SlugConstant` (`RESERVED_SLUGS`, `SLUG_PATTERN`), `PlatformConstant` (`PLATFORMS`), `QrCodeConstant` (`QR_PATTERNS`), `AnalyticsConstant` (`ANALYTICS_*`, `NOT_RECORDED`, `MAX_RANGE_DAYS`), `VisitConstant` (`BOT_CLASSIFICATION_REASONS`), `ResourceConstant` (`RESOURCE_STATUSES`), `PermissionConstant` (`ACTIONS`, `SUBJECTS`, `PRESETS`, `claimsForPreset`), `ErrorConstant` (`ERROR_STATUS`) |
+| `schemas/` | Every zod schema and schema builder, `<Area>Schema.ts`: `LinkSchema`, `DomainSchema`, `ApiKeySchema`, `QrCodeSchema`, `RuleSchema`, `VisitSchema`, `AnalyticsSchema`, `PermissionSchema` (claim/action/subject/preset), `CommonSchema` (`uuidSchema`, `slugSchema`, `urlSchema`, `hostSchema`, `tagSchema`, `paginationSchema`, `csvList`, `platformSchema`, `resourceStatusSchema`) |
+| `types/` | Every type, `<Area>Type.ts`: API responses, request bodies (`z.infer` of a schema), database rows, plus `CommonType` (`Platform`, `Os`, `Browser`, `Pagination`, `Page`, `ResourceStatus`), `PermissionType` (`Action`, `Subject`, `Claim`, `AppAbility`, `KeyPreset`, `Actor`, `Principal`), `ErrorType` (`ErrorCode`, `ErrorBody`) |
+| `utils/` | Shared logic, one static class per file like the server's: `PermissionUtil` (`defineAbility`, `can`, `claimsEqual`, `presetForClaims`, `resolveClaims` — what both `middleware/authorize.ts` on the server and the Client UI's gating read), `LinkUtil` (`destinationTitle`) |
+
+Imports flow one way: `schemas` read `constants`; `types` read both (type-only);
+`utils` may read any of them.
 
 ## `resources/`
 
@@ -87,7 +130,7 @@ from a JSON body on the client). Nothing here imports from either app.
 |------|------------|
 | `sql/schema.sql` | The schema as `pg_dump --schema-only` output. Loads into any PostgreSQL, imports into ERD tools (pgAdmin, DBeaver, DataGrip, dbdiagram) |
 | `openapi/linq.openapi.json` | The HTTP API as OpenAPI |
-| `docs/architecture.md` | How the pieces fit together today, with flow diagrams for boot, auth and the redirect hot path |
+| `docs/ARCHITECTURE.md` | How the pieces fit together today, with flow diagrams for boot, auth and the redirect hot path |
 | `docs/repo-map.md` | This file |
 | `docs/adr/000N-*.md` | One decision per file, numbered sequentially |
 

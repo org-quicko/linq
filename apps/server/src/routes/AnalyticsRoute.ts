@@ -1,21 +1,22 @@
-import {
-  analyticsBreakdownQuerySchema,
-  analyticsSummaryQuerySchema,
-  analyticsTimeseriesQuerySchema,
-} from "@linq/shared"
 import { Hono } from "hono"
-import type { Env } from "../libs/index.ts"
-import { validate } from "../middleware/index.ts"
-import { getBreakdown, getSummary, getTimeseries } from "../services/index.ts"
+import { AnalyticsController } from "../controllers/index.ts"
+import type { AnalyticsService } from "../services/index.ts"
 
-/** Mounted at /analytics. */
-export const analyticsRoute = new Hono<Env>()
-  .get("/summary", validate("query", analyticsSummaryQuerySchema), async (c) =>
-    c.json(await getSummary(c.var.db, c.req.valid("query"))),
-  )
-  .get("/timeseries", validate("query", analyticsTimeseriesQuerySchema), async (c) =>
-    c.json(await getTimeseries(c.var.db, c.req.valid("query"))),
-  )
-  .get("/breakdown", validate("query", analyticsBreakdownQuerySchema), async (c) =>
-    c.json(await getBreakdown(c.var.db, c.req.valid("query"))),
-  )
+/**
+ * Builds the analytics routes, mounted on `/analytics`. Called once, by `createApp`.
+ *
+ * - GET /summary     - visit counts for a scope.
+ * - GET /timeseries  - counts per period.
+ * - GET /breakdown   - counts per value of one dimension.
+ *
+ * @param analyticsService - The app's one `AnalyticsService`.
+ * @returns The `/analytics` sub-app.
+ */
+export function analyticsRoutes(analyticsService: AnalyticsService) {
+  const analyticsController = new AnalyticsController(analyticsService)
+
+  return new Hono()
+    .get("/summary", analyticsController.summary)
+    .get("/timeseries", analyticsController.timeseries)
+    .get("/breakdown", analyticsController.breakdown)
+}

@@ -1,6 +1,6 @@
 "use client"
 
-import { type Actor, can } from "@linq/shared"
+import { type Actor, PermissionUtil } from "@linq/shared"
 import { skipToken } from "@reduxjs/toolkit/query/react"
 import { cn } from "cn"
 import { Archive, LineChart, Link2, Settings } from "lucide-react"
@@ -40,7 +40,7 @@ type NavItem = {
 const NAV: NavItem[] = [
   { href: "/links/", label: "Short links", icon: Link2, visible: () => true },
   { href: "/analytics/", label: "Analytics", icon: LineChart, visible: () => true },
-  { href: "/archives/", label: "Archives", icon: Archive, visible: can.purge },
+  { href: "/archives/", label: "Archives", icon: Archive, visible: PermissionUtil.can.purge },
 ]
 
 /**
@@ -149,7 +149,7 @@ function Chrome({ actor, me, children }: { actor?: Actor; me?: Me; children: Rea
   // without a bespoke invalidation of their own.
   const activeLinks = useCountLinksQuery(actor ? {} : skipToken)
   const archivedLinks = useCountLinksQuery(
-    actor && can.purge(actor) ? { status: "archived" } : skipToken,
+    actor && PermissionUtil.can.purge(actor) ? { status: "archived" } : skipToken,
   )
   const counts: Partial<Record<string, number>> = {
     "/links/": activeLinks.data?.total,

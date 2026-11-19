@@ -60,8 +60,8 @@ The table below lists every guarded action and the minimum role required. A high
 | Revoke (delete) an API key | admin |
 
 <Note>
-  These permissions are sourced directly from `packages/shared/src/abilities.ts`
-  (`claimsForPreset`) and `packages/shared/src/permissions.ts` (`can`). The same
+  These permissions are sourced directly from `packages/shared/src/constants/PermissionConstant.ts`
+  (`claimsForPreset`) and `packages/shared/src/utils/PermissionUtil.ts` (`can`). The same
   `defineAbility` function builds the CASL ability object on the server at
   authentication time and in the Client UI for gating navigation and form
   controls. The source of truth is the claim set on the key, not the preset label.

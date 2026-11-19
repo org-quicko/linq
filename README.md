@@ -1,4 +1,4 @@
-Visit inserts in flight before new visits are dropped. |<h1>
+<h1>
   <picture>
     <source media="(prefers-color-scheme: dark)" srcset="logo/linq-wordmark-dark.svg">
     <img src="logo/linq-wordmark-light.svg" alt="linq" height="64">
@@ -182,10 +182,14 @@ bun run db:codegen               # regenerate Kysely types
 
 Contributors and coding agents should read [`AGENTS.md`](AGENTS.md) first.
 
+For a local check with four million synthetic visits, see
+[`resources/docs/scale-verification.md`](resources/docs/scale-verification.md).
+Run fixture loading, builds, checks and browser verification sequentially.
+
 ## Documentation
 
 - [`CONTEXT.md`](CONTEXT.md): the domain vocabulary. Read it before the code.
-- [`resources/docs/architecture.md`](resources/docs/architecture.md): how the pieces fit together.
+- [`resources/docs/ARCHITECTURE.md`](resources/docs/ARCHITECTURE.md): how the pieces fit together.
 - [`resources/docs/repo-map.md`](resources/docs/repo-map.md): where everything lives.
 - [`resources/docs/adr/`](resources/docs/adr/): architecture decision records.
 - [`resources/openapi/linq.openapi.json`](resources/openapi/linq.openapi.json): the REST API spec.

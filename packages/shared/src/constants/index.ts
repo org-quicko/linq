@@ -1,0 +1,9 @@
+/** Barrel export for every constant: fixed vocabularies, limits and lookup tables. */
+export * from "./AnalyticsConstant.ts"
+export * from "./ErrorConstant.ts"
+export * from "./PermissionConstant.ts"
+export * from "./PlatformConstant.ts"
+export * from "./QrCodeConstant.ts"
+export * from "./ResourceConstant.ts"
+export * from "./SlugConstant.ts"
+export * from "./VisitConstant.ts"

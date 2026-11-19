@@ -1,10 +1,6 @@
 import { beforeAll, describe, expect, test } from "bun:test"
-import {
-  fetchMetadata,
-  type MetadataFetcher,
-  noMetadata,
-  startMetadata,
-} from "../src/libs/linkMetadata.ts"
+import type { MetadataFetcher } from "@linq/shared"
+import { LinkMetadataClient, NoopLinkMetadataClient } from "../src/clients/index.ts"
 import { createHarness, type Harness } from "./helpers/app.ts"
 import { testConfig } from "./helpers/db.ts"
 
@@ -118,6 +114,15 @@ describe("POST /api/v1/links", () => {
       destination: "javascript:alert(1)",
     })
     expect(badDestination.status).toBe(400)
+  })
+
+  test("a body that is not JSON is a 400 in the error envelope, not a 500", async () => {
+    // Hono's validator throws its own HTTPException here, not an HttpError.
+    const res = await h.request("/api/v1/links", { key: editor.key, method: "POST", body: "{" })
+    expect(res.status).toBe(400)
+    expect(await res.json()).toEqual({
+      error: { code: "validation_failed", message: "Malformed JSON in request body" },
+    })
   })
 
   test("an unknown domain is a 404", async () => {
@@ -663,8 +668,8 @@ describe("link preview metadata", () => {
 })
 
 describe("SSRF guard", () => {
-  test("fetchMetadata blocks loopback and cloud metadata", async () => {
-    const fetcher = { fetch: fetchMetadata }
+  test("LinkMetadataClient blocks loopback and cloud metadata", async () => {
+    const fetcher = new LinkMetadataClient()
     const meta1 = await fetcher.fetch("http://169.254.169.254/")
     expect(meta1).toEqual({ name: null, description: null, icon_url: null })
 
@@ -673,9 +678,9 @@ describe("SSRF guard", () => {
   })
 })
 
-describe("startMetadata config", () => {
-  test("returns noMetadata when LINQ_FETCH_LINK_METADATA is false", () => {
-    const metadata = startMetadata({ ...testConfig, LINQ_FETCH_LINK_METADATA: "false" })
-    expect(metadata).toBe(noMetadata)
+describe("LinkMetadataClient.start config", () => {
+  test("returns the no-op client when LINQ_FETCH_LINK_METADATA is false", () => {
+    const metadata = LinkMetadataClient.start({ ...testConfig, LINQ_FETCH_LINK_METADATA: "false" })
+    expect(metadata).toBeInstanceOf(NoopLinkMetadataClient)
   })
 })
