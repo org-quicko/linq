@@ -17,25 +17,26 @@ configured (`AGENTS.md`).
 ## The server process
 
 `main.ts` wires everything explicitly, in order: load config (exits on a bad
-one) → init the logger → open the db → run migrations → bootstrap (mint the
-first admin key, seed the default domain, both gated on "table is empty" so a
-restart never repeats them) → start the cache, Caddy sync and link-metadata
-fetcher → build the Hono app → reconcile Caddy's routes → listen. `SIGTERM`/
+one) → init the logger → open the db → run migrations → start Caddy sync →
+bootstrap (mint the first admin key and seed the default domain, both gated on
+"table is empty" so a restart never repeats them, then reconcile Caddy's
+routes) → start the cache, link-metadata fetcher and visit pipeline → build the
+Hono app → listen. `SIGTERM`/
 `SIGINT` drain in-flight visit inserts and buffered log writes before exiting,
 so `docker stop` cannot silently drop the tail of either.
 
 ```
-config ──► logger ──► db ──► migrations ──► bootstrap ──► cache/Caddy/metadata ──► Hono app ──► Caddy reconcile ──► listen
-  │                                            │
-  └─ exits on a bad value                      └─ admin key + default domain, only when their tables are empty
+config ──► logger ──► db ──► migrations ──► Caddy ──► bootstrap ──► cache/metadata/visit pipeline ──► Hono app ──► listen
+  │                                                       │
+  └─ exits on a bad value                                 └─ admin key + default domain, only when their tables are empty;
+                                                             Caddy reconcile, every boot
 ```
 
 `createApp` (`app.ts`) builds every service and controller exactly once,
 handing each its dependencies through the constructor (one instance per app,
-no per-request construction, nothing global), and returns the app with the one
-service the process still needs after boot: `DomainService`, to reconcile
-Caddy. `main.ts` starts the visit pipeline, passes it in, and drains it on
-shutdown. Each request flows
+no per-request construction, nothing global), and returns only the app: no
+service is needed outside it. `main.ts` starts the clients and the visit
+pipeline, passes them in, and drains the pipeline on shutdown. Each request flows
 `route → controller → service`: a route function maps paths to controller
 methods, a controller validates (`RequestUtil.parse`), loads what the permission
 question needs, calls `authorize`, and hands the rest to its service, which
@@ -179,8 +180,8 @@ directly rather than failing requests (`resources/docs/adr/0009`). Caddy sync
 (`LINQ_CADDY_ADMIN_URL`) is the same shape: when set, every domain
 create/archive/reactivate/purge pushes a route to Caddy's admin API so a
 custom domain resolves over HTTPS without hand-editing Caddy's config
-(`resources/docs/adr/0012`); Caddy's own routes are wiped on its restart, so the server
-reconciles all of them once at its own boot. Link-metadata fetching
+(`resources/docs/adr/0012`); Caddy's own routes are wiped on its restart, so `bootstrap`
+reconciles all of them once at linq's own boot. Link-metadata fetching
 (`LINQ_FETCH_LINK_METADATA`) follows the same pattern too.
 
 Each is a port with its implementations as classes. The cache port lives in
@@ -188,7 +189,7 @@ Each is a port with its implementations as classes. The cache port lives in
 talks to Redis through `clients/RedisClient`, `MemoryCacheAdapter`,
 `NoopCacheAdapter`, chosen by `CacheAdapter.start`); Caddy and link metadata a
 real client and a `Noop…` one (`CaddyClient.start`, `LinkMetadataClient.start`).
-`createApp` wraps all three in a guarding decorator (`GuardedCache`, `GuardedCaddy`,
+`createApp` wraps all three (and `bootstrap` its Caddy) in a guarding decorator (`GuardedCache`, `GuardedCaddy`,
 `GuardedLinkMetadataClient`) that turns any failure into "act as if this feature is
 off" rather than letting a down dependency break a route it merely
 optimises — a domain mutation, a redirect, or a link creation must all

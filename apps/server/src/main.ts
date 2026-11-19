@@ -15,12 +15,12 @@ await Logger.init(config)
 const db = DbClient.start(config)
 
 await runMigrations(db, { advisoryLock: true, schema: config.LINQ_DB_SCHEMA })
-await bootstrap(db, config)
+const caddy = CaddyClient.start(config)
+await bootstrap(db, config, caddy)
 
 const cache = await CacheAdapter.start(config)
-const caddy = CaddyClient.start(config)
 const visitPipeline = new VisitPipeline(db, config)
-const { app, domainService } = createApp({
+const app = createApp({
   db,
   config,
   visitPipeline,
@@ -28,11 +28,6 @@ const { app, domainService } = createApp({
   caddy,
   metadata: LinkMetadataClient.start(config),
 })
-
-// Repairs Caddy's routes after its own restart, or a first boot alongside a
-// fresh Caddy container whose skeleton config has no routes yet. The app's
-// Caddy is guarded, so an unreachable Caddy never stops the boot.
-await domainService.reconcileCaddy()
 
 const server = Bun.serve({
   port: config.LINQ_PORT,

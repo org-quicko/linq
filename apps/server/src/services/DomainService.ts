@@ -22,7 +22,7 @@ export class DomainService {
    * @param db - The database.
    * @param cache - Cleared on every write; the redirect reads domains through it.
    * @param caddy - Synced on every status change; a no-op unless Caddy is configured.
-   * @param config - LINQ_APP_HOST, which can never be a domain and gets its own Caddy route.
+   * @param config - LINQ_APP_HOST, which can never be a domain.
    */
   constructor(
     private readonly db: Db,
@@ -189,22 +189,6 @@ export class DomainService {
     await this.cache.del(CacheKeyUtil.domainKey(domain.host))
     // Defensive, not load-bearing: an archived domain's route is normally gone already.
     await this.caddy.remove(domain.id)
-  }
-
-  /**
-   * Repairs Caddy's routes after Caddy's own restart wipes it back to its empty
-   * skeleton. The only place a mutation reads every domain instead of one — a
-   * boot-time cost, paid once, never per-request. LINQ_APP_HOST is no domain
-   * row, so it gets its own fixed route here; changing it takes a restart.
-   */
-  async reconcileCaddy(): Promise<void> {
-    const rows = await this.db
-      .selectFrom("domains")
-      .select(["id", "host"])
-      .where("status", "=", "active")
-      .execute()
-    for (const row of rows) await this.caddy.upsert(row.id, row.host)
-    if (this.config.LINQ_APP_HOST) await this.caddy.upsert("app-host", this.config.LINQ_APP_HOST)
   }
 
   /**

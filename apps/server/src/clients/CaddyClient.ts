@@ -75,7 +75,7 @@ export class NoopCaddyClient implements Caddy {
 /**
  * Makes a Caddy sync unable to fail its caller. A domain mutation must
  * succeed whether or not Caddy is currently reachable; the next successful
- * upsert or the next boot's `reconcileCaddy` repairs whatever this missed.
+ * upsert or the next boot's Caddy reconcile (`bootstrap`) repairs whatever this missed.
  */
 export class GuardedCaddy implements Caddy {
   /**

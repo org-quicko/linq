@@ -58,8 +58,7 @@ export type AppDeps = {
  * catch-all redirect handler, so a reserved path can never be shadowed.
  *
  * @param deps - The database, config, the visit pipeline, and the clients of external systems; each client defaults to its no-op.
- * @returns The Hono app, plus the one service the process itself needs past
- *   boot: `domainService`, to reconcile Caddy.
+ * @returns The Hono app.
  */
 export function createApp({
   db,
@@ -163,5 +162,5 @@ export function createApp({
   // Last: the catch-all redirect, so every reserved path above wins the match.
   app.route("/", redirectRoutes(redirectService, visitService, config))
 
-  return { app, domainService }
+  return app
 }

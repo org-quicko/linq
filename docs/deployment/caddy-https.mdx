@@ -143,5 +143,5 @@ A localhost-only test cannot validate public certificate issuance. The local CA 
 </Accordion>
 
 <Accordion title="sync failure logged but domain was created">
-  A sync failure is non-fatal — the domain row exists in Postgres and the API responded successfully. To push the route to Caddy without waiting for the next mutation, restart linq (which triggers `reconcileCaddy` at boot). Check `LINQ_CADDY_ADMIN_URL` is reachable from the `linq` container and that both containers are on the same Compose network.
+  A sync failure is non-fatal — the domain row exists in Postgres and the API responded successfully. To push the route to Caddy without waiting for the next mutation, restart linq (which reconciles every route with Caddy at boot). Check `LINQ_CADDY_ADMIN_URL` is reachable from the `linq` container and that both containers are on the same Compose network.
 </Accordion>

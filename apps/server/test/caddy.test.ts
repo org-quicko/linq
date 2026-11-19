@@ -1,8 +1,7 @@
 import { describe, expect, test } from "bun:test"
 import type { Caddy } from "@linq/shared"
-import { NoopCacheAdapter } from "../src/adapters/index.ts"
+import { bootstrap } from "../src/bootstrap.ts"
 import { CaddyClient, GuardedCaddy, NoopCaddyClient } from "../src/clients/index.ts"
-import { DomainService } from "../src/services/DomainService.ts"
 import { createTestDb, testConfig } from "./helpers/db.ts"
 
 const CADDY_CONFIG = {
@@ -103,7 +102,7 @@ describe("GuardedCaddy", () => {
   })
 })
 
-describe("reconcileCaddy", () => {
+describe("bootstrap reconciles Caddy", () => {
   test("upserts every active domain and skips archived ones", async () => {
     const db = await createTestDb()
     const active1 = Bun.randomUUIDv7()
@@ -123,14 +122,29 @@ describe("reconcileCaddy", () => {
       upsert: async (domain_id, host) => void upserts.push([domain_id, host]),
       remove: async () => {},
     }
-    await new DomainService(db, new NoopCacheAdapter(), spy, {
-      LINQ_APP_HOST: "app.test",
-    }).reconcileCaddy()
+    await bootstrap(db, { ...testConfig, LINQ_APP_HOST: "app.test" }, spy)
 
     expect(upserts).toHaveLength(3)
     expect(upserts).toContainEqual([active1, "active-one.test"])
     expect(upserts).toContainEqual([active2, "active-two.test"])
     // LINQ_APP_HOST is no domain row but still needs a route.
     expect(upserts).toContainEqual(["app-host", "app.test"])
+  })
+
+  test("an unreachable Caddy never stops the boot", async () => {
+    const db = await createTestDb()
+    await db
+      .insertInto("domains")
+      .values({ id: Bun.randomUUIDv7(), host: "down.test", status: "active" })
+      .execute()
+    const broken: Caddy = {
+      upsert: async () => {
+        throw new Error("caddy down")
+      },
+      remove: async () => {},
+    }
+    await bootstrap(db, testConfig, broken)
+    // Boot carried on past the reconcile: the admin key was still minted.
+    expect(await db.selectFrom("api_keys").select("id").execute()).toHaveLength(1)
   })
 })

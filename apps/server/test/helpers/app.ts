@@ -63,7 +63,7 @@ export async function createHarness(options: HarnessOptions = {}): Promise<Harne
   const db = await createTestDb()
   const config = { ...testConfig, ...options.config }
   const visitPipeline = new VisitPipeline(db, config)
-  const { app } = createApp({
+  const app = createApp({
     db,
     config,
     visitPipeline,
