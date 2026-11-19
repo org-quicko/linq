@@ -1,8 +1,8 @@
 import pkg from "../package.json" with { type: "json" }
-import { CacheAdapter } from "./adapters/index.ts"
+import { CacheAdapter, CaddyAdapter, LinkMetadataAdapter } from "./adapters/index.ts"
 import { createApp } from "./app.ts"
 import { bootstrap } from "./bootstrap.ts"
-import { CaddyClient, DbClient, LinkMetadataClient } from "./clients/index.ts"
+import { DbClient } from "./clients/index.ts"
 import { loadConfig } from "./config.ts"
 import { runMigrations } from "./db/migrate.ts"
 import { Logger } from "./libs/index.ts"
@@ -15,7 +15,7 @@ await Logger.init(config)
 const db = DbClient.start(config)
 
 await runMigrations(db, { advisoryLock: true, schema: config.LINQ_DB_SCHEMA })
-const caddy = CaddyClient.start(config)
+const caddy = CaddyAdapter.start(config)
 await bootstrap(db, config, caddy)
 
 const cache = await CacheAdapter.start(config)
@@ -26,7 +26,7 @@ const app = createApp({
   visitPipeline,
   cache,
   caddy,
-  metadata: LinkMetadataClient.start(config),
+  metadata: LinkMetadataAdapter.start(config),
 })
 
 const server = Bun.serve({

@@ -4,14 +4,15 @@ import { bodyLimit } from "hono/body-limit"
 import { cors } from "hono/cors"
 import { HTTPException } from "hono/http-exception"
 import pkg from "../package.json" with { type: "json" }
-import { GuardedCache, NoopCacheAdapter } from "./adapters/index.ts"
 import {
-  type Db,
+  GuardedCache,
   GuardedCaddy,
-  GuardedLinkMetadataClient,
-  NoopCaddyClient,
-  NoopLinkMetadataClient,
-} from "./clients/index.ts"
+  GuardedLinkMetadata,
+  NoopCacheAdapter,
+  NoopCaddyAdapter,
+  NoopLinkMetadataAdapter,
+} from "./adapters/index.ts"
+import type { Db } from "./clients/index.ts"
 import type { Config } from "./config.ts"
 import { HttpError, Logger } from "./libs/index.ts"
 import { authenticate, limitByKey, requestLogger } from "./middleware/index.ts"
@@ -57,7 +58,7 @@ export type AppDeps = {
  * Route order matters: everything linq answers itself is mounted before the
  * catch-all redirect handler, so a reserved path can never be shadowed.
  *
- * @param deps - The database, config, the visit pipeline, and the clients of external systems; each client defaults to its no-op.
+ * @param deps - The database, config, the visit pipeline, and the cache, Caddy and link-metadata adapters; each adapter defaults to its no-op.
  * @returns The Hono app.
  */
 export function createApp({
@@ -65,8 +66,8 @@ export function createApp({
   config,
   visitPipeline,
   cache = new NoopCacheAdapter(),
-  caddy = new NoopCaddyClient(),
-  metadata = new NoopLinkMetadataClient(),
+  caddy = new NoopCaddyAdapter(),
+  metadata = new NoopLinkMetadataAdapter(),
 }: AppDeps) {
   const app = new Hono()
   // Guarded here, at the seam, rather than inside any one implementation: no
@@ -74,7 +75,7 @@ export function createApp({
   // or a destination that will not answer, whichever implementation was handed in.
   const safeCache = new GuardedCache(cache)
   const safeCaddy = new GuardedCaddy(caddy)
-  const safeMetadata = new GuardedLinkMetadataClient(metadata)
+  const safeMetadata = new GuardedLinkMetadata(metadata)
 
   const apiKeyService = new ApiKeyService(db)
   const linkService = new LinkService(db, safeCache, safeMetadata, config)

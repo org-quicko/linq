@@ -1,7 +1,7 @@
 import { describe, expect, test } from "bun:test"
 import type { Caddy } from "@linq/shared"
+import { CaddyAdapter, GuardedCaddy, NoopCaddyAdapter } from "../src/adapters/index.ts"
 import { bootstrap } from "../src/bootstrap.ts"
-import { CaddyClient, GuardedCaddy, NoopCaddyClient } from "../src/clients/index.ts"
 import { createTestDb, testConfig } from "./helpers/db.ts"
 
 const CADDY_CONFIG = {
@@ -26,12 +26,12 @@ function mockFetch(handler: (url: string, init?: RequestInit) => Response) {
   }
 }
 
-describe("CaddyClient.start", () => {
+describe("CaddyAdapter.start", () => {
   test("with no admin URL, never calls fetch", async () => {
     const mock = mockFetch(() => new Response(null, { status: 200 }))
     try {
-      const caddy = CaddyClient.start(testConfig)
-      expect(caddy).toBeInstanceOf(NoopCaddyClient)
+      const caddy = CaddyAdapter.start(testConfig)
+      expect(caddy).toBeInstanceOf(NoopCaddyAdapter)
       await caddy.upsert("d1", "x.test")
       await caddy.remove("d1")
       expect(mock.calls).toHaveLength(0)
@@ -43,7 +43,7 @@ describe("CaddyClient.start", () => {
   test("upsert deletes then posts a route tagged with the domain's id", async () => {
     const mock = mockFetch(() => new Response(null, { status: 200 }))
     try {
-      const caddy = CaddyClient.start(CADDY_CONFIG)
+      const caddy = CaddyAdapter.start(CADDY_CONFIG)
       await caddy.upsert("d1", "example.com:8080")
 
       expect(mock.calls).toHaveLength(2)
@@ -66,7 +66,7 @@ describe("CaddyClient.start", () => {
   test("remove treats a 404 as already-gone, not a failure", async () => {
     const mock = mockFetch(() => new Response(null, { status: 404 }))
     try {
-      const caddy = CaddyClient.start(CADDY_CONFIG)
+      const caddy = CaddyAdapter.start(CADDY_CONFIG)
       await caddy.remove("never-was")
     } finally {
       mock.restore()
@@ -76,7 +76,7 @@ describe("CaddyClient.start", () => {
   test("remove throws on a real failure", async () => {
     const mock = mockFetch(() => new Response("boom", { status: 500 }))
     try {
-      const caddy = CaddyClient.start(CADDY_CONFIG)
+      const caddy = CaddyAdapter.start(CADDY_CONFIG)
       await expect(caddy.remove("d1")).rejects.toThrow()
     } finally {
       mock.restore()

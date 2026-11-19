@@ -6,7 +6,8 @@ description: Add or change an HTTP API resource in apps/server. Use when adding 
 # Adding or changing an API resource
 
 The server is layered `routes → controllers → services`, with clients of
-external systems (database, cache, Caddy, link metadata) in `clients/`, the
+external systems (database, Redis, Caddy, link destinations) in `clients/`, the
+ports over them in `adapters/`, the
 logger and `HttpError` in `libs/`, OpenTelemetry in `telemetry/` (one folder
 per source, e.g. `telemetry/visits/`), and Hono middleware in `middleware/`. Each
 folder has an `index.ts` barrel; import from it rather than reaching into
@@ -64,13 +65,16 @@ Only `principal` rides on the request context (`c.var.principal`, typed in
   class uses is a `private` method (`private static` when it reads no instance
   state), after all public methods, not a module-level function. Example:
   `LinkService`'s `linkQuery` and `setLinkTags`.
-- **Services → adapters → clients.** The `Cache` port and one adapter per
-  backend live in `adapters/cache/`; `RedisCacheAdapter` talks to Redis through
-  `clients/RedisClient`. Services depend on the adapter, never the client.
-  `Caddy` and `MetadataFetcher` have a real client and a `Noop…` one in
-  `clients/`. `CacheAdapter.start` / `XClient.start(config)` picks one, and
-  `createApp` wraps it in its `Guarded…` decorator, so a down dependency never
-  fails a request.
+- **Services → adapters → clients.** Each port (`Cache`, `Caddy`,
+  `MetadataFetcher`) has a folder in `adapters/` (`cache/`, `caddy/`,
+  `linkMetadata/`) holding one adapter per backend, a `Noop…` adapter, a
+  `Guarded…` decorator, and an `XAdapter.start(config)` that picks one. A real
+  adapter builds its own client (`RedisCacheAdapter` → `RedisClient`,
+  `AdminApiCaddyAdapter` → `CaddyClient`, `HtmlLinkMetadataAdapter` →
+  `LinkMetadataClient`); a client is raw I/O and knows nothing of the port.
+  Services depend on the adapter, never the client. `main.ts` starts each
+  adapter once and passes it in; `createApp` wraps it in its `Guarded…`
+  decorator, so a down dependency never fails a request.
 - **Request reading.** `RequestUtil.parse(c, target, schema)` in
   `utils/RequestUtil.ts` reads a body, query or params exactly as Hono's
   validator would, validates it with zod in linq's error envelope, and returns
@@ -106,7 +110,7 @@ Only `principal` rides on the request context (`c.var.principal`, typed in
 
 Route, controller and service files are PascalCase (`LinkRoute.ts`,
 `LinkController.ts`, `LinkService.ts`); `clients/` files are `<Name>Client.ts`
-(cache adapters `<Backend>CacheAdapter.ts`), `utils/` files `<Name>Util.ts`;
+(adapters `<Backend><Port>Adapter.ts`, e.g. `RedisCacheAdapter.ts`, `AdminApiCaddyAdapter.ts`), `utils/` files `<Name>Util.ts`;
 `libs/` and `middleware/` files are camelCase. Functions and variables are
 camelCase. DB columns and API JSON fields stay snake_case, because they are
 the wire contract.

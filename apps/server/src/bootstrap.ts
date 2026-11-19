@@ -1,5 +1,6 @@
 import { type Caddy, claimsForPreset } from "@linq/shared"
-import { type Db, GuardedCaddy, NoopCaddyClient } from "./clients/index.ts"
+import { GuardedCaddy, NoopCaddyAdapter } from "./adapters/index.ts"
+import type { Db } from "./clients/index.ts"
 import type { Config } from "./config.ts"
 import { Logger } from "./libs/index.ts"
 import { ApiKeyService } from "./services/index.ts"
@@ -18,7 +19,7 @@ import { ApiKeyService } from "./services/index.ts"
 export async function bootstrap(
   db: Db,
   config: Config,
-  caddy: Caddy = new NoopCaddyClient(),
+  caddy: Caddy = new NoopCaddyAdapter(),
 ): Promise<void> {
   await Logger.operation("bootstrap", async () => {
     // Mints an admin key while the instance has none, and prints it once. The

@@ -1,6 +1,10 @@
 import { beforeAll, describe, expect, test } from "bun:test"
 import type { MetadataFetcher } from "@linq/shared"
-import { LinkMetadataClient, NoopLinkMetadataClient } from "../src/clients/index.ts"
+import {
+  HtmlLinkMetadataAdapter,
+  LinkMetadataAdapter,
+  NoopLinkMetadataAdapter,
+} from "../src/adapters/index.ts"
 import { createHarness, type Harness } from "./helpers/app.ts"
 import { testConfig } from "./helpers/db.ts"
 
@@ -668,8 +672,8 @@ describe("link preview metadata", () => {
 })
 
 describe("SSRF guard", () => {
-  test("LinkMetadataClient blocks loopback and cloud metadata", async () => {
-    const fetcher = new LinkMetadataClient()
+  test("HtmlLinkMetadataAdapter blocks loopback and cloud metadata", async () => {
+    const fetcher = new HtmlLinkMetadataAdapter()
     const meta1 = await fetcher.fetch("http://169.254.169.254/")
     expect(meta1).toEqual({ name: null, description: null, icon_url: null })
 
@@ -678,9 +682,9 @@ describe("SSRF guard", () => {
   })
 })
 
-describe("LinkMetadataClient.start config", () => {
-  test("returns the no-op client when LINQ_FETCH_LINK_METADATA is false", () => {
-    const metadata = LinkMetadataClient.start({ ...testConfig, LINQ_FETCH_LINK_METADATA: "false" })
-    expect(metadata).toBeInstanceOf(NoopLinkMetadataClient)
+describe("LinkMetadataAdapter.start config", () => {
+  test("returns the no-op adapter when LINQ_FETCH_LINK_METADATA is false", () => {
+    const metadata = LinkMetadataAdapter.start({ ...testConfig, LINQ_FETCH_LINK_METADATA: "false" })
+    expect(metadata).toBeInstanceOf(NoopLinkMetadataAdapter)
   })
 })

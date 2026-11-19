@@ -187,10 +187,14 @@ reconciles all of them once at linq's own boot. Link-metadata fetching
 Each is a port with its implementations as classes. The cache port lives in
 `adapters/cache/`, with one adapter per backend (`RedisCacheAdapter`, which
 talks to Redis through `clients/RedisClient`, `MemoryCacheAdapter`,
-`NoopCacheAdapter`, chosen by `CacheAdapter.start`); Caddy and link metadata a
-real client and a `Noop…` one (`CaddyClient.start`, `LinkMetadataClient.start`).
-`createApp` wraps all three (and `bootstrap` its Caddy) in a guarding decorator (`GuardedCache`, `GuardedCaddy`,
-`GuardedLinkMetadataClient`) that turns any failure into "act as if this feature is
+`NoopCacheAdapter`, chosen by `CacheAdapter.start`); Caddy and link metadata
+follow the same shape in `adapters/caddy/` and `adapters/linkMetadata/`
+(`AdminApiCaddyAdapter` over `clients/CaddyClient`, `HtmlLinkMetadataAdapter`
+over `clients/LinkMetadataClient`, each with a `Noop…` one, chosen by
+`CaddyAdapter.start` and `LinkMetadataAdapter.start`). Each adapter builds its
+own client; callers only ever hold the adapter. `createApp` wraps all three
+(and `bootstrap` its Caddy) in a guarding decorator (`GuardedCache`, `GuardedCaddy`,
+`GuardedLinkMetadata`) that turns any failure into "act as if this feature is
 off" rather than letting a down dependency break a route it merely
 optimises — a domain mutation, a redirect, or a link creation must all
 succeed whether or not Redis, Caddy or the destination site are currently
