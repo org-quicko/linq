@@ -85,9 +85,9 @@ describe("classifyBot", () => {
   })
 })
 
-describe("mergeQuery", () => {
+describe("mergeQueryParams", () => {
   const merge = (destination: string, query: string) =>
-    UrlUtil.mergeQuery(destination, new URLSearchParams(query))
+    UrlUtil.mergeQueryParams(destination, new URLSearchParams(query))
 
   test("keeps destination parameters the caller did not send", () => {
     expect(merge("https://e.test/?a=1&b=2", "c=3")).toBe("https://e.test/?a=1&b=2&c=3")

@@ -2,11 +2,9 @@ import { SLUG_PATTERN } from "@linq/shared"
 import type { Context } from "hono"
 import type { Config } from "../config.ts"
 import { URLSearchParamsToQueryParamsConverter } from "../converters/index.ts"
-import { Logger } from "../libs/index.ts"
+import { Log, Logger } from "../libs/index.ts"
 import type { RedirectService, VisitService } from "../services/index.ts"
 import { HtmlUtil, RuleMatchUtil, SlugUtil, UrlUtil, UserAgentUtil } from "../utils/index.ts"
-
-const uRLSearchParamsToQueryParamsConverter = new URLSearchParamsToQueryParamsConverter()
 
 /**
  * The redirect hot path: `GET|HEAD /:slug` and `GET|HEAD /`. Resolves the host
@@ -14,6 +12,8 @@ const uRLSearchParamsToQueryParamsConverter = new URLSearchParamsToQueryParamsCo
  * hands the visit to `VisitService` without awaiting it.
  */
 export class RedirectController {
+  private readonly urlSearchParamsToQueryParamsConverter: URLSearchParamsToQueryParamsConverter
+
   /**
    * @param redirectService - Domain and target resolution, read through the cache.
    * @param visitService - Records each tracked visit, fire-and-forget.
@@ -23,7 +23,9 @@ export class RedirectController {
     private readonly redirectService: RedirectService,
     private readonly visitService: VisitService,
     private readonly config: Pick<Config, "LINQ_CLIENT_BASE_PATH" | "LINQ_APP_HOST">,
-  ) {}
+  ) {
+    this.urlSearchParamsToQueryParamsConverter = new URLSearchParamsToQueryParamsConverter()
+  }
 
   /**
    * GET|HEAD /*
@@ -33,6 +35,7 @@ export class RedirectController {
    * @param c - Hono request context.
    * @returns A 302 to the destination, an OG preview page, or a plain-text 404.
    */
+  @Log("redirectController.redirect")
   redirect = async (c: Context) => {
     const { config } = this
     const url = new URL(c.req.url)
@@ -87,7 +90,7 @@ export class RedirectController {
       ...UserAgentUtil.detectOsAndBrowser(userAgent),
       user_agent: userAgent,
       referer: c.req.header("referer") ?? null,
-      query_params: uRLSearchParamsToQueryParamsConverter.convertFrom(url.searchParams),
+      query_params: this.urlSearchParamsToQueryParamsConverter.convertFrom(url.searchParams),
     }
 
     // 3. Root path, unknown slug or archived link: an orphan visit on a live domain.
@@ -120,7 +123,10 @@ export class RedirectController {
       query: url.searchParams,
     })
     const chosen = ruled ?? link.destination
-    Logger.forRequest().debug({ link_id: link.link_id, matchedRule: ruled !== null }, "rules matched")
+    Logger.forRequest().debug(
+      { link_id: link.link_id, matchedRule: ruled !== null },
+      "rules matched",
+    )
 
     // 6. `forward_query` is the link's switch for touching the outgoing query at
     //    all: off passes the destination through exactly as written, presets
@@ -130,9 +136,9 @@ export class RedirectController {
     //    `query` field already carries whatever the caller sent.
     let sendTo = chosen
     if (link.forward_query) {
-      sendTo = UrlUtil.mergeQuery(chosen, url.searchParams)
+      sendTo = UrlUtil.mergeQueryParams(chosen, url.searchParams)
       if (Object.keys(link.preset_params).length)
-        sendTo = UrlUtil.mergeQuery(sendTo, new URLSearchParams(link.preset_params))
+        sendTo = UrlUtil.mergeQueryParams(sendTo, new URLSearchParams(link.preset_params))
     }
 
     // 7. Never awaited. Recorded as `chosen` — the Destination the link or rule

@@ -1,5 +1,6 @@
 import { visitListQuerySchema } from "@linq/shared"
 import type { Context } from "hono"
+import { Log } from "../libs/index.ts"
 import { parseRequest } from "../middleware/index.ts"
 import type { VisitService } from "../services/index.ts"
 
@@ -18,6 +19,7 @@ export class VisitController {
    * @returns JSON `{ data, total, limit, offset }`.
    * @throws {HttpError} 400 if the query does not validate.
    */
+  @Log("visitController.list")
   list = async (c: Context) => {
     const q = await parseRequest(c, "query", visitListQuerySchema)
     const { data, total } = await this.visitService.list(q)

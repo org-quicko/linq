@@ -6,13 +6,13 @@ import { LinkRowToLlmsEntryConverter } from "../converters/index.ts"
 import { Log } from "../libs/index.ts"
 import { CacheKeyUtil, MarkdownUtil } from "../utils/index.ts"
 
-const linkRowToLlmsEntryConverter = new LinkRowToLlmsEntryConverter()
-
 /**
  * The llms.txt catalogue of one domain's listed, live links. See
  * resources/docs/adr/0013.
  */
 export class LlmsService {
+  private readonly linkRowToLlmsEntryConverter: LinkRowToLlmsEntryConverter
+
   /**
    * No llms.txt is improved by 50,000 entries, and this is an unauthenticated
    * endpoint whose response is built in memory. A constant, not config — one
@@ -27,7 +27,9 @@ export class LlmsService {
   constructor(
     private readonly db: Db,
     private readonly cache: Cache,
-  ) {}
+  ) {
+    this.linkRowToLlmsEntryConverter = new LinkRowToLlmsEntryConverter()
+  }
 
   /**
    * Renders the llms.txt document. Pure, so escaping, capping, ordering and the
@@ -97,7 +99,7 @@ export class LlmsService {
 
     const entries = rows
       .slice(0, LlmsService.MAX_LISTED)
-      .map((row) => linkRowToLlmsEntryConverter.convertFrom(row, host))
+      .map((row) => this.linkRowToLlmsEntryConverter.convertFrom(row, host))
     return LlmsService.render(host, entries, rows.length > LlmsService.MAX_LISTED)
   }
 }

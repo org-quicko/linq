@@ -175,6 +175,26 @@ export class Logger {
   }
 }
 
+type AsyncFn<This, Args extends unknown[], Result> = (this: This, ...args: Args) => Promise<Result>
+
+/**
+ * `@Log` applies to an async method (services) and to an async arrow-function
+ * property (controllers, whose endpoints are properties so a route can pass
+ * them unbound).
+ */
+interface LogDecorator<Args extends unknown[], Result> {
+  <This, MethodArgs extends [...Args, ...unknown[]], MethodResult extends Result>(
+    method: AsyncFn<This, MethodArgs, MethodResult>,
+    context: ClassMethodDecoratorContext<This, AsyncFn<This, MethodArgs, MethodResult>>,
+  ): AsyncFn<This, MethodArgs, MethodResult>
+  <This, FieldArgs extends [...Args, ...unknown[]], FieldResult extends Result>(
+    value: undefined,
+    context: ClassFieldDecoratorContext<This, (...args: FieldArgs) => Promise<FieldResult>>,
+  ): (
+    initial: (...args: FieldArgs) => Promise<FieldResult>,
+  ) => (...args: FieldArgs) => Promise<FieldResult>
+}
+
 /**
  * Logs an asynchronous method's start, completion and duration. Projections run
  * only at debug level; arguments and return values are never dumped implicitly.
@@ -187,20 +207,24 @@ export function Log<Args extends unknown[] = unknown[], Result = unknown>(
     out?: (value: Result) => object
     level?: "info" | "debug"
   } = {},
-) {
-  return <This, MethodArgs extends [...Args, ...unknown[]], MethodResult extends Result>(
-    method: (this: This, ...args: MethodArgs) => Promise<MethodResult>,
-    context: ClassMethodDecoratorContext<
-      This,
-      (this: This, ...args: MethodArgs) => Promise<MethodResult>
-    >,
-  ) =>
-    function (this: This, ...args: MethodArgs): Promise<MethodResult> {
-      const inputProjection = options.in
-      return Logger.operation(name ?? String(context.name), () => method.apply(this, args), {
-        in: inputProjection ? () => Reflect.apply(inputProjection, undefined, args) : undefined,
-        out: options.out,
-        level: options.level,
-      })
-    }
+): LogDecorator<Args, Result> {
+  const decorate = (
+    value: AsyncFn<unknown, Args, Result> | undefined,
+    context: ClassMethodDecoratorContext | ClassFieldDecoratorContext,
+  ) => {
+    const op = name ?? String(context.name)
+    const wrap = (fn: AsyncFn<unknown, Args, Result>) =>
+      function (this: unknown, ...args: Args): Promise<Result> {
+        const inputProjection = options.in
+        return Logger.operation(op, () => fn.apply(this, args), {
+          in: inputProjection ? () => Reflect.apply(inputProjection, undefined, args) : undefined,
+          out: options.out,
+          level: options.level,
+        })
+      }
+    // A field decorator receives no value; it returns an initializer that wraps
+    // the arrow function each instance is built with.
+    return context.kind === "field" ? wrap : wrap(value!)
+  }
+  return decorate as LogDecorator<Args, Result>
 }

@@ -63,7 +63,7 @@ export class UrlUtil {
    * @param overrides - The parameters to merge in.
    * @returns The destination with the overrides applied.
    */
-  static mergeQuery(destination: string, overrides: URLSearchParams): string {
+  static mergeQueryParams(destination: string, overrides: URLSearchParams): string {
     const url = new URL(destination)
     for (const key of new Set(overrides.keys())) url.searchParams.delete(key)
     for (const [key, value] of overrides) url.searchParams.append(key, value)

@@ -9,15 +9,15 @@ import { Log } from "../libs/index.ts"
 import { CacheKeyUtil, UrlUtil } from "../utils/index.ts"
 import { RuleService } from "./RuleService.ts"
 
-const domainRowToResolvedDomainConverter = new DomainRowToResolvedDomainConverter()
-const linkRowToResolvedTargetConverter = new LinkRowToResolvedTargetConverter()
-
 /**
  * What the redirect hot path resolves: the domain a Host header names and the
  * target a slug names on it. Both read through the cache, negative answers
  * included, so a flood of 404s costs one query per TTL rather than one per request.
  */
 export class RedirectService {
+  private readonly domainRowToResolvedDomainConverter: DomainRowToResolvedDomainConverter
+  private readonly linkRowToResolvedTargetConverter: LinkRowToResolvedTargetConverter
+
   /**
    * @param db - The database.
    * @param cache - Read through on every lookup; services that write clear it.
@@ -25,7 +25,10 @@ export class RedirectService {
   constructor(
     private readonly db: Db,
     private readonly cache: Cache,
-  ) {}
+  ) {
+    this.domainRowToResolvedDomainConverter = new DomainRowToResolvedDomainConverter()
+    this.linkRowToResolvedTargetConverter = new LinkRowToResolvedTargetConverter()
+  }
 
   /**
    * The active domain a Host header names, port or not. Cached under
@@ -91,7 +94,7 @@ export class RedirectService {
       .execute()
 
     const row = rows.find((r) => r.host === hosts[0]) ?? rows[0]
-    return row ? domainRowToResolvedDomainConverter.convertFrom(row) : null
+    return row ? this.domainRowToResolvedDomainConverter.convertFrom(row) : null
   }
 
   @Log("link.findActive", {
@@ -110,7 +113,7 @@ export class RedirectService {
     if (!row) return null
     // Rules ride inside the same entry: every hit that resolves reads them, so
     // caching the link without them would leave a query behind on the hot path.
-    return linkRowToResolvedTargetConverter.convertFrom(
+    return this.linkRowToResolvedTargetConverter.convertFrom(
       row,
       await new RuleService(this.db).list(row.id),
     )

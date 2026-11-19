@@ -9,15 +9,15 @@ import {
 import { HttpError, Log } from "../libs/index.ts"
 import { CacheKeyUtil, UrlUtil } from "../utils/index.ts"
 
-const domainCreateInputToDomainInsertConverter = new DomainCreateInputToDomainInsertConverter()
-const domainJoinedRowToDomainConverter = new DomainJoinedRowToDomainConverter()
-
 /**
  * Domains: listing, the archive lock, purge, and keeping Caddy's routes in
  * step. Owns the side effects of every write, clearing the host's cached domain
  * entry and syncing Caddy, so no caller can forget either.
  */
 export class DomainService {
+  private readonly domainCreateInputToDomainInsertConverter: DomainCreateInputToDomainInsertConverter
+  private readonly domainJoinedRowToDomainConverter: DomainJoinedRowToDomainConverter
+
   /**
    * @param db - The database.
    * @param cache - Cleared on every write; the redirect reads domains through it.
@@ -29,7 +29,10 @@ export class DomainService {
     private readonly cache: Cache,
     private readonly caddy: Caddy,
     private readonly config: Pick<Config, "LINQ_APP_HOST">,
-  ) {}
+  ) {
+    this.domainCreateInputToDomainInsertConverter = new DomainCreateInputToDomainInsertConverter()
+    this.domainJoinedRowToDomainConverter = new DomainJoinedRowToDomainConverter()
+  }
 
   /**
    * Loads one domain as a complete API response.
@@ -45,7 +48,7 @@ export class DomainService {
   async get(id: string): Promise<Domain> {
     const row = await this.domainQuery().where("domains.id", "=", id).limit(1).executeTakeFirst()
     if (!row) throw HttpError.notFound("domain")
-    return domainJoinedRowToDomainConverter.convertFrom(row)
+    return this.domainJoinedRowToDomainConverter.convertFrom(row)
   }
 
   /**
@@ -65,7 +68,10 @@ export class DomainService {
         .selectFrom("domains")
         .select((eb) => eb.fn.countAll<number>().as("total"))
         .executeTakeFirst()) ?? {}
-    return { data: rows.map(domainJoinedRowToDomainConverter.convertFrom), total }
+    return {
+      data: rows.map((row) => this.domainJoinedRowToDomainConverter.convertFrom(row)),
+      total,
+    }
   }
 
   /**
@@ -86,13 +92,13 @@ export class DomainService {
       .insertInto("domains")
       .values({
         id: Bun.randomUUIDv7(),
-        ...domainCreateInputToDomainInsertConverter.convertFrom(input),
+        ...this.domainCreateInputToDomainInsertConverter.convertFrom(input),
       })
       .onConflict((oc) => oc.column("host").doNothing())
       .returningAll()
       .executeTakeFirst()
     if (!row) throw HttpError.conflict(`domain ${input.host} already exists`)
-    const domain = domainJoinedRowToDomainConverter.convertFrom({ ...row, link_count: 0 })
+    const domain = this.domainJoinedRowToDomainConverter.convertFrom({ ...row, link_count: 0 })
     await this.cache.del(CacheKeyUtil.domainKey(domain.host))
     await this.caddy.upsert(domain.id, domain.host)
     return domain

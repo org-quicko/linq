@@ -1,5 +1,6 @@
 import type { Context } from "hono"
 import type { Config } from "../config.ts"
+import { Log } from "../libs/index.ts"
 import type { LlmsService, RedirectService } from "../services/index.ts"
 
 /**
@@ -26,6 +27,7 @@ export class LlmsController {
    * @param c - Hono request context.
    * @returns The markdown document, or a plain-text 404 on a host that is no active domain.
    */
+  @Log("llmsController.get")
   get = async (c: Context) => {
     const host = c.req.header("host") ?? new URL(c.req.url).host
     // Reads the same `domainKey` entry the redirect warms, so a live instance

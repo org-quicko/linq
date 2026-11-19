@@ -4,6 +4,7 @@ import {
   analyticsTimeseriesQuerySchema,
 } from "@linq/shared"
 import type { Context } from "hono"
+import { Log } from "../libs/index.ts"
 import { parseRequest } from "../middleware/index.ts"
 import type { AnalyticsService } from "../services/index.ts"
 
@@ -22,6 +23,7 @@ export class AnalyticsController {
    * @returns JSON `{ visits, human, bot, orphans }`.
    * @throws {HttpError} 400 if the query does not validate.
    */
+  @Log("analyticsController.summary")
   summary = async (c: Context) => {
     const q = await parseRequest(c, "query", analyticsSummaryQuerySchema)
     return c.json(await this.analyticsService.summary(q))
@@ -35,6 +37,7 @@ export class AnalyticsController {
    * @returns JSON array of buckets.
    * @throws {HttpError} 400 if the query does not validate.
    */
+  @Log("analyticsController.timeseries")
   timeseries = async (c: Context) => {
     const q = await parseRequest(c, "query", analyticsTimeseriesQuerySchema)
     return c.json(await this.analyticsService.timeseries(q))
@@ -48,6 +51,7 @@ export class AnalyticsController {
    * @returns JSON array of buckets.
    * @throws {HttpError} 400 if the query does not validate.
    */
+  @Log("analyticsController.breakdown")
   breakdown = async (c: Context) => {
     const q = await parseRequest(c, "query", analyticsBreakdownQuerySchema)
     return c.json(await this.analyticsService.breakdown(q))

@@ -1,5 +1,6 @@
 import { qrCodeCreateSchema, qrCodeListQuerySchema, qrCodePatchSchema } from "@linq/shared"
 import type { Context } from "hono"
+import { Log } from "../libs/index.ts"
 import { authorize, idParamSchema, parseRequest } from "../middleware/index.ts"
 import type { LinkService, QrCodeService } from "../services/index.ts"
 
@@ -25,6 +26,7 @@ export class QrCodeController {
    * @returns JSON `{ data, total, limit, offset }`.
    * @throws {HttpError} 400 if the query does not validate.
    */
+  @Log("qrCodeController.list")
   list = async (c: Context) => {
     const q = await parseRequest(c, "query", qrCodeListQuerySchema)
     const { data, total } = await this.qrCodeService.list(q)
@@ -43,6 +45,7 @@ export class QrCodeController {
    * @throws {HttpError} 404 if the link does not exist.
    * @throws {HttpError} 409 if the link is archived.
    */
+  @Log("qrCodeController.create")
   create = async (c: Context) => {
     const body = await parseRequest(c, "json", qrCodeCreateSchema)
     const link = await this.linkService.load(body.link_id)
@@ -59,6 +62,7 @@ export class QrCodeController {
    * @throws {HttpError} 400 if the id is not a UUID.
    * @throws {HttpError} 404 if no QR code matches the id.
    */
+  @Log("qrCodeController.get")
   get = async (c: Context) => {
     const { id } = await parseRequest(c, "param", idParamSchema)
     return c.json(await this.qrCodeService.get(id))
@@ -74,6 +78,7 @@ export class QrCodeController {
    * @throws {HttpError} 403 if the key may not update links.
    * @throws {HttpError} 404 if no QR code matches the id.
    */
+  @Log("qrCodeController.update")
   update = async (c: Context) => {
     const { id } = await parseRequest(c, "param", idParamSchema)
     const patch = await parseRequest(c, "json", qrCodePatchSchema)
@@ -92,6 +97,7 @@ export class QrCodeController {
    * @throws {HttpError} 403 if the key may not update links.
    * @throws {HttpError} 404 if no QR code matches the id.
    */
+  @Log("qrCodeController.delete")
   delete = async (c: Context) => {
     const { id } = await parseRequest(c, "param", idParamSchema)
     await this.qrCodeService.load(id)

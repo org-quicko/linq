@@ -17,10 +17,6 @@ import {
 import { Log, Logger } from "../libs/index.ts"
 import { FilterUtil } from "../utils/index.ts"
 
-const logRecordToVisitInsertConverter = new LogRecordToVisitInsertConverter()
-const visitListQueryToVisitFilterQueryConverter = new VisitListQueryToVisitFilterQueryConverter()
-const visitRowToVisitConverter = new VisitRowToVisitConverter()
-
 /**
  * Visits: fire-and-forget recording on the redirect's hot path, and the raw
  * log's list. One instance per app owns that app's whole visit pipeline (an
@@ -29,6 +25,8 @@ const visitRowToVisitConverter = new VisitRowToVisitConverter()
  * the tests wait on.
  */
 export class VisitService {
+  private readonly visitListQueryToVisitFilterQueryConverter: VisitListQueryToVisitFilterQueryConverter
+  private readonly visitRowToVisitConverter: VisitRowToVisitConverter
   private readonly exporter: VisitTableExporter
   private readonly logger: OtelLogger
   private warnedAtCapacity = false
@@ -41,6 +39,8 @@ export class VisitService {
     private readonly db: Db,
     private readonly config: Pick<Config, "LINQ_VISIT_MAX_PENDING">,
   ) {
+    this.visitListQueryToVisitFilterQueryConverter = new VisitListQueryToVisitFilterQueryConverter()
+    this.visitRowToVisitConverter = new VisitRowToVisitConverter()
     // An insert settling below the cap re-arms the "queue full" warning.
     this.exporter = new VisitTableExporter(db, () => {
       if (this.exporter.inFlight < this.config.LINQ_VISIT_MAX_PENDING) this.warnedAtCapacity = false
@@ -96,7 +96,7 @@ export class VisitService {
    */
   async list(q: VisitListQuery) {
     const filters = FilterUtil.visitFilters(
-      visitListQueryToVisitFilterQueryConverter.convertFrom(q),
+      this.visitListQueryToVisitFilterQueryConverter.convertFrom(q),
     )
     // Page through narrow index entries before fetching full visit rows. A
     // deep offset must not sort or fetch millions of user-agent/query objects.
@@ -121,7 +121,7 @@ export class VisitService {
       .select((eb) => eb.fn.countAll<number>().as("total"))
       .where((eb) => eb.and(filters))
       .executeTakeFirstOrThrow()
-    return { data: rows.map(visitRowToVisitConverter.convertFrom), total }
+    return { data: rows.map((row) => this.visitRowToVisitConverter.convertFrom(row)), total }
   }
 }
 
@@ -137,6 +137,8 @@ export class VisitService {
  * in-flight inserts are tracked here, and this exporter's `forceFlush` drains them.
  */
 class VisitTableExporter implements LogRecordExporter {
+  private readonly logRecordToVisitInsertConverter: LogRecordToVisitInsertConverter
+
   /** In-flight inserts, so a shutdown or a test can wait for them. */
   private readonly pending = new Set<Promise<void>>()
 
@@ -147,7 +149,9 @@ class VisitTableExporter implements LogRecordExporter {
   constructor(
     private readonly db: Db,
     private readonly onSettled: () => void,
-  ) {}
+  ) {
+    this.logRecordToVisitInsertConverter = new LogRecordToVisitInsertConverter()
+  }
 
   /** How many inserts are still in flight; what `VisitService.record`'s cap counts. */
   get inFlight(): number {
@@ -155,7 +159,7 @@ class VisitTableExporter implements LogRecordExporter {
   }
 
   export(records: ReadableLogRecord[], done: (result: ExportResult) => void): void {
-    const rows = records.map(logRecordToVisitInsertConverter.convertFrom)
+    const rows = records.map((record) => this.logRecordToVisitInsertConverter.convertFrom(record))
     const first = rows[0]
     const write = async () => {
       try {
@@ -188,15 +192,13 @@ class VisitTableExporter implements LogRecordExporter {
   }
 
   @Log("visit.record", {
-    in: (rows: ReturnType<typeof logRecordToVisitInsertConverter.convertFrom>[]) => ({
+    in: (rows: ReturnType<LogRecordToVisitInsertConverter["convertFrom"]>[]) => ({
       link_id: rows[0]?.link_id ?? null,
       domain_id: rows[0]?.domain_id,
       slug: rows[0]?.slug_requested,
     }),
   })
-  private async insertVisits(
-    rows: ReturnType<typeof logRecordToVisitInsertConverter.convertFrom>[],
-  ) {
+  private async insertVisits(rows: ReturnType<LogRecordToVisitInsertConverter["convertFrom"]>[]) {
     return this.db.insertInto("visits").values(rows).execute()
   }
 }

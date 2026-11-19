@@ -14,15 +14,18 @@ import {
 import { HttpError, Log } from "../libs/index.ts"
 import { FilterUtil } from "../utils/index.ts"
 
-const qrCodeCreateInputToQrCodeInsertConverter = new QrCodeCreateInputToQrCodeInsertConverter()
-const qrCodeJoinedRowToQrCodeConverter = new QrCodeJoinedRowToQrCodeConverter()
-
 /** QR codes: a styled code pointing at one link's short URL. */
 export class QrCodeService {
+  private readonly qrCodeCreateInputToQrCodeInsertConverter: QrCodeCreateInputToQrCodeInsertConverter
+  private readonly qrCodeJoinedRowToQrCodeConverter: QrCodeJoinedRowToQrCodeConverter
+
   /**
    * @param db - The database.
    */
-  constructor(private readonly db: Db) {}
+  constructor(private readonly db: Db) {
+    this.qrCodeCreateInputToQrCodeInsertConverter = new QrCodeCreateInputToQrCodeInsertConverter()
+    this.qrCodeJoinedRowToQrCodeConverter = new QrCodeJoinedRowToQrCodeConverter()
+  }
 
   /**
    * Loads one QR code as a complete API response.
@@ -35,7 +38,7 @@ export class QrCodeService {
   async get(id: string): Promise<QrCode> {
     const row = await this.qrCodeQuery().where("qr_codes.id", "=", id).limit(1).executeTakeFirst()
     if (!row) throw HttpError.notFound("QR code")
-    return qrCodeJoinedRowToQrCodeConverter.convertFrom(row)
+    return this.qrCodeJoinedRowToQrCodeConverter.convertFrom(row)
   }
 
   /**
@@ -85,7 +88,10 @@ export class QrCodeService {
         .where((eb) => eb.and(filters))
         .executeTakeFirst()) ?? {}
 
-    return { data: rows.map(qrCodeJoinedRowToQrCodeConverter.convertFrom), total }
+    return {
+      data: rows.map((row) => this.qrCodeJoinedRowToQrCodeConverter.convertFrom(row)),
+      total,
+    }
   }
 
   /**
@@ -103,7 +109,7 @@ export class QrCodeService {
       .insertInto("qr_codes")
       .values({
         id: Bun.randomUUIDv7(),
-        ...qrCodeCreateInputToQrCodeInsertConverter.convertFrom(input),
+        ...this.qrCodeCreateInputToQrCodeInsertConverter.convertFrom(input),
       })
       .returning("id")
       .executeTakeFirstOrThrow()

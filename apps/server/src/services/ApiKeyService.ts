@@ -4,19 +4,22 @@ import type { Db } from "../clients/index.ts"
 import { ApiKeyRowToApiKeyConverter, ApiKeyToApiKeySummaryConverter } from "../converters/index.ts"
 import { HashUtil } from "../utils/index.ts"
 
-const apiKeyRowToApiKeyConverter = new ApiKeyRowToApiKeyConverter()
-const apiKeyToApiKeySummaryConverter = new ApiKeyToApiKeySummaryConverter()
-
 /**
  * API keys: minting, the bearer-token lookup `authenticate` runs on every API
  * request, and CRUD. Shared by `/keys`, `/me`, `bun run key:create` and the
  * first-boot bootstrap.
  */
 export class ApiKeyService {
+  private readonly apiKeyRowToApiKeyConverter: ApiKeyRowToApiKeyConverter
+  private readonly apiKeyToApiKeySummaryConverter: ApiKeyToApiKeySummaryConverter
+
   /**
    * @param db - The database.
    */
-  constructor(private readonly db: Db) {}
+  constructor(private readonly db: Db) {
+    this.apiKeyRowToApiKeyConverter = new ApiKeyRowToApiKeyConverter()
+    this.apiKeyToApiKeySummaryConverter = new ApiKeyToApiKeySummaryConverter()
+  }
 
   /**
    * Mints a key: `linq_` + 32 random bytes, base64url. The secret is returned to
@@ -81,8 +84,10 @@ export class ApiKeyService {
         .executeTakeFirst()) ?? {}
     const data: (ApiKey | ApiKeySummary)[] = rows.map((row) =>
       canManage
-        ? apiKeyRowToApiKeyConverter.convertFrom(row)
-        : apiKeyToApiKeySummaryConverter.convertFrom(apiKeyRowToApiKeyConverter.convertFrom(row)),
+        ? this.apiKeyRowToApiKeyConverter.convertFrom(row)
+        : this.apiKeyToApiKeySummaryConverter.convertFrom(
+            this.apiKeyRowToApiKeyConverter.convertFrom(row),
+          ),
     )
     return { data, total }
   }
@@ -100,7 +105,7 @@ export class ApiKeyService {
       .where("id", "=", id)
       .limit(1)
       .executeTakeFirst()
-    return row ? apiKeyRowToApiKeyConverter.convertFrom(row) : null
+    return row ? this.apiKeyRowToApiKeyConverter.convertFrom(row) : null
   }
 
   /**
@@ -122,7 +127,7 @@ export class ApiKeyService {
       .where("id", "=", id)
       .returningAll()
       .executeTakeFirst()
-    return row ? apiKeyRowToApiKeyConverter.convertFrom(row) : null
+    return row ? this.apiKeyRowToApiKeyConverter.convertFrom(row) : null
   }
 
   /**

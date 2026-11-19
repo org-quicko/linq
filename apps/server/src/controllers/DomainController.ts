@@ -1,5 +1,6 @@
 import { domainCreateSchema, domainPatchSchema, paginationSchema } from "@linq/shared"
 import type { Context } from "hono"
+import { Log } from "../libs/index.ts"
 import { authorize, idParamSchema, parseRequest } from "../middleware/index.ts"
 import type { DomainService } from "../services/index.ts"
 
@@ -22,6 +23,7 @@ export class DomainController {
    * @returns JSON `{ data, total, limit, offset }`.
    * @throws {HttpError} 400 if the query does not validate.
    */
+  @Log("domainController.list")
   list = async (c: Context) => {
     const { limit, offset } = await parseRequest(c, "query", paginationSchema)
     const { data, total } = await this.domainService.list({ limit, offset })
@@ -38,6 +40,7 @@ export class DomainController {
    * @throws {HttpError} 403 if the key may not create domains.
    * @throws {HttpError} 409 if the host is already registered.
    */
+  @Log("domainController.create")
   create = async (c: Context) => {
     const body = await parseRequest(c, "json", domainCreateSchema)
     authorize(c.var.principal, "create", "Domain")
@@ -53,6 +56,7 @@ export class DomainController {
    * @throws {HttpError} 400 if the id is not a UUID.
    * @throws {HttpError} 404 if no domain matches the id.
    */
+  @Log("domainController.get")
   get = async (c: Context) => {
     const { id } = await parseRequest(c, "param", idParamSchema)
     return c.json(await this.domainService.get(id))
@@ -69,6 +73,7 @@ export class DomainController {
    * @throws {HttpError} 404 if no domain matches the id.
    * @throws {HttpError} 409 if archiving a domain that still has links.
    */
+  @Log("domainController.update")
   update = async (c: Context) => {
     const { id } = await parseRequest(c, "param", idParamSchema)
     const patch = await parseRequest(c, "json", domainPatchSchema)
@@ -88,6 +93,7 @@ export class DomainController {
    * @throws {HttpError} 404 if no domain matches the id.
    * @throws {HttpError} 409 if the domain still has links.
    */
+  @Log("domainController.archive")
   archive = async (c: Context) => {
     const { id } = await parseRequest(c, "param", idParamSchema)
     authorize(c.var.principal, "archive", "Domain")
@@ -105,6 +111,7 @@ export class DomainController {
    * @throws {HttpError} 404 if no domain matches the id.
    * @throws {HttpError} 409 if the domain is not archived, or still has links.
    */
+  @Log("domainController.purge")
   purge = async (c: Context) => {
     const { id } = await parseRequest(c, "param", idParamSchema)
     authorize(c.var.principal, "purge", "Link")

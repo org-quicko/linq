@@ -148,6 +148,35 @@ describe("logged methods", () => {
     expect(typeof end?.ms).toBe("number")
   })
 
+  test("a decorated arrow-function property keeps its receiver when passed unbound", async () => {
+    const out = await capture()
+    class Demo {
+      constructor(private readonly base: number) {}
+
+      @Log("demo.field", { in: (a: number) => ({ a }) })
+      answer = async (a: number) => this.base + a
+    }
+    // Routes hand controller endpoints to Hono unbound, exactly like this.
+    const { answer } = new Demo(41)
+
+    expect(await answer(1)).toBe(42)
+    const [start, end] = out.entries()
+    expect(start).toMatchObject({ op: "demo.field", msg: "demo.field start", params: { a: 1 } })
+    expect(end).toMatchObject({ op: "demo.field", ok: true })
+  })
+
+  test("a controller endpoint is logged inside the request scope", async () => {
+    const out = await capture()
+    const h = await createHarness()
+    const admin = await h.actor("admin")
+    const res = await h.request("/api/v1/links", { key: admin.key })
+
+    expect(res.status).toBe(200)
+    const reqId = res.headers.get("x-request-id")
+    expect(out.find("linkController.list start")).toMatchObject({ reqId })
+    expect(out.find("linkController.list end")).toMatchObject({ reqId, ok: true })
+  })
+
   test("a failing method rethrows the original error without serialising it", async () => {
     const out = await capture()
     const boom = new Error("boom: this stack must not be logged here")

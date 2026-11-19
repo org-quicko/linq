@@ -6,6 +6,7 @@ import {
   rulesPutSchema,
 } from "@linq/shared"
 import type { Context } from "hono"
+import { Log } from "../libs/index.ts"
 import { authorize, idParamSchema, parseRequest } from "../middleware/index.ts"
 import type { LinkService } from "../services/index.ts"
 
@@ -29,6 +30,7 @@ export class LinkController {
    * @returns JSON `{ data, total, limit, offset }`.
    * @throws {HttpError} 400 if the query does not validate.
    */
+  @Log("linkController.list")
   list = async (c: Context) => {
     const q = await parseRequest(c, "query", linkListQuerySchema)
     const { data, total } = await this.linkService.list(q)
@@ -43,6 +45,7 @@ export class LinkController {
    * @returns JSON `{ total }`.
    * @throws {HttpError} 400 if the query does not validate.
    */
+  @Log("linkController.count")
   count = async (c: Context) => {
     const { status } = await parseRequest(c, "query", linkCountQuerySchema)
     return c.json({ total: await this.linkService.count(status) })
@@ -59,6 +62,7 @@ export class LinkController {
    * @throws {HttpError} 404 if the domain does not exist.
    * @throws {HttpError} 409 if the domain is archived or the slug is taken.
    */
+  @Log("linkController.create")
   create = async (c: Context) => {
     const body = await parseRequest(c, "json", linkCreateSchema)
     authorize(c.var.principal, "create", "Link")
@@ -74,6 +78,7 @@ export class LinkController {
    * @throws {HttpError} 400 if the id is not a UUID.
    * @throws {HttpError} 404 if no link matches the id.
    */
+  @Log("linkController.get")
   get = async (c: Context) => {
     const { id } = await parseRequest(c, "param", idParamSchema)
     return c.json(await this.linkService.get(id))
@@ -90,6 +95,7 @@ export class LinkController {
    * @throws {HttpError} 403 if the key may not make this change.
    * @throws {HttpError} 404 if no link matches the id.
    */
+  @Log("linkController.update")
   update = async (c: Context) => {
     const { id } = await parseRequest(c, "param", idParamSchema)
     const patch = await parseRequest(c, "json", linkPatchSchema)
@@ -109,6 +115,7 @@ export class LinkController {
    * @throws {HttpError} 403 if the key may not archive links.
    * @throws {HttpError} 404 if no link matches the id.
    */
+  @Log("linkController.archive")
   archive = async (c: Context) => {
     const { id } = await parseRequest(c, "param", idParamSchema)
     const existing = await this.linkService.load(id)
@@ -128,6 +135,7 @@ export class LinkController {
    * @throws {HttpError} 404 if no link matches the id.
    * @throws {HttpError} 409 if the link is not archived.
    */
+  @Log("linkController.purge")
   purge = async (c: Context) => {
     const { id } = await parseRequest(c, "param", idParamSchema)
     authorize(c.var.principal, "purge", "Link")
@@ -143,6 +151,7 @@ export class LinkController {
    * @returns JSON `{ purged }`, the number of links destroyed.
    * @throws {HttpError} 403 if the key may not purge links.
    */
+  @Log("linkController.purgeArchived")
   purgeArchived = async (c: Context) => {
     authorize(c.var.principal, "purge", "Link")
     return c.json({ purged: await this.linkService.purgeArchived() })
@@ -157,6 +166,7 @@ export class LinkController {
    * @throws {HttpError} 400 if the id is not a UUID.
    * @throws {HttpError} 404 if no link matches the id.
    */
+  @Log("linkController.listRules")
   listRules = async (c: Context) => {
     const { id } = await parseRequest(c, "param", idParamSchema)
     return c.json(await this.linkService.listRules(id))
@@ -172,6 +182,7 @@ export class LinkController {
    * @throws {HttpError} 403 if the key may not update links.
    * @throws {HttpError} 404 if no link matches the id.
    */
+  @Log("linkController.replaceRules")
   replaceRules = async (c: Context) => {
     const { id } = await parseRequest(c, "param", idParamSchema)
     const rules = await parseRequest(c, "json", rulesPutSchema)
@@ -187,5 +198,6 @@ export class LinkController {
    * @param c - Hono request context.
    * @returns JSON array of `{ tag, count }`.
    */
+  @Log("linkController.listTags")
   listTags = async (c: Context) => c.json(await this.linkService.listTags())
 }

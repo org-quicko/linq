@@ -3,18 +3,20 @@ import type { Db } from "../clients/index.ts"
 import { RuleInputsToRuleInsertsConverter } from "../converters/index.ts"
 import { Log } from "../libs/index.ts"
 
-const ruleInputsToRuleInsertsConverter = new RuleInputsToRuleInsertsConverter()
-
 /**
  * Storage for a link's routing rules. Bound to whatever executor it is built
  * with, so a caller already inside a transaction builds one on its `tx`
  * (`new RuleService(tx)`) and the rule writes join that transaction.
  */
 export class RuleService {
+  private readonly ruleInputsToRuleInsertsConverter: RuleInputsToRuleInsertsConverter
+
   /**
    * @param db - The database, or a transaction the rule writes should join.
    */
-  constructor(private readonly db: Db) {}
+  constructor(private readonly db: Db) {
+    this.ruleInputsToRuleInsertsConverter = new RuleInputsToRuleInsertsConverter()
+  }
 
   /**
    * Reads every rule of one link in `position` order. The ordering is the
@@ -50,7 +52,7 @@ export class RuleService {
     if (rules.length === 0) return
     await this.db
       .insertInto("rules")
-      .values(ruleInputsToRuleInsertsConverter.convertFrom(linkId, rules))
+      .values(this.ruleInputsToRuleInsertsConverter.convertFrom(linkId, rules))
       .execute()
   }
 }

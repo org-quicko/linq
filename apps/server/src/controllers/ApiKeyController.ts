@@ -5,24 +5,29 @@ import {
   ApiKeyPatchBodyToApiKeyPatchInputConverter,
   ApiKeyRowToApiKeyConverter,
 } from "../converters/index.ts"
-import { HttpError } from "../libs/index.ts"
+import { HttpError, Log } from "../libs/index.ts"
 import { authorize, idParamSchema, parseRequest } from "../middleware/index.ts"
 import type { ApiKeyService } from "../services/index.ts"
-
-const apiKeyCreateBodyToApiKeyCreateInputConverter =
-  new ApiKeyCreateBodyToApiKeyCreateInputConverter()
-const apiKeyPatchBodyToApiKeyPatchInputConverter = new ApiKeyPatchBodyToApiKeyPatchInputConverter()
-const apiKeyRowToApiKeyConverter = new ApiKeyRowToApiKeyConverter()
 
 /**
  * HTTP layer for `/keys` and `/me`. Adds two self-guards a claim cannot
  * express: a key may not change its own claims, and may not revoke itself.
  */
 export class ApiKeyController {
+  private readonly apiKeyCreateBodyToApiKeyCreateInputConverter: ApiKeyCreateBodyToApiKeyCreateInputConverter
+  private readonly apiKeyPatchBodyToApiKeyPatchInputConverter: ApiKeyPatchBodyToApiKeyPatchInputConverter
+  private readonly apiKeyRowToApiKeyConverter: ApiKeyRowToApiKeyConverter
+
   /**
    * @param apiKeyService - API key queries.
    */
-  constructor(private readonly apiKeyService: ApiKeyService) {}
+  constructor(private readonly apiKeyService: ApiKeyService) {
+    this.apiKeyCreateBodyToApiKeyCreateInputConverter =
+      new ApiKeyCreateBodyToApiKeyCreateInputConverter()
+    this.apiKeyPatchBodyToApiKeyPatchInputConverter =
+      new ApiKeyPatchBodyToApiKeyPatchInputConverter()
+    this.apiKeyRowToApiKeyConverter = new ApiKeyRowToApiKeyConverter()
+  }
 
   /**
    * GET /keys
@@ -33,6 +38,7 @@ export class ApiKeyController {
    * @throws {HttpError} 400 if the query does not validate.
    * @throws {HttpError} 403 if the key may not read keys.
    */
+  @Log("apiKeyController.list")
   list = async (c: Context) => {
     const { limit, offset } = await parseRequest(c, "query", paginationSchema)
     authorize(c.var.principal, "read", "Key")
@@ -50,14 +56,15 @@ export class ApiKeyController {
    * @throws {HttpError} 400 if the body does not validate.
    * @throws {HttpError} 403 if the key may not create keys.
    */
+  @Log("apiKeyController.create")
   create = async (c: Context) => {
     const body = await parseRequest(c, "json", keyCreateSchema)
     authorize(c.var.principal, "create", "Key")
     const { row, secret } = await this.apiKeyService.create(
-      apiKeyCreateBodyToApiKeyCreateInputConverter.convertFrom(body),
+      this.apiKeyCreateBodyToApiKeyCreateInputConverter.convertFrom(body),
     )
     return c.json(
-      { ...apiKeyRowToApiKeyConverter.convertFrom(row), secret } satisfies ApiKeyCreated,
+      { ...this.apiKeyRowToApiKeyConverter.convertFrom(row), secret } satisfies ApiKeyCreated,
       201,
     )
   }
@@ -72,6 +79,7 @@ export class ApiKeyController {
    * @throws {HttpError} 403 if the key may not read keys.
    * @throws {HttpError} 404 if no key matches the id.
    */
+  @Log("apiKeyController.get")
   get = async (c: Context) => {
     const { id } = await parseRequest(c, "param", idParamSchema)
     authorize(c.var.principal, "read", "Key")
@@ -90,11 +98,12 @@ export class ApiKeyController {
    * @throws {HttpError} 403 if the key may not update keys, or is changing its own claims.
    * @throws {HttpError} 404 if no key matches the id.
    */
+  @Log("apiKeyController.update")
   update = async (c: Context) => {
     const { id } = await parseRequest(c, "param", idParamSchema)
     const body = await parseRequest(c, "json", keyPatchSchema)
     authorize(c.var.principal, "update", "Key")
-    const patch = apiKeyPatchBodyToApiKeyPatchInputConverter.convertFrom(body)
+    const patch = this.apiKeyPatchBodyToApiKeyPatchInputConverter.convertFrom(body)
     if (patch.claims !== undefined && id === c.var.principal.keyId)
       throw HttpError.forbidden("you cannot change the claims of the key you are using")
     const key = await this.apiKeyService.update(id, patch)
@@ -112,6 +121,7 @@ export class ApiKeyController {
    * @throws {HttpError} 403 if the key may not delete keys, or is revoking itself.
    * @throws {HttpError} 404 if no key matches the id.
    */
+  @Log("apiKeyController.delete")
   delete = async (c: Context) => {
     const { id } = await parseRequest(c, "param", idParamSchema)
     authorize(c.var.principal, "delete", "Key")
@@ -129,6 +139,7 @@ export class ApiKeyController {
    * @param c - Hono request context.
    * @returns JSON response with the calling key.
    */
+  @Log("apiKeyController.me")
   me = async (c: Context) => {
     const key = await this.apiKeyService.get(c.var.principal.keyId)
     // The key authenticated moments ago, so its row cannot be missing without a

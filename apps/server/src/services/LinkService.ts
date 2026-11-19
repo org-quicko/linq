@@ -23,17 +23,17 @@ import { HttpError, Log } from "../libs/index.ts"
 import { CacheKeyUtil, FilterUtil, SlugUtil } from "../utils/index.ts"
 import { RuleService } from "./RuleService.ts"
 
-const linkCreateInputToLinkInsertConverter = new LinkCreateInputToLinkInsertConverter()
-const linkJoinedRowToLinkConverter = new LinkJoinedRowToLinkConverter()
-const linkPatchToLinkUpdateConverter = new LinkPatchToLinkUpdateConverter()
-const ruleRowToRuleConverter = new RuleRowToRuleConverter()
-
 /**
  * Links, their tags and their rules. Owns every link query and business rule
  * (reserved slugs, slug allocation, destination metadata, archive-before-purge)
  * and clears a link's cache entries on every write, so no caller can forget to.
  */
 export class LinkService {
+  private readonly linkCreateInputToLinkInsertConverter: LinkCreateInputToLinkInsertConverter
+  private readonly linkJoinedRowToLinkConverter: LinkJoinedRowToLinkConverter
+  private readonly linkPatchToLinkUpdateConverter: LinkPatchToLinkUpdateConverter
+  private readonly ruleRowToRuleConverter: RuleRowToRuleConverter
+
   /**
    * @param db - The database.
    * @param cache - Cleared on every write; the redirect and llms.txt read through it.
@@ -45,7 +45,12 @@ export class LinkService {
     private readonly cache: Cache,
     private readonly metadata: MetadataFetcher,
     private readonly config: Pick<Config, "LINQ_SLUG_LENGTH" | "LINQ_CLIENT_BASE_PATH">,
-  ) {}
+  ) {
+    this.linkCreateInputToLinkInsertConverter = new LinkCreateInputToLinkInsertConverter()
+    this.linkJoinedRowToLinkConverter = new LinkJoinedRowToLinkConverter()
+    this.linkPatchToLinkUpdateConverter = new LinkPatchToLinkUpdateConverter()
+    this.ruleRowToRuleConverter = new RuleRowToRuleConverter()
+  }
 
   /**
    * Loads one link as a complete API response, joins and visit totals included.
@@ -61,7 +66,7 @@ export class LinkService {
   async get(id: string): Promise<Link> {
     const row = await this.linkQuery().where("links.id", "=", id).limit(1).executeTakeFirst()
     if (!row) throw HttpError.notFound("link")
-    return linkJoinedRowToLinkConverter.convertFrom(row)
+    return this.linkJoinedRowToLinkConverter.convertFrom(row)
   }
 
   /**
@@ -119,7 +124,7 @@ export class LinkService {
         .where((eb) => eb.and(filters))
         .executeTakeFirst()) ?? {}
 
-    return { data: rows.map(linkJoinedRowToLinkConverter.convertFrom), total }
+    return { data: rows.map((row) => this.linkJoinedRowToLinkConverter.convertFrom(row)), total }
   }
 
   /**
@@ -175,7 +180,7 @@ export class LinkService {
       if (!domain) throw HttpError.notFound("domain")
       if (domain.status === "archived") throw HttpError.conflict("domain is archived")
 
-      const { row } = await LinkService.insertLink(tx, input, fetched, slugLength, clientBasePath)
+      const { row } = await this.insertLink(tx, input, fetched, slugLength, clientBasePath)
 
       await LinkService.setLinkTags(tx, row.id, input.tags)
       if (input.rules.length > 0) await new RuleService(tx).replace(row.id, input.rules)
@@ -201,7 +206,7 @@ export class LinkService {
     await this.db.transaction().execute(async (tx) => {
       await tx
         .updateTable("links")
-        .set(linkPatchToLinkUpdateConverter.convertFrom(existing, patch, fetched))
+        .set(this.linkPatchToLinkUpdateConverter.convertFrom(existing, patch, fetched))
         .where("id", "=", existing.id)
         .execute()
 
@@ -283,7 +288,9 @@ export class LinkService {
    */
   async listRules(id: string): Promise<Rule[]> {
     await this.load(id)
-    return (await new RuleService(this.db).list(id)).map(ruleRowToRuleConverter.convertFrom)
+    return (await new RuleService(this.db).list(id)).map((row) =>
+      this.ruleRowToRuleConverter.convertFrom(row),
+    )
   }
 
   /**
@@ -298,7 +305,9 @@ export class LinkService {
     // The redirect caches a link's rules inside its target entry, so replacing
     // them clears it just as editing the link itself does.
     await this.cache.del(CacheKeyUtil.targetKey(link.domain_id, link.slug))
-    return (await new RuleService(this.db).list(link.id)).map(ruleRowToRuleConverter.convertFrom)
+    return (await new RuleService(this.db).list(link.id)).map((row) =>
+      this.ruleRowToRuleConverter.convertFrom(row),
+    )
   }
 
   /**
@@ -375,7 +384,7 @@ export class LinkService {
       attempts,
     }),
   })
-  private static async insertLink(
+  private async insertLink(
     tx: Db,
     input: LinkCreateInput,
     fetched: Awaited<ReturnType<MetadataFetcher["fetch"]>>,
@@ -390,7 +399,7 @@ export class LinkService {
         .insertInto("links")
         .values({
           id: Bun.randomUUIDv7(),
-          ...linkCreateInputToLinkInsertConverter.convertFrom(input, fetched, slug),
+          ...this.linkCreateInputToLinkInsertConverter.convertFrom(input, fetched, slug),
         })
         .onConflict((oc) => oc.columns(["domain_id", "slug"]).doNothing())
         .returningAll()

@@ -19,7 +19,8 @@ references.
   services in the constructor, one arrow-function property per endpoint taking
   a plain Hono `Context`. Each endpoint: `parseRequest` → load the resource if
   an unknown id should 404 first → `authorize` → service call → `c.json(...)`.
-  JSDoc each endpoint with the method and path, `@param c`, `@returns`, `@throws`.
+  JSDoc each endpoint with the method and path, `@param c`, `@returns`, `@throws`,
+  and decorate it with `@Log("<resource>Controller.<endpoint>")`.
 - **Service** (`services/<Resource>Service.ts`): a class taking its
   dependencies in the constructor (`db`, clients, `Pick<Config, …>`, another
   service when it needs one). All Kysely queries, business rules and side
@@ -47,9 +48,14 @@ Only `principal` rides on the request context (`c.var.principal`, typed in
 - **Converters are classes.** `converters/<resource>/`, one class per file,
   named exactly like the file. Use instance method `convertFrom` for source-to-target
   conversion and `convertTo` for the reverse; include only the directions needed.
+  The class that uses a converter owns it: a `private readonly xyzConverter: XyzConverter`
+  field assigned `new XyzConverter()` in its constructor, never a module-level
+  instance. Call it through an arrow (`rows.map((row) => this.xyzConverter.convertFrom(row))`),
+  not as an unbound method reference.
 - **Logging belongs to `Logger`** in `libs/logger.ts`: `Logger.init`,
   `Logger.flush`, and `Logger.forRequest()` own lifecycle and request context.
-  Use `@Log(operation, { in, out, level })` on asynchronous methods; projections
+  Use `@Log(operation, { in, out, level })` on asynchronous service methods and
+  controller endpoint properties; projections
   return explicit safe fields and run only at debug level. `Logger.operation`
   covers standalone boot/migration functions. Expected errors use `HttpError`;
   unexpected error objects are logged once by `app.onError`.

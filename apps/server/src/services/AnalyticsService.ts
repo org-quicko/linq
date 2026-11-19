@@ -16,15 +16,15 @@ import {
 import { Log } from "../libs/index.ts"
 import { FilterUtil } from "../utils/index.ts"
 
-const analyticsQueryToVisitFilterQueryConverter = new AnalyticsQueryToVisitFilterQueryConverter()
-const statsBucketRowsToStatsBucketsConverter = new StatsBucketRowsToStatsBucketsConverter()
-
 /**
  * Analytics reads. Two sources answer every one: without a dimension filter the
  * pre-aggregated `visit_days` rollup does; a dimension filter needs columns the
  * rollup does not keep, so the raw `visits` log answers instead.
  */
 export class AnalyticsService {
+  private readonly analyticsQueryToVisitFilterQueryConverter: AnalyticsQueryToVisitFilterQueryConverter
+  private readonly statsBucketRowsToStatsBucketsConverter: StatsBucketRowsToStatsBucketsConverter
+
   /**
    * The timeseries bucket key per granularity, on each read path: the UTC date
    * its period starts on. `date_trunc('week', …)` is ISO, so weeks start on
@@ -69,7 +69,10 @@ export class AnalyticsService {
   /**
    * @param db - The database.
    */
-  constructor(private readonly db: Db) {}
+  constructor(private readonly db: Db) {
+    this.analyticsQueryToVisitFilterQueryConverter = new AnalyticsQueryToVisitFilterQueryConverter()
+    this.statsBucketRowsToStatsBucketsConverter = new StatsBucketRowsToStatsBucketsConverter()
+  }
 
   /**
    * Total, human, bot and orphan visit counts for the query's scope.
@@ -89,7 +92,7 @@ export class AnalyticsService {
     let orphans = 0
     if (detail) {
       const filters = FilterUtil.visitFilters(
-        analyticsQueryToVisitFilterQueryConverter.convertFrom(q),
+        this.analyticsQueryToVisitFilterQueryConverter.convertFrom(q),
       )
       const row = await this.db
         .selectFrom("visits")
@@ -144,7 +147,7 @@ export class AnalyticsService {
 
     if (!detail) {
       const key = AnalyticsService.ROLLUP_BUCKET[q.granularity]
-      return statsBucketRowsToStatsBucketsConverter.convertFrom(
+      return this.statsBucketRowsToStatsBucketsConverter.convertFrom(
         await this.db
           .selectFrom("visit_days")
           .select([
@@ -160,12 +163,14 @@ export class AnalyticsService {
       )
     }
     const key = AnalyticsService.DETAIL_BUCKET[q.granularity]
-    return statsBucketRowsToStatsBucketsConverter.convertFrom(
+    return this.statsBucketRowsToStatsBucketsConverter.convertFrom(
       await this.db
         .selectFrom("visits")
         .select([key.as("key"), AnalyticsService.HUMAN.as("human"), AnalyticsService.BOT.as("bot")])
         .where((eb) =>
-          eb.and(FilterUtil.visitFilters(analyticsQueryToVisitFilterQueryConverter.convertFrom(q))),
+          eb.and(
+            FilterUtil.visitFilters(this.analyticsQueryToVisitFilterQueryConverter.convertFrom(q)),
+          ),
         )
         .groupBy(key)
         .orderBy(key, "asc")
@@ -189,7 +194,7 @@ export class AnalyticsService {
 
     if (!detail) {
       const key = sql<string>`${sql.ref("value")}`
-      return statsBucketRowsToStatsBucketsConverter.convertFrom(
+      return this.statsBucketRowsToStatsBucketsConverter.convertFrom(
         await this.db
           .selectFrom("visit_days")
           .select([
@@ -205,12 +210,14 @@ export class AnalyticsService {
       )
     }
     const key = AnalyticsService.DETAIL_KEY[q.dimension]
-    return statsBucketRowsToStatsBucketsConverter.convertFrom(
+    return this.statsBucketRowsToStatsBucketsConverter.convertFrom(
       await this.db
         .selectFrom("visits")
         .select([key.as("key"), AnalyticsService.HUMAN.as("human"), AnalyticsService.BOT.as("bot")])
         .where((eb) =>
-          eb.and(FilterUtil.visitFilters(analyticsQueryToVisitFilterQueryConverter.convertFrom(q))),
+          eb.and(
+            FilterUtil.visitFilters(this.analyticsQueryToVisitFilterQueryConverter.convertFrom(q)),
+          ),
         )
         .groupBy(key)
         .orderBy(sql<number>`count(*)`, "desc")
