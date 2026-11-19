@@ -192,4 +192,4 @@ Run fixture loading, builds, checks and browser verification sequentially.
 - [`resources/docs/ARCHITECTURE.md`](resources/docs/ARCHITECTURE.md): how the pieces fit together.
 - [`resources/docs/repo-map.md`](resources/docs/repo-map.md): where everything lives.
 - [`resources/docs/adr/`](resources/docs/adr/): architecture decision records.
-- [`resources/openapi/linq.openapi.json`](resources/openapi/linq.openapi.json): the REST API spec.
+- [`resources/openapi/openapi.json`](resources/openapi/openapi.json): the REST API spec.

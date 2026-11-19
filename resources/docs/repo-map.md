@@ -131,7 +131,7 @@ Imports flow one way: `schemas` read `constants`; `types` read both (type-only);
 | Path | What it is |
 |------|------------|
 | `sql/schema.sql` | The schema as `pg_dump --schema-only` output. Loads into any PostgreSQL, imports into ERD tools (pgAdmin, DBeaver, DataGrip, dbdiagram) |
-| `openapi/linq.openapi.json` | The HTTP API as OpenAPI |
+| `openapi/openapi.json` | The HTTP API as OpenAPI |
 | `docs/ARCHITECTURE.md` | How the pieces fit together today, with flow diagrams for boot, auth and the redirect hot path |
 | `docs/repo-map.md` | This file |
 | `docs/adr/000N-*.md` | One decision per file, numbered sequentially |
