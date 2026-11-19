@@ -32,9 +32,10 @@ config ──► logger ──► db ──► migrations ──► bootstrap �
 
 `createApp` (`app.ts`) builds every service and controller exactly once,
 handing each its dependencies through the constructor (one instance per app,
-no per-request construction, nothing global), and returns the app with the two
-services the process still needs after boot: `DomainService` to reconcile
-Caddy and `VisitService` to drain visits on shutdown. Each request flows
+no per-request construction, nothing global), and returns the app with the one
+service the process still needs after boot: `DomainService`, to reconcile
+Caddy. `main.ts` starts the visit pipeline, passes it in, and drains it on
+shutdown. Each request flows
 `route → controller → service`: a route function maps paths to controller
 methods, a controller validates (`RequestUtil.parse`), loads what the permission
 question needs, calls `authorize`, and hands the rest to its service, which
@@ -103,7 +104,8 @@ into an error. Each visit is emitted as an OpenTelemetry log record whose only
 exporter writes it to `visits` the moment it arrives (`resources/docs/adr/0022`),
 capped by `LINQ_VISIT_MAX_PENDING` inserts in flight. That pipeline is the
 app's one `VisitPipeline` (`telemetry/visits/`), which owns the in-flight inserts;
-`VisitService` records through it, and its `flush()` drains them. It never stores the
+`main.ts` starts it and hands it to `createApp`, `VisitService` records through
+it, and `main.ts` calls its `flush()` on shutdown to drain them. It never stores the
 client's IP address, in the row or the
 request log (`resources/docs/adr/0001`, `resources/docs/adr/0003`). `visit_days` and
 `visit_counts` are pre-aggregated rollups that every list and overview reads

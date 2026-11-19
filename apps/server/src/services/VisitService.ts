@@ -41,14 +41,6 @@ export class VisitService {
   }
 
   /**
-   * Waits for every visit already handed to `record`, including any recorded
-   * while it waits.
-   */
-  flush(): Promise<void> {
-    return this.visitPipeline.flush()
-  }
-
-  /**
    * Lists the raw log, newest first.
    *
    * @param q - The validated `GET /visits` query: filters and page.

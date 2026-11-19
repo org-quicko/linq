@@ -6,6 +6,7 @@ import { CaddyClient, DbClient, LinkMetadataClient } from "./clients/index.ts"
 import { loadConfig } from "./config.ts"
 import { runMigrations } from "./db/migrate.ts"
 import { Logger } from "./libs/index.ts"
+import { VisitPipeline } from "./telemetry/index.ts"
 
 const config = loadConfig()
 // Before anything else logs: the logger is silent until this runs.
@@ -18,9 +19,11 @@ await bootstrap(db, config)
 
 const cache = await CacheAdapter.start(config)
 const caddy = CaddyClient.start(config)
-const { app, domainService, visitService } = createApp({
+const visitPipeline = new VisitPipeline(db, config)
+const { app, domainService } = createApp({
   db,
   config,
+  visitPipeline,
   cache,
   caddy,
   metadata: LinkMetadataClient.start(config),
@@ -44,7 +47,7 @@ Logger.info({ port: config.LINQ_PORT, version: pkg.version }, "linq listening")
 async function shutdown(signal: string): Promise<void> {
   Logger.info({ signal }, "shutting down")
   await server.stop()
-  await visitService.flush()
+  await visitPipeline.flush()
   cache.stop()
   await Logger.flush()
   await db.destroy()

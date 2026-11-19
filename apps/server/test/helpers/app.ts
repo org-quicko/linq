@@ -11,6 +11,7 @@ import { createApp } from "../../src/app.ts"
 import type { Db } from "../../src/clients/index.ts"
 import type { DB } from "../../src/db/types.generated.ts"
 import { ApiKeyService } from "../../src/services/ApiKeyService.ts"
+import { VisitPipeline } from "../../src/telemetry/index.ts"
 import { createTestDb, testConfig } from "./db.ts"
 
 /** `json()` is deliberately loose: the assertion in each test does the narrowing. */
@@ -19,7 +20,7 @@ export type TestResponse = Omit<Response, "json"> & { json: () => Promise<any> }
 
 export type Harness = {
   db: Db
-  /** Waits for every visit the redirect has handed to this app's `VisitService`. */
+  /** Waits for every visit the redirect has handed to this app's `VisitPipeline`. */
   flushVisits: () => Promise<void>
   /** Calls the app over `fetch`, no socket involved. */
   request: (
@@ -61,9 +62,11 @@ export type HarnessOptions = {
 export async function createHarness(options: HarnessOptions = {}): Promise<Harness> {
   const db = await createTestDb()
   const config = { ...testConfig, ...options.config }
-  const { app, visitService } = createApp({
+  const visitPipeline = new VisitPipeline(db, config)
+  const { app } = createApp({
     db,
     config,
+    visitPipeline,
     cache: options.cache,
     caddy: options.caddy,
     metadata: options.metadata,
@@ -88,7 +91,7 @@ export async function createHarness(options: HarnessOptions = {}): Promise<Harne
 
   return {
     db,
-    flushVisits: () => visitService.flush(),
+    flushVisits: () => visitPipeline.flush(),
     request,
     createKey,
     post: (path, key, body) => request(path, { key, method: "POST", body: JSON.stringify(body) }),

@@ -36,12 +36,14 @@ import {
   RedirectService,
   VisitService,
 } from "./services/index.ts"
-import { VisitPipeline } from "./telemetry/index.ts"
+import type { VisitPipeline } from "./telemetry/index.ts"
 import { UrlUtil } from "./utils/index.ts"
 
 export type AppDeps = {
   db: Db
   config: Config
+  /** Started and drained by the caller, which owns its lifecycle like the database's. */
+  visitPipeline: VisitPipeline
   cache?: Cache
   caddy?: Caddy
   metadata?: MetadataFetcher
@@ -55,13 +57,14 @@ export type AppDeps = {
  * Route order matters: everything linq answers itself is mounted before the
  * catch-all redirect handler, so a reserved path can never be shadowed.
  *
- * @param deps - The database, config, and the clients of external systems; each client defaults to its no-op.
- * @returns The Hono app, plus the services the process itself needs past
- *   boot: `domainService` to reconcile Caddy, `visitService` to drain visits on shutdown.
+ * @param deps - The database, config, the visit pipeline, and the clients of external systems; each client defaults to its no-op.
+ * @returns The Hono app, plus the one service the process itself needs past
+ *   boot: `domainService`, to reconcile Caddy.
  */
 export function createApp({
   db,
   config,
+  visitPipeline,
   cache = new NoopCacheAdapter(),
   caddy = new NoopCaddyClient(),
   metadata = new NoopLinkMetadataClient(),
@@ -78,7 +81,7 @@ export function createApp({
   const linkService = new LinkService(db, safeCache, safeMetadata, config)
   const domainService = new DomainService(db, safeCache, safeCaddy, config)
   const qrCodeService = new QrCodeService(db)
-  const visitService = new VisitService(db, new VisitPipeline(db, config))
+  const visitService = new VisitService(db, visitPipeline)
   const analyticsService = new AnalyticsService(db)
   const redirectService = new RedirectService(db, safeCache)
   const llmsService = new LlmsService(db, safeCache)
@@ -160,5 +163,5 @@ export function createApp({
   // Last: the catch-all redirect, so every reserved path above wins the match.
   app.route("/", redirectRoutes(redirectService, visitService, config))
 
-  return { app, domainService, visitService }
+  return { app, domainService }
 }
