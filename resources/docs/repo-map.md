@@ -70,12 +70,12 @@ apps/server/src/
 │                 caddy/ CaddyAdapter GuardedCaddy {AdminApi,Noop}CaddyAdapter
 │                 linkMetadata/ LinkMetadataAdapter GuardedLinkMetadata {Html,Noop}LinkMetadataAdapter
 ├─ telemetry/     visits/ VisitPipeline VisitTableExporter
-├─ clients/       DbClient RedisClient CaddyClient LinkMetadataClient
+├─ clients/       CaddyClient LinkMetadataClient
 ├─ middleware/    authenticate authorize rateLimit requestLogger
 ├─ converters/    one folder per resource
 ├─ utils/         one static class per file
 ├─ libs/          logger errors
-├─ db/            migrations/ migrate.ts types.generated.ts
+├─ db/            db.ts index.ts migrations/ migrate.ts types.generated.ts
 ├─ cli/           createKey migrate codegen
 └─ types/         pino-roll.d.ts
 ```
@@ -92,11 +92,11 @@ apps/server/src/
 | `converters/` | One folder per resource (`link/`, `domain/`, `apiKey/`, `rule/`, `qrCode/`, `visit/`, `analytics/`, `redirect/`, `llms/`), one class per file with the same name, e.g. `link/LinkJoinedRowToLinkConverter.ts`. Instance `convertFrom` and `convertTo` methods cover only the directions needed. |
 | `utils/` | Helpers, one static class per file, named like the file, with only `static` methods (call them as `SlugUtil.generateSlug(...)`): `UrlUtil` (`shortUrl`, `clientPath`, `isAppHost`, `mergeQueryParams`), `SlugUtil` (`generateSlug`, `isReservedSlug`), `FilterUtil` (link, QR code and visit list filters), `DateTimeUtil`, `CacheKeyUtil`, `HtmlUtil`, `MarkdownUtil`, `HashUtil`, `RuleMatchUtil`, `UserAgentUtil` (bot, preview-crawler, platform, OS and browser detection), `RequestUtil` (`parse`: reads a request's `json` body, `query` or `param`s exactly as Hono's validator does, malformed-JSON 400 included, and validates it with zod in linq's error envelope). None touches the database; only `RequestUtil` reads a Hono `Context` |
 | `middleware/` | `authenticate.ts` (`authenticate(apiKeyService)`: resolves the key and sets `c.var.principal`, which is typed globally here), `authorize.ts` (`authorize`), `rateLimit.ts` (per-key limit), `requestLogger.ts` (`requestLogger(clientBasePath)`: the request/response log pair and the per-request async logging scope) |
-| `adapters/` | linq's ports implemented over clients. Services depend on adapters, never on a client directly. `cache/`: the `Cache` port with `CacheAdapter.start` and `CacheAdapter.readThrough`, the `GuardedCache` decorator, and one adapter per backend: `RedisCacheAdapter` (over `RedisClient`), `MemoryCacheAdapter`, `NoopCacheAdapter`; see `resources/docs/adr/0009`. `caddy/`: the `Caddy` port with `CaddyAdapter.start`, the `GuardedCaddy` decorator, `AdminApiCaddyAdapter` (a domain as a reverse-proxy route, over `CaddyClient`) and `NoopCaddyAdapter`; see `resources/docs/adr/0012`. `linkMetadata/`: the `MetadataFetcher` port with `LinkMetadataAdapter.start`, the `GuardedLinkMetadata` decorator, `HtmlLinkMetadataAdapter` (title, description and icon parsed from the page, over `LinkMetadataClient`) and `NoopLinkMetadataAdapter`; see `resources/docs/adr/0014`. Each adapter builds its own client |
+| `adapters/` | linq's ports implemented over clients. Services depend on adapters, never on a client directly. `cache/`: the `Cache` port with `CacheAdapter.start` and `CacheAdapter.readThrough`, the `GuardedCache` decorator, and one adapter per backend: `RedisCacheAdapter` (owns Bun's native `RedisClient`), `MemoryCacheAdapter`, `NoopCacheAdapter`; see `resources/docs/adr/0009`. `caddy/`: the `Caddy` port with `CaddyAdapter.start`, the `GuardedCaddy` decorator, `AdminApiCaddyAdapter` (a domain as a reverse-proxy route, over `CaddyClient`) and `NoopCaddyAdapter`; see `resources/docs/adr/0012`. `linkMetadata/`: the `MetadataFetcher` port with `LinkMetadataAdapter.start`, the `GuardedLinkMetadata` decorator, `HtmlLinkMetadataAdapter` (title, description and icon parsed from the page, over `LinkMetadataClient`) and `NoopLinkMetadataAdapter`; see `resources/docs/adr/0014`. Each adapter builds its own client |
 | `telemetry/` | OpenTelemetry, one folder per source. `visits/`: `VisitPipeline` (the `linq.visits` logger, the `LINQ_VISIT_MAX_PENDING` cap, `record`, `flush`) and `VisitTableExporter` (the log exporter whose export is the `visits` insert); see `resources/docs/adr/0022` |
-| `clients/` | Raw clients of external systems; adapters build and wrap them. `DbClient.ts` (the `Db` type, a plain Kysely instance, and `DbClient.start(config)`), `RedisClient.ts` (one Redis connection that stores strings; only `RedisCacheAdapter` uses it), `CaddyClient.ts` (Caddy's admin API: add a route, delete by `@id`; only `AdminApiCaddyAdapter` uses it), `LinkMetadataClient.ts` (a destination's HTML, fetched behind the SSRF guard; only `HtmlLinkMetadataAdapter` uses it) |
+| `clients/` | Raw clients of external systems; adapters build and wrap them. `CaddyClient.ts` (Caddy's admin API: add a route, delete by `@id`; only `AdminApiCaddyAdapter` uses it), `LinkMetadataClient.ts` (a destination's HTML, fetched behind the SSRF guard; only `HtmlLinkMetadataAdapter` uses it) |
 | `libs/` | `logger.ts` (pino, `Logger.forRequest()`, `@Log()`, secret scrubbing) and `errors.ts` (`HttpError`, Hono's `HTTPException` rendering linq's error envelope) |
-| `db/` | `migrations/` (ordered Kysely migrations), `types.generated.ts` (Kysely query types), `migrate.ts` (runs migrations in `LINQ_DB_SCHEMA` at boot) |
+| `db/` | `db.ts` (the process's Kysely `db` instance and injected `Db` type), `index.ts` (barrel exports), `migrations/` (ordered Kysely migrations), `types.generated.ts` (Kysely query types), `migrate.ts` (runs migrations in `LINQ_DB_SCHEMA` at boot) |
 | `cli/` | `createKey.ts` (`bun run key:create`, mints a key without a restart through `ApiKeyService.create`), `migrate.ts`, `codegen.ts` |
 | `types/` | Ambient declarations for untyped dependencies (`pino-roll.d.ts`) |
 

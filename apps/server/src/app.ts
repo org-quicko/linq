@@ -12,8 +12,8 @@ import {
   NoopCaddyAdapter,
   NoopLinkMetadataAdapter,
 } from "./adapters/index.ts"
-import type { Db } from "./clients/index.ts"
 import type { Config } from "./config.ts"
+import type { Db } from "./db/index.ts"
 import { HttpError, Logger } from "./libs/index.ts"
 import { authenticate, limitByKey, requestLogger } from "./middleware/index.ts"
 import {

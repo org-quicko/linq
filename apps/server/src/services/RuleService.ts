@@ -1,6 +1,6 @@
 import type { RuleInput } from "@linq/shared"
-import type { Db } from "../clients/index.ts"
 import { RuleInputsToRuleInsertsConverter } from "../converters/index.ts"
+import type { Db } from "../db/index.ts"
 import { Log } from "../libs/index.ts"
 
 /**

@@ -4,8 +4,8 @@ import path from "node:path"
 import { fileURLToPath } from "node:url"
 import { sql } from "kysely"
 import { FileMigrationProvider, Migrator } from "kysely/migration"
-import type { Db } from "../clients/DbClient.ts"
 import { Logger } from "../libs/logger.ts"
+import type { Db } from "./index.ts"
 
 /** Absolute path to the ordered Kysely migrations, resolved relative to this file. */
 export const migrationsFolder = path.join(

@@ -1,11 +1,11 @@
 import type { Cache, Caddy, Domain, DomainCreateInput, DomainPatch } from "@linq/shared"
 import { sql } from "kysely"
-import type { Db } from "../clients/index.ts"
 import type { Config } from "../config.ts"
 import {
   DomainCreateInputToDomainInsertConverter,
   DomainJoinedRowToDomainConverter,
 } from "../converters/index.ts"
+import type { Db } from "../db/index.ts"
 import { HttpError, Log } from "../libs/index.ts"
 import { CacheKeyUtil, UrlUtil } from "../utils/index.ts"
 

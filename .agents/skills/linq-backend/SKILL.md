@@ -6,13 +6,19 @@ description: Add or change an HTTP API resource in apps/server. Use when adding 
 # Adding or changing an API resource
 
 The server is layered `routes → controllers → services`, with clients of
-external systems (database, Redis, Caddy, link destinations) in `clients/`, the
+external HTTP systems (Caddy, link destinations) in `clients/`, the
 ports over them in `adapters/`, the
 logger and `HttpError` in `libs/`, OpenTelemetry in `telemetry/` (one folder
 per source, e.g. `telemetry/visits/`), and Hono middleware in `middleware/`. Each
 folder has an `index.ts` barrel; import from it rather than reaching into
 single files. `controllers/LinkController.ts` and `DomainController.ts` are the
 references.
+
+The PostgreSQL `db` instance and `Db` handle type live in `db/db.ts`,
+re-exported through the `db/index.ts` barrel.
+Entry points import the instance; services and tests import only the type and
+receive a handle through their constructor. Type-only imports keep tests
+independent of environment configuration and external PostgreSQL.
 
 - **Route** (`routes/<Resource>Route.ts`): a function, not a class, e.g.
   `domainRoutes(domainService)`. Builds its controller once and returns the Hono
@@ -69,7 +75,7 @@ Only `principal` rides on the request context (`c.var.principal`, typed in
   `MetadataFetcher`) has a folder in `adapters/` (`cache/`, `caddy/`,
   `linkMetadata/`) holding one adapter per backend, a `Noop…` adapter, a
   `Guarded…` decorator, and an `XAdapter.start(config)` that picks one. A real
-  adapter builds its own client (`RedisCacheAdapter` → `RedisClient`,
+  adapter builds its own client (`RedisCacheAdapter` → Bun's native `RedisClient`,
   `AdminApiCaddyAdapter` → `CaddyClient`, `HtmlLinkMetadataAdapter` →
   `LinkMetadataClient`); a client is raw I/O and knows nothing of the port.
   Services depend on the adapter, never the client. `main.ts` starts each

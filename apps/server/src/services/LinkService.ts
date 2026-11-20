@@ -11,7 +11,6 @@ import type {
   RuleInput,
 } from "@linq/shared"
 import { sql } from "kysely"
-import type { Db } from "../clients/index.ts"
 import type { Config } from "../config.ts"
 import {
   LinkCreateInputToLinkInsertConverter,
@@ -19,6 +18,7 @@ import {
   LinkPatchToLinkUpdateConverter,
   RuleRowToRuleConverter,
 } from "../converters/index.ts"
+import type { Db } from "../db/index.ts"
 import { HttpError, Log } from "../libs/index.ts"
 import { CacheKeyUtil, FilterUtil, SlugUtil } from "../utils/index.ts"
 import { RuleService } from "./RuleService.ts"

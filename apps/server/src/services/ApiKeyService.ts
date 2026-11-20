@@ -1,7 +1,7 @@
 import { randomBytes } from "node:crypto"
 import type { ApiKey, ApiKeyPatchInput, ApiKeySummary, Claim } from "@linq/shared"
-import type { Db } from "../clients/index.ts"
 import { ApiKeyRowToApiKeyConverter, ApiKeyToApiKeySummaryConverter } from "../converters/index.ts"
+import type { Db } from "../db/index.ts"
 import { HashUtil } from "../utils/index.ts"
 
 /**

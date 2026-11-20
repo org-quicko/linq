@@ -1,6 +1,6 @@
 import { beforeEach, describe, expect, test } from "bun:test"
 import { sql } from "kysely"
-import type { Db } from "../src/clients/DbClient.ts"
+import type { Db } from "../src/db/index.ts"
 import { createHarness, type Harness } from "./helpers/app.ts"
 
 const HOST = "rollup.test"

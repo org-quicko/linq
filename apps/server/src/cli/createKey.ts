@@ -1,7 +1,6 @@
 import { parseArgs } from "node:util"
 import { claimsForPreset, type KeyPreset, PRESETS } from "@linq/shared"
-import { DbClient } from "../clients/index.ts"
-import { loadConfig } from "../config.ts"
+
 import { ApiKeyService } from "../services/index.ts"
 
 const { values } = parseArgs({
@@ -28,8 +27,8 @@ if (expiresAt && Number.isNaN(expiresAt.getTime())) {
   console.error(`--expires is not a date: ${values.expires}`)
   process.exit(1)
 }
-const config = loadConfig()
-const db = DbClient.start(config)
+
+const { db } = await import("../db/index.ts")
 try {
   const { secret } = await new ApiKeyService(db).create({
     name,

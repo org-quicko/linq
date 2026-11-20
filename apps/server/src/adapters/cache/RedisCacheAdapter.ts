@@ -1,12 +1,12 @@
 import type { Cache, Hit } from "@linq/shared"
-import { RedisClient } from "../../clients/index.ts"
+import { RedisClient } from "bun"
 import type { Config } from "../../config.ts"
 import { Logger } from "../../libs/index.ts"
 
 /**
  * The cache port over Redis: shared by every process that points at it, and
  * required to be reachable at boot. See resources/docs/adr/0009. Values are
- * stored as JSON; the connection itself is `RedisClient`'s.
+ * stored as JSON; this adapter owns Bun's native Redis connection.
  */
 export class RedisCacheAdapter implements Cache {
   /**
@@ -30,7 +30,14 @@ export class RedisCacheAdapter implements Cache {
   ): Promise<RedisCacheAdapter> {
     // `loadConfig` already refuses redis without a URL; this only narrows the type.
     if (!config.LINQ_REDIS_URL) throw new Error("LINQ_REDIS_URL is required for the redis cache")
-    const client = await RedisClient.connect(config.LINQ_REDIS_URL)
+    const client = new RedisClient(config.LINQ_REDIS_URL)
+    client.onclose = (err) => Logger.error({ err }, "redis: connection closed")
+    try {
+      await client.connect()
+    } catch (err) {
+      client.close()
+      throw err
+    }
     Logger.info({ backend: "redis", ttl: config.LINQ_CACHE_TTL }, "cache: ready")
     return new RedisCacheAdapter(client, config.LINQ_CACHE_TTL)
   }
@@ -41,11 +48,11 @@ export class RedisCacheAdapter implements Cache {
   }
 
   async set(key: string, value: unknown): Promise<void> {
-    await this.client.set(key, JSON.stringify(value), this.ttl)
+    await this.client.set(key, JSON.stringify(value), "EX", this.ttl)
   }
 
   async del(...keys: string[]): Promise<void> {
-    await this.client.del(...keys)
+    if (keys.length) await this.client.del(...keys)
   }
 
   stop(): void {

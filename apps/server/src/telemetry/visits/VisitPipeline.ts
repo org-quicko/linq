@@ -1,8 +1,8 @@
 import type { VisitInput } from "@linq/shared"
 import type { AnyValue, Logger as OtelLogger } from "@opentelemetry/api"
 import { LoggerProvider, SimpleLogRecordProcessor } from "@opentelemetry/sdk-logs"
-import type { Db } from "../../clients/index.ts"
 import type { Config } from "../../config.ts"
+import type { Db } from "../../db/index.ts"
 import { Logger } from "../../libs/index.ts"
 import { VisitTableExporter } from "./VisitTableExporter.ts"
 

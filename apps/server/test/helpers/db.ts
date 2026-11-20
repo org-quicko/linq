@@ -1,7 +1,7 @@
 import { PGlite } from "@electric-sql/pglite"
 import { Kysely, PGliteDialect } from "kysely"
-import type { Db } from "../../src/clients/index.ts"
 import type { Config } from "../../src/config.ts"
+import type { Db } from "../../src/db/index.ts"
 import { runMigrations } from "../../src/db/migrate.ts"
 import type { DB } from "../../src/db/types.generated.ts"
 

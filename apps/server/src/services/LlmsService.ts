@@ -1,8 +1,8 @@
 import type { Cache, LlmsEntry } from "@linq/shared"
 import { sql } from "kysely"
 import { CacheAdapter } from "../adapters/index.ts"
-import type { Db } from "../clients/index.ts"
 import { LinkRowToLlmsEntryConverter } from "../converters/index.ts"
+import type { Db } from "../db/index.ts"
 import { Log } from "../libs/index.ts"
 import { CacheKeyUtil, MarkdownUtil } from "../utils/index.ts"
 

@@ -8,11 +8,11 @@ import {
   type StatsBucket,
 } from "@linq/shared"
 import { type RawBuilder, type SqlBool, sql } from "kysely"
-import type { Db } from "../clients/index.ts"
 import {
   AnalyticsQueryToVisitFilterQueryConverter,
   StatsBucketRowsToStatsBucketsConverter,
 } from "../converters/index.ts"
+import type { Db } from "../db/index.ts"
 import { Log } from "../libs/index.ts"
 import { FilterUtil } from "../utils/index.ts"
 

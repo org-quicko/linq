@@ -186,7 +186,7 @@ reconciles all of them once at linq's own boot. Link-metadata fetching
 
 Each is a port with its implementations as classes. The cache port lives in
 `adapters/cache/`, with one adapter per backend (`RedisCacheAdapter`, which
-talks to Redis through `clients/RedisClient`, `MemoryCacheAdapter`,
+owns Bun's native `RedisClient` directly, `MemoryCacheAdapter`,
 `NoopCacheAdapter`, chosen by `CacheAdapter.start`); Caddy and link metadata
 follow the same shape in `adapters/caddy/` and `adapters/linkMetadata/`
 (`AdminApiCaddyAdapter` over `clients/CaddyClient`, `HtmlLinkMetadataAdapter`
@@ -199,6 +199,14 @@ off" rather than letting a down dependency break a route it merely
 optimises — a domain mutation, a redirect, or a link creation must all
 succeed whether or not Redis, Caddy or the destination site are currently
 reachable.
+
+`db/db.ts` defines the process's plain Kysely `db` instance and the `Db`
+handle type; `db/index.ts` re-exports them. Runtime imports validate environment configuration and construct
+the pool; connections open on first use. Entry points share the instance and
+close it on exit. Services receive their handle through constructors, and
+tests import only the type and supply isolated PGlite handles. PostgreSQL
+sessions retain the configured search path, UTC timezone and numeric bigint
+conversion. Neither PostgreSQL nor Redis has an application wrapper client.
 
 ## Observability
 

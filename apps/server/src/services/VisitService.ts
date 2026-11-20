@@ -1,9 +1,9 @@
 import type { VisitInput, VisitListQuery } from "@linq/shared"
-import type { Db } from "../clients/index.ts"
 import {
   VisitListQueryToVisitFilterQueryConverter,
   VisitRowToVisitConverter,
 } from "../converters/index.ts"
+import type { Db } from "../db/index.ts"
 import type { VisitPipeline } from "../telemetry/index.ts"
 import { FilterUtil } from "../utils/index.ts"
 

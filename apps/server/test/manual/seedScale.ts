@@ -4,14 +4,13 @@ import { claimsForPreset } from "@linq/shared"
  * trigger and rebuilds its aggregates afterward; this is not an ingestion load test.
  */
 import { sql } from "kysely"
-import { DbClient } from "../../src/clients/index.ts"
+
 import { runMigrations } from "../../src/db/migrate.ts"
 import { ApiKeyService } from "../../src/services/index.ts"
 
-const db = DbClient.start({
-  DATABASE_URL: "postgres://linq@127.0.0.1:55441/linq_scale",
-  LINQ_DB_SCHEMA: "public",
-})
+process.env.DATABASE_URL = "postgres://linq@127.0.0.1:55441/linq_scale"
+process.env.LINQ_DB_SCHEMA = "public"
+const { db } = await import("../../src/db/index.ts")
 await runMigrations(db)
 const domainId = "11111111-1111-4111-8111-111111111111"
 await db

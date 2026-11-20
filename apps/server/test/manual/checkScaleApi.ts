@@ -1,13 +1,12 @@
 import { claimsForPreset, type ErrorBody, type Link, type StatsBucket } from "@linq/shared"
 import { sql } from "kysely"
-import { DbClient } from "../../src/clients/index.ts"
+
 import { ApiKeyService } from "../../src/services/index.ts"
 
 const key = (await Bun.file("data/scale-check/key.txt").text()).trim()
-const db = DbClient.start({
-  DATABASE_URL: "postgres://linq@127.0.0.1:55441/linq_scale",
-  LINQ_DB_SCHEMA: "public",
-})
+process.env.DATABASE_URL = "postgres://linq@127.0.0.1:55441/linq_scale"
+process.env.LINQ_DB_SCHEMA = "public"
+const { db } = await import("../../src/db/index.ts")
 const results: { path: string; status: number; ms: number; body: unknown }[] = []
 function check(condition: unknown, message: string): asserts condition {
   if (!condition) throw new Error(message)

@@ -6,11 +6,11 @@ import type {
   QrCodePatch,
   QrCodeRow,
 } from "@linq/shared"
-import type { Db } from "../clients/index.ts"
 import {
   QrCodeCreateInputToQrCodeInsertConverter,
   QrCodeJoinedRowToQrCodeConverter,
 } from "../converters/index.ts"
+import type { Db } from "../db/index.ts"
 import { HttpError, Log } from "../libs/index.ts"
 import { FilterUtil } from "../utils/index.ts"
 

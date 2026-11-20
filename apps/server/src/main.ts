@@ -2,8 +2,8 @@ import pkg from "../package.json" with { type: "json" }
 import { CacheAdapter, CaddyAdapter, LinkMetadataAdapter } from "./adapters/index.ts"
 import { createApp } from "./app.ts"
 import { bootstrap } from "./bootstrap.ts"
-import { DbClient } from "./clients/index.ts"
 import { loadConfig } from "./config.ts"
+import { db } from "./db/index.ts"
 import { runMigrations } from "./db/migrate.ts"
 import { Logger } from "./libs/index.ts"
 import { VisitPipeline } from "./telemetry/index.ts"
@@ -11,8 +11,6 @@ import { VisitPipeline } from "./telemetry/index.ts"
 const config = loadConfig()
 // Before anything else logs: the logger is silent until this runs.
 await Logger.init(config)
-
-const db = DbClient.start(config)
 
 await runMigrations(db, { advisoryLock: true, schema: config.LINQ_DB_SCHEMA })
 const caddy = CaddyAdapter.start(config)

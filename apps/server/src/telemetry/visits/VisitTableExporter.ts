@@ -1,7 +1,7 @@
 import { type ExportResult, ExportResultCode } from "@opentelemetry/core"
 import type { LogRecordExporter, ReadableLogRecord } from "@opentelemetry/sdk-logs"
-import type { Db } from "../../clients/index.ts"
 import { LogRecordToVisitInsertConverter } from "../../converters/index.ts"
+import type { Db } from "../../db/index.ts"
 import { Log, Logger } from "../../libs/index.ts"
 
 /**

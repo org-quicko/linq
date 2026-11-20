@@ -1,7 +1,7 @@
 import { type Caddy, claimsForPreset } from "@linq/shared"
 import { GuardedCaddy, NoopCaddyAdapter } from "./adapters/index.ts"
-import type { Db } from "./clients/index.ts"
 import type { Config } from "./config.ts"
+import type { Db } from "./db/index.ts"
 import { Logger } from "./libs/index.ts"
 import { ApiKeyService } from "./services/index.ts"
 

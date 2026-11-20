@@ -1,10 +1,10 @@
 import type { Cache, ResolvedDomain, ResolvedTarget } from "@linq/shared"
 import { CacheAdapter } from "../adapters/index.ts"
-import type { Db } from "../clients/index.ts"
 import {
   DomainRowToResolvedDomainConverter,
   LinkRowToResolvedTargetConverter,
 } from "../converters/index.ts"
+import type { Db } from "../db/index.ts"
 import { Log } from "../libs/index.ts"
 import { CacheKeyUtil, UrlUtil } from "../utils/index.ts"
 import { RuleService } from "./RuleService.ts"

@@ -8,7 +8,7 @@ import {
 } from "@linq/shared"
 import type { Insertable } from "kysely"
 import { createApp } from "../../src/app.ts"
-import type { Db } from "../../src/clients/index.ts"
+import type { Db } from "../../src/db/index.ts"
 import type { DB } from "../../src/db/types.generated.ts"
 import { ApiKeyService } from "../../src/services/ApiKeyService.ts"
 import { VisitPipeline } from "../../src/telemetry/index.ts"
