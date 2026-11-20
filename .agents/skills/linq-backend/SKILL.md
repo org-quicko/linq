@@ -73,8 +73,9 @@ Only `principal` rides on the request context (`c.var.principal`, typed in
   `LinkService`'s `linkQuery` and `setLinkTags`.
 - **Services → adapters → clients.** Each port (`Cache`, `Caddy`,
   `MetadataFetcher`) has a folder in `adapters/` (`cache/`, `caddy/`,
-  `linkMetadata/`) holding one adapter per backend, a `Noop…` adapter, a
-  `Guarded…` decorator, and an `XAdapter.start(config)` that picks one. A real
+  `linkMetadata/`) holding one adapter per backend, a `Noop…` adapter,
+  and an `XAdapter.start(config)` that picks one. The `Guarded…` wrappers
+  live together in `adapters/decorators/`, exported by the adapters barrel. A real
   adapter builds its own client (`RedisCacheAdapter` → Bun's native `RedisClient`,
   `AdminApiCaddyAdapter` → `CaddyClient`, `HtmlLinkMetadataAdapter` →
   `LinkMetadataClient`); a client is raw I/O and knows nothing of the port.

@@ -193,7 +193,7 @@ follow the same shape in `adapters/caddy/` and `adapters/linkMetadata/`
 over `clients/LinkMetadataClient`, each with a `Noop…` one, chosen by
 `CaddyAdapter.start` and `LinkMetadataAdapter.start`). Each adapter builds its
 own client; callers only ever hold the adapter. `createApp` wraps all three
-(and `bootstrap` its Caddy) in a guarding decorator (`GuardedCache`, `GuardedCaddy`,
+(and `bootstrap` its Caddy) in a guarding decorator from `adapters/decorators/` (`GuardedCache`, `GuardedCaddy`,
 `GuardedLinkMetadata`) that turns any failure into "act as if this feature is
 off" rather than letting a down dependency break a route it merely
 optimises — a domain mutation, a redirect, or a link creation must all
