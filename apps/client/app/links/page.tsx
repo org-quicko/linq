@@ -1,6 +1,6 @@
 "use client"
 
-import { type Actor, can, type Link, type Page } from "@linq/shared"
+import { type Actor, type Link, type Page, PermissionUtil } from "@linq/shared"
 import {
   Archive,
   ArrowDownIcon,
@@ -121,7 +121,7 @@ function LinksList({ actor }: { actor: Actor }) {
         <PageHeader
           title="Short links"
           actions={
-            can.createLink(actor) ? (
+            PermissionUtil.can.createLink(actor) ? (
               <Button type="button" onClick={() => setDialog({ mode: "create" })}>
                 <Plus className="size-3.5" />
                 Create link
@@ -257,9 +257,9 @@ function LinkRow({
   const { run } = useRun()
   const [confirmArchive, setConfirmArchive] = useState(false)
 
-  const editable = can.editLink(actor)
-  const duplicatable = can.createLink(actor)
-  const archivable = can.archiveLink(actor)
+  const editable = PermissionUtil.can.editLink(actor)
+  const duplicatable = PermissionUtil.can.createLink(actor)
+  const archivable = PermissionUtil.can.archiveLink(actor)
   // More than one rule reads as "this link routes dynamically" — a single
   // rule is still just one alternate destination, not a decision tree.
   const routesDynamically = link.rule_count > 1
@@ -371,7 +371,9 @@ function LinkRow({
               variant="destructive"
               onClick={() => {
                 setConfirmArchive(false)
-                run(() => archiveLink(link.id).unwrap(), { fallback: "Could not archive that link." })
+                run(() => archiveLink(link.id).unwrap(), {
+                  fallback: "Could not archive that link.",
+                })
               }}
             >
               Archive

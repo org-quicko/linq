@@ -1,57 +1,72 @@
 import { describe, expect, test } from "bun:test"
-import { mergeQuery, queryMap } from "../src/http/redirect.ts"
-import { classifyBot, detectBot } from "../src/visits/bot.ts"
-import { detectPlatform } from "../src/visits/platform.ts"
+import { URLSearchParamsToQueryParamsConverter } from "../src/converters/index.ts"
+import { UrlUtil, UserAgentUtil } from "../src/utils/index.ts"
+
+const uRLSearchParamsToQueryParamsConverter = new URLSearchParamsToQueryParamsConverter()
 
 describe("detectPlatform", () => {
   test("maps the three families", () => {
-    expect(detectPlatform("Mozilla/5.0 (Linux; Android 14; Pixel 8)")).toBe("android")
-    expect(detectPlatform("Mozilla/5.0 (iPhone; CPU iPhone OS 17_0)")).toBe("ios")
-    expect(detectPlatform("Mozilla/5.0 (iPad; CPU OS 17_0)")).toBe("ios")
-    expect(detectPlatform("Mozilla/5.0 (iPod touch; CPU iPhone OS 17_0)")).toBe("ios")
-    expect(detectPlatform("Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7)")).toBe("desktop")
-  })
-
-  test("an unknown or absent agent is a desktop", () => {
-    expect(detectPlatform(null)).toBe("desktop")
-    expect(detectPlatform("")).toBe("desktop")
-    expect(detectPlatform("curl/8.4.0")).toBe("desktop")
-  })
-
-  test("android wins when an agent claims both", () => {
-    expect(detectPlatform("Android; iPhone")).toBe("android")
-  })
-})
-
-describe("detectBot", () => {
-  test("flags crawlers", () => {
-    expect(detectBot("Mozilla/5.0 (compatible; Googlebot/2.1)")).toBe(true)
-    expect(detectBot("Twitterbot/1.0")).toBe(true)
-  })
-
-  test("leaves real browsers alone", () => {
-    expect(detectBot("Mozilla/5.0 (Macintosh) AppleWebKit/537.36 Chrome/120 Safari/537.36")).toBe(
-      false,
+    expect(UserAgentUtil.detectPlatform("Mozilla/5.0 (Linux; Android 14; Pixel 8)")).toBe("android")
+    expect(UserAgentUtil.detectPlatform("Mozilla/5.0 (iPhone; CPU iPhone OS 17_0)")).toBe("ios")
+    expect(UserAgentUtil.detectPlatform("Mozilla/5.0 (iPad; CPU OS 17_0)")).toBe("ios")
+    expect(UserAgentUtil.detectPlatform("Mozilla/5.0 (iPod touch; CPU iPhone OS 17_0)")).toBe("ios")
+    expect(UserAgentUtil.detectPlatform("Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7)")).toBe(
+      "desktop",
     )
   })
 
+  test("an unknown or absent agent is a desktop", () => {
+    expect(UserAgentUtil.detectPlatform(null)).toBe("desktop")
+    expect(UserAgentUtil.detectPlatform("")).toBe("desktop")
+    expect(UserAgentUtil.detectPlatform("curl/8.4.0")).toBe("desktop")
+  })
+
+  test("android wins when an agent claims both", () => {
+    expect(UserAgentUtil.detectPlatform("Android; iPhone")).toBe("android")
+  })
+})
+
+describe("classifyBot().is_bot", () => {
+  test("flags crawlers", () => {
+    expect(UserAgentUtil.classifyBot("Mozilla/5.0 (compatible; Googlebot/2.1)").is_bot).toBe(true)
+    expect(UserAgentUtil.classifyBot("Twitterbot/1.0").is_bot).toBe(true)
+  })
+
+  test("leaves real browsers alone", () => {
+    expect(
+      UserAgentUtil.classifyBot(
+        "Mozilla/5.0 (Macintosh) AppleWebKit/537.36 Chrome/120 Safari/537.36",
+      ).is_bot,
+    ).toBe(false)
+  })
+
   test("a request with no user agent counts as a bot", () => {
-    expect(detectBot(null)).toBe(true)
-    expect(detectBot("")).toBe(true)
+    expect(UserAgentUtil.classifyBot(null).is_bot).toBe(true)
+    expect(UserAgentUtil.classifyBot("").is_bot).toBe(true)
   })
 })
 
 describe("classifyBot", () => {
   test("records why each user agent was classified", () => {
-    expect(classifyBot("Mozilla/5.0 (compatible; Googlebot/2.1)")).toEqual({
+    expect(UserAgentUtil.classifyBot("Mozilla/5.0 (compatible; Googlebot/2.1)")).toEqual({
       is_bot: true,
-      bot_classification: "isbot_match",
+      bot_classification_reason: "isbot_match",
     })
-    expect(classifyBot(null)).toEqual({ is_bot: true, bot_classification: "missing_user_agent" })
-    expect(classifyBot("")).toEqual({ is_bot: true, bot_classification: "missing_user_agent" })
-    expect(classifyBot("Mozilla/5.0 (Macintosh) AppleWebKit/537.36 Chrome/120 Safari/537.36")).toEqual({
+    expect(UserAgentUtil.classifyBot(null)).toEqual({
+      is_bot: true,
+      bot_classification_reason: "missing_user_agent",
+    })
+    expect(UserAgentUtil.classifyBot("")).toEqual({
+      is_bot: true,
+      bot_classification_reason: "missing_user_agent",
+    })
+    expect(
+      UserAgentUtil.classifyBot(
+        "Mozilla/5.0 (Macintosh) AppleWebKit/537.36 Chrome/120 Safari/537.36",
+      ),
+    ).toEqual({
       is_bot: false,
-      bot_classification: "unknown",
+      bot_classification_reason: "unknown",
     })
   })
 
@@ -63,13 +78,16 @@ describe("classifyBot", () => {
       "Mozilla/5.0 (Linux; Android 15; Pixel 9) AppleWebKit/537.36 Chrome/131.0.0.0 Mobile Safari/537.36",
     ]
     for (const user_agent of browsers)
-      expect(classifyBot(user_agent)).toEqual({ is_bot: false, bot_classification: "unknown" })
+      expect(UserAgentUtil.classifyBot(user_agent)).toEqual({
+        is_bot: false,
+        bot_classification_reason: "unknown",
+      })
   })
 })
 
-describe("mergeQuery", () => {
+describe("mergeQueryParams", () => {
   const merge = (destination: string, query: string) =>
-    mergeQuery(destination, new URLSearchParams(query))
+    UrlUtil.mergeQueryParams(destination, new URLSearchParams(query))
 
   test("keeps destination parameters the caller did not send", () => {
     expect(merge("https://e.test/?a=1&b=2", "c=3")).toBe("https://e.test/?a=1&b=2&c=3")
@@ -94,16 +112,23 @@ describe("mergeQuery", () => {
   })
 })
 
-describe("queryMap", () => {
+describe("convertURLSearchParamsToQueryParams", () => {
   test("groups repeats under one key", () => {
-    expect(queryMap(new URLSearchParams("a=1&a=2&b=3"))).toEqual({ a: ["1", "2"], b: ["3"] })
+    expect(
+      uRLSearchParamsToQueryParamsConverter.convertFrom(new URLSearchParams("a=1&a=2&b=3")),
+    ).toEqual({
+      a: ["1", "2"],
+      b: ["3"],
+    })
   })
 
   test("an empty query is stored as null, not an empty object", () => {
-    expect(queryMap(new URLSearchParams(""))).toBeNull()
+    expect(uRLSearchParamsToQueryParamsConverter.convertFrom(new URLSearchParams(""))).toBeNull()
   })
 
   test("a valueless parameter is kept as an empty string", () => {
-    expect(queryMap(new URLSearchParams("flag"))).toEqual({ flag: [""] })
+    expect(uRLSearchParamsToQueryParamsConverter.convertFrom(new URLSearchParams("flag"))).toEqual({
+      flag: [""],
+    })
   })
 })

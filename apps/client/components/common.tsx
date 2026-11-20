@@ -10,7 +10,7 @@ import {
   CopyIcon,
   type LucideIcon,
 } from "lucide-react"
-import { type ComponentProps, type ReactNode, useState } from "react"
+import { type ComponentProps, Fragment, type ReactNode, useState } from "react"
 import { EmptyState } from "@/components/patterns/empty-state"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent } from "@/components/ui/card"
@@ -43,7 +43,7 @@ import {
   TableRow,
 } from "@/components/ui/table"
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip"
-import { RANGES, type Range, rangeValidation } from "@/lib/hooks"
+import { presetYear, RANGES, type Range, rangeValidation } from "@/lib/hooks"
 
 /**
  * The pieces every page shares that shadcn has no primitive for, plus two thin
@@ -149,7 +149,9 @@ export function QueryState({
           {error.message ?? "Something went wrong."}
         </p>
       ) : null}
-      {!isLoading && !error && empty ? <EmptyState message={emptyMessage} icon={emptyIcon} /> : null}
+      {!isLoading && !error && empty ? (
+        <EmptyState message={emptyMessage} icon={emptyIcon} />
+      ) : null}
     </>
   )
 }
@@ -493,19 +495,29 @@ export function RangePicker({
       </PopoverTrigger>
       <PopoverContent align="end" className="w-72 gap-0 p-2">
         <div className="space-y-1">
-          {RANGES.map((range) => (
-            <button
-              key={range.value}
-              type="button"
-              className="flex w-full cursor-pointer items-center rounded-md px-2 py-1.5 text-left text-sm hover:bg-accent hover:text-accent-foreground"
-              onClick={() => {
-                onPreset(range.value)
-                setOpen(false)
-              }}
-            >
-              <span className="flex-1">{range.label}</span>
-              {!showCustom && preset === range.value ? <CheckIcon className="size-4" /> : null}
-            </button>
+          {RANGES.map((range, index) => (
+            <Fragment key={range.value}>
+              {/* Rolling windows, then calendar years: one rule where the kind changes. */}
+              {index > 0 && RANGES[index - 1].group !== range.group ? (
+                <hr className="mx-2 my-1 border-t" />
+              ) : null}
+              <button
+                type="button"
+                className="flex w-full cursor-pointer items-center gap-2 rounded-md px-2 py-1.5 text-left text-sm hover:bg-accent hover:text-accent-foreground"
+                onClick={() => {
+                  onPreset(range.value)
+                  setOpen(false)
+                }}
+              >
+                <span className="flex-1">{range.label}</span>
+                {presetYear(range.value) !== null ? (
+                  <span className="text-xs tabular-nums text-muted-foreground">
+                    {presetYear(range.value)}
+                  </span>
+                ) : null}
+                {!showCustom && preset === range.value ? <CheckIcon className="size-4" /> : null}
+              </button>
+            </Fragment>
           ))}
           <button
             type="button"
@@ -518,48 +530,48 @@ export function RangePicker({
           </button>
         </div>
         {showCustom ? (
-        <div className="mt-2 space-y-3 border-t px-2 pt-3 pb-1">
-          <p className="text-xs text-muted-foreground">Choose up to one year of daily data.</p>
-          <div className="flex items-center gap-2 text-xs text-muted-foreground">
-            <span>From</span>
-            <DateField
-              value={from}
-              min={earliest}
-              max={to || today}
-              onChange={(value) => {
-                setFrom(value)
-                setTouched((t) => ({ ...t, from: true }))
+          <div className="mt-2 space-y-3 border-t px-2 pt-3 pb-1">
+            <p className="text-xs text-muted-foreground">Choose up to one year of daily data.</p>
+            <div className="flex items-center gap-2 text-xs text-muted-foreground">
+              <span>From</span>
+              <DateField
+                value={from}
+                min={earliest}
+                max={to || today}
+                onChange={(value) => {
+                  setFrom(value)
+                  setTouched((t) => ({ ...t, from: true }))
+                }}
+              />
+              <span>To</span>
+              <DateField
+                value={to}
+                min={from || earliest}
+                max={today}
+                onChange={(value) => {
+                  setTo(value)
+                  setTouched((t) => ({ ...t, to: true }))
+                }}
+              />
+            </div>
+            {validation ? (
+              <p className="text-xs text-destructive" role="alert">
+                {validation}
+              </p>
+            ) : null}
+            <Button
+              type="button"
+              size="sm"
+              className="w-full"
+              disabled={validation !== null || !from || !to}
+              onClick={() => {
+                onCustom({ from, to })
+                setOpen(false)
               }}
-            />
-            <span>To</span>
-            <DateField
-              value={to}
-              min={from || earliest}
-              max={today}
-              onChange={(value) => {
-                setTo(value)
-                setTouched((t) => ({ ...t, to: true }))
-              }}
-            />
+            >
+              Apply
+            </Button>
           </div>
-          {validation ? (
-            <p className="text-xs text-destructive" role="alert">
-              {validation}
-            </p>
-          ) : null}
-          <Button
-            type="button"
-            size="sm"
-            className="w-full"
-            disabled={validation !== null || !from || !to}
-            onClick={() => {
-              onCustom({ from, to })
-              setOpen(false)
-            }}
-          >
-            Apply
-          </Button>
-        </div>
         ) : null}
       </PopoverContent>
     </Popover>

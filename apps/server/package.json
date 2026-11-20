@@ -1,6 +1,6 @@
 {
   "name": "@linq/server",
-  "version": "1.2.1",
+  "version": "1.3.0",
   "private": true,
   "type": "module",
   "scripts": {
@@ -8,11 +8,13 @@
     "start": "bun src/main.ts",
     "db:codegen": "bun src/cli/codegen.ts",
     "db:migrate": "bun src/cli/migrate.ts",
-    "key:create": "bun src/cli/create-key.ts"
+    "key:create": "bun src/cli/createKey.ts"
   },
   "dependencies": {
-    "@hono/zod-validator": "^0.7.4",
     "@linq/shared": "workspace:*",
+    "@opentelemetry/api": "^1.10.0",
+    "@opentelemetry/core": "^3.1.1",
+    "@opentelemetry/sdk-logs": "^3.1.1",
     "hono": "^4.10.6",
     "isbot": "^5.1.32",
     "kysely": "^0.29.6",

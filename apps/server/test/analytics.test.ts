@@ -1,5 +1,6 @@
 import { beforeAll, describe, expect, test } from "bun:test"
 import { ANALYTICS_FILTERS, type StatsBucket } from "@linq/shared"
+import { sql } from "kysely"
 import { createHarness, type Harness } from "./helpers/app.ts"
 
 let h: Harness
@@ -26,14 +27,14 @@ beforeAll(async () => {
     domain,
     { human: 2 },
     {
-      occurred_at: at("2026-03-01T10:00:00Z"),
+      visited_at: at("2026-03-01T10:00:00Z"),
       platform: "android",
       os: "android",
       browser: "chrome",
       user_agent: "Mozilla/5.0 (Linux; Android 14; Pixel 8) Chrome/120 Mobile Safari/537.36",
       referer: "https://news.test/path?q=1",
       destination: "https://example.com/a",
-      query: {
+      query_params: {
         utm_source: ["newsletter"],
         utm_campaign: ["launch"],
         utm_content: ["hero"],
@@ -46,7 +47,7 @@ beforeAll(async () => {
     domain,
     { bot: 1 },
     {
-      occurred_at: at("2026-03-01T11:00:00Z"),
+      visited_at: at("2026-03-01T11:00:00Z"),
       platform: "android",
       os: "android",
       browser: "chrome",
@@ -59,14 +60,15 @@ beforeAll(async () => {
     domain,
     { human: 1 },
     {
-      occurred_at: at("2026-03-02T23:30:00Z"),
+      visited_at: at("2026-03-02T23:30:00Z"),
       platform: "ios",
       os: "ios",
       browser: "safari",
-      user_agent: "Mozilla/5.0 (iPad; CPU OS 17_0 like Mac OS X) Version/17.0 Mobile/15E148 Safari/604.1",
+      user_agent:
+        "Mozilla/5.0 (iPad; CPU OS 17_0 like Mac OS X) Version/17.0 Mobile/15E148 Safari/604.1",
       referer: "https://shop.test/",
       destination: "https://example.com/b",
-      query: { utm_source: ["twitter"], utm_medium: ["social"], utm_content: ["Hero"] },
+      query_params: { utm_source: ["twitter"], utm_medium: ["social"], utm_content: ["Hero"] },
     },
   )
   // Day 2: one human on `two`, windows/edge, no referer.
@@ -75,7 +77,7 @@ beforeAll(async () => {
     domain,
     { human: 1 },
     {
-      occurred_at: at("2026-03-02T09:00:00Z"),
+      visited_at: at("2026-03-02T09:00:00Z"),
       platform: "desktop",
       os: "windows",
       browser: "edge",
@@ -88,7 +90,7 @@ beforeAll(async () => {
     null,
     domain,
     { human: 1 },
-    { occurred_at: at("2026-03-02T12:00:00Z"), slug_requested: "missing", platform: "desktop" },
+    { visited_at: at("2026-03-02T12:00:00Z"), slug_requested: "missing", platform: "desktop" },
   )
 })
 
@@ -136,10 +138,50 @@ describe("GET /api/v1/analytics/timeseries", () => {
   })
 
   test("the detail path includes the same last day, even late in it", async () => {
-    // Forces the detail path; occurred_at up to 23:30 on the 2nd must still
+    // Forces the detail path; visited_at up to 23:30 on the 2nd must still
     // land in the window, not be cut at midnight.
     const buckets: StatsBucket[] = await json("/timeseries?from=2026-02-01&to=2026-03-02&os=ios")
     expect(buckets).toEqual([{ key: "2026-03-02", human: 1, bot: 0 }])
+  })
+
+  test("granularity defaults to day", async () => {
+    expect(await json(`/timeseries?${WINDOW}&granularity=day`)).toEqual(
+      await json(`/timeseries?${WINDOW}`),
+    )
+  })
+
+  // 2026-03-01 is a Sunday and 2026-03-02 a Monday, so the fixture straddles a week boundary.
+  test("weekly buckets are ISO weeks keyed by their Monday", async () => {
+    const buckets: StatsBucket[] = await json(`/timeseries?${WINDOW}&granularity=week`)
+    expect(buckets).toEqual([
+      { key: "2026-02-23", human: 2, bot: 1 },
+      { key: "2026-03-02", human: 3, bot: 0 },
+    ])
+  })
+
+  test("monthly buckets are keyed by the first of the month", async () => {
+    const buckets: StatsBucket[] = await json(`/timeseries?${WINDOW}&granularity=month`)
+    expect(buckets).toEqual([{ key: "2026-03-01", human: 5, bot: 1 }])
+  })
+
+  test("a bucket that starts before `from` still counts only the window", async () => {
+    const buckets: StatsBucket[] = await json(
+      "/timeseries?from=2026-03-02&to=2026-03-31&granularity=month",
+    )
+    expect(buckets).toEqual([{ key: "2026-03-01", human: 3, bot: 0 }])
+  })
+
+  test("path equivalence: every granularity agrees across rollup and detail", async () => {
+    const everything = "os=android,ios,windows,(none)"
+    for (const granularity of ["day", "week", "month"]) {
+      const rollup = await json(`/timeseries?${WINDOW}&granularity=${granularity}`)
+      const detail = await json(`/timeseries?${WINDOW}&granularity=${granularity}&${everything}`)
+      expect(detail).toEqual(rollup)
+    }
+  })
+
+  test("rejects an unknown granularity", async () => {
+    expect((await analytics("/timeseries?granularity=hour")).status).toBe(400)
   })
 })
 
@@ -215,7 +257,10 @@ describe("GET /api/v1/analytics/breakdown", () => {
       "": { human: 3, bot: 1 },
     })
     const bySource = await json(`/breakdown?dimension=utm_source&${WINDOW}&utm_content=HERO`)
-    expect(byKey(bySource)).toEqual({ newsletter: { human: 2, bot: 0 }, twitter: { human: 1, bot: 0 } })
+    expect(byKey(bySource)).toEqual({
+      newsletter: { human: 2, bot: 0 },
+      twitter: { human: 1, bot: 0 },
+    })
     const both = await json(`/summary?${WINDOW}&utm_content=hero&utm_term=shortener`)
     expect(both).toMatchObject({ visits: 2, human: 2 })
   })
@@ -256,5 +301,32 @@ describe("validation", () => {
     expect((await analytics("/summary", viewer.key)).status).toBe(200)
     expect((await analytics("/timeseries", viewer.key)).status).toBe(200)
     expect((await analytics("/breakdown?dimension=os", viewer.key)).status).toBe(200)
+  })
+})
+
+describe("days are UTC days whatever the session time zone", () => {
+  test("a non-UTC session neither cuts nor stretches the window", async () => {
+    const local = await createHarness()
+    // +05:30: UTC midnight is 05:30 local, so any implicit date→timestamptz
+    // conversion would move the window's edges by five and a half hours.
+    await sql`set time zone 'Asia/Kolkata'`.execute(local.db)
+    const { key } = await local.actor("editor")
+    const domainId = await local.createDomain("tz.test")
+    const link = await local.createLink(key, domainId, { slug: "tz" })
+    const visit = (iso: string) =>
+      local.recordVisits(link.id, domainId, { human: 1 }, { visited_at: at(iso), os: "ios" })
+    await visit("2026-03-01T22:00:00Z") // late on Mar 1 UTC, already Mar 2 in Kolkata
+    await visit("2026-03-02T00:30:00Z") // just after UTC midnight: outside a Mar 1 window
+    const get = async (path: string) =>
+      (await local.request(`/api/v1/analytics${path}`, { key })).json()
+
+    const window = "from=2026-03-01&to=2026-03-01"
+    const rollup = await get(`/summary?${window}`)
+    const detail = await get(`/summary?${window}&os=ios`)
+    expect(rollup.visits).toBe(1)
+    expect(detail).toEqual(rollup)
+    expect(await get(`/timeseries?${window}&os=ios`)).toEqual([
+      { key: "2026-03-01", human: 1, bot: 0 },
+    ])
   })
 })

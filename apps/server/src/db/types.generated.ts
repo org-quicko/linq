@@ -87,9 +87,9 @@ export interface DB {
     link_id: string | null
     domain_id: string
     slug_requested: string
-    occurred_at: Generated<Date>
+    visited_at: Generated<Date>
     is_bot: boolean
-    bot_classification: "missing_user_agent" | "isbot_match" | "pattern_match" | "unknown" | null
+    bot_classification_reason: "missing_user_agent" | "isbot_match" | "pattern_match" | "unknown" | null
     platform: "android" | "ios" | "desktop"
     os: string | null
     browser: string | null
@@ -97,7 +97,7 @@ export interface DB {
     referer: string | null
     referer_host: ColumnType<string | null, never, never>
     destination: string | null
-    query: ColumnType<
+    query_params: ColumnType<
       Record<string, string[]> | null,
       Record<string, string[]> | null | undefined,
       Record<string, string[]> | null

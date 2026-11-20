@@ -1,6 +1,6 @@
 "use client"
 
-import { type Actor, can, type Domain } from "@linq/shared"
+import { type Actor, type Domain, PermissionUtil } from "@linq/shared"
 import { CornerDownRight, Globe, Plus, RotateCcw, Trash2 } from "lucide-react"
 import { useState } from "react"
 import { AppShell } from "@/components/app-shell"
@@ -62,7 +62,7 @@ export default function SettingsDomainsPage() {
 function Domains({ actor }: { actor: Actor }) {
   const domains = useListDomainsQuery({ limit: 200 })
   const rows = domains.data?.data ?? []
-  const isAdmin = can.manageDomains(actor)
+  const isAdmin = PermissionUtil.can.manageDomains(actor)
 
   return (
     <div className="flex flex-1 flex-col gap-4">
@@ -72,7 +72,11 @@ function Domains({ actor }: { actor: Actor }) {
         actions={isAdmin ? <AddDomainDialog /> : null}
       />
 
-      <Collection query={domains} rows={rows} variant="list" emptyMessage="No domains yet."
+      <Collection
+        query={domains}
+        rows={rows}
+        variant="list"
+        emptyMessage="No domains yet."
         emptyIcon={Globe}
       >
         {(domain) => <DomainRow key={domain.id} domain={domain} isAdmin={isAdmin} />}
@@ -87,7 +91,8 @@ function DomainRow({ domain, isAdmin }: { domain: Domain; isAdmin: boolean }) {
   const [purgeDomain] = usePurgeDomainMutation()
   const { run } = useRun()
 
-  const restore = () => run(() => updateDomain({ id: domain.id, body: { status: "active" } }).unwrap())
+  const restore = () =>
+    run(() => updateDomain({ id: domain.id, body: { status: "active" } }).unwrap())
 
   const remove = () =>
     run(

@@ -114,26 +114,32 @@ GET /api/v1/analytics/summary
 
 ## GET /api/v1/analytics/timeseries
 
-Returns a list of per-day visit counts over the requested time range. Useful for charting trends over time. Results are ordered chronologically (oldest first).
+Returns visit counts over the requested time range, bucketed by day, week, or month. Useful for charting trends over time. Results are ordered chronologically (oldest first).
 
 ```http
 GET /api/v1/analytics/timeseries
 ```
 
+In addition to the shared filter parameters:
+
+<ParamField query="granularity" type="string" default="day">
+  Bucket width: `day`, `week`, or `month`. Weeks are ISO weeks (Monday to Sunday). All buckets are UTC calendar periods. A week or month that starts before `from` is still keyed by its own start date, but only counts visits inside the window.
+</ParamField>
+
 ### Response
 
-Returns an array of `StatsBucket` objects, one per day that had at least one qualifying visit.
+Returns an array of `StatsBucket` objects, one per period that had at least one qualifying visit.
 
 <ResponseField name="key" type="string">
-  The date for this bucket in `YYYY-MM-DD` format.
+  The UTC date the bucket's period starts on, in `YYYY-MM-DD` format: the day itself, the Monday of its week, or the first of its month.
 </ResponseField>
 
 <ResponseField name="human" type="number">
-  Human visits on this day.
+  Human visits in this period.
 </ResponseField>
 
 <ResponseField name="bot" type="number">
-  Bot visits on this day.
+  Bot visits in this period.
 </ResponseField>
 
 <Tabs>

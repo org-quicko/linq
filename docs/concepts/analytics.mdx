@@ -176,7 +176,7 @@ GET /api/v1/analytics/summary?domain_id=018f...&from=2024-01-01&to=2024-01-31
 
 ### `GET /api/v1/analytics/timeseries`
 
-Returns daily visit counts over time, in ascending chronological order. The only analytics endpoint that returns data as a time-ordered series suitable for charting.
+Returns visit counts over time, in ascending chronological order. The only analytics endpoint that returns data as a time-ordered series suitable for charting. Pass `granularity=day` (the default), `week` (ISO weeks, starting Monday), or `month`. Each bucket's `key` is the UTC date its period starts on.
 
 ```http
 GET /api/v1/analytics/timeseries?link_id=018f...&from=2024-01-01&to=2024-01-31

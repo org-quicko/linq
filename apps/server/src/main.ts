@@ -1,50 +1,49 @@
 import pkg from "../package.json" with { type: "json" }
+import { CacheAdapter, CaddyAdapter, LinkMetadataAdapter } from "./adapters/index.ts"
+import { createApp } from "./app.ts"
 import { bootstrap } from "./bootstrap.ts"
-import { startCache } from "./cache.ts"
-import { guarded as guardedCaddy, reconcileCaddy, startCaddy } from "./caddy.ts"
 import { loadConfig } from "./config.ts"
-import { createDb, destroyDb } from "./db/client.ts"
+import { db } from "./db/index.ts"
 import { runMigrations } from "./db/migrate.ts"
-import { createApp } from "./http/app.ts"
-import { guarded as guardedMetadata, startMetadata } from "./link-metadata.ts"
-import { flushLogs, initLogger, log } from "./log.ts"
-import { flushVisits } from "./visits/record.ts"
+import { Logger } from "./libs/index.ts"
+import { VisitPipeline } from "./telemetry/index.ts"
 
 const config = loadConfig()
 // Before anything else logs: the logger is silent until this runs.
-await initLogger(config)
-
-const db = createDb(config.DATABASE_URL, config.LINQ_DB_SCHEMA)
+await Logger.init(config)
 
 await runMigrations(db, { advisoryLock: true, schema: config.LINQ_DB_SCHEMA })
-await bootstrap(db, config)
+const caddy = CaddyAdapter.start(config)
+await bootstrap(db, config, caddy)
 
-const cache = await startCache(config)
-const caddy = guardedCaddy(startCaddy(config))
-const metadata = guardedMetadata(startMetadata(config))
-const app = createApp({ db, config, cache, caddy, metadata })
-
-// Repairs Caddy's routes after its own restart, or a first boot alongside a
-// fresh Caddy container whose skeleton config has no routes yet.
-await reconcileCaddy(db, caddy, config.LINQ_APP_HOST)
+const cache = await CacheAdapter.start(config)
+const visitPipeline = new VisitPipeline(db, config)
+const app = createApp({
+  db,
+  config,
+  visitPipeline,
+  cache,
+  caddy,
+  metadata: LinkMetadataAdapter.start(config),
+})
 
 const server = Bun.serve({
   port: config.LINQ_PORT,
   fetch: app.fetch,
 })
-log.info({ port: config.LINQ_PORT, version: pkg.version }, "linq listening")
+Logger.info({ port: config.LINQ_PORT, version: pkg.version }, "linq listening")
 
 /**
  * Visits are inserted fire-and-forget and log writes are buffered, so both are
  * drained before exit or `docker stop` silently loses the last of each.
  */
 async function shutdown(signal: string): Promise<void> {
-  log.info({ signal }, "shutting down")
+  Logger.info({ signal }, "shutting down")
   await server.stop()
-  await flushVisits()
+  await visitPipeline.flush()
   cache.stop()
-  await flushLogs()
-  await destroyDb(db)
+  await Logger.flush()
+  await db.destroy()
   process.exit(0)
 }
 

@@ -27,7 +27,7 @@ description: Add or change a UI feature in apps/client (the Next.js Client UI). 
    RTK Query's base query already calls through it; never call `fetch`
    directly from a component or a new store file.
 5. **Gate UI with `can` from `@linq/shared`** (`can.editLink(actor)`, etc. —
-   see `app/links/page.tsx`), the same rules `auth/permissions.ts` enforces
+   see `app/links/page.tsx`), the same rules `middleware/authorize.ts` enforces
    on the server. This is cosmetic, not the real boundary: the server still
    403s if a request bypasses it, so don't skip the server-side check
    because the button is already hidden (see `linq-backend`).

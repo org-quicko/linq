@@ -1,5 +1,4 @@
 import { beforeAll, describe, expect, test } from "bun:test"
-import { flushVisits } from "../src/visits/record.ts"
 import { createHarness, type Harness } from "./helpers/app.ts"
 
 const HOST = "links.test"
@@ -15,13 +14,13 @@ let domain: string
 
 /** The redirect never awaits its insert, so tests drain it before asserting. */
 async function lastVisit() {
-  await flushVisits()
+  await h.flushVisits()
   return await h.db.selectFrom("visits").selectAll().orderBy("id", "desc").executeTakeFirstOrThrow()
 }
 
 /** Total rows in `visits`, drained first so nothing is still in flight. */
 async function visitCount() {
-  await flushVisits()
+  await h.flushVisits()
   return (await h.db.selectFrom("visits").selectAll().execute()).length
 }
 
@@ -172,7 +171,7 @@ describe("redirecting an active link", () => {
       slug_requested: "hello",
       destination: "https://example.com/landing",
       is_bot: false,
-      bot_classification: "unknown",
+      bot_classification_reason: "unknown",
       platform: "desktop",
       referer: "https://news.test/post",
     })
@@ -259,7 +258,7 @@ describe("orphan visits", () => {
     const res = await get("/missing", { host: "bare.test" })
     expect(res.status).toBe(404)
 
-    await flushVisits()
+    await h.flushVisits()
     const row = await h.db
       .selectFrom("visits")
       .selectAll()
@@ -270,7 +269,7 @@ describe("orphan visits", () => {
   })
 
   test("orphan visits are the rows with a null link", async () => {
-    await flushVisits()
+    await h.flushVisits()
     const orphans = await h.db
       .selectFrom("visits")
       .selectAll()
@@ -403,7 +402,7 @@ describe("query forwarding", () => {
 
     const res = await get("/sealed?b=2")
     expect(res.headers.get("location")).toBe("https://example.com/?a=1")
-    expect((await lastVisit()).query).toEqual({ b: ["2"] })
+    expect((await lastVisit()).query_params).toEqual({ b: ["2"] })
   })
 
   test("a link with no incoming query keeps its destination byte for byte", async () => {
@@ -413,7 +412,7 @@ describe("query forwarding", () => {
     })
     const res = await get("/plain")
     expect(res.headers.get("location")).toBe("https://example.com/path?x=1#frag")
-    expect((await lastVisit()).query).toBeNull()
+    expect((await lastVisit()).query_params).toBeNull()
   })
 })
 
@@ -506,12 +505,15 @@ describe("visitor detection", () => {
     await h.createLink(editor.key, domain, { slug: "crawled" })
 
     await get("/crawled", { headers: { "user-agent": BOT } })
-    expect(await lastVisit()).toMatchObject({ is_bot: true, bot_classification: "isbot_match" })
+    expect(await lastVisit()).toMatchObject({
+      is_bot: true,
+      bot_classification_reason: "isbot_match",
+    })
 
     await h.request("/crawled", { host: HOST })
     expect(await lastVisit()).toMatchObject({
       is_bot: true,
-      bot_classification: "missing_user_agent",
+      bot_classification_reason: "missing_user_agent",
       user_agent: null,
     })
   })
@@ -554,7 +556,7 @@ describe("link expiry", () => {
 
     const res = await get("/lapsed", { host: "expiry-bare.test" })
     expect(res.status).toBe(404)
-    await flushVisits()
+    await h.flushVisits()
     const row = await h.db
       .selectFrom("visits")
       .selectAll()

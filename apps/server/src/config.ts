@@ -20,40 +20,6 @@ const postgresSchemaSchema = z
   .string()
   .regex(/^[a-z_][a-z0-9_]{0,62}$/, "must be a lowercase PostgreSQL identifier")
 
-/** The top-level slug claimed by the configured Client UI mount. */
-export function clientBaseSegment(basePath: string): string {
-  return basePath.slice(1).split("/")[0] ?? ""
-}
-
-/**
- * A path under the Client UI mount. A root mount has no prefix, so `/` + `/x`
- * must not become the protocol-relative `//x`.
- */
-export function clientPath(basePath: string, path: string): string {
-  return basePath === "/" ? path : `${basePath}${path}`
-}
-
-/**
- * Static server paths plus the deployment-specific Client UI mount. A root
- * mount claims no slug: it only ever answers on LINQ_APP_HOST, never on a
- * shortening domain.
- */
-export function isReservedSlug(slug: string, clientBasePath: string): boolean {
-  const normalised = slug.toLowerCase()
-  const segment = clientBaseSegment(clientBasePath)
-  return RESERVED_SLUGS.has(normalised) || (segment !== "" && normalised === segment)
-}
-
-/**
- * Whether a request's Host header names LINQ_APP_HOST, tried as sent and then
- * with its port stripped, the same way a domain row is matched.
- */
-export function isAppHost(config: Pick<Config, "LINQ_APP_HOST">, hostHeader: string): boolean {
-  if (!config.LINQ_APP_HOST) return false
-  const host = hostHeader.trim().toLowerCase()
-  return host === config.LINQ_APP_HOST || host.replace(/:\d+$/, "") === config.LINQ_APP_HOST
-}
-
 const schema = z
   .object({
     DATABASE_URL: z.string().min(1, "DATABASE_URL is required"),
@@ -98,7 +64,7 @@ const schema = z
     LINQ_APP_HOST: hostSchema.optional(),
     // Same hostSchema an API-created domain goes through: a scheme snuck in
     // here (e.g. LINQ_DEFAULT_DOMAIN=https://example.com) would otherwise be
-    // stored verbatim and doubled up by shortUrl()'s own "https://".
+    // stored verbatim and doubled up by UrlUtil.shortUrl()'s own "https://".
     LINQ_DEFAULT_DOMAIN: hostSchema.optional(),
     LINQ_DATA_DIR: z.string().default("./data"),
     LINQ_SLUG_LENGTH: z.coerce.number().int().min(4).max(32).default(6),

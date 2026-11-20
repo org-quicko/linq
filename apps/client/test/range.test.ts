@@ -1,18 +1,24 @@
 import { describe, expect, test } from "bun:test"
 import {
   analyticsEmptyMessage,
+  bucketLabel,
   chartPoints,
-  foldWeeks,
+  fillBuckets,
+  periodStart,
   smoothPath,
 } from "../components/analytics-overview"
-import { isWindowWithinYear, presetWindow, rangeLabel, rangeValidation } from "../lib/hooks"
+import {
+  isWindowWithinYear,
+  presetWindow,
+  presetYear,
+  rangeLabel,
+  rangeValidation,
+} from "../lib/hooks"
 
 describe("analytics ranges", () => {
   test("describes filtered empty analytics without implying there are no visits at all", () => {
-    expect(analyticsEmptyMessage(true, "No visits recorded yet.")).toBe(
-      "No visits match the applied filters.",
-    )
-    expect(analyticsEmptyMessage(false, "No visits recorded yet.")).toBe("No visits recorded yet.")
+    expect(analyticsEmptyMessage(true, "No visits.")).toBe("No visits match the applied filters.")
+    expect(analyticsEmptyMessage(false, "No visits.")).toBe("No visits.")
   })
 
   test("preset windows include today", () => {
@@ -20,6 +26,33 @@ describe("analytics ranges", () => {
       from: "2026-09-16",
       to: "2026-09-22",
     })
+  })
+
+  test("this year runs from Jan 1 (UTC) through today", () => {
+    expect(presetWindow("this_year", new Date("2026-11-15T12:00:00Z"))).toEqual({
+      from: "2026-01-01",
+      to: "2026-11-15",
+    })
+  })
+
+  test("last year is the whole previous UTC calendar year", () => {
+    expect(presetWindow("last_year", new Date("2026-11-15T12:00:00Z"))).toEqual({
+      from: "2025-01-01",
+      to: "2025-12-31",
+    })
+  })
+
+  test("calendar years follow UTC, not the local clock", () => {
+    // 23:30 UTC on Dec 31 is already Jan 1 in Asia/Kolkata; linq's year has not turned.
+    expect(presetWindow("this_year", new Date("2026-12-31T23:30:00Z")).from).toBe("2026-01-01")
+    expect(presetYear("last_year", new Date("2027-01-01T00:00:00Z"))).toBe(2026)
+    expect(presetYear("30")).toBeNull()
+  })
+
+  test("a leap year still fits the API's one-year cap", () => {
+    const leap = presetWindow("last_year", new Date("2025-03-01T00:00:00Z"))
+    expect(leap).toEqual({ from: "2024-01-01", to: "2024-12-31" })
+    expect(isWindowWithinYear(leap.from, leap.to)).toBe(true)
   })
 
   test("labels custom windows", () => {
@@ -40,15 +73,55 @@ describe("analytics ranges", () => {
     expect(rangeValidation("2026-09-01", "2026-09-18")).toBeNull()
   })
 
-  test("folds dense days into Monday weeks", () => {
-    const days = Array.from({ length: 121 }, (_, i) => ({
-      key: new Date(Date.UTC(2026, 0, i + 1)).toISOString().slice(0, 10),
+  test("period starts match the server's keys: Monday weeks, first-of-month", () => {
+    expect(periodStart("2026-03-01", "day")).toBe("2026-03-01")
+    expect(periodStart("2026-03-01", "week")).toBe("2026-02-23") // a Sunday
+    expect(periodStart("2026-03-02", "week")).toBe("2026-03-02") // a Monday
+    expect(periodStart("2026-03-31", "month")).toBe("2026-03-01")
+  })
+
+  test("zero-fills every period through `to`", () => {
+    const filled = fillBuckets(
+      [{ key: "2026-03-02", human: 2, bot: 0 }],
+      "2026-03-01",
+      "2026-03-04",
+      "day",
+    )
+    expect(filled.map((b) => b.key)).toEqual([
+      "2026-03-01",
+      "2026-03-02",
+      "2026-03-03",
+      "2026-03-04",
+    ])
+    expect(filled[1]).toEqual({ key: "2026-03-02", human: 2, bot: 0 })
+  })
+
+  test("folds daily buckets from a server that ignored granularity", () => {
+    const days = Array.from({ length: 14 }, (_, i) => ({
+      key: new Date(Date.UTC(2026, 2, i + 1)).toISOString().slice(0, 10),
       human: 1,
       bot: 0,
     }))
-    const weeks = foldWeeks(days)
-    expect(weeks.length).toBeLessThan(days.length)
-    expect(weeks[0]).toEqual({ key: "2025-12-29", human: 4, bot: 0 })
+    const weeks = fillBuckets(days, "2026-03-01", "2026-03-14", "week")
+    expect(weeks).toEqual([
+      { key: "2026-02-23", human: 1, bot: 0 },
+      { key: "2026-03-02", human: 7, bot: 0 },
+      { key: "2026-03-09", human: 6, bot: 0 },
+    ])
+    expect(fillBuckets(days, "2026-03-01", "2026-03-14", "month")).toEqual([
+      { key: "2026-03-01", human: 14, bot: 0 },
+    ])
+  })
+
+  test("labels a bucket with the days it actually counts", () => {
+    const window = { from: "2026-03-01", to: "2026-03-10" }
+    // The week of Feb 23 overlaps the window by one day, Mar 1, and says so.
+    expect(bucketLabel("2026-02-23", "week", window)).not.toContain("Feb")
+    expect(bucketLabel("2026-02-23", "week", window)).not.toContain("–")
+    expect(bucketLabel("2026-03-09", "week", window)).toContain("–")
+    expect(bucketLabel("2026-03-01", "month", { from: "2026-03-01", to: "2026-03-31" })).toContain(
+      "2026",
+    )
   })
 
   test("renders the trend as a continuous line", () => {

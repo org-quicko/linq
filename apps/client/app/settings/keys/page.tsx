@@ -5,8 +5,8 @@ import {
   type ApiKey,
   type ApiKeyCreated,
   type ApiKeySummary,
-  can,
   type KeyPreset,
+  PermissionUtil,
   PRESETS,
 } from "@linq/shared"
 import { KeyRound, Plus, Trash2 } from "lucide-react"
@@ -70,7 +70,7 @@ function Keys({ actor }: { actor: Actor }) {
       <PageHeader
         title="API keys"
         description="Review the scoped keys that can access this workspace."
-        actions={can.manageKeys(actor) ? <MintKeyDialog /> : undefined}
+        actions={PermissionUtil.can.manageKeys(actor) ? <MintKeyDialog /> : undefined}
       />
 
       <Collection
@@ -91,7 +91,7 @@ function KeyRow({ apiKey, actor }: { apiKey: ApiKey | ApiKeySummary; actor: Acto
   const { run, saving } = useRun()
 
   const isMine = apiKey.id === actor.keyId
-  const canManage = can.manageKeys(actor)
+  const canManage = PermissionUtil.can.manageKeys(actor)
   const hasDetails = (key: ApiKey | ApiKeySummary): key is ApiKey => "prefix" in key
 
   const save = (body: Record<string, unknown>) =>

@@ -4,8 +4,8 @@ import path from "node:path"
 import { fileURLToPath } from "node:url"
 import { sql } from "kysely"
 import { FileMigrationProvider, Migrator } from "kysely/migration"
-import { span } from "../log.ts"
-import type { Db } from "./client.ts"
+import { Logger } from "../libs/logger.ts"
+import type { Db } from "./index.ts"
 
 /** Absolute path to the ordered Kysely migrations, resolved relative to this file. */
 export const migrationsFolder = path.join(
@@ -25,14 +25,16 @@ export async function runMigrations(
   const schema = options.schema ?? "public"
   // One pinned connection: a session advisory lock must be released on the
   // pooled connection that took it, or it leaks and blocks the next instance.
-  await span("db.migrate", () =>
+  await Logger.operation("db.migrate", () =>
     db.connection().execute(async (conn) => {
       if (options.advisoryLock)
         await sql`select pg_advisory_lock(${migrationLockKey(schema)})`.execute(conn)
       try {
         // CREATE SCHEMA checks the database CREATE privilege before IF NOT EXISTS,
         // so skip it when the schema already exists and the role cannot create one.
-        const { rows } = await sql`select 1 from pg_namespace where nspname = ${schema}`.execute(conn)
+        const { rows } = await sql`select 1 from pg_namespace where nspname = ${schema}`.execute(
+          conn,
+        )
         if (rows.length === 0) await conn.schema.createSchema(schema).execute()
         const migrator = new Migrator({
           db: conn,

@@ -100,7 +100,7 @@ Configuration is read from the repo-root `.env` (or `.env.local`). Only
 | `LINQ_CACHE_TTL`                 | `300`                    | How many seconds a cached lookup lives.                                                             |
 | `LINQ_FETCH_LINK_METADATA`       | `false`                  | Fetches a destination's title and icon. Enable only with egress rules that block private addresses. |
 | `LINQ_API_RATE_LIMIT_PER_MINUTE` | `1000`                   | Per-key API rate limit.                                                                             |
-| `LINQ_VISIT_MAX_PENDING`         | `1000`                   | Maximum queued analytics writes.                                                                    |
+| `LINQ_VISIT_MAX_PENDING`         | `1000`                   | Visit inserts in flight before new visits are dropped.                                              |
 
 Logs are written to `./data/logs/linq.log` and rotated. In Docker this is the
 `/data` volume.
@@ -182,10 +182,14 @@ bun run db:codegen               # regenerate Kysely types
 
 Contributors and coding agents should read [`AGENTS.md`](AGENTS.md) first.
 
+For a local check with four million synthetic visits, see
+[`resources/docs/scale-verification.md`](resources/docs/scale-verification.md).
+Run fixture loading, builds, checks and browser verification sequentially.
+
 ## Documentation
 
 - [`CONTEXT.md`](CONTEXT.md): the domain vocabulary. Read it before the code.
-- [`resources/docs/architecture.md`](resources/docs/architecture.md): how the pieces fit together.
+- [`resources/docs/ARCHITECTURE.md`](resources/docs/ARCHITECTURE.md): how the pieces fit together.
 - [`resources/docs/repo-map.md`](resources/docs/repo-map.md): where everything lives.
 - [`resources/docs/adr/`](resources/docs/adr/): architecture decision records.
-- [`resources/openapi/linq.openapi.json`](resources/openapi/linq.openapi.json): the REST API spec.
+- [`resources/openapi/openapi.json`](resources/openapi/openapi.json): the REST API spec.

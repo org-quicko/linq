@@ -38,7 +38,7 @@ That yields a `linq_` prefix followed by 43 base64url characters — 48 characte
 
 ## Passing the Key in Requests
 
-linq's authentication middleware (`auth/middleware.ts`) accepts the key via two headers, checked in this order:
+linq's authentication middleware (`apps/server/src/middleware/authenticate.ts`) accepts the key via two headers, checked in this order:
 
 **Option 1 — `Authorization: Bearer` (preferred)**
 

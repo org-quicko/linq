@@ -1,5 +1,7 @@
 import { describe, expect, test } from "bun:test"
-import { type Caddy, guarded, reconcileCaddy, startCaddy } from "../src/caddy.ts"
+import type { Caddy } from "@linq/shared"
+import { CaddyAdapter, GuardedCaddy, NoopCaddyAdapter } from "../src/adapters/index.ts"
+import { bootstrap } from "../src/bootstrap.ts"
 import { createTestDb, testConfig } from "./helpers/db.ts"
 
 const CADDY_CONFIG = {
@@ -24,11 +26,12 @@ function mockFetch(handler: (url: string, init?: RequestInit) => Response) {
   }
 }
 
-describe("startCaddy", () => {
+describe("CaddyAdapter.start", () => {
   test("with no admin URL, never calls fetch", async () => {
     const mock = mockFetch(() => new Response(null, { status: 200 }))
     try {
-      const caddy = startCaddy(testConfig)
+      const caddy = CaddyAdapter.start(testConfig)
+      expect(caddy).toBeInstanceOf(NoopCaddyAdapter)
       await caddy.upsert("d1", "x.test")
       await caddy.remove("d1")
       expect(mock.calls).toHaveLength(0)
@@ -40,7 +43,7 @@ describe("startCaddy", () => {
   test("upsert deletes then posts a route tagged with the domain's id", async () => {
     const mock = mockFetch(() => new Response(null, { status: 200 }))
     try {
-      const caddy = startCaddy(CADDY_CONFIG)
+      const caddy = CaddyAdapter.start(CADDY_CONFIG)
       await caddy.upsert("d1", "example.com:8080")
 
       expect(mock.calls).toHaveLength(2)
@@ -63,7 +66,7 @@ describe("startCaddy", () => {
   test("remove treats a 404 as already-gone, not a failure", async () => {
     const mock = mockFetch(() => new Response(null, { status: 404 }))
     try {
-      const caddy = startCaddy(CADDY_CONFIG)
+      const caddy = CaddyAdapter.start(CADDY_CONFIG)
       await caddy.remove("never-was")
     } finally {
       mock.restore()
@@ -73,7 +76,7 @@ describe("startCaddy", () => {
   test("remove throws on a real failure", async () => {
     const mock = mockFetch(() => new Response("boom", { status: 500 }))
     try {
-      const caddy = startCaddy(CADDY_CONFIG)
+      const caddy = CaddyAdapter.start(CADDY_CONFIG)
       await expect(caddy.remove("d1")).rejects.toThrow()
     } finally {
       mock.restore()
@@ -81,7 +84,7 @@ describe("startCaddy", () => {
   })
 })
 
-describe("guarded", () => {
+describe("GuardedCaddy", () => {
   /** A Caddy sync is never allowed to fail its caller. */
   const broken: Caddy = {
     upsert: async () => {
@@ -93,13 +96,13 @@ describe("guarded", () => {
   }
 
   test("swallows a failing upsert and remove", async () => {
-    const safe = guarded(broken)
+    const safe = new GuardedCaddy(broken)
     await safe.upsert("d1", "x.test")
     await safe.remove("d1")
   })
 })
 
-describe("reconcileCaddy", () => {
+describe("bootstrap reconciles Caddy", () => {
   test("upserts every active domain and skips archived ones", async () => {
     const db = await createTestDb()
     const active1 = Bun.randomUUIDv7()
@@ -119,12 +122,29 @@ describe("reconcileCaddy", () => {
       upsert: async (domain_id, host) => void upserts.push([domain_id, host]),
       remove: async () => {},
     }
-    await reconcileCaddy(db, spy, "app.test")
+    await bootstrap(db, { ...testConfig, LINQ_APP_HOST: "app.test" }, spy)
 
     expect(upserts).toHaveLength(3)
     expect(upserts).toContainEqual([active1, "active-one.test"])
     expect(upserts).toContainEqual([active2, "active-two.test"])
     // LINQ_APP_HOST is no domain row but still needs a route.
     expect(upserts).toContainEqual(["app-host", "app.test"])
+  })
+
+  test("an unreachable Caddy never stops the boot", async () => {
+    const db = await createTestDb()
+    await db
+      .insertInto("domains")
+      .values({ id: Bun.randomUUIDv7(), host: "down.test", status: "active" })
+      .execute()
+    const broken: Caddy = {
+      upsert: async () => {
+        throw new Error("caddy down")
+      },
+      remove: async () => {},
+    }
+    await bootstrap(db, testConfig, broken)
+    // Boot carried on past the reconcile: the admin key was still minted.
+    expect(await db.selectFrom("api_keys").select("id").execute()).toHaveLength(1)
   })
 })

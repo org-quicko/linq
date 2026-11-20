@@ -8,6 +8,12 @@ description: Start and use linq's local dev environment (API server + Client UI)
 Full walkthrough is in `README.md`; this is the condensed procedure plus the
 gotchas that look like bugs but aren't.
 
+Run heavy operations sequentially: fixture loading, database maintenance,
+client builds, typechecking and test suites. During browser checks, let the
+app's own requests finish before starting another verification operation.
+For a four-million-visit check, use `resources/docs/scale-verification.md`:
+it names the isolated database, fixture scripts, acceptance checks and limits.
+
 ## Prerequisites
 
 - **Bun 1.4+** (`bun --version`).

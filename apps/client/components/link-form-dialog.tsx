@@ -1,6 +1,6 @@
 "use client"
 
-import { type Domain, destinationTitle, type Link } from "@linq/shared"
+import { type Domain, type Link, LinkUtil } from "@linq/shared"
 import { skipToken } from "@reduxjs/toolkit/query/react"
 import { CalendarIcon, ChevronDown, Info, RefreshCw, Route, TagIcon } from "lucide-react"
 import { type ReactNode, useEffect, useRef, useState } from "react"
@@ -464,7 +464,7 @@ function ShortLinkField({
 /** The title the server falls back to, or "" while the URL is still incomplete. */
 function defaultTitle(destination: string): string {
   try {
-    return destinationTitle(withScheme(destination))
+    return LinkUtil.destinationTitle(withScheme(destination))
   } catch {
     return ""
   }

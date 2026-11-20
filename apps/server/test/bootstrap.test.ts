@@ -1,6 +1,6 @@
 import { describe, expect, test } from "bun:test"
-import { bootstrap } from "../src/bootstrap.ts"
 import { claimsForPreset } from "@linq/shared"
+import { bootstrap } from "../src/bootstrap.ts"
 import { createTestDb, testConfig } from "./helpers/db.ts"
 
 describe("bootstrap", () => {

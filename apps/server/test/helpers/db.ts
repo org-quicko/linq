@@ -1,7 +1,7 @@
 import { PGlite } from "@electric-sql/pglite"
 import { Kysely, PGliteDialect } from "kysely"
 import type { Config } from "../../src/config.ts"
-import type { Db } from "../../src/db/client.ts"
+import type { Db } from "../../src/db/index.ts"
 import { runMigrations } from "../../src/db/migrate.ts"
 import type { DB } from "../../src/db/types.generated.ts"
 
@@ -18,7 +18,7 @@ export async function createTestDb(): Promise<Db> {
 export const testConfig: Config = {
   DATABASE_URL: "memory://pglite",
   LINQ_DB_SCHEMA: "public",
-  // Every harness runs on `noCache` unless a suite asks for a real one, and the
+  // Every harness runs on `NoopCacheAdapter` unless a suite asks for a real one, and the
   // only real one a test can open without external services is the memory store.
   LINQ_CACHE_BACKEND: "memory",
   LINQ_REDIS_URL: undefined,
@@ -33,7 +33,7 @@ export const testConfig: Config = {
   LINQ_DEFAULT_DOMAIN: undefined,
   LINQ_DATA_DIR: "./data",
   LINQ_SLUG_LENGTH: 6,
-  // Silent by default, and no file: `initLogger` is only ever called by main.ts,
+  // Silent by default, and no file: `Logger.init` is only ever called by main.ts,
   // so a suite that does not opt in writes nothing anywhere.
   LINQ_LOG_LEVEL: "silent",
   LINQ_LOG_FILE: "",

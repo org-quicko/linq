@@ -1,6 +1,7 @@
 import { afterEach, beforeEach, describe, expect, test } from "bun:test"
-import type { Cache } from "../src/cache.ts"
-import { domainKey, memoryCache, targetKey } from "../src/cache.ts"
+import type { Cache } from "@linq/shared"
+import { MemoryCacheAdapter } from "../src/adapters/index.ts"
+import { CacheKeyUtil } from "../src/utils/index.ts"
 import { createHarness, type Harness } from "./helpers/app.ts"
 import { testConfig } from "./helpers/db.ts"
 
@@ -22,7 +23,7 @@ let domain: string
  * anything other than the code that ships.
  */
 beforeEach(async () => {
-  cache = memoryCache(testConfig)
+  cache = new MemoryCacheAdapter(testConfig)
   h = await createHarness({ cache })
   editor = await h.actor("editor")
   admin = await h.actor("admin")
@@ -76,12 +77,12 @@ describe("reads", () => {
 
   test("an unknown slug is cached as a miss, not re-queried", async () => {
     expect((await get("/ghost")).headers.get("location")).toBe("https://example.com/fallback")
-    expect(await cache.get(targetKey(domain, "ghost"))).toEqual({ value: null })
+    expect(await cache.get(CacheKeyUtil.targetKey(domain, "ghost"))).toEqual({ value: null })
   })
 
   test("an unknown host is cached as a miss", async () => {
     expect((await h.request("/x", { host: "nobody.test" })).status).toBe(404)
-    expect(await cache.get(domainKey("nobody.test"))).toEqual({ value: null })
+    expect(await cache.get(CacheKeyUtil.domainKey("nobody.test"))).toEqual({ value: null })
   })
 
   test("HEAD reads through the same entry as GET", async () => {
@@ -136,7 +137,7 @@ describe("invalidation", () => {
     await get("/purged")
     await h.request(`/api/v1/links/${link.id}`, { key: admin.key, method: "DELETE" })
     await h.request(`/api/v1/links/${link.id}/purge`, { key: admin.key, method: "DELETE" })
-    expect(await cache.get(targetKey(domain, "purged"))).toBeNull()
+    expect(await cache.get(CacheKeyUtil.targetKey(domain, "purged"))).toBeNull()
   })
 
   test("changing a domain's fallback clears its entry", async () => {
@@ -174,7 +175,7 @@ describe("invalidation", () => {
  */
 describe("the memory backend", () => {
   const open = (ttl = 300, max = 10_000, sweepInterval = 60) =>
-    memoryCache({
+    new MemoryCacheAdapter({
       ...testConfig,
       LINQ_CACHE_TTL: ttl,
       LINQ_CACHE_MAX_ENTRIES: max,
