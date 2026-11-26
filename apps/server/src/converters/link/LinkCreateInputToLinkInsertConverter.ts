@@ -13,6 +13,7 @@ export class LinkCreateInputToLinkInsertConverter {
     return {
       slug,
       domain_id: input.domain_id,
+      type: "redirect",
       destination: input.destination,
       // A link should always have a useful label even when metadata fetching is
       // disabled (the secure default) or the page has no title. A caller-supplied
@@ -20,7 +21,7 @@ export class LinkCreateInputToLinkInsertConverter {
       name: input.name ?? fetched.name ?? LinkUtil.destinationTitle(input.destination),
       description: input.description ?? fetched.description ?? null,
       icon_url: fetched.icon_url,
-      forward_query: input.forward_query,
+      forward_query_params: input.forward_query_params,
       preset_params: input.preset_params,
       expires_at: input.expires_at ? new Date(input.expires_at) : null,
       listed: input.listed,

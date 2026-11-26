@@ -2,6 +2,7 @@
 export * from "./AnalyticsConstant.ts"
 export * from "./ErrorConstant.ts"
 export * from "./LinkMetadataConstant.ts"
+export * from "./LinkTreeConstant.ts"
 export * from "./PermissionConstant.ts"
 export * from "./PlatformConstant.ts"
 export * from "./QrCodeConstant.ts"

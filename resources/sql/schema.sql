@@ -32,6 +32,16 @@ CREATE TYPE public.bot_classification_reason AS ENUM (
 
 
 --
+-- Name: link_type; Type: TYPE; Schema: public; Owner: -
+--
+
+CREATE TYPE public.link_type AS ENUM (
+    'redirect',
+    'tree'
+);
+
+
+--
 -- Name: platform; Type: TYPE; Schema: public; Owner: -
 --
 
@@ -202,6 +212,35 @@ CREATE TABLE public.link_tags (
 
 
 --
+-- Name: link_tree_items; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.link_tree_items (
+    id uuid NOT NULL,
+    tree_id uuid NOT NULL,
+    "position" integer NOT NULL,
+    label text NOT NULL,
+    link_id uuid NOT NULL
+);
+
+
+--
+-- Name: link_trees; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.link_trees (
+    link_id uuid NOT NULL,
+    image_url text,
+    appearance text DEFAULT 'auto'::text NOT NULL,
+    accent text DEFAULT '#171717'::text NOT NULL,
+    button_style text DEFAULT 'filled'::text NOT NULL,
+    CONSTRAINT link_trees_accent_check CHECK ((accent ~ '^#[0-9a-f]{6}$'::text)),
+    CONSTRAINT link_trees_appearance_check CHECK ((appearance = ANY (ARRAY['auto'::text, 'light'::text, 'dark'::text]))),
+    CONSTRAINT link_trees_button_style_check CHECK ((button_style = ANY (ARRAY['filled'::text, 'outline'::text, 'soft'::text])))
+);
+
+
+--
 -- Name: links; Type: TABLE; Schema: public; Owner: -
 --
 
@@ -209,17 +248,19 @@ CREATE TABLE public.links (
     id uuid NOT NULL,
     domain_id uuid NOT NULL,
     slug text NOT NULL,
-    destination text NOT NULL,
+    destination text,
     name text,
     description text,
     icon_url text,
-    forward_query boolean DEFAULT true NOT NULL,
+    forward_query_params boolean DEFAULT true NOT NULL,
     preset_params jsonb DEFAULT '{}'::jsonb NOT NULL,
     status public.resource_status DEFAULT 'active'::public.resource_status NOT NULL,
     expires_at timestamp with time zone,
     listed boolean DEFAULT false NOT NULL,
     created_at timestamp with time zone DEFAULT now() NOT NULL,
-    updated_at timestamp with time zone DEFAULT now() NOT NULL
+    updated_at timestamp with time zone DEFAULT now() NOT NULL,
+    type public.link_type DEFAULT 'redirect'::public.link_type NOT NULL,
+    CONSTRAINT links_destination_by_type CHECK (((type = 'redirect'::public.link_type) = (destination IS NOT NULL)))
 );
 
 
@@ -370,6 +411,22 @@ ALTER TABLE ONLY public.link_tags
 
 
 --
+-- Name: link_tree_items link_tree_items_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.link_tree_items
+    ADD CONSTRAINT link_tree_items_pkey PRIMARY KEY (id);
+
+
+--
+-- Name: link_trees link_trees_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.link_trees
+    ADD CONSTRAINT link_trees_pkey PRIMARY KEY (link_id);
+
+
+--
 -- Name: links links_pkey; Type: CONSTRAINT; Schema: public; Owner: -
 --
 
@@ -438,6 +495,20 @@ ALTER TABLE ONLY public.visits
 --
 
 CREATE INDEX link_tags_tag_id_idx ON public.link_tags USING btree (tag_id);
+
+
+--
+-- Name: link_tree_items_link_id_idx; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX link_tree_items_link_id_idx ON public.link_tree_items USING btree (link_id);
+
+
+--
+-- Name: link_tree_items_tree_position_key; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE UNIQUE INDEX link_tree_items_tree_position_key ON public.link_tree_items USING btree (tree_id, "position");
 
 
 --
@@ -566,6 +637,30 @@ ALTER TABLE ONLY public.link_tags
 
 ALTER TABLE ONLY public.link_tags
     ADD CONSTRAINT link_tags_tag_id_tags_id_fk FOREIGN KEY (tag_id) REFERENCES public.tags(id) ON DELETE RESTRICT;
+
+
+--
+-- Name: link_tree_items link_tree_items_link_id_links_id_fk; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.link_tree_items
+    ADD CONSTRAINT link_tree_items_link_id_links_id_fk FOREIGN KEY (link_id) REFERENCES public.links(id) ON DELETE CASCADE;
+
+
+--
+-- Name: link_tree_items link_tree_items_tree_id_links_id_fk; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.link_tree_items
+    ADD CONSTRAINT link_tree_items_tree_id_links_id_fk FOREIGN KEY (tree_id) REFERENCES public.links(id) ON DELETE CASCADE;
+
+
+--
+-- Name: link_trees link_trees_link_id_links_id_fk; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.link_trees
+    ADD CONSTRAINT link_trees_link_id_links_id_fk FOREIGN KEY (link_id) REFERENCES public.links(id) ON DELETE CASCADE;
 
 
 --

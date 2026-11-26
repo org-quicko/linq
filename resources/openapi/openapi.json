@@ -47,6 +47,10 @@
       "description": "Short links, their rules and their reports."
     },
     {
+      "name": "Link Trees",
+      "description": "One short link that serves a page listing other short links."
+    },
+    {
       "name": "Analytics",
       "description": "Visits, and the reports rolled up from them."
     },
@@ -481,6 +485,20 @@
               ],
               "default": "any"
             }
+          },
+          {
+            "name": "type",
+            "in": "query",
+            "description": "Which type of link. Defaults to redirect links, so a caller from before Link Trees sees the list it always did; `all` mixes both, as Archives does.",
+            "schema": {
+              "type": "string",
+              "enum": [
+                "redirect",
+                "tree",
+                "all"
+              ],
+              "default": "redirect"
+            }
           }
         ],
         "responses": {
@@ -584,7 +602,7 @@
         ],
         "operationId": "countLinks",
         "summary": "Count links",
-        "description": "Just the `total` a page from `GET /links` would also carry, for a caller — such as the sidebar's link/archive badges — that never needed the rows or the joins that build them. Takes only `status`; every other list filter is out of scope here.",
+        "description": "Just the `total` a page from `GET /links` would also carry, for a caller — such as the sidebar's link/archive badges — that never needed the rows or the joins that build them. Takes only `status` and `type`; every other list filter is out of scope here.",
         "parameters": [
           {
             "name": "status",
@@ -597,6 +615,20 @@
                 "all"
               ],
               "default": "active"
+            }
+          },
+          {
+            "name": "type",
+            "in": "query",
+            "description": "Which type of link. Defaults to redirect links, so a caller from before Link Trees sees the list it always did; `all` mixes both, as Archives does.",
+            "schema": {
+              "type": "string",
+              "enum": [
+                "redirect",
+                "tree",
+                "all"
+              ],
+              "default": "redirect"
             }
           }
         ],
@@ -889,6 +921,169 @@
           },
           "404": {
             "$ref": "#/components/responses/NotFound"
+          }
+        }
+      }
+    },
+    "/api/v1/link-trees": {
+      "post": {
+        "tags": [
+          "Link Trees"
+        ],
+        "operationId": "createLinkTree",
+        "summary": "Create a link tree",
+        "description": "Creates a link of type `tree` with its page and Items in one transaction. A URL item becomes a new short link on the tree's domain. List trees with `GET /links?type=tree`; archive, restore and purge them through `/links`.",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/LinkTreeCreate"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "The created link tree.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/LinkTree"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "The body does not validate, the slug is reserved, or an item's link is missing, archived, on another domain, or itself a tree.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "description": "The domain does not exist.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "The slug is taken, the domain is archived, or no free slug could be allocated.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/link-trees/{id}": {
+      "parameters": [
+        {
+          "$ref": "#/components/parameters/Id"
+        }
+      ],
+      "get": {
+        "tags": [
+          "Link Trees"
+        ],
+        "operationId": "getLinkTree",
+        "summary": "Read a link tree",
+        "responses": {
+          "200": {
+            "description": "The link tree with its items.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/LinkTree"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "404": {
+            "description": "No link tree has this id.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      },
+      "patch": {
+        "tags": [
+          "Link Trees"
+        ],
+        "operationId": "updateLinkTree",
+        "summary": "Update a link tree",
+        "description": "`items`, when sent, replaces the whole ordered list.",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/LinkTreePatch"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "The updated link tree.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/LinkTree"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "The id or body does not validate, or an item's link is not usable.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "description": "No link tree has this id.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
           }
         }
       }
@@ -1708,9 +1903,19 @@
         ],
         "operationId": "followLink",
         "summary": "Follow a short link",
-        "description": "The product. Matched last, so every path linq answers itself — `/api`,\n`/home`, `/health`, `/robots.txt`, `/favicon.ico` — wins first and can\nnever be claimed as a slug.\n\nResolution: the `Host` header selects the domain, the slug selects the\nlink, then the first rule whose conditions all hold supplies the\ndestination, falling back to the link's own. With `forward_query` on,\nthe incoming query is merged over the destination's, incoming winning.\n\nAn unknown host, or an archived one, is an **untracked** 404 — except\nthe root path (empty slug) on a host that was never registered as a\ndomain at all, which redirects to the Client UI (`/home/`) instead, since\nno domain's own redirect could ever have claimed it. An archived domain's\nroot path stays a 404 like everything else on it. A live domain with no\nmatching active link is an **orphan visit**: recorded, then sent to the\nmatching redirect field (root path, malformed slug, or plain unknown\nslug each have their own, all falling back to `fallback_url`), or 404 if\nnone is set.\n\n`GET` is recorded; `HEAD` is answered identically and never recorded.\n",
+        "description": "The product. Matched last, so every path linq answers itself — `/api`,\n`/home`, `/health`, `/robots.txt`, `/favicon.ico` — wins first and can\nnever be claimed as a slug.\n\nResolution: the `Host` header selects the domain, the slug selects the\nlink, then the first rule whose conditions all hold supplies the\ndestination, falling back to the link's own. With `forward_query_params` on,\nthe incoming query is merged over the destination's, incoming winning.\n\nAn unknown host, or an archived one, is an **untracked** 404 — except\nthe root path (empty slug) on a host that was never registered as a\ndomain at all, which redirects to the Client UI (`/home/`) instead, since\nno domain's own redirect could ever have claimed it. An archived domain's\nroot path stays a 404 like everything else on it. A live domain with no\nmatching active link is an **orphan visit**: recorded, then sent to the\nmatching redirect field (root path, malformed slug, or plain unknown\nslug each have their own, all falling back to `fallback_url`), or 404 if\nnone is set.\n\n`GET` is recorded; `HEAD` is answered identically and never recorded.\n",
         "security": [],
         "responses": {
+          "200": {
+            "description": "A link tree: its page, as one self-contained HTML document with no script. The view is recorded as a visit on the tree; a HEAD is answered the same and not recorded.",
+            "content": {
+              "text/html": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
           "302": {
             "description": "Always 302, never cached: the destination can change under a live\nslug at any time.\n",
             "headers": {
@@ -2386,12 +2591,13 @@
           "domain_host",
           "slug",
           "short_url",
+          "type",
           "destination",
           "name",
           "description",
           "icon_url",
           "tags",
-          "forward_query",
+          "forward_query_params",
           "preset_params",
           "status",
           "human_visits",
@@ -2399,6 +2605,7 @@
           "expires_at",
           "listed",
           "rule_count",
+          "item_count",
           "created_at",
           "updated_at"
         ],
@@ -2423,8 +2630,19 @@
             "format": "uri",
             "description": "The full URL, assembled from the domain host and the slug."
           },
+          "type": {
+            "$ref": "#/components/schemas/LinkType"
+          },
           "destination": {
-            "$ref": "#/components/schemas/Url"
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/Url"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Null exactly when `type` is `tree`."
           },
           "name": {
             "type": [
@@ -2456,7 +2674,7 @@
               "maxLength": 50
             }
           },
-          "forward_query": {
+          "forward_query_params": {
             "type": "boolean",
             "description": "Merge the incoming query string over the destination's own. Also gates preset_params: off, neither the incoming query nor the preset params touch the destination."
           },
@@ -2465,6 +2683,11 @@
             "minimum": 0,
             "description": "How many rules (alternate destinations) this link carries."
           },
+          "item_count": {
+            "type": "integer",
+            "minimum": 0,
+            "description": "How many Items a Link Tree lists; always 0 for a redirect link."
+          },
           "preset_params": {
             "type": "object",
             "maxProperties": 20,
@@ -2472,7 +2695,7 @@
               "type": "string",
               "maxLength": 512
             },
-            "description": "Set on the destination at redirect time, overriding both the destination's own query and anything forwarded. Applied only when forward_query is true."
+            "description": "Set on the destination at redirect time, overriding both the destination's own query and anything forwarded. Applied only when forward_query_params is true."
           },
           "status": {
             "$ref": "#/components/schemas/ResourceStatus"
@@ -2544,7 +2767,7 @@
               "maxLength": 50
             }
           },
-          "forward_query": {
+          "forward_query_params": {
             "type": "boolean",
             "default": true
           },
@@ -2556,7 +2779,7 @@
               "type": "string",
               "maxLength": 512
             },
-            "description": "Set on the destination at redirect time, overriding both the destination's own query and anything forwarded. Applied only when forward_query is true."
+            "description": "Set on the destination at redirect time, overriding both the destination's own query and anything forwarded. Applied only when forward_query_params is true."
           },
           "expires_at": {
             "type": [
@@ -2614,7 +2837,7 @@
               "maxLength": 50
             }
           },
-          "forward_query": {
+          "forward_query_params": {
             "type": "boolean"
           },
           "preset_params": {
@@ -2624,7 +2847,7 @@
               "type": "string",
               "maxLength": 512
             },
-            "description": "Set on the destination at redirect time, overriding both the destination's own query and anything forwarded. Applied only when forward_query is true. Send {} to clear."
+            "description": "Set on the destination at redirect time, overriding both the destination's own query and anything forwarded. Applied only when forward_query_params is true. Send {} to clear."
           },
           "status": {
             "$ref": "#/components/schemas/ResourceStatus"
@@ -2648,6 +2871,329 @@
             "items": {
               "$ref": "#/components/schemas/RuleInput"
             }
+          }
+        }
+      },
+      "LinkType": {
+        "type": "string",
+        "enum": [
+          "redirect",
+          "tree"
+        ],
+        "description": "`redirect` sends visitors to a destination; `tree` serves a Link Tree page."
+      },
+      "LinkTreeItemInput": {
+        "description": "Either an existing redirect link on the tree's domain, or a URL that becomes a new short link there. Omitting `label` uses the target link's name; a URL item's label also names its new link.",
+        "oneOf": [
+          {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "link_id"
+            ],
+            "properties": {
+              "label": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 100
+              },
+              "link_id": {
+                "type": "string",
+                "format": "uuid"
+              }
+            }
+          },
+          {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "url"
+            ],
+            "properties": {
+              "label": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 100
+              },
+              "url": {
+                "$ref": "#/components/schemas/Url"
+              }
+            }
+          }
+        ]
+      },
+      "LinkTree": {
+        "description": "A link of type `tree`, with its page. Title and description are the link's own `name` and `description`.",
+        "allOf": [
+          {
+            "$ref": "#/components/schemas/Link"
+          },
+          {
+            "type": "object",
+            "required": [
+              "tree"
+            ],
+            "properties": {
+              "tree": {
+                "type": "object",
+                "required": [
+                  "image_url",
+                  "appearance",
+                  "accent",
+                  "button_style",
+                  "items"
+                ],
+                "properties": {
+                  "image_url": {
+                    "oneOf": [
+                      {
+                        "$ref": "#/components/schemas/Url"
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ],
+                    "description": "Shown as a round avatar; null shows the title's initial."
+                  },
+                  "appearance": {
+                    "type": "string",
+                    "enum": [
+                      "auto",
+                      "light",
+                      "dark"
+                    ],
+                    "description": "`auto` follows the visitor's system."
+                  },
+                  "accent": {
+                    "$ref": "#/components/schemas/HexColor",
+                    "description": "Stored lowercase."
+                  },
+                  "button_style": {
+                    "type": "string",
+                    "enum": [
+                      "filled",
+                      "outline",
+                      "soft"
+                    ]
+                  },
+                  "items": {
+                    "type": "array",
+                    "maxItems": 50,
+                    "items": {
+                      "type": "object",
+                      "required": [
+                        "id",
+                        "label",
+                        "link"
+                      ],
+                      "properties": {
+                        "id": {
+                          "type": "string",
+                          "format": "uuid"
+                        },
+                        "label": {
+                          "type": "string"
+                        },
+                        "link": {
+                          "type": "object",
+                          "required": [
+                            "id",
+                            "slug",
+                            "short_url",
+                            "name",
+                            "destination",
+                            "status",
+                            "expires_at"
+                          ],
+                          "properties": {
+                            "id": {
+                              "type": "string",
+                              "format": "uuid"
+                            },
+                            "slug": {
+                              "type": "string"
+                            },
+                            "short_url": {
+                              "type": "string",
+                              "format": "uri"
+                            },
+                            "name": {
+                              "type": [
+                                "string",
+                                "null"
+                              ]
+                            },
+                            "destination": {
+                              "type": [
+                                "string",
+                                "null"
+                              ]
+                            },
+                            "status": {
+                              "$ref": "#/components/schemas/ResourceStatus"
+                            },
+                            "expires_at": {
+                              "type": [
+                                "string",
+                                "null"
+                              ],
+                              "format": "date-time"
+                            }
+                          }
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        ]
+      },
+      "LinkTreeCreate": {
+        "type": "object",
+        "required": [
+          "domain_id",
+          "name"
+        ],
+        "properties": {
+          "domain_id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "slug": {
+            "type": "string",
+            "pattern": "^[A-Za-z0-9_-]{1,64}$",
+            "description": "Omit for a generated slug."
+          },
+          "name": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 200,
+            "description": "The page title."
+          },
+          "description": {
+            "type": "string",
+            "maxLength": 500
+          },
+          "image_url": {
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/Url"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Shown as a round avatar; null shows the title's initial."
+          },
+          "appearance": {
+            "type": "string",
+            "enum": [
+              "auto",
+              "light",
+              "dark"
+            ],
+            "description": "`auto` follows the visitor's system.",
+            "default": "auto"
+          },
+          "accent": {
+            "$ref": "#/components/schemas/HexColor",
+            "description": "Stored lowercase.",
+            "default": "#171717"
+          },
+          "button_style": {
+            "type": "string",
+            "enum": [
+              "filled",
+              "outline",
+              "soft"
+            ],
+            "default": "filled"
+          },
+          "tags": {
+            "type": "array",
+            "maxItems": 20,
+            "items": {
+              "type": "string",
+              "maxLength": 50
+            }
+          },
+          "items": {
+            "type": "array",
+            "maxItems": 50,
+            "items": {
+              "$ref": "#/components/schemas/LinkTreeItemInput"
+            },
+            "description": "The whole ordered list; the server owns position."
+          }
+        }
+      },
+      "LinkTreePatch": {
+        "type": "object",
+        "additionalProperties": false,
+        "description": "`slug` and `domain_id` are immutable. Archive and restore through `PATCH /links/{id}`.",
+        "properties": {
+          "name": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 200,
+            "description": "The page title."
+          },
+          "description": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "maxLength": 500
+          },
+          "image_url": {
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/Url"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Shown as a round avatar; null shows the title's initial."
+          },
+          "appearance": {
+            "type": "string",
+            "enum": [
+              "auto",
+              "light",
+              "dark"
+            ],
+            "description": "`auto` follows the visitor's system."
+          },
+          "accent": {
+            "$ref": "#/components/schemas/HexColor",
+            "description": "Stored lowercase."
+          },
+          "button_style": {
+            "type": "string",
+            "enum": [
+              "filled",
+              "outline",
+              "soft"
+            ]
+          },
+          "tags": {
+            "type": "array",
+            "maxItems": 20,
+            "items": {
+              "type": "string",
+              "maxLength": 50
+            }
+          },
+          "items": {
+            "type": "array",
+            "maxItems": 50,
+            "items": {
+              "$ref": "#/components/schemas/LinkTreeItemInput"
+            },
+            "description": "The whole ordered list; the server owns position."
           }
         }
       },

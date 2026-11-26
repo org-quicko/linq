@@ -1,4 +1,4 @@
-import { SLUG_PATTERN } from "@linq/shared"
+import { LinkTreeUtil, type ResolvedLinkTree, SLUG_PATTERN } from "@linq/shared"
 import type { Context } from "hono"
 import type { Config } from "../config.ts"
 import { URLSearchParamsToQueryParamsConverter } from "../converters/index.ts"
@@ -116,6 +116,14 @@ export class RedirectController {
         : RedirectController.sendRedirect(c, destination)
     }
 
+    // 3b. A Link Tree answers with its page, crawlers included: the page carries
+    //     its own Open Graph tags. The view is a Visit on the tree, with no
+    //     Destination; clicks on its Items are Visits on their own Links.
+    if (link.type === "tree" && link.tree) {
+      if (tracked) this.visitService.record({ ...visit, link_id: link.link_id, destination: null })
+      return RedirectController.linkTreePage(c, host, slug, link.tree)
+    }
+
     // 4-5. The first rule whose conditions all hold supplies the destination.
     //      No match falls back to the link default.
     const ruled = RuleMatchUtil.matchRules(link.rules, {
@@ -123,19 +131,22 @@ export class RedirectController {
       query: url.searchParams,
     })
     const chosen = ruled ?? link.destination
+    // Unreachable for a well-formed row (the database ties a Destination to every
+    // redirect Link); a 404 is the honest answer if it ever is reached.
+    if (!chosen) return c.text("Not Found", 404)
     Logger.forRequest().debug(
       { link_id: link.link_id, matchedRule: ruled !== null },
       "rules matched",
     )
 
-    // 6. `forward_query` is the link's switch for touching the outgoing query at
+    // 6. `forward_query_params` is the link's switch for touching the outgoing query at
     //    all: off passes the destination through exactly as written, presets
     //    included. On, the incoming query merges in first and the link's own
     //    preset params then overwrite whatever is there. This only ever affects
     //    where the browser is sent, never what gets recorded: the visit's own
     //    `query` field already carries whatever the caller sent.
     let sendTo = chosen
-    if (link.forward_query) {
+    if (link.forward_query_params) {
       sendTo = UrlUtil.mergeQueryParams(chosen, url.searchParams)
       if (Object.keys(link.preset_params).length)
         sendTo = UrlUtil.mergeQueryParams(sendTo, new URLSearchParams(link.preset_params))
@@ -160,6 +171,35 @@ export class RedirectController {
   private static sendRedirect(c: Context, destination: string) {
     c.header("cache-control", "no-store")
     return c.redirect(destination, 302)
+  }
+
+  /**
+   * A Link Tree's public page. Items whose Link expired after the page was
+   * cached are dropped here, since no mutation arrives to clear the entry. The
+   * page is script-free, so the CSP allows nothing but inline style and images.
+   *
+   * @param c - Hono request context.
+   * @param host - The requested host.
+   * @param slug - The requested slug.
+   * @param tree - The cached page.
+   * @returns The HTML page.
+   */
+  private static linkTreePage(c: Context, host: string, slug: string, tree: ResolvedLinkTree) {
+    const now = Date.now()
+    const items = tree.items
+      .filter((item) => item.expires_at === null || item.expires_at > now)
+      .map(({ label, url }) => ({ label, url }))
+    c.header("cache-control", "no-store")
+    c.header(
+      "content-security-policy",
+      "default-src 'none'; img-src http: https: data:; style-src 'unsafe-inline'; base-uri 'none'; form-action 'none'; frame-ancestors 'none'",
+    )
+    return c.html(
+      LinkTreeUtil.renderPage(
+        { ...tree, items },
+        { url: UrlUtil.shortUrl(host, slug), animate: true },
+      ),
+    )
   }
 
   /**

@@ -165,6 +165,8 @@ export function AnalyticsOverview() {
           <LinkFilter
             value={link_id}
             name={linked.data?.name ?? linked.data?.slug ?? ""}
+            valueType={linked.data?.type}
+            placeholder="Search links and trees"
             onSelect={(id) => setLinkId(id)}
             onClear={() => setLinkId("")}
           />

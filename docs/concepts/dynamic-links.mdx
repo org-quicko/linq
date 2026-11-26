@@ -198,7 +198,7 @@ This rule only matches a visitor who is **both** on iOS **and** has `utm_medium=
     Route visitors from different campaigns to different landing pages based on UTM parameters, without maintaining separate short URLs per campaign.
   </Card>
   <Card title="A/B testing" icon="flask">
-    Use a query parameter flag to split traffic between two destinations. Combine with `forward_query: true` so downstream analytics tools see the full query string.
+    Use a query parameter flag to split traffic between two destinations. Combine with `forward_query_params: true` so downstream analytics tools see the full query string.
   </Card>
   <Card title="Gated content" icon="lock">
     Gate a destination behind a query parameter check — for example, a token set by your email platform — without adding server-side redirect logic.

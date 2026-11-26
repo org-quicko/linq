@@ -44,17 +44,32 @@ export interface DB {
     id: Generated<string>
     domain_id: string
     slug: string
-    destination: string
+    type: Generated<"redirect" | "tree">
+    destination: string | null
     name: string | null
     description: string | null
     icon_url: string | null
-    forward_query: Generated<boolean>
+    forward_query_params: Generated<boolean>
     preset_params: ColumnType<any, any, any>
     status: Generated<"active" | "archived">
     expires_at: NullableTimestamp
     listed: Generated<boolean>
     created_at: Timestamp
     updated_at: Timestamp
+  }
+  link_trees: {
+    link_id: string
+    image_url: string | null
+    appearance: Generated<"auto" | "light" | "dark">
+    accent: Generated<string>
+    button_style: Generated<"filled" | "outline" | "soft">
+  }
+  link_tree_items: {
+    id: string
+    tree_id: string
+    position: number
+    label: string
+    link_id: string
   }
   rules: {
     id: Generated<string>
@@ -89,7 +104,12 @@ export interface DB {
     slug_requested: string
     visited_at: Generated<Date>
     is_bot: boolean
-    bot_classification_reason: "missing_user_agent" | "isbot_match" | "pattern_match" | "unknown" | null
+    bot_classification_reason:
+      | "missing_user_agent"
+      | "isbot_match"
+      | "pattern_match"
+      | "unknown"
+      | null
     platform: "android" | "ios" | "desktop"
     os: string | null
     browser: string | null
@@ -115,7 +135,20 @@ export interface DB {
     day: Date
     domain_id: string
     link_id: string | null
-    dimension: "total" | "platform" | "os" | "browser" | "referer" | "destination" | "slug" | "utm_source" | "utm_medium" | "utm_campaign" | "utm_content" | "utm_term" | "device_type"
+    dimension:
+      | "total"
+      | "platform"
+      | "os"
+      | "browser"
+      | "referer"
+      | "destination"
+      | "slug"
+      | "utm_source"
+      | "utm_medium"
+      | "utm_campaign"
+      | "utm_content"
+      | "utm_term"
+      | "device_type"
     value: string
     is_bot: boolean
     count: Generated<number>

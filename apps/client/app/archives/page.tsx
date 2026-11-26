@@ -1,7 +1,7 @@
 "use client"
 
 import { type Link, PermissionUtil } from "@linq/shared"
-import { Archive, Link2, RotateCcw, Trash2 } from "lucide-react"
+import { Archive, Link2, ListTree, RotateCcw, Trash2 } from "lucide-react"
 import { AppShell } from "@/components/app-shell"
 import { ConfirmButton, When } from "@/components/common"
 import {
@@ -45,7 +45,7 @@ function Archives() {
 }
 
 function ArchivedLinksTab() {
-  const links = useListLinksQuery({ status: "archived", limit: 200 })
+  const links = useListLinksQuery({ status: "archived", type: "all", limit: 200 })
   const rows = links.data?.data ?? []
   const [updateLink] = useUpdateLinkMutation()
   const [purgeLink] = usePurgeLinkMutation()
@@ -106,7 +106,11 @@ function ArchivedLinksTab() {
             key={link.id}
             tile={
               <RowCardTile>
-                <Link2 className="size-4" />
+                {link.type === "tree" ? (
+                  <ListTree className="size-4" />
+                ) : (
+                  <Link2 className="size-4" />
+                )}
               </RowCardTile>
             }
             actions={
@@ -128,7 +132,8 @@ function ArchivedLinksTab() {
           >
             <ShortLink link={link} />
             <span className="truncate text-xs text-muted-foreground">
-              {link.destination} · Archived <When iso={link.updated_at} relative />
+              {link.type === "tree" ? "Link Tree" : link.destination} · Archived{" "}
+              <When iso={link.updated_at} relative />
             </span>
           </RowCard>
         )}

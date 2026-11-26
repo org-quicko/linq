@@ -14,7 +14,7 @@ export class CacheKeyUtil {
    * @returns The cache key.
    */
   static domainKey(host: string): string {
-    return `linq:domain:${host.trim().toLowerCase()}`
+    return `domain:${host.trim().toLowerCase()}`
   }
 
   /**
@@ -25,7 +25,7 @@ export class CacheKeyUtil {
    * @returns The cache key.
    */
   static targetKey(domainId: string, slug: string): string {
-    return `linq:target:${domainId}:${slug}`
+    return `target:${domainId}:${slug}`
   }
 
   /**
@@ -36,7 +36,7 @@ export class CacheKeyUtil {
    * @returns The cache key.
    */
   static llmsKey(domainId: string): string {
-    return `linq:llms:${domainId}`
+    return `llms:${domainId}`
   }
 
   /**

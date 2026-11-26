@@ -43,14 +43,14 @@ export class LinkController {
    * GET /links/count
    * Counts links, for the client's sidebar badges.
    *
-   * @param c - Hono request context; accepts an optional `status` query param.
+   * @param c - Hono request context; accepts optional `status` and `type` query params.
    * @returns JSON `{ total }`.
    * @throws {HttpError} 400 if the query does not validate.
    */
   @Log("linkController.count")
   count = async (c: Context) => {
-    const { status } = await RequestUtil.parse(c, "query", linkCountQuerySchema)
-    return c.json({ total: await this.linkService.count(status) })
+    const { status, type } = await RequestUtil.parse(c, "query", linkCountQuerySchema)
+    return c.json({ total: await this.linkService.count(status, type) })
   }
 
   /**

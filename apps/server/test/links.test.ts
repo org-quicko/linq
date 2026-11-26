@@ -37,7 +37,7 @@ describe("POST /api/v1/links", () => {
     expect(link.short_url).toBe(`https://links.test/${link.slug}`)
     expect(link).toMatchObject({
       status: "active",
-      forward_query: true,
+      forward_query_params: true,
       preset_params: {},
       human_visits: 0,
       bot_visits: 0,

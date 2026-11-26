@@ -81,7 +81,7 @@ export function LinkFormDialog({
   const [nameTouched, setNameTouched] = useState(mode === "edit")
   const [description, setDescription] = useState(link?.description ?? "")
   const [tags, setTags] = useState<string[]>(link?.tags ?? [])
-  const [forward_query, setForwardQuery] = useState(link?.forward_query ?? true)
+  const [forward_query_params, setForwardQuery] = useState(link?.forward_query_params ?? true)
   const [listed, setListed] = useState(link?.listed ?? false)
   const [preset_params, setPresetParams] = useState<PresetParamRow[]>(() =>
     link ? presetParamsToRows(link.preset_params) : [],
@@ -116,7 +116,7 @@ export function LinkFormDialog({
     const shared = {
       destination: withScheme(destination),
       tags,
-      forward_query,
+      forward_query_params,
       preset_params: rowsToPresetParams(preset_params),
       expires_at: expiryOpen ? fromDatetimeLocal(expires_at) : null,
       listed,
@@ -236,7 +236,7 @@ export function LinkFormDialog({
           <div className="flex items-center gap-1.5">
             <Label className="font-normal">
               <Checkbox
-                checked={forward_query}
+                checked={forward_query_params}
                 onCheckedChange={(checked) => setForwardQuery(checked === true)}
               />
               Forward query params on redirect
@@ -257,7 +257,7 @@ export function LinkFormDialog({
               rows={preset_params}
               onChange={setPresetParams}
               readOnly={false}
-              forward_query={forward_query}
+              forward_query_params={forward_query_params}
             />
           </ToggleSection>
 
@@ -308,7 +308,7 @@ export function LinkFormDialog({
 /** The mockup's small "i" glyph next to a checkbox whose label alone doesn't
  *  carry the full explanation — hover for the detail, instead of running the
  *  whole sentence into the checkbox's own label. */
-function InfoTip({ children }: { children: ReactNode }) {
+export function InfoTip({ children }: { children: ReactNode }) {
   return (
     <Tooltip>
       <TooltipTrigger asChild>
@@ -324,7 +324,7 @@ function InfoTip({ children }: { children: ReactNode }) {
 /** A labelled switch that reveals its content only once turned on — the
  *  mockup's pattern for Query Parameters and Expiry date, both of which are
  *  the exception rather than the rule for most links. */
-function ToggleSection({
+export function ToggleSection({
   icon,
   label,
   open,
@@ -379,7 +379,7 @@ function ToggleSection({
  * dropdown/input pairs. The domain is only pickable in `mode: "create"`; an
  * existing link's domain is locked the same way its slug already is.
  */
-function ShortLinkField({
+export function ShortLinkField({
   mode,
   domain_host,
   domain_id,

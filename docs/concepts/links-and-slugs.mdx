@@ -97,12 +97,12 @@ The full shape of a link returned by the API:
   Up to 20 free-form tags (each up to 50 chars). Used for filtering in `GET /api/v1/links`.
 </ResponseField>
 
-<ResponseField name="forward_query" type="boolean">
+<ResponseField name="forward_query_params" type="boolean">
   When `true`, the caller's incoming query string is merged into the destination URL at redirect time. Defaults to `true`. Also gates `preset_params`.
 </ResponseField>
 
 <ResponseField name="preset_params" type="object">
-  Key–value pairs (up to 20, keys ≤ 64 chars, values ≤ 512 chars) applied to the destination at redirect time. When `forward_query` is `true`, preset params overwrite any colliding key from either the destination's own query or the forwarded query. See [Query Forwarding and Preset Params](#query-forwarding-and-preset-params) below.
+  Key–value pairs (up to 20, keys ≤ 64 chars, values ≤ 512 chars) applied to the destination at redirect time. When `forward_query_params` is `true`, preset params overwrite any colliding key from either the destination's own query or the forwarded query. See [Query Forwarding and Preset Params](#query-forwarding-and-preset-params) below.
 </ResponseField>
 
 <ResponseField name="status" type='"active" | "archived"'>
@@ -131,7 +131,7 @@ The full shape of a link returned by the API:
 
 ## Query Forwarding and Preset Params
 
-When `forward_query` is `true` (the default), linq merges the visitor's own query string into the destination URL before redirecting. Preset params are then applied on top, winning any collision:
+When `forward_query_params` is `true` (the default), linq merges the visitor's own query string into the destination URL before redirecting. Preset params are then applied on top, winning any collision:
 
 ```
 Incoming request:  https://go.example.com/abc123?utm_medium=email&color=blue
@@ -144,7 +144,7 @@ Final URL:         https://app.example.com/landing?color=green&utm_medium=email&
 In this example `color=red` (destination's own query) is overridden by `color=blue` (forwarded), which is then overridden by `color=green` (preset param). Preset params always win on collision.
 
 <Info>
-  Setting `forward_query: false` disables both query forwarding **and** preset params in one step, since preset params are only applied when the link forwards its query.
+  Setting `forward_query_params: false` disables both query forwarding **and** preset params in one step, since preset params are only applied when the link forwards its query.
 </Info>
 
 ## Link Lifecycle

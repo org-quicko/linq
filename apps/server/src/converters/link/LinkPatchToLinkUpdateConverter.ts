@@ -31,7 +31,9 @@ export class LinkPatchToLinkUpdateConverter {
           ? { description: fetched.description ?? existing.description }
           : {}),
       ...(fetched ? { icon_url: fetched.icon_url ?? existing.icon_url } : {}),
-      ...(patch.forward_query !== undefined ? { forward_query: patch.forward_query } : {}),
+      ...(patch.forward_query_params !== undefined
+        ? { forward_query_params: patch.forward_query_params }
+        : {}),
       ...(patch.preset_params !== undefined ? { preset_params: patch.preset_params } : {}),
       ...(patch.status !== undefined ? { status: patch.status } : {}),
       ...(patch.expires_at !== undefined

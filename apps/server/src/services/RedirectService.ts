@@ -3,10 +3,12 @@ import { CacheAdapter } from "../adapters/index.ts"
 import {
   DomainRowToResolvedDomainConverter,
   LinkRowToResolvedTargetConverter,
+  LinkTreeRowsToResolvedLinkTreeConverter,
 } from "../converters/index.ts"
 import type { Db } from "../db/index.ts"
 import { Log } from "../libs/index.ts"
 import { CacheKeyUtil, UrlUtil } from "../utils/index.ts"
+import { LinkTreeService } from "./LinkTreeService.ts"
 import { RuleService } from "./RuleService.ts"
 
 /**
@@ -17,6 +19,7 @@ import { RuleService } from "./RuleService.ts"
 export class RedirectService {
   private readonly domainRowToResolvedDomainConverter: DomainRowToResolvedDomainConverter
   private readonly linkRowToResolvedTargetConverter: LinkRowToResolvedTargetConverter
+  private readonly linkTreeRowsToResolvedLinkTreeConverter: LinkTreeRowsToResolvedLinkTreeConverter
 
   /**
    * @param db - The database.
@@ -28,6 +31,7 @@ export class RedirectService {
   ) {
     this.domainRowToResolvedDomainConverter = new DomainRowToResolvedDomainConverter()
     this.linkRowToResolvedTargetConverter = new LinkRowToResolvedTargetConverter()
+    this.linkTreeRowsToResolvedLinkTreeConverter = new LinkTreeRowsToResolvedLinkTreeConverter()
   }
 
   /**
@@ -111,6 +115,16 @@ export class RedirectService {
       .limit(1)
       .executeTakeFirst()
     if (!row) return null
+    // A Link Tree's whole page rides inside its entry, for the same reason
+    // rules do below: a cached hit must answer without another query.
+    if (row.type === "tree") {
+      const { tree, items } = await LinkTreeService.pageRows(this.db, row.id)
+      return this.linkRowToResolvedTargetConverter.convertFrom(
+        row,
+        [],
+        this.linkTreeRowsToResolvedLinkTreeConverter.convertFrom(row, tree, items),
+      )
+    }
     // Rules ride inside the same entry: every hit that resolves reads them, so
     // caching the link without them would leave a query behind on the hot path.
     return this.linkRowToResolvedTargetConverter.convertFrom(

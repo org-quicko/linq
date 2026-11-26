@@ -37,16 +37,16 @@ export function PresetParamsEditor({
   rows,
   onChange,
   readOnly,
-  forward_query,
+  forward_query_params,
 }: {
   rows: PresetParamRow[]
   onChange: (rows: PresetParamRow[]) => void
   readOnly: boolean
   /**
-   * The unsaved `forward_query` draft, not the persisted value, so the hint
+   * The unsaved `forward_query_params` draft, not the persisted value, so the hint
    * tracks the checkbox whichever of the two fields is set first.
    */
-  forward_query: boolean
+  forward_query_params: boolean
 }) {
   function edit(index: number, next: Partial<PresetParamRow>) {
     onChange(rows.map((row, i) => (i === index ? { ...row, ...next } : row)))
@@ -54,7 +54,7 @@ export function PresetParamsEditor({
 
   return (
     <div className="flex flex-col gap-2">
-      {!forward_query ? (
+      {!forward_query_params ? (
         <p className="text-sm text-muted-foreground">
           Not applied while this link does not forward the query.
         </p>

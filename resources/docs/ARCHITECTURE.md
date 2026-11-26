@@ -160,7 +160,7 @@ resolve link (slug, rules bundled in)  ──unknown / archived / expired──�
 rule matching (RuleService.ts, first hold wins)  ──►  destination  ◄────────────┘
   │
   ▼
-forward_query?  ──yes──►  merge caller's query, link's preset params win on collision
+forward_query_params?  ──yes──►  merge caller's query, link's preset params win on collision
   │
   ▼
 crawler user agent?  ──yes──►  OG preview HTML (link's own title, never fetched from the destination)

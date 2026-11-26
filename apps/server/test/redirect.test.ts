@@ -393,11 +393,11 @@ describe("query forwarding", () => {
     expect(location.searchParams.getAll("tag")).toEqual(["new", "newer"])
   })
 
-  test("forward_query false leaves the destination alone but still logs the query", async () => {
+  test("forward_query_params false leaves the destination alone but still logs the query", async () => {
     await h.createLink(editor.key, domain, {
       slug: "sealed",
       destination: "https://example.com/?a=1",
-      forward_query: false,
+      forward_query_params: false,
     })
 
     const res = await get("/sealed?b=2")
@@ -442,12 +442,12 @@ describe("preset params", () => {
     expect(location.searchParams.get("keep")).toBe("dest")
   })
 
-  test("forward_query false leaves the destination untouched even with presets set", async () => {
+  test("forward_query_params false leaves the destination untouched even with presets set", async () => {
     await h.createLink(editor.key, domain, {
       slug: "preset-sealed",
       destination: "https://example.com/?a=dest&keep=dest",
       preset_params: { a: "preset", utm_source: "qr" },
-      forward_query: false,
+      forward_query_params: false,
     })
 
     const res = await get("/preset-sealed?a=caller&c=caller")

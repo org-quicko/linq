@@ -13,7 +13,7 @@ export class LinkRowToLlmsEntryConverter {
     return {
       name: row.name ?? row.slug,
       url: UrlUtil.shortUrl(host, row.slug),
-      destination: row.destination,
+      destination: row.destination ?? "",
     }
   }
 }

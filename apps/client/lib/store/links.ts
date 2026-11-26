@@ -1,8 +1,18 @@
-import type { Link, LinkCount, LinkCreate, LinkPatch, LinkPurgeResult, Page, Rule } from "@linq/shared"
+import type {
+  Link,
+  LinkCount,
+  LinkCreate,
+  LinkPatch,
+  LinkPurgeResult,
+  Page,
+  Rule,
+} from "@linq/shared"
 import { qs } from "../api"
 import { apiSlice } from "./api"
 
 type LinkFilters = {
+  /** The server lists redirect Links unless told otherwise. */
+  type?: "redirect" | "tree" | "all"
   domain_id?: string
   status?: "active" | "archived" | "all"
   sort?: "created_at" | "updated_at" | "visits"
@@ -16,7 +26,7 @@ type LinkFilters = {
 /** `linksFeed`'s query arg: the same filters minus the pagination fields,
  *  which the endpoint itself owns (fixed page size, `pageParam` as the
  *  offset). */
-type LinkInfiniteFilters = Pick<LinkFilters, "domain_id" | "tags" | "search" | "order">
+type LinkInfiniteFilters = Pick<LinkFilters, "domain_id" | "tags" | "search" | "order" | "type">
 
 export const linksApi = apiSlice.injectEndpoints({
   endpoints: (build) => ({
@@ -34,7 +44,10 @@ export const linksApi = apiSlice.injectEndpoints({
     /** Just the number — the sidebar's Short links/Archives badges, which
      *  never needed a row. Shares `listLinks`'s "LIST" tag, so it refetches
      *  on the same create/archive/purge mutations without a tag of its own. */
-    countLinks: build.query<LinkCount, { status?: "active" | "archived" | "all" }>({
+    countLinks: build.query<
+      LinkCount,
+      { status?: "active" | "archived" | "all"; type?: "redirect" | "tree" | "all" }
+    >({
       query: (filters) => ({ path: `/v1/links/count${qs(filters)}` }),
       providesTags: [{ type: "Link", id: "LIST" }],
     }),

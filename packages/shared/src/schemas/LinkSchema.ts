@@ -1,4 +1,5 @@
 import { z } from "zod"
+import { LINK_TYPES } from "../constants/index.ts"
 import {
   csvList,
   paginationSchema,
@@ -19,6 +20,10 @@ export const presetParamsSchema = z
   .record(z.string().trim().min(1).max(64), z.string().max(512))
   .refine((p) => Object.keys(p).length <= 20, "at most 20 preset params")
 
+/** Redirect Links by default, so a caller from before Link Trees sees the list
+ *  it always did. `all` is for views that mix both types, like Archives. */
+const linkTypeFilterSchema = z.enum([...LINK_TYPES, "all"]).default("redirect")
+
 export const linkCreateSchema = z.object({
   domain_id: uuidSchema,
   /** Omit for a generated slug. */
@@ -29,7 +34,7 @@ export const linkCreateSchema = z.object({
   /** Omit to have it filled from the destination's <head>. See resources/docs/adr/0014. */
   description: z.string().trim().max(500).optional(),
   tags: z.array(tagSchema).max(20).default([]),
-  forward_query: z.boolean().default(true),
+  forward_query_params: z.boolean().default(true),
   preset_params: presetParamsSchema.default({}),
   /** ISO-8601. Absent or null means the link never expires. */
   expires_at: z.iso.datetime().nullable().optional(),
@@ -49,7 +54,7 @@ export const linkPatchSchema = z
     name: z.string().trim().max(200).nullable(),
     description: z.string().trim().max(500).nullable(),
     tags: z.array(tagSchema).max(20),
-    forward_query: z.boolean(),
+    forward_query_params: z.boolean(),
     preset_params: presetParamsSchema,
     status: resourceStatusSchema,
     expires_at: z.iso.datetime().nullable(),
@@ -70,10 +75,12 @@ export const linkListQuerySchema = paginationSchema.extend({
   sort: z.enum(["created_at", "updated_at", "visits"]).default("created_at"),
   order: z.enum(["asc", "desc"]).default("desc"),
   expiry: z.enum(["any", "live", "expired"]).default("any"),
+  type: linkTypeFilterSchema,
 })
 
 /** Just the `status` filter `linkListQuerySchema` also takes — a count has no
  *  page to sort or paginate, so those fields don't apply here. */
 export const linkCountQuerySchema = z.object({
   status: z.enum(["active", "archived", "all"]).default("active"),
+  type: linkTypeFilterSchema,
 })

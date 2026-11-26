@@ -3,7 +3,7 @@
 import { type Actor, PermissionUtil } from "@linq/shared"
 import { skipToken } from "@reduxjs/toolkit/query/react"
 import { cn } from "cn"
-import { Archive, LineChart, Link2, Settings } from "lucide-react"
+import { Archive, LineChart, Link2, ListTree, Settings } from "lucide-react"
 import Link from "next/link"
 import { usePathname, useRouter } from "next/navigation"
 import { type ReactNode, useEffect } from "react"
@@ -39,6 +39,7 @@ type NavItem = {
 
 const NAV: NavItem[] = [
   { href: "/links/", label: "Short links", icon: Link2, visible: () => true },
+  { href: "/link-trees/", label: "Link Trees", icon: ListTree, visible: () => true },
   { href: "/analytics/", label: "Analytics", icon: LineChart, visible: () => true },
   { href: "/archives/", label: "Archives", icon: Archive, visible: PermissionUtil.can.purge },
 ]
@@ -148,11 +149,13 @@ function Chrome({ actor, me, children }: { actor?: Actor; me?: Me; children: Rea
   // anywhere in the app refetches these too — the sidebar counts stay live
   // without a bespoke invalidation of their own.
   const activeLinks = useCountLinksQuery(actor ? {} : skipToken)
+  const linkTrees = useCountLinksQuery(actor ? { type: "tree" } : skipToken)
   const archivedLinks = useCountLinksQuery(
-    actor && PermissionUtil.can.purge(actor) ? { status: "archived" } : skipToken,
+    actor && PermissionUtil.can.purge(actor) ? { status: "archived", type: "all" } : skipToken,
   )
   const counts: Partial<Record<string, number>> = {
     "/links/": activeLinks.data?.total,
+    "/link-trees/": linkTrees.data?.total,
     "/archives/": archivedLinks.data?.total,
   }
 

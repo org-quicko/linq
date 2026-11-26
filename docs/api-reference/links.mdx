@@ -118,12 +118,12 @@ Create a new short link. Omit `slug` to have one generated automatically. A cust
   Up to 20 tag strings (each up to 50 chars). Used for filtering; tags are derived from active links — there is no separate tag table.
 </ParamField>
 
-<ParamField body="forward_query" type="boolean" default="true">
+<ParamField body="forward_query_params" type="boolean" default="true">
   When `true`, the incoming query string is merged onto the destination URL. Also gates `preset_params`: when `false`, neither forwarded query nor preset params are applied.
 </ParamField>
 
 <ParamField body="preset_params" type="object" default="{}">
-  Key-value pairs (up to 20 entries; keys max 64 chars, values max 512 chars) set on the destination at redirect time. They override both the destination's own query and any forwarded query on collision. Applied only when `forward_query` is `true`.
+  Key-value pairs (up to 20 entries; keys max 64 chars, values max 512 chars) set on the destination at redirect time. They override both the destination's own query and any forwarded query on collision. Applied only when `forward_query_params` is `true`.
 </ParamField>
 
 <ParamField body="expires_at" type="string | null">
@@ -152,7 +152,7 @@ curl -X POST https://links.example.com/api/v1/links \
     "slug": "launch25",
     "name": "Product Launch 2025",
     "tags": ["launch", "marketing"],
-    "forward_query": true
+    "forward_query_params": true
   }'
 ```
 
@@ -239,7 +239,7 @@ All fields are optional. Send only the fields you want to change.
   Replaces the full tag list (up to 20 entries).
 </ParamField>
 
-<ParamField body="forward_query" type="boolean">
+<ParamField body="forward_query_params" type="boolean">
   Toggle query forwarding and preset-params application.
 </ParamField>
 
@@ -397,13 +397,13 @@ The full Link response shape returned by all link endpoints.
   Up to 20 tag strings.
 </ResponseField>
 
-<ResponseField name="forward_query" type="boolean">
+<ResponseField name="forward_query_params" type="boolean">
   Whether the incoming query string is merged onto the destination. Also gates `preset_params`.
 </ResponseField>
 
 <ResponseField name="preset_params" type="object">
   <Expandable title="preset_params">
-    Key-value map of query parameters set on the destination at redirect time. Up to 20 entries. Keys: max 64 chars. Values: max 512 chars. Applied only when `forward_query` is `true`; they override both the destination's own query and any forwarded query on collision.
+    Key-value map of query parameters set on the destination at redirect time. Up to 20 entries. Keys: max 64 chars. Values: max 512 chars. Applied only when `forward_query_params` is `true`; they override both the destination's own query and any forwarded query on collision.
   </Expandable>
 </ResponseField>
 

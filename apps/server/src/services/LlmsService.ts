@@ -91,6 +91,8 @@ export class LlmsService {
       .where("domain_id", "=", domainId)
       .where("status", "=", "active")
       .where("listed", "=", true)
+      // A Link Tree has no Destination to describe; its Items are listed on their own.
+      .where("type", "=", "redirect")
       .where((eb) => eb.or([eb("expires_at", "is", null), eb("expires_at", ">", now)]))
       .orderBy(sql`coalesce(name, slug)`)
       .orderBy("id")

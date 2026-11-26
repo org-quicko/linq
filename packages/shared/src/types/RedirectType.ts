@@ -1,3 +1,4 @@
+import type { LinkTreePage, LinkType } from "./LinkTreeType.ts"
 import type { Condition } from "./RuleType.ts"
 
 /** The part of a domain row the redirect needs. Null means no active domain. */
@@ -16,9 +17,12 @@ export type ResolvedDomain = {
  */
 export type ResolvedTarget = {
   link_id: string
+  /** Absent on an entry cached before Link Trees existed, which was a redirect. */
+  type?: LinkType
   name: string | null
-  destination: string
-  forward_query: boolean
+  /** Null for a Link Tree. */
+  destination: string | null
+  forward_query_params: boolean
   preset_params: Record<string, string>
   rules: { destination: string; conditions: Condition[] }[]
   /**
@@ -28,4 +32,15 @@ export type ResolvedTarget = {
    * the link never expires.
    */
   expires_at: number | null
+  /** The page a Link Tree serves; absent for a redirect Link. */
+  tree?: ResolvedLinkTree
+}
+
+/**
+ * A Link Tree page as the redirect caches it. Each Item keeps its target's
+ * expiry, because an Item can lapse while the entry is still cached and no
+ * mutation arrives to clear it.
+ */
+export type ResolvedLinkTree = Omit<LinkTreePage, "items"> & {
+  items: { label: string; url: string; expires_at: number | null }[]
 }

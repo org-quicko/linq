@@ -21,6 +21,7 @@ import {
   domainRoutes,
   keyRoutes,
   linkRoutes,
+  linkTreeRoutes,
   llmsRoutes,
   mountAdmin,
   qrCodeRoutes,
@@ -32,6 +33,7 @@ import {
   ApiKeyService,
   DomainService,
   LinkService,
+  LinkTreeService,
   LlmsService,
   QrCodeService,
   RedirectService,
@@ -79,6 +81,7 @@ export function createApp({
 
   const apiKeyService = new ApiKeyService(db)
   const linkService = new LinkService(db, safeCache, safeMetadata, config)
+  const linkTreeService = new LinkTreeService(db, safeCache, linkService)
   const domainService = new DomainService(db, safeCache, safeCaddy, config)
   const qrCodeService = new QrCodeService(db)
   const visitService = new VisitService(db, visitPipeline)
@@ -137,6 +140,7 @@ export function createApp({
   v1.route("/me", me)
   v1.route("/domains", domainRoutes(domainService))
   v1.route("/links", links)
+  v1.route("/link-trees", linkTreeRoutes(linkTreeService))
   v1.route("/qr-codes", qrCodeRoutes(qrCodeService, linkService))
   v1.route("/visits", visitRoutes(visitService))
   v1.route("/tags", tags)

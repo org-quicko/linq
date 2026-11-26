@@ -22,6 +22,7 @@ export class FilterUtil {
   static linkFilters(q: LinkListQuery): RawBuilder<SqlBool>[] {
     const filters: RawBuilder<SqlBool>[] = []
     if (q.status !== "all") filters.push(sql<SqlBool>`links.status = ${q.status}`)
+    if (q.type !== "all") filters.push(sql<SqlBool>`links.type = ${q.type}`)
     if (q.domain_id.length)
       filters.push(sql<SqlBool>`links.domain_id in (${sql.join(q.domain_id)})`)
     if (q.tags.length) {

@@ -1,5 +1,6 @@
 import type { z } from "zod"
 import type { linkCreateSchema, linkListQuerySchema, linkPatchSchema } from "../schemas/index.ts"
+import type { LinkType } from "./LinkTreeType.ts"
 
 /** A link as the API returns it. */
 export type Link = {
@@ -8,12 +9,15 @@ export type Link = {
   domain_host: string
   slug: string
   short_url: string
-  destination: string
+  /** `redirect` sends people to `destination`; `tree` serves a Link Tree page. */
+  type: LinkType
+  /** Null exactly when `type` is `tree`. */
+  destination: string | null
   name: string | null
   description: string | null
   icon_url: string | null
   tags: string[]
-  forward_query: boolean
+  forward_query_params: boolean
   preset_params: Record<string, string>
   status: "active" | "archived"
   human_visits: number
@@ -23,6 +27,8 @@ export type Link = {
   /** How many rules (alternate destinations) this link carries. Drives the
    *  "routes dynamically" treatment in the client's list row once it exceeds 1. */
   rule_count: number
+  /** How many Items a Link Tree lists; always 0 for a redirect Link. */
+  item_count: number
   created_at: string
   updated_at: string
 }
@@ -50,11 +56,12 @@ export type LinkRow = {
   id: string
   domain_id: string
   slug: string
-  destination: string
+  type: LinkType
+  destination: string | null
   name: string | null
   description: string | null
   icon_url: string | null
-  forward_query: boolean
+  forward_query_params: boolean
   preset_params: Record<string, string>
   status: "active" | "archived"
   expires_at: Date | null
@@ -69,6 +76,7 @@ export type LinkJoinedRow = LinkRow & {
   human_visits: number
   bot_visits: number
   rule_count: number
+  item_count: number
   tags: string[]
 }
 
