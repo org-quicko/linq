@@ -1,6 +1,6 @@
 # Architecture
 
-How linq's pieces fit together today. For terms, see `CONTEXT.md`; for why a
+How linq's pieces fit together today. For terms, see `GLOSSARY.md`; for why a
 decision was made, see `resources/docs/adr/`.
 
 ## Shape

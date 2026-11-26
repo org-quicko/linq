@@ -36,15 +36,32 @@ covers what isn't obvious from the code.
 
 ## Docs conventions
 
-- `CONTEXT.md` is glossary only: terms, no implementation detail.
+- `GLOSSARY.md` is glossary only: terms, no implementation detail. See
+  "Agent skills" below for its format.
 
 ## Where things live
 
 - `README.md` — local setup, Docker, Redis/Caddy, deploying the Client UI.
-- `CONTEXT.md` — domain vocabulary.
+- `GLOSSARY.md` — domain vocabulary.
 - `resources/docs/ARCHITECTURE.md` — how the pieces fit together today.
 - `resources/docs/repo-map.md` — where everything lives, in more detail than this list.
 - `resources/docs/adr/` — decisions that are hard to reverse, and why.
 - `.agents/skills/` — step-by-step procedures for this repo (dev environment,
   DB migrations, ADRs), for any agent.
 - `docs` - documentation for linq
+
+## Agent skills
+
+### Domain docs
+
+Single-context. The glossary is `GLOSSARY.md` at the repo root, in the
+`domain-modeling` format: a `## Language` section of **bold** terms, each one
+or two sentences defining what it *is*, other terms bolded inline, and an
+`_Avoid_:` line naming the synonyms not to use. Update it the moment a term is
+resolved; never put implementation detail in it.
+
+ADRs live in `resources/docs/adr/`, not `docs/adr/`: `docs/` is the published
+Mintlify documentation site. Number them sequentially and write one only when a
+decision is hard to reverse, surprising without context, and the result of a
+real trade-off (see `linq-adr`). Read the ADRs that touch an area before
+changing it, and call out any change that contradicts one.

@@ -188,7 +188,7 @@ Run fixture loading, builds, checks and browser verification sequentially.
 
 ## Documentation
 
-- [`CONTEXT.md`](CONTEXT.md): the domain vocabulary. Read it before the code.
+- [`GLOSSARY.md`](GLOSSARY.md): the domain vocabulary. Read it before the code.
 - [`resources/docs/ARCHITECTURE.md`](resources/docs/ARCHITECTURE.md): how the pieces fit together.
 - [`resources/docs/repo-map.md`](resources/docs/repo-map.md): where everything lives.
 - [`resources/docs/adr/`](resources/docs/adr/): architecture decision records.
